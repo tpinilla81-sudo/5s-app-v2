@@ -110,6 +110,7 @@ const PROJECT_PERMS = [
   { id: 'reset_data', name: 'Reiniciar datos', desc: 'Reiniciar progreso y datos del proyecto', icon: Lock },
   { id: 'manage_templates', name: 'Gestionar plantillas', desc: 'Crear, editar y eliminar plantillas', icon: Pencil },
   { id: 'notify_audit', name: 'Solicitar auditoría', desc: 'Puede activar el aviso de auditoría en el paso 5', icon: Bell },
+  { id: 'notify_autoeval', name: 'Solicitar autoevaluación', desc: 'Puede activar el aviso de autoevaluación en el paso 4 (al responsable)', icon: Bell },
   { id: 'accept_audit_meeting', name: 'Aceptar reunión auditoría', desc: 'Puede aceptar la reunión de auditoría para apagar el aviso', icon: CheckCircle2 },
   { id: 'skip_steps', name: 'Saltar pasos', desc: 'Puede navegar libremente sin seguir el orden progresivo', icon: Unlock },
 ]
@@ -133,6 +134,7 @@ const DEFAULT_PERMISSIONS: Record<string, string[]> = {
   // Only gestor can change admin permissions
   admin: [
     ...PROJECT_PERMS.map(p => p.id), // All project general permissions
+    'manage_permissions', // Admin can see and manage permissions
     ...PERM_ID_MAP.filter(p => p.actionIdx === 0).map(p => p.id), // All "view" actions (a0) only
   ],
   gerente: [
@@ -152,11 +154,14 @@ const DEFAULT_PERMISSIONS: Record<string, string[]> = {
   ],
   empleado: [
     'view_board', 'view_progress', 'view_project', 'view_team',
-    'notify_audit',
-    // S-steps: can view all, can execute steps 1-4 but NOT step 5
-    ...PERM_ID_MAP.filter(p => p.miniStep < 5).map(p => p.id),
-    // Can view audits but not conduct
-    ...PERM_ID_MAP.filter(p => p.miniStep === 5 && p.actionIdx === 0).map(p => p.id),
+    'notify_audit', 'notify_autoeval',
+    // S-steps: empleado can do step 1 (formación+examen) only — individual exam
+    // Steps 2,3 are zone-level (collaborative) — empleado can VIEW but not mark complete
+    // Step 4 is done by RESPONSABLE — empleado can only VIEW and request autoeval
+    // Step 5 is done by AUDITOR — empleado can VIEW and request audit
+    ...PERM_ID_MAP.filter(p => p.miniStep === 1 && p.actionIdx === 1).map(p => p.id), // Execute step 1 (exam)
+    ...PERM_ID_MAP.filter(p => p.actionIdx === 0).map(p => p.id), // View all steps (a0)
+    ...PERM_ID_MAP.filter(p => p.miniStep === 5 && p.actionIdx === 0).map(p => p.id), // View audits
   ],
   auditor: [
     'view_board', 'view_progress', 'view_project', 'view_team',

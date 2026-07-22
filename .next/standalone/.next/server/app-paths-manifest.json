@@ -43,6 +43,7 @@
   "/api/platform-config/route": "app/api/platform-config/route.js",
   "/api/platform-stats/route": "app/api/platform-stats/route.js",
   "/api/progress/[sStep]/[miniStep]/route": "app/api/progress/[sStep]/[miniStep]/route.js",
+  "/api/progress/reset/route": "app/api/progress/reset/route.js",
   "/api/progress/route": "app/api/progress/route.js",
   "/api/progress/step/route": "app/api/progress/step/route.js",
   "/api/projects/[projectId]/members/route": "app/api/projects/[projectId]/members/route.js",

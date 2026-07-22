@@ -37,7 +37,7 @@ import {
 import {
   Loader2, RefreshCw, LogOut, Settings, ChevronDown, Shield, ShieldCheck, Unlock, Lock,
   LayoutDashboard, Wrench, Sparkles, BarChart3, FileText, MapPin, ListChecks,
-  Crown,
+  Crown, Trash2,
   ClipboardList, GraduationCap, Camera, CheckSquare, Trophy, ChevronRight,
   Lock as LockIcon, AlertTriangle, Building2, Zap, Bell, BellRing, BookOpen, Image as ImageIcon,
   Package, BoxSelect, Menu, Droplets
@@ -237,9 +237,12 @@ export default function HomePage() {
   const canViewPerm = useMemo(() => (sStep: number, miniStep: number): boolean => hasPermission(`s${sStep}_step${miniStep}_a0`), [hasPermission]);
   const canAuditAny = useMemo(() => currentUser ? [1,2,3,4,5].some(s => canPerformPerm(s, 5)) : false, [currentUser, canPerformPerm]);
   const canNotifyAudit = hasPermission('notify_audit'); // Only employees (by default) can trigger audit notification
+  const canNotifyAutoeval = hasPermission('notify_autoeval'); // Only empleados can request responsable to do autoeval
   const canAcceptAuditMeeting = hasPermission('accept_audit_meeting'); // Auditors and responsables can accept audit meetings
   const isResponsable = currentUser?.role === 'responsable';
   const canSeeNotifications = hasPermission('view_board'); // All board users can see notifications
+  const canResetData = hasPermission('reset_data') || hasPermission('skip_steps'); // Testing: who can see the reset button
+  const canSeePermissions = hasPermission('manage_permissions') || isAdmin || isGestor; // Only gestor/admin can see Permisos
 
   // Fetch notifications — must be after canSeeNotifications is defined
   useEffect(() => {
@@ -553,12 +556,26 @@ export default function HomePage() {
                         <span className="text-sm font-medium text-green-600">Equipo</span>
                       </button>
                     )}
-                    {/* 🛡️ Shield */}
-                    <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-green-50 transition-colors text-left min-h-[44px]"
-                      onClick={() => { setMobileMenuOpen(false); setShowRolePermissions(true); }}>
-                      <Shield className="h-5 w-5 text-green-500 shrink-0" />
-                      <span className="text-sm font-medium text-green-600">Permisos</span>
-                    </button>
+                    {/* 🛡️ Permisos — ONLY visible for gestor/admin */}
+                    {canSeePermissions && (
+                      <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-green-50 transition-colors text-left min-h-[44px]"
+                        onClick={() => { setMobileMenuOpen(false); setShowRolePermissions(true); }}>
+                        <Shield className="h-5 w-5 text-green-500 shrink-0" />
+                        <span className="text-sm font-medium text-green-600">Permisos</span>
+                      </button>
+                    )}
+                    {/* 🗑️ Borrar Pasos — Testing reset button */}
+                    {canResetData && currentProject && (
+                      <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-red-50 transition-colors text-left min-h-[44px]"
+                        onClick={() => { setMobileMenuOpen(false); 
+                          if (!confirm('¿Seguro que quieres borrar TODOS los pasos? Esto es solo para pruebas.')) return;
+                          fetch('/api/progress/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: currentProject.id, zoneId: currentZone?.id }) })
+                            .then(r => r.json()).then(d => { alert(d.success ? `Restablecido: ${d.deletedCount} registros` : 'Error: ' + d.error); fetchProgress(); fetchEmployeeProgress(currentProject.id); });
+                        }}>
+                        <Trash2 className="h-5 w-5 text-red-500 shrink-0" />
+                        <span className="text-sm font-medium text-red-600">Borrar Pasos</span>
+                      </button>
+                    )}
                     {/* 📄 Manual */}
                     <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-purple-50 transition-colors text-left min-h-[44px]"
                       onClick={() => {
@@ -668,9 +685,37 @@ export default function HomePage() {
                 <Settings className="h-3.5 w-3.5" />
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={() => setShowRolePermissions(true)} className="text-green-600 hover:text-green-700 h-8 px-1.5">
-              <Shield className="h-3.5 w-3.5" />
-            </Button>
+            {/* 🛡️ Permisos — ONLY visible for gestor/admin (manage_permissions), NOT for empleados */}
+            {canSeePermissions && (
+              <Button variant="ghost" size="sm" onClick={() => setShowRolePermissions(true)} className="text-green-600 hover:text-green-700 h-8 px-1.5">
+                <Shield className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            {/* 🗑️ Borrar Pasos — Testing button to reset all progress, only for users with reset_data or skip_steps */}
+            {canResetData && currentProject && (
+              <Button variant="ghost" size="sm" onClick={async () => {
+                if (!confirm('¿Seguro que quieres borrar TODOS los pasos y datos de este proyecto? Esto es solo para pruebas.')) return;
+                try {
+                  const res = await fetch('/api/progress/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId: currentProject.id, zoneId: currentZone?.id }),
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    alert(`Datos restablecidos: ${data.deletedCount} registros eliminados.`);
+                    fetchProgress();
+                    fetchEmployeeProgress(currentProject.id);
+                  } else {
+                    alert('Error: ' + (data.error || 'No se pudo restablecer'));
+                  }
+                } catch (err) {
+                  alert('Error al restablecer datos');
+                }
+              }} className="text-red-600 hover:text-red-700 h-8 px-1.5" title="Borrar Pasos (pruebas)">
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={async () => {
               try {
                 const res = await fetch('/api/manual');
@@ -1006,6 +1051,93 @@ export default function HomePage() {
                                       <span className={`text-[7px] font-bold ${stepScore >= 70 ? 'text-green-600' : 'text-red-500'} leading-none mb-0.5`}>
                                         {stepScore}%
                                       </span>
+                                    )}
+                                    {/* "Request autoeval" button above step 4 when steps 1-3 are completed but 4 isn't — notify responsable to perform autocheck */}
+                                    {ms.id === 4 && canNotifyAutoeval && (() => {
+                                      // Check if steps 1-3 are all completed (zone-level OR employee-level)
+                                      const steps1to3Done = [1,2,3].every(msCheck => {
+                                        const zoneCompleted = progress.some(p =>
+                                          p.sStep === s.id && p.miniStep === msCheck &&
+                                          (currentZone ? (p.zoneId === currentZone.id || p.zoneId === null) : true) &&
+                                          p.completed
+                                        );
+                                        const empCompleted = employeeProgress.some(ep =>
+                                          ep.sStep === s.id && ep.miniStep === msCheck &&
+                                          currentZone && ep.zoneId === currentZone.id &&
+                                          ep.completed
+                                        );
+                                        return zoneCompleted || empCompleted;
+                                      });
+                                      // Check step 4 is NOT completed
+                                      const step4Done = progress.some(p =>
+                                        p.sStep === s.id && p.miniStep === 4 &&
+                                        (currentZone ? (p.zoneId === currentZone.id || p.zoneId === null) : true) &&
+                                        p.completed
+                                      );
+                                      const empStep4Done = employeeProgress.some(ep =>
+                                        ep.sStep === s.id && ep.miniStep === 4 &&
+                                        currentZone && ep.zoneId === currentZone.id &&
+                                        ep.completed
+                                      );
+                                      return steps1to3Done && !step4Done && !empStep4Done;
+                                    })() && (
+                                      <button
+                                        className="text-[8px] font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-1.5 py-0.5 rounded border border-blue-300 mb-0.5 transition-colors leading-tight whitespace-nowrap animate-pulse bg-blue-50 shadow-sm"
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          try {
+                                            const sStepData = S_STEPS.find(ss => ss.id === s.id);
+                                            const msg = `Se solicita autoevaluación para S${s.id} (${sStepData?.japaneseName || ''}) en la zona "${currentZone?.name || ''}". El responsable debe realizar el autocheck.`;
+                                            
+                                            const membersRes = await fetch(`/api/projects/${currentProject?.id}/members`);
+                                            const membersData = await membersRes.json();
+                                            const allMembers = membersData?.members || [];
+                                            // Notify all responsables
+                                            const responsableIds = new Set<string>();
+                                            if (currentZone?.responsableId) responsableIds.add(currentZone.responsableId);
+                                            const responsables = allMembers.filter((m: any) => m.role === 'responsable');
+                                            for (const resp of responsables) responsableIds.add(resp.userId);
+                                            for (const respId of responsableIds) {
+                                              await fetch('/api/notifications', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                  userId: respId,
+                                                  type: 'autoeval_requested',
+                                                  title: `Solicitud autoevaluación: S${s.id} — ${sStepData?.japaneseName || ''}`,
+                                                  message: msg,
+                                                  sStep: s.id,
+                                                  zoneId: currentZone?.id,
+                                                  projectId: currentProject?.id,
+                                                }),
+                                              });
+                                            }
+                                            // Confirm notification to requesting user
+                                            if (currentUser?.id) {
+                                              await fetch('/api/notifications', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                  userId: currentUser.id,
+                                                  type: 'autoeval_ready',
+                                                  title: `Solicitud enviada: S${s.id} — Autoevaluación`,
+                                                  message: `Tu solicitud de autoevaluación para S${s.id} ha sido enviada al responsable.`,
+                                                  sStep: s.id,
+                                                  zoneId: currentZone?.id,
+                                                  projectId: currentProject?.id,
+                                                }),
+                                              });
+                                            }
+                                            alert('Solicitud de autoevaluación enviada al responsable.');
+                                          } catch (err) {
+                                            console.error('Error sending autoeval request:', err);
+                                            alert('Error al enviar la solicitud.');
+                                          }
+                                        }}
+                                        title="Solicitar autoevaluación: notificar al responsable para realizar el autocheck"
+                                      >
+                                        🔔 Autoeval
+                                      </button>
                                     )}
                                     {/* "Request audit" button above step 5 when steps 1-4 are completed but 5 isn't — only for users with notify_audit permission */}
                                     {ms.id === 5 && canNotifyAudit && (() => {

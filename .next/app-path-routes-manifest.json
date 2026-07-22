@@ -43,6 +43,7 @@
   "/api/platform-config/route": "/api/platform-config",
   "/api/platform-stats/route": "/api/platform-stats",
   "/api/progress/[sStep]/[miniStep]/route": "/api/progress/[sStep]/[miniStep]",
+  "/api/progress/reset/route": "/api/progress/reset",
   "/api/progress/route": "/api/progress",
   "/api/progress/step/route": "/api/progress/step",
   "/api/projects/[projectId]/members/route": "/api/projects/[projectId]/members",

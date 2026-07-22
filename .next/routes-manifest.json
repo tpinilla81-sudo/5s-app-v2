@@ -450,6 +450,12 @@
       "namedRegex": "^/api/progress(?:/)?$"
     },
     {
+      "page": "/api/progress/reset",
+      "regex": "^/api/progress/reset(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/progress/reset(?:/)?$"
+    },
+    {
       "page": "/api/progress/step",
       "regex": "^/api/progress/step(?:/)?$",
       "routeKeys": {},

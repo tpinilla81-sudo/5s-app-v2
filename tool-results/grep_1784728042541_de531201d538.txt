@@ -1,0 +1,252 @@
+/home/z/my-project/src/components/admin/ConstructorPanel.tsx:1461:             {stats.totals.activeUsers}/{stats.totals.users} activos
+/home/z/my-project/src/components/admin/ConstructorPanel.tsx:1473:             {stats.totals.activeProjects}/{stats.totals.projects} activos
+/home/z/my-project/src/components/admin/ConstructorPanel.tsx:1662:                 <Badge className="bg-green-100 text-green-600 border-green-200 border text-[10px]">Activo</Badge>
+/home/z/my-project/src/components/admin/ConstructorPanel.tsx:1664:                 <Badge className="bg-red-100 text-red-600 border-red-200 border text-[10px]">Inactivo</Badge>
+/home/z/my-project/src/components/admin/GestorPanel.tsx:567:                            {stats.totals.activeUsers}/{stats.totals.users} activos
+/home/z/my-project/src/components/admin/GestorPanel.tsx:579:                            {stats.totals.activeProjects}/{stats.totals.projects} activos
+/home/z/my-project/src/components/admin/GestorPanel.tsx:647:                            <span className="text-xs text-violet-400">Usuarios activos</span>
+/home/z/my-project/src/components/admin/GestorPanel.tsx:653:                            <span className="text-xs text-violet-400">Proyectos activos</span>
+/home/z/my-project/src/components/admin/StandardsAdmin.tsx:62:  { value: 'activo', label: 'Activo', color: 'bg-green-100 text-green-800' },
+/home/z/my-project/src/components/admin/StandardsAdmin.tsx:88:  const [formStatus, setFormStatus] = useState('activo');
+/home/z/my-project/src/components/admin/StandardsAdmin.tsx:184:    setFormContent(''); setFormStatus('activo'); setFormResponsable(''); setFormContacto('');
+/home/z/my-project/src/components/admin/AdminPanel.tsx:1104:                                    {!project.active && <Badge className="bg-red-100 text-red-700 border border-red-200 ml-1">Inactivo</Badge>}
+/home/z/my-project/src/components/admin/AdminPanel.tsx:1382:                                                m.user.active ? 'Activo' : 'Inactivo',
+/home/z/my-project/src/components/admin/AdminPanel.tsx:1722:                                  <SelectItem value="true">Activo</SelectItem>
+/home/z/my-project/src/components/admin/AdminPanel.tsx:1723:                                  <SelectItem value="false">Inactivo</SelectItem>
+/home/z/my-project/src/components/admin/AdminPanel.tsx:1728:                                {user.active ? 'Activo' : 'Inactivo'}
+/home/z/my-project/src/components/admin/TemplateManager.tsx:67:        { title: 'Metodología de implementación', content: '1. Recorrer el área de trabajo y clasificar todos los elementos en necesarios e innecesarios.\n2. Utilizar tarjetas de color rojo (Tarjetas Rojas) para marcar los elementos innecesarios.\n3. Colocar los elementos marcados en una "jaula de innecesarios" o zona temporal.\n4. Decidir el destino de cada elemento: eliminar, trasladar, donar o almacenar fuera del área.\n5. Documentar todas las decisiones y mantener un registro de los elementos retirados.\n6. Revisar periódicamente para evitar la acumulación de nuevos innecesarios.' },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:113:        { question: '¿Dónde se colocan temporalmente los elementos marcados como innecesarios?', options: ['En el almacén principal', 'En la jaula de innecesarios', 'En la mesa del responsable', 'En el pasillo'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:895:        { label: 'F. Entrada', section: 'Etiqueta', note: 'Fecha de entrada a la Jaula' },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:898:        { label: 'Z. Destino', section: 'Zonas', note: 'Siempre "Jaula" para innecesarios' },
+/home/z/my-project/src/components/admin/ResourceList.tsx:699:                                    {resource.active ? 'Activo' : 'Inactivo'}
+/home/z/my-project/src/components/5s/ActivosView.tsx:25:interface ActivoItem {
+/home/z/my-project/src/components/5s/ActivosView.tsx:45:export default function ActivosView() {
+/home/z/my-project/src/components/5s/ActivosView.tsx:47:  const [activosItems, setActivosItems] = useState<ActivoItem[]>([]);
+/home/z/my-project/src/components/5s/ActivosView.tsx:131:    loadActivosItems();
+/home/z/my-project/src/components/5s/ActivosView.tsx:135:  const loadActivosItems = async () => {
+/home/z/my-project/src/components/5s/ActivosView.tsx:138:      let url = `/api/inventory/activos?`;
+/home/z/my-project/src/components/5s/ActivosView.tsx:144:        setActivosItems(json.data || []);
+/home/z/my-project/src/components/5s/ActivosView.tsx:147:      console.error('Error loading activos items:', error);
+/home/z/my-project/src/components/5s/ActivosView.tsx:148:      toast.error('Error al cargar los activos');
+/home/z/my-project/src/components/5s/ActivosView.tsx:155:    setActivosItems(prev => prev.map(item => {
+/home/z/my-project/src/components/5s/ActivosView.tsx:168:        const item = activosItems.find(i => i.id === itemId);
+/home/z/my-project/src/components/5s/ActivosView.tsx:182:        await loadActivosItems();
+/home/z/my-project/src/components/5s/ActivosView.tsx:186:      await loadActivosItems();
+/home/z/my-project/src/components/5s/ActivosView.tsx:191:    ? activosItems
+/home/z/my-project/src/components/5s/ActivosView.tsx:192:    : activosItems.filter(i => i.category === filterCat);
+/home/z/my-project/src/components/5s/ActivosView.tsx:201:    count: activosItems.filter(i => i.category === c.value).length,
+/home/z/my-project/src/components/5s/ActivosView.tsx:217:            <h2 className="text-base sm:text-lg font-bold truncate">Activos — Registro de Necesarios</h2>
+/home/z/my-project/src/components/5s/ActivosView.tsx:224:              {activosItems.length} elemento{activosItems.length !== 1 ? 's' : ''}
+/home/z/my-project/src/components/5s/ActivosView.tsx:248:            Todos {activosItems.length}
+/home/z/my-project/src/components/5s/ActivosView.tsx:281:              {activosItems.length === 0 ? 'No hay elementos necesarios registrados' : 'No hay elementos con este filtro'}
+/home/z/my-project/src/components/5s/ActivosView.tsx:371:                          if (!confirm('¿Eliminar este activo?')) return;
+/home/z/my-project/src/components/5s/ActivosView.tsx:374:                            .then(j => { if (j.success) { setActivosItems(p => p.filter(i => i.id !== item.id)); toast.success('Eliminado'); } })
+/home/z/my-project/src/components/auth/RolePermissions.tsx:76:  { id: 'platform_activate_company', name: 'Activar/desactivar empresas', desc: 'Cambiar estado activo de empresas', icon: CheckCircle2 },
+/home/z/my-project/src/components/5s/PuntoLimpioModal.tsx:32:interface PuntoLimpioItem {
+/home/z/my-project/src/components/5s/PuntoLimpioModal.tsx:47:interface PuntoLimpioModalProps {
+/home/z/my-project/src/components/5s/PuntoLimpioModal.tsx:64:export default function PuntoLimpioModal({ open, onClose }: PuntoLimpioModalProps) {
+/home/z/my-project/src/components/5s/PuntoLimpioModal.tsx:66:  const [items, setItems] = useState<PuntoLimpioItem[]>([]);
+/home/z/my-project/src/components/5s/PuntoLimpioModal.tsx:87:      console.error('Error loading punto limpio items:', error);
+/home/z/my-project/src/components/5s/PuntoLimpioModal.tsx:219:            <span>Punto Limpio — Registro de Suciedad</span>
+/home/z/my-project/src/components/auth/GerentePanel.tsx:62:interface JaulaItem {
+/home/z/my-project/src/components/auth/GerentePanel.tsx:68:  jaulaStatus: string;
+/home/z/my-project/src/components/auth/GerentePanel.tsx:69:  jaulaFechaEntrada: string | null;
+/home/z/my-project/src/components/auth/GerentePanel.tsx:70:  jaulaOrigen: string | null;
+/home/z/my-project/src/components/auth/GerentePanel.tsx:71:  jaulaFechaSalida: string | null;
+/home/z/my-project/src/components/auth/GerentePanel.tsx:72:  jaulaDestino: string | null;
+/home/z/my-project/src/components/auth/GerentePanel.tsx:94:type TabType = 'indicadores' | 'jaula' | 'acciones';
+/home/z/my-project/src/components/auth/GerentePanel.tsx:107:  // Jaula state
+/home/z/my-project/src/components/auth/GerentePanel.tsx:108:  const [jaulaItems, setJaulaItems] = useState<JaulaItem[]>([]);
+/home/z/my-project/src/components/auth/GerentePanel.tsx:109:  const [jaulaFilter, setJaulaFilter] = useState<string>('all');
+/home/z/my-project/src/components/auth/GerentePanel.tsx:110:  const [isLoadingJaula, setIsLoadingJaula] = useState(false);
+/home/z/my-project/src/components/auth/GerentePanel.tsx:122:    if (activeTab === 'jaula') loadJaulaItems();
+/home/z/my-project/src/components/auth/GerentePanel.tsx:144:  const loadJaulaItems = async () => {
+/home/z/my-project/src/components/auth/GerentePanel.tsx:145:    setIsLoadingJaula(true);
+/home/z/my-project/src/components/auth/GerentePanel.tsx:147:      const res = await fetch('/api/inventory?jaulaOnly=true');
+/home/z/my-project/src/components/auth/GerentePanel.tsx:150:        setJaulaItems(json.data || []);
+/home/z/my-project/src/components/auth/GerentePanel.tsx:153:      console.error('Error loading jaula items:', error);
+/home/z/my-project/src/components/auth/GerentePanel.tsx:155:      setIsLoadingJaula(false);
+/home/z/my-project/src/components/auth/GerentePanel.tsx:204:  // Jaula filtering
+/home/z/my-project/src/components/auth/GerentePanel.tsx:205:  const filteredJaulaItems = jaulaFilter === 'all'
+/home/z/my-project/src/components/auth/GerentePanel.tsx:206:    ? jaulaItems
+/home/z/my-project/src/components/auth/GerentePanel.tsx:207:    : jaulaItems.filter(i => i.jaulaStatus === jaulaFilter);
+/home/z/my-project/src/components/auth/GerentePanel.tsx:208:  const totalJaulaValue = filteredJaulaItems.reduce((sum, i) => sum + (i.price || 0) * (i.quantityUnneeded || i.quantity), 0);
+/home/z/my-project/src/components/auth/GerentePanel.tsx:235:  const getJaulaStatusBadge = (status: string) => {
+/home/z/my-project/src/components/auth/GerentePanel.tsx:238:      en_jaula: { label: 'En Jaula', color: 'bg-red-100 text-red-800' },
+/home/z/my-project/src/components/auth/GerentePanel.tsx:248:    { key: 'jaula', label: 'Jaula de Excedentes', icon: <Package className="h-4 w-4" />, badge: jaulaItems.length },
+/home/z/my-project/src/components/auth/GerentePanel.tsx:466:                    <p className="text-sm text-muted-foreground">No hay proyectos activos</p>
+/home/z/my-project/src/components/auth/GerentePanel.tsx:474:        {/* TAB: Jaula de Excedentes */}
+/home/z/my-project/src/components/auth/GerentePanel.tsx:475:        {activeTab === 'jaula' && (
+/home/z/my-project/src/components/auth/GerentePanel.tsx:480:                <h2 className="text-lg font-bold text-gray-900">Jaula de Excedentes Global</h2>
+/home/z/my-project/src/components/auth/GerentePanel.tsx:484:                <Select value={jaulaFilter} onValueChange={setJaulaFilter}>
+/home/z/my-project/src/components/auth/GerentePanel.tsx:490:                    <SelectItem value="en_jaula">En Jaula</SelectItem>
+/home/z/my-project/src/components/auth/GerentePanel.tsx:498:            {isLoadingJaula ? (
+/home/z/my-project/src/components/auth/GerentePanel.tsx:502:            ) : filteredJaulaItems.length === 0 ? (
+/home/z/my-project/src/components/auth/GerentePanel.tsx:506:                  <p className="text-sm text-muted-foreground">No hay elementos en la jaula de excedentes</p>
+/home/z/my-project/src/components/auth/GerentePanel.tsx:526:                      {filteredJaulaItems.map(item => (
+/home/z/my-project/src/components/auth/GerentePanel.tsx:534:                              {item.project?.name || item.jaulaOrigen || '—'}
+/home/z/my-project/src/components/auth/GerentePanel.tsx:537:                          <TableCell className="text-xs">{item.jaulaFechaEntrada ? new Date(item.jaulaFechaEntrada).toLocaleDateString('es-ES') : '—'}</TableCell>
+/home/z/my-project/src/components/auth/GerentePanel.tsx:538:                          <TableCell>{getJaulaStatusBadge(item.jaulaStatus)}</TableCell>
+/home/z/my-project/src/components/auth/GerentePanel.tsx:539:                          <TableCell className="text-xs">{item.jaulaFechaSalida ? new Date(item.jaulaFechaSalida).toLocaleDateString('es-ES') : '—'}</TableCell>
+/home/z/my-project/src/components/auth/GerentePanel.tsx:540:                          <TableCell className="text-xs">{item.jaulaDestino || '—'}</TableCell>
+/home/z/my-project/src/components/auth/GerentePanel.tsx:547:                  <span className="text-gray-700">Total elementos: <strong>{filteredJaulaItems.length}</strong></span>
+/home/z/my-project/src/components/auth/GerentePanel.tsx:548:                  <span className="text-gray-700">Valor total: <strong className="text-red-600">{totalJaulaValue.toFixed(2)} €</strong></span>
+/home/z/my-project/src/components/auth/UserManagement.tsx:324:              Inactivos: {stats.inactive}
+/home/z/my-project/src/components/auth/UserManagement.tsx:521:                              <><UserCheck className="h-3 w-3" /> Activo</>
+/home/z/my-project/src/components/auth/UserManagement.tsx:523:                              <><UserX className="h-3 w-3" /> Inactivo</>
+/home/z/my-project/src/components/auth/UserManagement.tsx:648:                        <><UserCheck className="h-3 w-3" /> Activo</>
+/home/z/my-project/src/components/auth/UserManagement.tsx:650:                        <><UserX className="h-3 w-3" /> Inactivo</>
+/home/z/my-project/src/components/5s/TagPrinter.tsx:125:        `Decision: ${item.decision || 'Jaula'}`,
+/home/z/my-project/src/components/5s/TagPrinter.tsx:195:            Elemento innecesario — Trasladar a la Jaula.
+/home/z/my-project/src/components/5s/TagPrinter.tsx:275:      title="Imprimir Etiqueta Roja (Innecesario → Jaula)"
+/home/z/my-project/src/lib/store.ts:100:  activeTab: 'board' | 'gerente' | 'admin' | 'maintenance' | 'gestion' | 'actionplan' | 'jaula' | 'activos' | 'puntoLimpio'
+/home/z/my-project/src/lib/5s-constants.ts:212:      1: 'Inventaria SOLO los elementos innecesarios. Incluye ubicación, cantidad, precio (€), estado y decisión (Jaula, Tirar o Eliminar)',
+/home/z/my-project/src/lib/5s-constants.ts:269:    subtitle: 'SEIRI — Clasifica los elementos innecesarios y decide su destino (Jaula/Tirar/Eliminar)',
+/home/z/my-project/src/lib/5s-constants.ts:277:      { key: 'decision', label: 'Decisión', type: 'select', options: ['Jaula', 'Tirar', 'Eliminar'] },
+/home/z/my-project/src/components/5s/MaintenanceView.tsx:1541:                Los contadores siguen activos desde el taller de implementación y continúan durante la mejora continua.
+/home/z/my-project/src/components/5s/CleaningPlanPanel.tsx:170:            status: 'activo',
+/home/z/my-project/src/components/5s/StandardsLibrary.tsx:79:  { value: 'activo', label: 'Activo', color: 'bg-green-100 text-green-800' },
+/home/z/my-project/src/components/5s/StandardsLibrary.tsx:120:  const [formStatus, setFormStatus] = useState('activo')
+/home/z/my-project/src/components/5s/StandardsLibrary.tsx:220:    setFormStatus('activo')
+/home/z/my-project/src/app/api/actions/route.ts:13:    const jaulaOnly = searchParams.get('jaulaOnly')
+/home/z/my-project/src/app/api/actions/route.ts:15:    // TASK 3: jaulaOnly query for global jaula view
+/home/z/my-project/src/app/api/actions/route.ts:16:    if (jaulaOnly === 'true') {
+/home/z/my-project/src/app/api/actions/route.ts:17:      const jaulaItems = await db.inventoryItem.findMany({
+/home/z/my-project/src/app/api/actions/route.ts:19:          jaulaStatus: { not: '' },
+/home/z/my-project/src/app/api/actions/route.ts:28:      const parsed = jaulaItems.map(item => ({
+/home/z/my-project/src/components/5s/ActivosModal.tsx:30:interface ActivoItem {
+/home/z/my-project/src/components/5s/ActivosModal.tsx:44:interface ActivosModalProps {
+/home/z/my-project/src/components/5s/ActivosModal.tsx:61:export default function ActivosModal({ open, onClose }: ActivosModalProps) {
+/home/z/my-project/src/components/5s/ActivosModal.tsx:63:  const [activosItems, setActivosItems] = useState<ActivoItem[]>([]);
+/home/z/my-project/src/components/5s/ActivosModal.tsx:68:    if (open) loadActivosItems();
+/home/z/my-project/src/components/5s/ActivosModal.tsx:71:  const loadActivosItems = async () => {
+/home/z/my-project/src/components/5s/ActivosModal.tsx:74:      let url = `/api/inventory/activos?`;
+/home/z/my-project/src/components/5s/ActivosModal.tsx:80:        setActivosItems(json.data || []);
+/home/z/my-project/src/components/5s/ActivosModal.tsx:83:      console.error('Error loading activos items:', error);
+/home/z/my-project/src/components/5s/ActivosModal.tsx:84:      toast.error('Error al cargar los activos');
+/home/z/my-project/src/components/5s/ActivosModal.tsx:91:    setActivosItems(prev => prev.map(item => {
+/home/z/my-project/src/components/5s/ActivosModal.tsx:104:        const item = activosItems.find(i => i.id === itemId);
+/home/z/my-project/src/components/5s/ActivosModal.tsx:118:        await loadActivosItems();
+/home/z/my-project/src/components/5s/ActivosModal.tsx:122:      await loadActivosItems();
+/home/z/my-project/src/components/5s/ActivosModal.tsx:127:    ? activosItems
+/home/z/my-project/src/components/5s/ActivosModal.tsx:128:    : activosItems.filter(i => i.category === filterCat);
+/home/z/my-project/src/components/5s/ActivosModal.tsx:137:    count: activosItems.filter(i => i.category === c.value).length,
+/home/z/my-project/src/components/5s/ActivosModal.tsx:152:            <span>Activos — Registro de Necesarios</span>
+/home/z/my-project/src/components/5s/ActivosModal.tsx:159:              {activosItems.length} elemento{activosItems.length !== 1 ? 's' : ''}
+/home/z/my-project/src/components/5s/ActivosModal.tsx:184:              Todos {activosItems.length}
+/home/z/my-project/src/components/5s/ActivosModal.tsx:215:                {activosItems.length === 0 ? 'No hay elementos necesarios registrados' : 'No hay elementos con este filtro'}
+/home/z/my-project/src/components/5s/ActivosModal.tsx:305:                            if (!confirm('¿Eliminar este activo?')) return;
+/home/z/my-project/src/components/5s/ActivosModal.tsx:308:                              .then(j => { if (j.success) { setActivosItems(p => p.filter(i => i.id !== item.id)); toast.success('Eliminado'); } })
+/home/z/my-project/src/components/5s/InventarioModal.tsx:56:  jaulaStatus?: string;
+/home/z/my-project/src/components/5s/InventarioModal.tsx:57:  jaulaFechaEntrada?: string | null;
+/home/z/my-project/src/components/5s/InventarioModal.tsx:58:  jaulaOrigen?: string | null;
+/home/z/my-project/src/components/5s/InventarioModal.tsx:59:  jaulaFechaSalida?: string | null;
+/home/z/my-project/src/components/5s/InventarioModal.tsx:60:  jaulaDestino?: string | null;
+/home/z/my-project/src/components/5s/InventarioModal.tsx:134:    jaulaFechaEntrada: new Date().toISOString(),
+/home/z/my-project/src/components/5s/InventarioModal.tsx:201:          extra.decision = 'Jaula';
+/home/z/my-project/src/components/5s/InventarioModal.tsx:218:            action: item.action || (isInnecesario ? (extra.decision || 'Jaula') : ''),
+/home/z/my-project/src/components/5s/InventarioModal.tsx:220:            jaulaStatus: isInnecesario && extra.decision !== 'Eliminar' && extra.decision !== 'Tirar' ? 'en_jaula' : '',
+/home/z/my-project/src/components/5s/InventarioModal.tsx:221:            jaulaFechaEntrada: isInnecesario && extra.decision !== 'Eliminar' && extra.decision !== 'Tirar' ? new Date().toISOString() : null,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:222:            jaulaOrigen: isInnecesario ? (currentZone?.name || currentProject.name || '') : null,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:224:            zonaDestino: isInnecesario ? (extra.decision === 'Tirar' || extra.decision === 'Eliminar' ? 'Residuo' : 'Jaula') : null,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:367:          status: 'activo',
+/home/z/my-project/src/components/5s/InventarioModal.tsx:448:            jaulaStatus: item.jaulaStatus || '',
+/home/z/my-project/src/components/5s/InventarioModal.tsx:449:            jaulaFechaEntrada: item.jaulaFechaEntrada || null,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:450:            jaulaOrigen: item.jaulaOrigen || null,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:451:            jaulaFechaSalida: item.jaulaFechaSalida || null,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:452:            jaulaDestino: item.jaulaDestino || null,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:708:      extra.decision = 'Jaula';
+/home/z/my-project/src/components/5s/InventarioModal.tsx:713:      return 'Jaula'; // Default for Jaula or no decision
+/home/z/my-project/src/components/5s/InventarioModal.tsx:733:          action: newItem.action || (isInnecesario ? (extra.decision || 'Jaula') : ''),
+/home/z/my-project/src/components/5s/InventarioModal.tsx:735:          // Only Jaula items get jaula entry/quarantine; Eliminar/Tirar items go directly to Residuo
+/home/z/my-project/src/components/5s/InventarioModal.tsx:736:          jaulaStatus: isInnecesario && extra.decision !== 'Eliminar' && extra.decision !== 'Tirar' ? 'en_jaula' : '',
+/home/z/my-project/src/components/5s/InventarioModal.tsx:737:          jaulaFechaEntrada: isInnecesario && extra.decision !== 'Eliminar' && extra.decision !== 'Tirar' ? (newItem.jaulaFechaEntrada || new Date().toISOString()) : null,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:738:          jaulaOrigen: isInnecesario ? newItem.zonaOrigen || currentZone?.name || currentProject.name || '' : null,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:754:        setNewItem({ name: '', location: '', category: defaultCategory as string | undefined, quantity: 1, quantityNeeded: 0, quantityUnneeded: 0, price: null, action: '', zonaOrigen: currentZone?.name || null, jaulaFechaEntrada: new Date().toISOString(), extra: {} });
+/home/z/my-project/src/components/5s/InventarioModal.tsx:956:            if (lower.includes('jaula') || lower.includes('red') || lower.includes('etiqueta')) {
+/home/z/my-project/src/components/5s/InventarioModal.tsx:957:              item.extra!['decision'] = 'Jaula';
+/home/z/my-project/src/components/5s/InventarioModal.tsx:963:              item.extra!['decision'] = 'Jaula'; // Default for S1
+/home/z/my-project/src/components/5s/InventarioModal.tsx:966:          if (!item.extra!['decision']) item.extra!['decision'] = 'Jaula';
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1039:            // Only Jaula decision items get jaula entry/quarantine; Eliminar/Tirar go to Residuo directly
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1040:            jaulaStatus: sStep === 1 && item.category === 'innecesario' && item.extra?.decision !== 'Eliminar' && item.extra?.decision !== 'Tirar' ? 'en_jaula' : '',
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1041:            jaulaFechaEntrada: sStep === 1 && item.category === 'innecesario' && item.extra?.decision !== 'Eliminar' && item.extra?.decision !== 'Tirar' ? new Date().toISOString() : null,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1042:            jaulaOrigen: sStep === 1 && item.category === 'innecesario' && item.extra?.decision !== 'Eliminar' && item.extra?.decision !== 'Tirar' ? item.zonaOrigen || currentZone?.name || currentProject!.name || '' : null,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1044:            zonaDestino: sStep === 1 && item.category === 'innecesario' ? (item.extra?.decision === 'Tirar' || item.extra?.decision === 'Eliminar' ? 'Residuo' : 'Jaula') : (item.zonaOrigen || currentZone?.name || null),
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1081:  const handleUpdateJaula = async (id: string, updates: Partial<InventoryItemData>) => {
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1095:      console.error('Error updating jaula:', error);
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1152:  const jaulaItems = items.filter(i => i.jaulaStatus === 'en_jaula');
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1153:  const totalJaulaValue = jaulaItems.reduce((sum, i) => sum + (i.price || 0) * i.quantity, 0);
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1252:  const getJaulaStatusBadge = (status: string) => {
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1255:      en_jaula: { label: 'En Jaula', color: 'bg-red-100 text-red-800' },
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1524:              {/* S1: Print red label button — only for Jaula decision items */}
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1530:                  if (i.jaulaFechaEntrada) {
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1532:                      const d = new Date(i.jaulaFechaEntrada);
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1539:                // Only Jaula decision items get a red tag (Eliminar/Tirar go to Residuo directly, no tag)
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1541:                  .filter(i => i.category === 'innecesario' && (!i.extra?.decision || i.extra.decision === 'Jaula'))
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1548:                    decision: 'Jaula' as string,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1550:                    fechaEntrada: i.jaulaFechaEntrada,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1553:                    zonaOrigen: i.zonaOrigen || i.jaulaOrigen,
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1778:                                        updated.jaulaFechaEntrada = null;
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1781:                                      // If decision is Jaula: set default entry date and quarantine
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1782:                                      if (field.key === 'decision' && val === 'Jaula') {
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1783:                                        if (!updated.jaulaFechaEntrada) updated.jaulaFechaEntrada = new Date().toISOString();
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1819:                              : 'Decisión: Jaula → etiqueta roja con cuarentena'}
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1824:                      {/* S1: Etiqueta fields — ONLY for Jaula decision (Eliminar/Tirar go to Residuo, no tag/quarantine) */}
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1825:                      {(!newItem.extra?.decision || newItem.extra.decision === 'Jaula') && (
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1834:                            value={newItem.jaulaFechaEntrada ? new Date(newItem.jaulaFechaEntrada).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1837:                              setNewItem(prev => ({ ...prev, jaulaFechaEntrada: val }));
+/home/z/my-project/src/components/5s/InventarioModal.tsx:1873:                              const base = newItem.jaulaFechaEntrada || new Date().toISOString();
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2107:            {/* ═══ S1: Jaula Items with Photos ═══ */}
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2113:                    <h4 className="font-semibold text-red-800">Elementos en Jaula — Trazabilidad Fotográfica</h4>
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2116:                    Las fotos de elementos innecesarios en la Jaula permiten la trazabilidad del material clasificado.
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2131:                              {item.extra?.decision || 'Jaula'} · {itemPhotoList.length} foto{itemPhotoList.length !== 1 ? 's' : ''}
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2349:                                const updates: any = { category: val, quantityNeeded: isNec ? qty : 0, quantityUnneeded: isInn ? qty : 0, jaulaStatus: isInn ? 'en_jaula' : '', jaulaFechaEntrada: isInn ? (item.jaulaFechaEntrada || new Date().toISOString()) : null };
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2413:                                      const newDestino = (val === 'Tirar' || val === 'Eliminar') ? 'Residuo' : 'Jaula';
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2416:                                        handleUpdateField(item.id!, 'jaulaStatus', '');
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2417:                                        handleUpdateField(item.id!, 'jaulaFechaEntrada', null);
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2419:                                      } else if (val === 'Jaula') {
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2420:                                        handleUpdateField(item.id!, 'jaulaStatus', 'en_jaula');
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2421:                                        if (!item.jaulaFechaEntrada) handleUpdateField(item.id!, 'jaulaFechaEntrada', new Date().toISOString());
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2429:                                    <SelectItem value="Jaula">Jaula</SelectItem>
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2435:                                <Badge className={`text-[9px] px-1 ${item.extra.decision === 'Jaula' ? 'bg-orange-100 text-orange-800' : item.extra.decision === 'Tirar' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>{String(item.extra.decision)}</Badge>
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2479:                            <span className={`text-[11px] font-medium ${(item.extra?.decision === 'Tirar' || item.extra?.decision === 'Eliminar') ? 'text-yellow-700' : 'text-red-600'}`}>{(item.extra?.decision === 'Tirar' || item.extra?.decision === 'Eliminar') ? 'Residuo' : 'Jaula'}</span>
+/home/z/my-project/src/components/5s/InventarioModal.tsx:2486:                                handleUpdateJaula(item.id!, updates);
+/home/z/my-project/src/components/5s/JaulaModal.tsx:32:interface JaulaPhoto {
+/home/z/my-project/src/components/5s/JaulaModal.tsx:39:interface JaulaItem {
+/home/z/my-project/src/components/5s/JaulaModal.tsx:49:  jaulaStatus: string;
+/home/z/my-project/src/components/5s/JaulaModal.tsx:50:  jaulaFechaEntrada: string | null;
+/home/z/my-project/src/components/5s/JaulaModal.tsx:51:  jaulaOrigen: string | null;
+/home/z/my-project/src/components/5s/JaulaModal.tsx:52:  jaulaFechaSalida: string | null;
+/home/z/my-project/src/components/5s/JaulaModal.tsx:53:  jaulaDestino: string | null;
+/home/z/my-project/src/components/5s/JaulaModal.tsx:54:  jaulaFechaLimite: string | null;
+/home/z/my-project/src/components/5s/JaulaModal.tsx:59:  photos?: JaulaPhoto[];
+/home/z/my-project/src/components/5s/JaulaModal.tsx:62:interface JaulaModalProps {
+/home/z/my-project/src/components/5s/JaulaModal.tsx:69:const JAULA_STATUS = [
+/home/z/my-project/src/components/5s/JaulaModal.tsx:70:  { value: 'en_jaula', label: 'En Jaula', color: 'bg-red-100 text-red-800' },
+/home/z/my-project/src/components/5s/JaulaModal.tsx:78:export default function JaulaModal({ open, onClose }: JaulaModalProps) {
+/home/z/my-project/src/components/5s/JaulaModal.tsx:80:  const [jaulaItems, setJaulaItems] = useState<JaulaItem[]>([]);
+/home/z/my-project/src/components/5s/JaulaModal.tsx:81:  const [jaulaFilter, setJaulaFilter] = useState<string>('all');
+/home/z/my-project/src/components/5s/JaulaModal.tsx:86:    if (open) loadJaulaItems();
+/home/z/my-project/src/components/5s/JaulaModal.tsx:89:  const loadJaulaItems = async () => {
+/home/z/my-project/src/components/5s/JaulaModal.tsx:92:      let url = '/api/inventory?jaulaOnly=true';
+/home/z/my-project/src/components/5s/JaulaModal.tsx:98:        setJaulaItems(json.data || []);
+/home/z/my-project/src/components/5s/JaulaModal.tsx:101:      console.error('Error loading jaula items:', error);
+/home/z/my-project/src/components/5s/JaulaModal.tsx:102:      toast.error('Error al cargar la jaula');
+/home/z/my-project/src/components/5s/JaulaModal.tsx:109:    setJaulaItems(prev => prev.map(item => {
+/home/z/my-project/src/components/5s/JaulaModal.tsx:122:        const item = jaulaItems.find(i => i.id === itemId);
+/home/z/my-project/src/components/5s/JaulaModal.tsx:136:        await loadJaulaItems();
+/home/z/my-project/src/components/5s/JaulaModal.tsx:140:      await loadJaulaItems();
+/home/z/my-project/src/components/5s/JaulaModal.tsx:144:  const filteredJaulaItems = jaulaFilter === 'all'
+/home/z/my-project/src/components/5s/JaulaModal.tsx:145:    ? jaulaItems
+/home/z/my-project/src/components/5s/JaulaModal.tsx:146:    : jaulaItems.filter(i => i.jaulaStatus === jaulaFilter);
+/home/z/my-project/src/components/5s/JaulaModal.tsx:148:  const totalJaulaValue = filteredJaulaItems.reduce(
+/home/z/my-project/src/components/5s/JaulaModal.tsx:153:  const enJaula = jaulaItems.filter(i => i.jaulaStatus === 'en_jaula').length;
+/home/z/my-project/src/components/5s/JaulaModal.tsx:154:  const reclamados = jaulaItems.filter(i => i.jaulaStatus === 'reclamado').length;
+/home/z/my-project/src/components/5s/JaulaModal.tsx:155:  const transferidos = jaulaItems.filter(i => i.jaulaStatus === 'transferido').length;
+/home/z/my-project/src/components/5s/JaulaModal.tsx:158:    const opt = JAULA_STATUS.find(s => s.value === status);
+/home/z/my-project/src/components/5s/JaulaModal.tsx:164:  const tagItems = filteredJaulaItems
+/home/z/my-project/src/components/5s/JaulaModal.tsx:165:    .filter(i => !i.extra?.decision || i.extra.decision === 'Jaula')
+/home/z/my-project/src/components/5s/JaulaModal.tsx:169:      if (i.jaulaFechaEntrada) {
+/home/z/my-project/src/components/5s/JaulaModal.tsx:171:          const d = new Date(i.jaulaFechaEntrada);
+
+[Showing results with pagination = limit: 250]
