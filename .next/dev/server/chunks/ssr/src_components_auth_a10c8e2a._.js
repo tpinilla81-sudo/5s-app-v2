@@ -6052,6 +6052,12 @@ const PROJECT_PERMS = [
         icon: __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$bell$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Bell$3e$__["Bell"]
     },
     {
+        id: 'notify_autoeval',
+        name: 'Solicitar autoevaluación',
+        desc: 'Puede activar el aviso de autoevaluación en el paso 4 (al responsable)',
+        icon: __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$bell$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Bell$3e$__["Bell"]
+    },
+    {
         id: 'accept_audit_meeting',
         name: 'Aceptar reunión auditoría',
         desc: 'Puede aceptar la reunión de auditoría para apagar el aviso',
@@ -6089,6 +6095,7 @@ const DEFAULT_PERMISSIONS = {
     // Only gestor can change admin permissions
     admin: [
         ...PROJECT_PERMS.map((p)=>p.id),
+        'manage_permissions',
         ...PERM_ID_MAP.filter((p)=>p.actionIdx === 0).map((p)=>p.id)
     ],
     gerente: [
@@ -6126,9 +6133,13 @@ const DEFAULT_PERMISSIONS = {
         'view_project',
         'view_team',
         'notify_audit',
-        // S-steps: can view all, can execute steps 1-4 but NOT step 5
-        ...PERM_ID_MAP.filter((p)=>p.miniStep < 5).map((p)=>p.id),
-        // Can view audits but not conduct
+        'notify_autoeval',
+        // S-steps: empleado can do step 1 (formación+examen) only — individual exam
+        // Steps 2,3 are zone-level (collaborative) — empleado can VIEW but not mark complete
+        // Step 4 is done by RESPONSABLE — empleado can only VIEW and request autoeval
+        // Step 5 is done by AUDITOR — empleado can VIEW and request audit
+        ...PERM_ID_MAP.filter((p)=>p.miniStep === 1 && p.actionIdx === 1).map((p)=>p.id),
+        ...PERM_ID_MAP.filter((p)=>p.actionIdx === 0).map((p)=>p.id),
         ...PERM_ID_MAP.filter((p)=>p.miniStep === 5 && p.actionIdx === 0).map((p)=>p.id)
     ],
     auditor: [
@@ -6388,7 +6399,7 @@ function RolePermissions({ open, onClose }) {
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 376,
+                                    lineNumber: 381,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -6401,7 +6412,7 @@ function RolePermissions({ open, onClose }) {
                                             children: sDef.japanese
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 381,
+                                            lineNumber: 386,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -6409,19 +6420,19 @@ function RolePermissions({ open, onClose }) {
                                             children: sDef.name
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 382,
+                                            lineNumber: 387,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 380,
+                                    lineNumber: 385,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                            lineNumber: 375,
+                            lineNumber: 380,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -6442,7 +6453,7 @@ function RolePermissions({ open, onClose }) {
                                                 children: role.name.slice(0, 3).toUpperCase()
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                lineNumber: 392,
+                                                lineNumber: 397,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -6457,13 +6468,13 @@ function RolePermissions({ open, onClose }) {
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                lineNumber: 393,
+                                                lineNumber: 398,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, role.id, true, {
                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                        lineNumber: 391,
+                                        lineNumber: 396,
                                         columnNumber: 17
                                     }, this);
                                 }),
@@ -6490,29 +6501,29 @@ function RolePermissions({ open, onClose }) {
                                             strokeLinejoin: "round"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 399,
+                                            lineNumber: 404,
                                             columnNumber: 17
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                        lineNumber: 398,
+                                        lineNumber: 403,
                                         columnNumber: 15
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 397,
+                                    lineNumber: 402,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                            lineNumber: 385,
+                            lineNumber: 390,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                    lineNumber: 370,
+                    lineNumber: 375,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$framer$2d$motion$2f$dist$2f$es$2f$components$2f$AnimatePresence$2f$index$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["AnimatePresence"], {
@@ -6551,7 +6562,7 @@ function RolePermissions({ open, onClose }) {
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 419,
+                                            lineNumber: 424,
                                             columnNumber: 21
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$button$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Button"], {
@@ -6565,13 +6576,13 @@ function RolePermissions({ open, onClose }) {
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 424,
+                                            lineNumber: 429,
                                             columnNumber: 21
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 418,
+                                    lineNumber: 423,
                                     columnNumber: 19
                                 }, this),
                                 MINI_STEPS_DEF.map((msDef)=>{
@@ -6594,7 +6605,7 @@ function RolePermissions({ open, onClose }) {
                                                         }
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                        lineNumber: 441,
+                                                        lineNumber: 446,
                                                         columnNumber: 25
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -6610,13 +6621,13 @@ function RolePermissions({ open, onClose }) {
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                        lineNumber: 442,
+                                                        lineNumber: 447,
                                                         columnNumber: 25
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                lineNumber: 440,
+                                                lineNumber: 445,
                                                 columnNumber: 23
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -6632,7 +6643,7 @@ function RolePermissions({ open, onClose }) {
                                                                         children: "Acción"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                        lineNumber: 452,
+                                                                        lineNumber: 457,
                                                                         columnNumber: 31
                                                                     }, this),
                                                                     visibleRoles.map((role)=>{
@@ -6649,7 +6660,7 @@ function RolePermissions({ open, onClose }) {
                                                                                         }
                                                                                     }, void 0, false, {
                                                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                                        lineNumber: 458,
+                                                                                        lineNumber: 463,
                                                                                         columnNumber: 39
                                                                                     }, this),
                                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -6660,30 +6671,30 @@ function RolePermissions({ open, onClose }) {
                                                                                         children: role.name
                                                                                     }, void 0, false, {
                                                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                                        lineNumber: 459,
+                                                                                        lineNumber: 464,
                                                                                         columnNumber: 39
                                                                                     }, this)
                                                                                 ]
                                                                             }, void 0, true, {
                                                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                                lineNumber: 457,
+                                                                                lineNumber: 462,
                                                                                 columnNumber: 37
                                                                             }, this)
                                                                         }, role.id, false, {
                                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                            lineNumber: 456,
+                                                                            lineNumber: 461,
                                                                             columnNumber: 35
                                                                         }, this);
                                                                     })
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                lineNumber: 451,
+                                                                lineNumber: 456,
                                                                 columnNumber: 29
                                                             }, this)
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 450,
+                                                            lineNumber: 455,
                                                             columnNumber: 27
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tbody", {
@@ -6695,7 +6706,7 @@ function RolePermissions({ open, onClose }) {
                                                                             children: perm.name
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                            lineNumber: 469,
+                                                                            lineNumber: 474,
                                                                             columnNumber: 33
                                                                         }, this),
                                                                         visibleRoles.map((role)=>{
@@ -6717,17 +6728,17 @@ function RolePermissions({ open, onClose }) {
                                                                                                         className: locked ? 'opacity-50' : ''
                                                                                                     }, void 0, false, {
                                                                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                                                        lineNumber: 480,
+                                                                                                        lineNumber: 485,
                                                                                                         columnNumber: 49
                                                                                                     }, this)
                                                                                                 }, void 0, false, {
                                                                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                                                    lineNumber: 479,
+                                                                                                    lineNumber: 484,
                                                                                                     columnNumber: 47
                                                                                                 }, this)
                                                                                             }, void 0, false, {
                                                                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                                                lineNumber: 478,
+                                                                                                lineNumber: 483,
                                                                                                 columnNumber: 45
                                                                                             }, this),
                                                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$tooltip$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["TooltipContent"], {
@@ -6735,87 +6746,87 @@ function RolePermissions({ open, onClose }) {
                                                                                                 children: locked ? 'Bloqueado' : allowed ? 'Clic para desactivar' : 'Clic para activar'
                                                                                             }, void 0, false, {
                                                                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                                                lineNumber: 488,
+                                                                                                lineNumber: 493,
                                                                                                 columnNumber: 45
                                                                                             }, this)
                                                                                         ]
                                                                                     }, void 0, true, {
                                                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                                        lineNumber: 477,
+                                                                                        lineNumber: 482,
                                                                                         columnNumber: 43
                                                                                     }, this)
                                                                                 }, void 0, false, {
                                                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                                    lineNumber: 476,
+                                                                                    lineNumber: 481,
                                                                                     columnNumber: 41
                                                                                 }, this) : allowed ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$check$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__CheckCircle2$3e$__["CheckCircle2"], {
                                                                                     className: "h-5 w-5 text-green-500 mx-auto"
                                                                                 }, void 0, false, {
                                                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                                    lineNumber: 494,
+                                                                                    lineNumber: 499,
                                                                                     columnNumber: 41
                                                                                 }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$x$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__XCircle$3e$__["XCircle"], {
                                                                                     className: "h-5 w-5 text-red-300 mx-auto"
                                                                                 }, void 0, false, {
                                                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                                    lineNumber: 496,
+                                                                                    lineNumber: 501,
                                                                                     columnNumber: 41
                                                                                 }, this)
                                                                             }, role.id, false, {
                                                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                                lineNumber: 474,
+                                                                                lineNumber: 479,
                                                                                 columnNumber: 37
                                                                             }, this);
                                                                         })
                                                                     ]
                                                                 }, perm.id, true, {
                                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                    lineNumber: 468,
+                                                                    lineNumber: 473,
                                                                     columnNumber: 31
                                                                 }, this))
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 466,
+                                                            lineNumber: 471,
                                                             columnNumber: 27
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 449,
+                                                    lineNumber: 454,
                                                     columnNumber: 25
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                lineNumber: 448,
+                                                lineNumber: 453,
                                                 columnNumber: 23
                                             }, this)
                                         ]
                                     }, msDef.id, true, {
                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                        lineNumber: 438,
+                                        lineNumber: 443,
                                         columnNumber: 21
                                     }, this);
                                 })
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                            lineNumber: 415,
+                            lineNumber: 420,
                             columnNumber: 15
                         }, this)
                     }, void 0, false, {
                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                        lineNumber: 408,
+                        lineNumber: 413,
                         columnNumber: 13
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                    lineNumber: 406,
+                    lineNumber: 411,
                     columnNumber: 9
                 }, this)
             ]
         }, sDef.id, true, {
             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-            lineNumber: 367,
+            lineNumber: 372,
             columnNumber: 7
         }, this);
     };
@@ -6832,12 +6843,12 @@ function RolePermissions({ open, onClose }) {
                                 className: "h-6 w-6 text-white"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                lineNumber: 522,
+                                lineNumber: 527,
                                 columnNumber: 13
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                            lineNumber: 521,
+                            lineNumber: 526,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -6847,7 +6858,7 @@ function RolePermissions({ open, onClose }) {
                                     children: "Gestión General"
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 525,
+                                    lineNumber: 530,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -6855,19 +6866,19 @@ function RolePermissions({ open, onClose }) {
                                     children: "Permisos de administración, proyecto y equipo"
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 526,
+                                    lineNumber: 531,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                            lineNumber: 524,
+                            lineNumber: 529,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                    lineNumber: 520,
+                    lineNumber: 525,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -6885,7 +6896,7 @@ function RolePermissions({ open, onClose }) {
                                                 children: "Permiso"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                lineNumber: 534,
+                                                lineNumber: 539,
                                                 columnNumber: 19
                                             }, this),
                                             visibleRoles.map((role)=>{
@@ -6902,7 +6913,7 @@ function RolePermissions({ open, onClose }) {
                                                                 }
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                lineNumber: 540,
+                                                                lineNumber: 545,
                                                                 columnNumber: 27
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -6913,30 +6924,30 @@ function RolePermissions({ open, onClose }) {
                                                                 children: role.name
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                lineNumber: 541,
+                                                                lineNumber: 546,
                                                                 columnNumber: 27
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                        lineNumber: 539,
+                                                        lineNumber: 544,
                                                         columnNumber: 25
                                                     }, this)
                                                 }, role.id, false, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 538,
+                                                    lineNumber: 543,
                                                     columnNumber: 23
                                                 }, this);
                                             })
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                        lineNumber: 533,
+                                        lineNumber: 538,
                                         columnNumber: 17
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 532,
+                                    lineNumber: 537,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tbody", {
@@ -6954,7 +6965,7 @@ function RolePermissions({ open, onClose }) {
                                                                 className: "h-5 w-5 text-muted-foreground shrink-0"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                lineNumber: 555,
+                                                                lineNumber: 560,
                                                                 columnNumber: 27
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -6964,7 +6975,7 @@ function RolePermissions({ open, onClose }) {
                                                                         children: perm.name
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                        lineNumber: 557,
+                                                                        lineNumber: 562,
                                                                         columnNumber: 29
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -6972,24 +6983,24 @@ function RolePermissions({ open, onClose }) {
                                                                         children: perm.desc
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                        lineNumber: 558,
+                                                                        lineNumber: 563,
                                                                         columnNumber: 29
                                                                     }, this)
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                lineNumber: 556,
+                                                                lineNumber: 561,
                                                                 columnNumber: 27
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                        lineNumber: 554,
+                                                        lineNumber: 559,
                                                         columnNumber: 25
                                                     }, this)
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 553,
+                                                    lineNumber: 558,
                                                     columnNumber: 23
                                                 }, this),
                                                 visibleRoles.map((role)=>{
@@ -7011,17 +7022,17 @@ function RolePermissions({ open, onClose }) {
                                                                                 className: locked ? 'opacity-50' : ''
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                                lineNumber: 572,
+                                                                                lineNumber: 577,
                                                                                 columnNumber: 39
                                                                             }, this)
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                            lineNumber: 571,
+                                                                            lineNumber: 576,
                                                                             columnNumber: 37
                                                                         }, this)
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                        lineNumber: 570,
+                                                                        lineNumber: 575,
                                                                         columnNumber: 35
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$tooltip$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["TooltipContent"], {
@@ -7029,70 +7040,70 @@ function RolePermissions({ open, onClose }) {
                                                                         children: locked ? 'Bloqueado' : allowed ? 'Clic para desactivar' : 'Clic para activar'
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                        lineNumber: 580,
+                                                                        lineNumber: 585,
                                                                         columnNumber: 35
                                                                     }, this)
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                lineNumber: 569,
+                                                                lineNumber: 574,
                                                                 columnNumber: 33
                                                             }, this)
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 568,
+                                                            lineNumber: 573,
                                                             columnNumber: 31
                                                         }, this) : allowed ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$check$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__CheckCircle2$3e$__["CheckCircle2"], {
                                                             className: "h-5 w-5 text-green-500 mx-auto"
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 586,
+                                                            lineNumber: 591,
                                                             columnNumber: 31
                                                         }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$x$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__XCircle$3e$__["XCircle"], {
                                                             className: "h-5 w-5 text-red-300 mx-auto"
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 588,
+                                                            lineNumber: 593,
                                                             columnNumber: 31
                                                         }, this)
                                                     }, role.id, false, {
                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                        lineNumber: 566,
+                                                        lineNumber: 571,
                                                         columnNumber: 27
                                                     }, this);
                                                 })
                                             ]
                                         }, perm.id, true, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 552,
+                                            lineNumber: 557,
                                             columnNumber: 21
                                         }, this);
                                     })
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 548,
+                                    lineNumber: 553,
                                     columnNumber: 15
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                            lineNumber: 531,
+                            lineNumber: 536,
                             columnNumber: 13
                         }, this)
                     }, void 0, false, {
                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                        lineNumber: 530,
+                        lineNumber: 535,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                    lineNumber: 529,
+                    lineNumber: 534,
                     columnNumber: 9
                 }, this)
             ]
         }, void 0, true, {
             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-            lineNumber: 519,
+            lineNumber: 524,
             columnNumber: 7
         }, this);
     };
@@ -7121,14 +7132,14 @@ function RolePermissions({ open, onClose }) {
                                                 className: "h-5 w-5"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                lineNumber: 614,
+                                                lineNumber: 619,
                                                 columnNumber: 15
                                             }, this),
                                             " Volver"
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                        lineNumber: 613,
+                                        lineNumber: 618,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7140,12 +7151,12 @@ function RolePermissions({ open, onClose }) {
                                                     className: "h-5 w-5 text-white"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 618,
+                                                    lineNumber: 623,
                                                     columnNumber: 17
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                lineNumber: 617,
+                                                lineNumber: 622,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7155,7 +7166,7 @@ function RolePermissions({ open, onClose }) {
                                                         children: "Matriz de Permisos por 5S"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                        lineNumber: 621,
+                                                        lineNumber: 626,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -7166,25 +7177,25 @@ function RolePermissions({ open, onClose }) {
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                        lineNumber: 622,
+                                                        lineNumber: 627,
                                                         columnNumber: 17
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                lineNumber: 620,
+                                                lineNumber: 625,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                        lineNumber: 616,
+                                        lineNumber: 621,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                lineNumber: 612,
+                                lineNumber: 617,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7206,14 +7217,14 @@ function RolePermissions({ open, onClose }) {
                                                         className: "h-4 w-4 mr-1.5"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                        lineNumber: 634,
+                                                        lineNumber: 639,
                                                         columnNumber: 17
                                                     }, this),
                                                     " Consultar"
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                lineNumber: 631,
+                                                lineNumber: 636,
                                                 columnNumber: 15
                                             }, this),
                                             canEdit && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$button$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Button"], {
@@ -7229,20 +7240,20 @@ function RolePermissions({ open, onClose }) {
                                                         className: "h-4 w-4 mr-1.5"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                        lineNumber: 640,
+                                                        lineNumber: 645,
                                                         columnNumber: 19
                                                     }, this),
                                                     " Editar"
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                lineNumber: 637,
+                                                lineNumber: 642,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                        lineNumber: 630,
+                                        lineNumber: 635,
                                         columnNumber: 13
                                     }, this),
                                     canEdit && viewMode === 'edit' && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7259,14 +7270,14 @@ function RolePermissions({ open, onClose }) {
                                                         className: "h-4 w-4 mr-1.5"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                        lineNumber: 649,
+                                                        lineNumber: 654,
                                                         columnNumber: 21
                                                     }, this),
                                                     " Defaults"
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                lineNumber: 647,
+                                                lineNumber: 652,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$button$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Button"], {
@@ -7279,26 +7290,26 @@ function RolePermissions({ open, onClose }) {
                                                         className: "h-4 w-4 mr-1.5 animate-spin"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                        lineNumber: 654,
+                                                        lineNumber: 659,
                                                         columnNumber: 31
                                                     }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$save$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Save$3e$__["Save"], {
                                                         className: "h-4 w-4 mr-1.5"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                        lineNumber: 654,
+                                                        lineNumber: 659,
                                                         columnNumber: 85
                                                     }, this),
                                                     "Guardar"
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                lineNumber: 652,
+                                                lineNumber: 657,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                        lineNumber: 645,
+                                        lineNumber: 650,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$button$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Button"], {
@@ -7310,24 +7321,24 @@ function RolePermissions({ open, onClose }) {
                                             className: "h-5 w-5"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 660,
+                                            lineNumber: 665,
                                             columnNumber: 15
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                        lineNumber: 659,
+                                        lineNumber: 664,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                lineNumber: 629,
+                                lineNumber: 634,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                        lineNumber: 611,
+                        lineNumber: 616,
                         columnNumber: 9
                     }, this),
                     hasChanges && viewMode === 'edit' && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7339,25 +7350,25 @@ function RolePermissions({ open, onClose }) {
                                     className: "h-4 w-4 shrink-0"
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 668,
+                                    lineNumber: 673,
                                     columnNumber: 15
                                 }, this),
                                 'Hay cambios sin guardar. Pulsa "Guardar" para aplicar.'
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                            lineNumber: 667,
+                            lineNumber: 672,
                             columnNumber: 13
                         }, this)
                     }, void 0, false, {
                         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                        lineNumber: 666,
+                        lineNumber: 671,
                         columnNumber: 11
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                lineNumber: 610,
+                lineNumber: 615,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7369,7 +7380,7 @@ function RolePermissions({ open, onClose }) {
                             className: "h-10 w-10 text-green-500 animate-spin"
                         }, void 0, false, {
                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                            lineNumber: 679,
+                            lineNumber: 684,
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -7377,13 +7388,13 @@ function RolePermissions({ open, onClose }) {
                             children: "Cargando permisos..."
                         }, void 0, false, {
                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                            lineNumber: 680,
+                            lineNumber: 685,
                             columnNumber: 13
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                    lineNumber: 678,
+                    lineNumber: 683,
                     columnNumber: 11
                 }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                     className: "space-y-6",
@@ -7399,14 +7410,14 @@ function RolePermissions({ open, onClose }) {
                                             className: "h-3.5 w-3.5"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 695,
+                                            lineNumber: 700,
                                             columnNumber: 19
                                         }, this),
                                         "Plataforma (Gestor)"
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 687,
+                                    lineNumber: 692,
                                     columnNumber: 17
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -7417,20 +7428,20 @@ function RolePermissions({ open, onClose }) {
                                             className: "h-3.5 w-3.5"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 707,
+                                            lineNumber: 712,
                                             columnNumber: 17
                                         }, this),
                                         "Proyecto (Admin de Empresa)"
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 699,
+                                    lineNumber: 704,
                                     columnNumber: 15
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                            lineNumber: 685,
+                            lineNumber: 690,
                             columnNumber: 13
                         }, this),
                         permissionTab === 'plataforma' && isGestor && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7443,7 +7454,7 @@ function RolePermissions({ open, onClose }) {
                                             className: "h-5 w-5 shrink-0 mt-0.5"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 716,
+                                            lineNumber: 721,
                                             columnNumber: 19
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7453,7 +7464,7 @@ function RolePermissions({ open, onClose }) {
                                                     children: "Permisos de Plataforma — Gestor (Dueño)"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 718,
+                                                    lineNumber: 723,
                                                     columnNumber: 21
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -7461,19 +7472,19 @@ function RolePermissions({ open, onClose }) {
                                                     children: "El Gestor controla la plataforma: crea empresas, asigna admins, gestiona contratos y suscripciones. Estos permisos no se pueden modificar."
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 719,
+                                                    lineNumber: 724,
                                                     columnNumber: 21
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 717,
+                                            lineNumber: 722,
                                             columnNumber: 19
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 715,
+                                    lineNumber: 720,
                                     columnNumber: 17
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7490,7 +7501,7 @@ function RolePermissions({ open, onClose }) {
                                                             className: "h-4 w-4 text-red-500 shrink-0"
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 728,
+                                                            lineNumber: 733,
                                                             columnNumber: 27
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7500,7 +7511,7 @@ function RolePermissions({ open, onClose }) {
                                                                     children: perm.name
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                    lineNumber: 730,
+                                                                    lineNumber: 735,
                                                                     columnNumber: 29
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -7508,19 +7519,19 @@ function RolePermissions({ open, onClose }) {
                                                                     children: perm.desc
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                    lineNumber: 731,
+                                                                    lineNumber: 736,
                                                                     columnNumber: 29
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 729,
+                                                            lineNumber: 734,
                                                             columnNumber: 27
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 727,
+                                                    lineNumber: 732,
                                                     columnNumber: 25
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7530,7 +7541,7 @@ function RolePermissions({ open, onClose }) {
                                                             className: "h-3 w-3 text-red-400"
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 735,
+                                                            lineNumber: 740,
                                                             columnNumber: 27
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -7538,31 +7549,31 @@ function RolePermissions({ open, onClose }) {
                                                             children: "Siempre ON"
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 736,
+                                                            lineNumber: 741,
                                                             columnNumber: 27
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 734,
+                                                    lineNumber: 739,
                                                     columnNumber: 25
                                                 }, this)
                                             ]
                                         }, perm.id, true, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 726,
+                                            lineNumber: 731,
                                             columnNumber: 23
                                         }, this);
                                     })
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 722,
+                                    lineNumber: 727,
                                     columnNumber: 17
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                            lineNumber: 714,
+                            lineNumber: 719,
                             columnNumber: 15
                         }, this),
                         permissionTab === 'proyecto' && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
@@ -7574,7 +7585,7 @@ function RolePermissions({ open, onClose }) {
                                             className: "h-5 w-5 shrink-0 mt-0.5"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 750,
+                                            lineNumber: 755,
                                             columnNumber: 19
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7584,7 +7595,7 @@ function RolePermissions({ open, onClose }) {
                                                     children: "Permisos de Proyecto — Admin de Empresa"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 752,
+                                                    lineNumber: 757,
                                                     columnNumber: 21
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -7592,19 +7603,19 @@ function RolePermissions({ open, onClose }) {
                                                     children: "Cada empresa configura los permisos de sus propios proyectos. El Admin de Empresa decide qué puede hacer cada rol dentro de su proyecto. Los permisos del Admin solo los puede cambiar el Gestor."
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 753,
+                                                    lineNumber: 758,
                                                     columnNumber: 21
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 751,
+                                            lineNumber: 756,
                                             columnNumber: 19
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 749,
+                                    lineNumber: 754,
                                     columnNumber: 17
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7634,7 +7645,7 @@ function RolePermissions({ open, onClose }) {
                                                             }
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 768,
+                                                            lineNumber: 773,
                                                             columnNumber: 27
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -7645,13 +7656,13 @@ function RolePermissions({ open, onClose }) {
                                                             children: role.name
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 769,
+                                                            lineNumber: 774,
                                                             columnNumber: 27
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 767,
+                                                    lineNumber: 772,
                                                     columnNumber: 25
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7667,12 +7678,12 @@ function RolePermissions({ open, onClose }) {
                                                                 }
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                                lineNumber: 773,
+                                                                lineNumber: 778,
                                                                 columnNumber: 29
                                                             }, this)
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 772,
+                                                            lineNumber: 777,
                                                             columnNumber: 27
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -7686,13 +7697,13 @@ function RolePermissions({ open, onClose }) {
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 776,
+                                                            lineNumber: 781,
                                                             columnNumber: 27
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 771,
+                                                    lineNumber: 776,
                                                     columnNumber: 25
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7703,7 +7714,7 @@ function RolePermissions({ open, onClose }) {
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 778,
+                                                    lineNumber: 783,
                                                     columnNumber: 25
                                                 }, this),
                                                 viewMode === 'edit' && canEdit && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7717,7 +7728,7 @@ function RolePermissions({ open, onClose }) {
                                                             children: "Todo ON"
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 781,
+                                                            lineNumber: 786,
                                                             columnNumber: 29
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$button$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Button"], {
@@ -7728,25 +7739,25 @@ function RolePermissions({ open, onClose }) {
                                                             children: "Todo OFF"
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 783,
+                                                            lineNumber: 788,
                                                             columnNumber: 29
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 780,
+                                                    lineNumber: 785,
                                                     columnNumber: 27
                                                 }, this)
                                             ]
                                         }, role.id, true, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 765,
+                                            lineNumber: 770,
                                             columnNumber: 23
                                         }, this);
                                     })
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 758,
+                                    lineNumber: 763,
                                     columnNumber: 17
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7759,7 +7770,7 @@ function RolePermissions({ open, onClose }) {
                                                     className: "h-5 w-5 text-green-500"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 795,
+                                                    lineNumber: 800,
                                                     columnNumber: 21
                                                 }, this),
                                                 "Permisos por 5S",
@@ -7768,20 +7779,20 @@ function RolePermissions({ open, onClose }) {
                                                     children: "(pulsa en cada S para desplegar)"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 797,
+                                                    lineNumber: 802,
                                                     columnNumber: 21
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 794,
+                                            lineNumber: 799,
                                             columnNumber: 19
                                         }, this),
                                         S_STEPS_DEF.map((sDef)=>renderSStepCard(sDef))
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 793,
+                                    lineNumber: 798,
                                     columnNumber: 17
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7789,7 +7800,7 @@ function RolePermissions({ open, onClose }) {
                                     children: renderGeneralPerms()
                                 }, void 0, false, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 803,
+                                    lineNumber: 808,
                                     columnNumber: 17
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7800,7 +7811,7 @@ function RolePermissions({ open, onClose }) {
                                             children: "Resumen de Permisos de Proyecto"
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 809,
+                                            lineNumber: 814,
                                             columnNumber: 19
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7826,7 +7837,7 @@ function RolePermissions({ open, onClose }) {
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 817,
+                                                            lineNumber: 822,
                                                             columnNumber: 27
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7838,7 +7849,7 @@ function RolePermissions({ open, onClose }) {
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 818,
+                                                            lineNumber: 823,
                                                             columnNumber: 27
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -7849,25 +7860,25 @@ function RolePermissions({ open, onClose }) {
                                                             children: role.name
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                            lineNumber: 819,
+                                                            lineNumber: 824,
                                                             columnNumber: 27
                                                         }, this)
                                                     ]
                                                 }, role.id, true, {
                                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                                    lineNumber: 816,
+                                                    lineNumber: 821,
                                                     columnNumber: 25
                                                 }, this);
                                             })
                                         }, void 0, false, {
                                             fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                            lineNumber: 810,
+                                            lineNumber: 815,
                                             columnNumber: 19
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                                    lineNumber: 808,
+                                    lineNumber: 813,
                                     columnNumber: 17
                                 }, this)
                             ]
@@ -7875,18 +7886,18 @@ function RolePermissions({ open, onClose }) {
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                    lineNumber: 683,
+                    lineNumber: 688,
                     columnNumber: 11
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/components/auth/RolePermissions.tsx",
-                lineNumber: 676,
+                lineNumber: 681,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/components/auth/RolePermissions.tsx",
-        lineNumber: 608,
+        lineNumber: 613,
         columnNumber: 5
     }, this);
 }

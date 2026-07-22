@@ -61,7 +61,6 @@
   "/api/subscriptions/[subscriptionId]/route": "/api/subscriptions/[subscriptionId]",
   "/api/subscriptions/route": "/api/subscriptions",
   "/api/templates/route": "/api/templates",
-  "/api/upload/route": "/api/upload",
   "/api/users/route": "/api/users",
   "/api/users/verify-password/route": "/api/users/verify-password",
   "/page": "/"

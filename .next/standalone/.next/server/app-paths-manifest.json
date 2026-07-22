@@ -61,7 +61,6 @@
   "/api/subscriptions/[subscriptionId]/route": "app/api/subscriptions/[subscriptionId]/route.js",
   "/api/subscriptions/route": "app/api/subscriptions/route.js",
   "/api/templates/route": "app/api/templates/route.js",
-  "/api/upload/route": "app/api/upload/route.js",
   "/api/users/route": "app/api/users/route.js",
   "/api/users/verify-password/route": "app/api/users/verify-password/route.js",
   "/page": "app/page.js"

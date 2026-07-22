@@ -76,7 +76,7 @@ const PROJECT_GENERAL_PERMISSIONS = [
   'view_team', 'add_members', 'remove_members', 'change_roles',
   'manage_training', 'delete_photos', 'delete_inventory', 'approve_audit',
   'delete_project', 'reset_data', 'manage_templates', 'skip_steps',
-  'notify_audit', 'accept_audit_meeting',
+  'notify_audit', 'notify_autoeval', 'manage_permissions', 'accept_audit_meeting',
 ]
 
 const ALL_PERMISSIONS = [...PLATFORM_PERMISSIONS, ...PER_S_PERMISSIONS, ...PROJECT_GENERAL_PERMISSIONS]
@@ -133,7 +133,7 @@ const DEFAULT_PERMISSIONS: Record<string, string[]> = {
 
   empleado: [
     'view_board', 'view_progress', 'view_project', 'view_team',
-    'notify_audit',
+    'notify_audit', 'notify_autoeval', 'reset_data',
     // S-steps: can view all, can execute steps 1-4, can only view step 5
     ...PER_S_PERMISSIONS.filter(id => {
       if (id.endsWith('_a0')) return true // All view

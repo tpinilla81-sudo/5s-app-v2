@@ -516,12 +516,6 @@
       "namedRegex": "^/api/templates(?:/)?$"
     },
     {
-      "page": "/api/upload",
-      "regex": "^/api/upload(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/api/upload(?:/)?$"
-    },
-    {
       "page": "/api/users",
       "regex": "^/api/users(?:/)?$",
       "routeKeys": {},

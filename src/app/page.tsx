@@ -236,10 +236,13 @@ export default function HomePage() {
   const canPerformPerm = useMemo(() => (sStep: number, miniStep: number): boolean => hasPermission(`s${sStep}_step${miniStep}_a1`), [hasPermission]);
   const canViewPerm = useMemo(() => (sStep: number, miniStep: number): boolean => hasPermission(`s${sStep}_step${miniStep}_a0`), [hasPermission]);
   const canAuditAny = useMemo(() => currentUser ? [1,2,3,4,5].some(s => canPerformPerm(s, 5)) : false, [currentUser, canPerformPerm]);
+  // Role checks — MUST be defined before any variable that references them
+  const isGestor = currentUser?.role === 'gestor';
+  const isAdmin = currentUser?.role === 'admin';
+  const isResponsable = currentUser?.role === 'responsable';
   const canNotifyAudit = hasPermission('notify_audit'); // Only employees (by default) can trigger audit notification
   const canNotifyAutoeval = hasPermission('notify_autoeval'); // Only empleados can request responsable to do autoeval
   const canAcceptAuditMeeting = hasPermission('accept_audit_meeting'); // Auditors and responsables can accept audit meetings
-  const isResponsable = currentUser?.role === 'responsable';
   const canSeeNotifications = hasPermission('view_board'); // All board users can see notifications
   const canResetData = hasPermission('reset_data') || hasPermission('skip_steps'); // Testing: who can see the reset button
   const canSeePermissions = hasPermission('manage_permissions') || isAdmin || isGestor; // Only gestor/admin can see Permisos
@@ -266,9 +269,6 @@ export default function HomePage() {
 
   const canManageTeam = currentUser && hasPermission('add_members');
   const canSkipSteps = hasPermission('skip_steps');
-  // Role checks
-  const isGestor = currentUser?.role === 'gestor';
-  const isAdmin = currentUser?.role === 'admin';
   const canSeeGerentePanel = hasPermission('view_progress') || hasPermission('edit_project');
 
   const isGlobalModal = activeModal === 'globalActionPlan' || activeModal === 'globalInventory' || activeModal === 'photoLibrary' || activeModal === 'standardsLibrary' || activeModal === 'auditResults';
@@ -693,7 +693,7 @@ export default function HomePage() {
             )}
             {/* 🗑️ Borrar Pasos — Testing button to reset all progress, only for users with reset_data or skip_steps */}
             {canResetData && currentProject && (
-              <Button variant="ghost" size="sm" onClick={async () => {
+              <Button variant="outline" size="sm" onClick={async () => {
                 if (!confirm('¿Seguro que quieres borrar TODOS los pasos y datos de este proyecto? Esto es solo para pruebas.')) return;
                 try {
                   const res = await fetch('/api/progress/reset', {
@@ -712,8 +712,9 @@ export default function HomePage() {
                 } catch (err) {
                   alert('Error al restablecer datos');
                 }
-              }} className="text-red-600 hover:text-red-700 h-8 px-1.5" title="Borrar Pasos (pruebas)">
+              }} className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 h-8 px-2 gap-1" title="Borrar Pasos (pruebas)">
                 <Trash2 className="h-3.5 w-3.5" />
+                <span className="text-xs font-semibold">Borrar</span>
               </Button>
             )}
             <Button variant="ghost" size="sm" onClick={async () => {

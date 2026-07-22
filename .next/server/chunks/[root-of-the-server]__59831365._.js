@@ -1,0 +1,13 @@
+module.exports=[32319,(e,r,t)=>{r.exports=e.x("next/dist/server/app-render/work-unit-async-storage.external.js",()=>require("next/dist/server/app-render/work-unit-async-storage.external.js"))},24725,(e,r,t)=>{r.exports=e.x("next/dist/server/app-render/after-task-async-storage.external.js",()=>require("next/dist/server/app-render/after-task-async-storage.external.js"))},14747,(e,r,t)=>{r.exports=e.x("path",()=>require("path"))},18622,(e,r,t)=>{r.exports=e.x("next/dist/compiled/next-server/app-page-turbo.runtime.prod.js",()=>require("next/dist/compiled/next-server/app-page-turbo.runtime.prod.js"))},56704,(e,r,t)=>{r.exports=e.x("next/dist/server/app-render/work-async-storage.external.js",()=>require("next/dist/server/app-render/work-async-storage.external.js"))},70406,(e,r,t)=>{r.exports=e.x("next/dist/compiled/@opentelemetry/api",()=>require("next/dist/compiled/@opentelemetry/api"))},93695,(e,r,t)=>{r.exports=e.x("next/dist/shared/lib/no-fallback-error.external.js",()=>require("next/dist/shared/lib/no-fallback-error.external.js"))},63021,(e,r,t)=>{r.exports=e.x("@prisma/client-2c3a283f134fdcb6",()=>require("@prisma/client-2c3a283f134fdcb6"))},22734,(e,r,t)=>{r.exports=e.x("fs",()=>require("fs"))},43793,e=>{"use strict";var r=e.i(63021),t=e.i(14747),s=e.i(22734);let a=globalThis;if(!process.env.DATABASE_URL||process.env.DATABASE_URL.startsWith("file:"))try{let e=t.default.join(process.cwd(),".env");if(s.default.existsSync(e)){let r=s.default.readFileSync(e,"utf8").match(/^DATABASE_URL="(.+)"$/m);r&&r[1].startsWith("postgresql://")&&(process.env.DATABASE_URL=r[1])}}catch(e){}if(!process.env.DATABASE_URL_UNPOOLED)try{let e=t.default.join(process.cwd(),".env");if(s.default.existsSync(e)){let r=s.default.readFileSync(e,"utf8").match(/^DATABASE_URL_UNPOOLED="(.+)"$/m);r&&(process.env.DATABASE_URL_UNPOOLED=r[1])}}catch(e){}let i=a.prisma??new r.PrismaClient({log:["error"],datasources:{db:{url:process.env.DATABASE_URL}}});async function n(){if(!a.systemConfigMigrated)try{await i.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "SystemConfig" (
+        "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        "key" TEXT NOT NULL UNIQUE,
+        "value" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `),await i.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "SystemConfig_key_key" ON "SystemConfig"("key");
+    `),a.systemConfigMigrated=!0}catch(e){a.systemConfigMigrated=!0}}a.prisma=i,e.s(["db",()=>i,"ensureSystemConfigTable",()=>n])}];
+
+//# sourceMappingURL=%5Broot-of-the-server%5D__59831365._.js.map
