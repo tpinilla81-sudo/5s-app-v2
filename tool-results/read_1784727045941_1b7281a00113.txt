@@ -1,0 +1,712 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
+     4→import { Card, CardContent } from '@/components/ui/card'
+     5→import { Badge } from '@/components/ui/badge'
+     6→import { Button } from '@/components/ui/button'
+     7→import { Input } from '@/components/ui/input'
+     8→import { Label } from '@/components/ui/label'
+     9→import { Checkbox } from '@/components/ui/checkbox'
+    10→import {
+    11→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    12→} from '@/components/ui/select'
+    13→import {
+    14→  Dialog, DialogContent, DialogHeader, DialogTitle,
+    15→} from '@/components/ui/dialog'
+    16→import {
+    17→  Loader2, X, FileText, Award, Settings2, Plus, Trash2, Edit3, Save,
+    18→  ChevronDown, ChevronUp, Star, Copy, LayoutGrid,
+    19→} from 'lucide-react'
+    20→import { S_STEPS } from '@/lib/5s-constants'
+    21→
+    22→// ═══════════════════════════════════════════════════════
+    23→// TYPES
+    24→// ═══════════════════════════════════════════════════════
+    25→
+    26→interface TemplateOption {
+    27→  id: string
+    28→  type: string
+    29→  title: string
+    30→  sStep: number
+    31→  miniStep: number
+    32→}
+    33→
+    34→interface StandardOption {
+    35→  id: string
+    36→  title: string
+    37→  sStep: number
+    38→  category: string
+    39→}
+    40→
+    41→interface SlotTemplate {
+    42→  id: string
+    43→  slotId: string
+    44→  templateId: string
+    45→  sortOrder: number
+    46→  template: TemplateOption
+    47→}
+    48→
+    49→interface SlotStandard {
+    50→  id: string
+    51→  slotId: string
+    52→  standardId: string
+    53→  sortOrder: number
+    54→  standard: StandardOption
+    55→}
+    56→
+    57→interface BoardSlotData {
+    58→  id: string
+    59→  boardConfigId: string
+    60→  sStep: number
+    61→  miniStep: number
+    62→  templates: SlotTemplate[]
+    63→  standards: SlotStandard[]
+    64→}
+    65→
+    66→interface BoardConfigData {
+    67→  id: string
+    68→  name: string
+    69→  description: string | null
+    70→  isDefault: boolean
+    71→  _count?: { slots: number; zones: number }
+    72→}
+    73→
+    74→// ═══════════════════════════════════════════════════════
+    75→// CONSTANTS
+    76→// ═══════════════════════════════════════════════════════
+    77→
+    78→const S_COLORS: Record<number, string> = {
+    79→  1: '#8B5CF6', 2: '#EAB308', 3: '#3B82F6', 4: '#F43F5E', 5: '#F97316',
+    80→}
+    81→
+    82→const S_BG_COLORS: Record<number, string> = {
+    83→  1: 'bg-violet-50 border-violet-200',
+    84→  2: 'bg-yellow-50 border-yellow-200',
+    85→  3: 'bg-blue-50 border-blue-200',
+    86→  4: 'bg-rose-50 border-rose-200',
+    87→  5: 'bg-orange-50 border-orange-200',
+    88→}
+    89→
+    90→const S_BORDER_COLORS: Record<number, string> = {
+    91→  1: 'border-l-violet-500',
+    92→  2: 'border-l-yellow-500',
+    93→  3: 'border-l-blue-500',
+    94→  4: 'border-l-rose-500',
+    95→  5: 'border-l-orange-500',
+    96→}
+    97→
+    98→const PASO_LABELS: Record<number, { label: string; types: string[] }> = {
+    99→  1: { label: 'Formación y Exámenes', types: ['formacion', 'examen'] },
+   100→  2: { label: 'Fotografías (Antes/Después)', types: ['fotos'] },
+   101→  3: { label: 'Inventario / Estándar / Layout / Plan Limpieza', types: ['inventario', 'estandar', 'layout', 'plan_limpieza'] },
+   102→  4: { label: 'Autoevaluación / Plan de Acción', types: ['autoevaluacion', 'plan_accion'] },
+   103→  5: { label: 'Auditoría Externa / PDCA', types: ['auditoria', 'pdca'] },
+   104→}
+   105→
+   106→const TYPE_LABELS: Record<string, string> = {
+   107→  formacion: 'Formación', examen: 'Examen', fotos: 'Fotos',
+   108→  inventario: 'Inventario', estandar: 'Estándar', layout: 'Layout',
+   109→  plan_limpieza: 'Plan Limpieza', autoevaluacion: 'Autoevaluación',
+   110→  plan_accion: 'Plan de Acción', auditoria: 'Auditoría', pdca: 'PDCA',
+   111→}
+   112→
+   113→const TYPE_COLORS: Record<string, string> = {
+   114→  formacion: 'bg-blue-100 text-blue-700', examen: 'bg-amber-100 text-amber-700',
+   115→  fotos: 'bg-pink-100 text-pink-700', inventario: 'bg-green-100 text-green-700',
+   116→  estandar: 'bg-purple-100 text-purple-700', layout: 'bg-indigo-100 text-indigo-700',
+   117→  plan_limpieza: 'bg-sky-100 text-sky-700', autoevaluacion: 'bg-cyan-100 text-cyan-700',
+   118→  plan_accion: 'bg-orange-100 text-orange-700', auditoria: 'bg-red-100 text-red-700',
+   119→  pdca: 'bg-rose-100 text-rose-700',
+   120→}
+   121→
+   122→const REFERENCE_WIDTH = 1100
+   123→
+   124→// ═══════════════════════════════════════════════════════
+   125→// COMPONENT
+   126→// ═══════════════════════════════════════════════════════
+   127→
+   128→export default function Tablero5S() {
+   129→  const [configs, setConfigs] = useState<BoardConfigData[]>([])
+   130→  const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null)
+   131→  const [slots, setSlots] = useState<BoardSlotData[]>([])
+   132→  const [templates, setTemplates] = useState<TemplateOption[]>([])
+   133→  const [standards, setStandards] = useState<StandardOption[]>([])
+   134→  const [isLoading, setIsLoading] = useState(false)
+   135→  const [savingSlot, setSavingSlot] = useState<string | null>(null)
+   136→  const [expandedCell, setExpandedCell] = useState<string | null>(null)
+   137→
+   138→  // ─── Responsive scaling ───────────────────────────────────────────────
+   139→  const boardContainerRef = useRef<HTMLDivElement>(null)
+   140→  const [zoom, setZoom] = useState(1)
+   141→
+   142→  const boardVisible = !!(selectedConfigId && configs.length > 0 && !isLoading)
+   143→
+   144→  useLayoutEffect(() => {
+   145→    const container = boardContainerRef.current
+   146→    if (!container) return
+   147→
+   148→    const update = () => {
+   149→      const containerWidth = container.clientWidth
+   150→      if (containerWidth === 0) return
+   151→      const newZoom = containerWidth / REFERENCE_WIDTH
+   152→      setZoom(newZoom)
+   153→    }
+   154→
+   155→    update()
+   156→
+   157→    const ro = new ResizeObserver(update)
+   158→    ro.observe(container)
+   159→
+   160→    return () => ro.disconnect()
+   161→  }, [boardVisible])
+   162→
+   163→  // Config edit dialog
+   164→  const [showConfigDialog, setShowConfigDialog] = useState(false)
+   165→  const [editingConfig, setEditingConfig] = useState<BoardConfigData | null>(null)
+   166→  const [configName, setConfigName] = useState('')
+   167→  const [configDescription, setConfigDescription] = useState('')
+   168→  const [configIsDefault, setConfigIsDefault] = useState(false)
+   169→  const [isSavingConfig, setIsSavingConfig] = useState(false)
+   170→
+   171→  // ─── Data loading ────────────────────────────────────────────────────────
+   172→  const loadConfigs = useCallback(async () => {
+   173→    try {
+   174→      const res = await fetch('/api/board-configs')
+   175→      const data = await res.json()
+   176→      if (data.success) {
+   177→        const configsData = data.data || []
+   178→        setConfigs(configsData)
+   179→        // Auto-select default or first
+   180→        if (!selectedConfigId && configsData.length > 0) {
+   181→          const defaultConfig = configsData.find((c: BoardConfigData) => c.isDefault)
+   182→          setSelectedConfigId((defaultConfig || configsData[0]).id)
+   183→        }
+   184→      }
+   185→    } catch (error) {
+   186→      console.error('Error loading board configs:', error)
+   187→    }
+   188→  }, [selectedConfigId])
+   189→
+   190→  const loadSlots = useCallback(async () => {
+   191→    if (!selectedConfigId) return
+   192→    setIsLoading(true)
+   193→    try {
+   194→      const res = await fetch(`/api/board-slots?boardConfigId=${selectedConfigId}`)
+   195→      const data = await res.json()
+   196→      if (data.success) {
+   197→        setSlots(data.data || [])
+   198→      }
+   199→    } catch (error) {
+   200→      console.error('Error loading board slots:', error)
+   201→    } finally {
+   202→      setIsLoading(false)
+   203→    }
+   204→  }, [selectedConfigId])
+   205→
+   206→  const loadTemplates = useCallback(async () => {
+   207→    try {
+   208→      const res = await fetch('/api/templates?includeInactive=false')
+   209→      const data = await res.json()
+   210→      if (data.success) setTemplates(data.data || [])
+   211→    } catch (error) {
+   212→      console.error('Error loading templates:', error)
+   213→    }
+   214→  }, [])
+   215→
+   216→  const loadStandards = useCallback(async () => {
+   217→    try {
+   218→      const res = await fetch('/api/standards')
+   219→      const data = await res.json()
+   220→      const list = data.standards || (Array.isArray(data) ? data : [])
+   221→      setStandards(list.map((s: any) => ({
+   222→        id: s.id, title: s.title, sStep: s.sStep, category: s.category,
+   223→      })))
+   224→    } catch (error) {
+   225→      console.error('Error loading standards:', error)
+   226→    }
+   227→  }, [])
+   228→
+   229→  useEffect(() => { loadConfigs() }, [loadConfigs])
+   230→  useEffect(() => { if (selectedConfigId) loadSlots() }, [loadSlots])
+   231→  useEffect(() => { loadTemplates(); loadStandards() }, [loadTemplates, loadStandards])
+   232→
+   233→  // ─── Slot helpers ────────────────────────────────────────────────────────
+   234→  const getSlot = (sStep: number, miniStep: number): BoardSlotData | undefined =>
+   235→    slots.find(s => s.sStep === sStep && s.miniStep === miniStep)
+   236→
+   237→  const getTemplatesForPaso = (sStep: number, miniStep: number): TemplateOption[] => {
+   238→    const pasoConfig = PASO_LABELS[miniStep]
+   239→    if (!pasoConfig) return []
+   240→    return templates.filter(t => pasoConfig.types.includes(t.type) && t.sStep === sStep)
+   241→  }
+   242→
+   243→  const getStandardsForS = (sStep: number): StandardOption[] =>
+   244→    standards.filter(s => s.sStep === sStep)
+   245→
+   246→  // ─── Save slot ──────────────────────────────────────────────────────────
+   247→  const handleSaveSlot = async (sStep: number, miniStep: number, templateIds: string[], standardIds: string[]) => {
+   248→    if (!selectedConfigId) return
+   249→    const key = `${sStep}-${miniStep}`
+   250→    setSavingSlot(key)
+   251→    try {
+   252→      const res = await fetch('/api/board-slots', {
+   253→        method: 'POST',
+   254→        headers: { 'Content-Type': 'application/json' },
+   255→        body: JSON.stringify({ boardConfigId: selectedConfigId, sStep, miniStep, templateIds, standardIds }),
+   256→      })
+   257→      if (res.ok) {
+   258→        const data = await res.json()
+   259→        if (data.success) {
+   260→          setSlots(prev => {
+   261→            const idx = prev.findIndex(s => s.sStep === sStep && s.miniStep === miniStep)
+   262→            if (idx >= 0) { const u = [...prev]; u[idx] = data.data; return u }
+   263→            return [...prev, data.data]
+   264→          })
+   265→        }
+   266→      }
+   267→    } catch (error) { console.error('Error saving board slot:', error) }
+   268→    finally { setSavingSlot(null) }
+   269→  }
+   270→
+   271→  const handleToggleTemplate = async (sStep: number, miniStep: number, templateId: string) => {
+   272→    const slot = getSlot(sStep, miniStep)
+   273→    const currentIds = slot?.templates.map(t => t.templateId) || []
+   274→    const newIds = currentIds.includes(templateId) ? currentIds.filter(id => id !== templateId) : [...currentIds, templateId]
+   275→    await handleSaveSlot(sStep, miniStep, newIds, slot?.standards.map(s => s.standardId) || [])
+   276→  }
+   277→
+   278→  const handleToggleStandard = async (sStep: number, miniStep: number, standardId: string) => {
+   279→    const slot = getSlot(sStep, miniStep)
+   280→    const templateIds = slot?.templates.map(t => t.templateId) || []
+   281→    const currentIds = slot?.standards.map(s => s.standardId) || []
+   282→    const newIds = currentIds.includes(standardId) ? currentIds.filter(id => id !== standardId) : [...currentIds, standardId]
+   283→    await handleSaveSlot(sStep, miniStep, templateIds, newIds)
+   284→  }
+   285→
+   286→  const handleClearSlot = async (sStep: number, miniStep: number) => {
+   287→    await handleSaveSlot(sStep, miniStep, [], [])
+   288→    setExpandedCell(null)
+   289→  }
+   290→
+   291→  // ─── Config CRUD ─────────────────────────────────────────────────────────
+   292→  const openNewConfig = () => {
+   293→    setEditingConfig(null)
+   294→    setConfigName('')
+   295→    setConfigDescription('')
+   296→    setConfigIsDefault(configs.length === 0)
+   297→    setShowConfigDialog(true)
+   298→  }
+   299→
+   300→  const openEditConfig = (config: BoardConfigData) => {
+   301→    setEditingConfig(config)
+   302→    setConfigName(config.name)
+   303→    setConfigDescription(config.description || '')
+   304→    setConfigIsDefault(config.isDefault)
+   305→    setShowConfigDialog(true)
+   306→  }
+   307→
+   308→  const handleSaveConfig = async () => {
+   309→    if (!configName) return
+   310→    setIsSavingConfig(true)
+   311→    try {
+   312→      if (editingConfig) {
+   313→        await fetch('/api/board-configs', {
+   314→          method: 'PUT',
+   315→          headers: { 'Content-Type': 'application/json' },
+   316→          body: JSON.stringify({ id: editingConfig.id, name: configName, description: configDescription, isDefault: configIsDefault }),
+   317→        })
+   318→      } else {
+   319→        await fetch('/api/board-configs', {
+   320→          method: 'POST',
+   321→          headers: { 'Content-Type': 'application/json' },
+   322→          body: JSON.stringify({ name: configName, description: configDescription, isDefault: configIsDefault }),
+   323→        })
+   324→      }
+   325→      setShowConfigDialog(false)
+   326→      await loadConfigs()
+   327→    } catch (error) { console.error('Error saving config:', error) }
+   328→    finally { setIsSavingConfig(false) }
+   329→  }
+   330→
+   331→  const handleDeleteConfig = async (id: string) => {
+   332→    if (!confirm('¿Eliminar este tablero? Las zonas que lo usen quedarán sin tablero asignado.')) return
+   333→    try {
+   334→      await fetch(`/api/board-configs?id=${id}`, { method: 'DELETE' })
+   335→      if (selectedConfigId === id) setSelectedConfigId(null)
+   336→      await loadConfigs()
+   337→    } catch (error) { console.error('Error deleting config:', error) }
+   338→  }
+   339→
+   340→  const handleDuplicateConfig = async (config: BoardConfigData) => {
+   341→    const newName = `${config.name} (copia)`
+   342→    try {
+   343→      const res = await fetch('/api/board-configs', {
+   344→        method: 'POST',
+   345→        headers: { 'Content-Type': 'application/json' },
+   346→        body: JSON.stringify({ name: newName, description: config.description }),
+   347→      })
+   348→      const data = await res.json()
+   349→      if (data.success && data.data) {
+   350→        // Now copy all slots from the original config
+   351→        const sourceSlotsRes = await fetch(`/api/board-slots?boardConfigId=${config.id}`)
+   352→        const sourceSlotsData = await sourceSlotsRes.json()
+   353→        if (sourceSlotsData.success && sourceSlotsData.data) {
+   354→          for (const slot of sourceSlotsData.data) {
+   355→            const templateIds = slot.templates.map((t: SlotTemplate) => t.templateId)
+   356→            const standardIds = slot.standards.map((s: SlotStandard) => s.standardId)
+   357→            await fetch('/api/board-slots', {
+   358→              method: 'POST',
+   359→              headers: { 'Content-Type': 'application/json' },
+   360→              body: JSON.stringify({
+   361→                boardConfigId: data.data.id,
+   362→                sStep: slot.sStep,
+   363→                miniStep: slot.miniStep,
+   364→                templateIds,
+   365→                standardIds,
+   366→              }),
+   367→            })
+   368→          }
+   369→        }
+   370→        await loadConfigs()
+   371→        setSelectedConfigId(data.data.id)
+   372→      }
+   373→    } catch (error) { console.error('Error duplicating config:', error) }
+   374→  }
+   375→
+   376→  const handleSetDefault = async (config: BoardConfigData) => {
+   377→    try {
+   378→      await fetch('/api/board-configs', {
+   379→        method: 'PUT',
+   380→        headers: { 'Content-Type': 'application/json' },
+   381→        body: JSON.stringify({ id: config.id, isDefault: true }),
+   382→      })
+   383→      await loadConfigs()
+   384→    } catch (error) { console.error('Error setting default:', error) }
+   385→  }
+   386→
+   387→  // ─── Render ──────────────────────────────────────────────────────────
+   388→  const selectedConfig = configs.find(c => c.id === selectedConfigId)
+   389→
+   390→  return (
+   391→    <div className="space-y-6">
+   392→      {/* Header */}
+   393→      <div className="flex items-center gap-3">
+   394→        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
+   395→          <Settings2 className="h-5 w-5 text-white" />
+   396→        </div>
+   397→        <div>
+   398→          <h2 className="text-lg font-bold text-gray-900">Configuración de Tableros</h2>
+   399→          <p className="text-sm text-muted-foreground">
+   400→            Crea tableros con plantillas y estándares. Luego asígnalos a las zonas de cada proyecto.
+   401→          </p>
+   402→        </div>
+   403→      </div>
+   404→
+   405→      {/* Board configs selector + CRUD */}
+   406→      <div className="border rounded-xl p-4 bg-gradient-to-r from-gray-50 to-white space-y-3">
+   407→        <div className="flex items-center gap-3">
+   408→          <Label className="text-sm font-semibold whitespace-nowrap">Tablero:</Label>
+   409→          <Select value={selectedConfigId || ''} onValueChange={setSelectedConfigId}>
+   410→            <SelectTrigger className="h-9 flex-1 max-w-md">
+   411→              <SelectValue placeholder="Selecciona un tablero" />
+   412→            </SelectTrigger>
+   413→            <SelectContent>
+   414→              {configs.map(c => (
+   415→                <SelectItem key={c.id} value={c.id}>
+   416→                  <div className="flex items-center gap-2">
+   417→                    {c.isDefault && <Star className="h-3 w-3 text-amber-500 fill-amber-500" />}
+   418→                    <span>{c.name}</span>
+   419→                    {c._count && (
+   420→                      <span className="text-xs text-gray-400">
+   421→                        ({c._count.zones} zona{c._count.zones !== 1 ? 's' : ''})
+   422→                      </span>
+   423→                    )}
+   424→                  </div>
+   425→                </SelectItem>
+   426→              ))}
+   427→            </SelectContent>
+   428→          </Select>
+   429→          <Button variant="outline" size="sm" onClick={openNewConfig} className="gap-1">
+   430→            <Plus className="h-4 w-4" /> Nuevo
+   431→          </Button>
+   432→          {selectedConfig && (
+   433→            <>
+   434→              <Button variant="outline" size="sm" onClick={() => openEditConfig(selectedConfig)} className="gap-1">
+   435→                <Edit3 className="h-3.5 w-3.5" />
+   436→              </Button>
+   437→              <Button variant="outline" size="sm" onClick={() => handleDuplicateConfig(selectedConfig)} className="gap-1">
+   438→                <Copy className="h-3.5 w-3.5" />
+   439→              </Button>
+   440→              {!selectedConfig.isDefault && (
+   441→                <Button variant="outline" size="sm" onClick={() => handleSetDefault(selectedConfig)}
+   442→                  className="gap-1 text-amber-600 hover:text-amber-700" title="Establecer como predeterminado">
+   443→                  <Star className="h-3.5 w-3.5" />
+   444→                </Button>
+   445→              )}
+   446→              {configs.length > 1 && (
+   447→                <Button variant="outline" size="sm" onClick={() => handleDeleteConfig(selectedConfig.id)}
+   448→                  className="gap-1 text-red-500 hover:text-red-600">
+   449→                  <Trash2 className="h-3.5 w-3.5" />
+   450→                </Button>
+   451→              )}
+   452→            </>
+   453→          )}
+   454→        </div>
+   455→        {selectedConfig && (
+   456→          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+   457→            <LayoutGrid className="h-3 w-3" />
+   458→            <span>Tablero: <strong>{selectedConfig.name}</strong></span>
+   459→            {selectedConfig.isDefault && (
+   460→              <Badge className="text-[9px] bg-amber-100 text-amber-700 border-0 px-1.5 py-0">
+   461→                <Star className="h-2.5 w-2.5 mr-0.5 fill-amber-500 text-amber-500" />Predeterminado
+   462→              </Badge>
+   463→            )}
+   464→            {selectedConfig.description && <span>· {selectedConfig.description}</span>}
+   465→          </div>
+   466→        )}
+   467→      </div>
+   468→
+   469→      {/* No configs message */}
+   470→      {configs.length === 0 && (
+   471→        <div className="text-center py-16 space-y-3">
+   472→          <LayoutGrid className="h-12 w-12 text-gray-300 mx-auto" />
+   473→          <p className="text-muted-foreground">No hay tableros configurados.</p>
+   474→          <Button onClick={openNewConfig} className="gap-2">
+   475→            <Plus className="h-4 w-4" /> Crear el primer tablero
+   476→          </Button>
+   477→        </div>
+   478→      )}
+   479→
+   480→      {/* Board grid */}
+   481→      {selectedConfigId && configs.length > 0 && (
+   482→        isLoading ? (
+   483→          <div className="flex items-center justify-center py-12">
+   484→            <Loader2 className="h-8 w-8 text-purple-500 animate-spin" />
+   485→          </div>
+   486→        ) : (
+   487→          <div
+   488→            ref={boardContainerRef}
+   489→            className="w-full overflow-hidden"
+   490→          >
+   491→            <div
+   492→              style={{
+   493→                zoom: zoom,
+   494→                width: REFERENCE_WIDTH,
+   495→                transformOrigin: 'top left',
+   496→              }}
+   497→            >
+   498→              {/* Column headers */}
+   499→              <div className="grid grid-cols-[180px_repeat(5,1fr)] gap-2 mb-2">
+   500→                <div />
+   501→                {[1, 2, 3, 4, 5].map(paso => (
+   502→                  <div key={paso} className="text-center">
+   503→                    <div className="bg-gray-100 rounded-t-lg px-3 py-2">
+   504→                      <p className="text-xs font-bold text-gray-600">PASO {paso}</p>
+   505→                      <p className="text-[10px] text-gray-500 leading-tight">{PASO_LABELS[paso]?.label}</p>
+   506→                    </div>
+   507→                  </div>
+   508→                ))}
+   509→              </div>
+   510→
+   511→              {/* S rows */}
+   512→              {S_STEPS.map(s => (
+   513→                <div key={s.id} className="grid grid-cols-[180px_repeat(5,1fr)] gap-2 mb-2">
+   514→                  <div className={`rounded-lg border-l-4 ${S_BORDER_COLORS[s.id]} ${S_BG_COLORS[s.id]} flex flex-col items-center justify-center p-3`}>
+   515→                    <span className="text-2xl font-black" style={{ color: S_COLORS[s.id] }}>S{s.id}</span>
+   516→                    <span className="text-xs font-semibold text-gray-700 mt-0.5">{s.japaneseName}</span>
+   517→                    <span className="text-[10px] text-gray-500">{s.spanishName}</span>
+   518→                  </div>
+   519→
+   520→                  {[1, 2, 3, 4, 5].map(paso => {
+   521→                    const slot = getSlot(s.id, paso)
+   522→                    const pasoTemplates = getTemplatesForPaso(s.id, paso)
+   523→                    const pasoStandards = getStandardsForS(s.id)
+   524→                    const savingKey = `${s.id}-${paso}`
+   525→                    const isSaving = savingSlot === savingKey
+   526→                    const isExpanded = expandedCell === savingKey
+   527→                    const assignedTemplates = slot?.templates || []
+   528→                    const assignedStandards = slot?.standards || []
+   529→                    const hasAssignments = assignedTemplates.length > 0 || assignedStandards.length > 0
+   530→
+   531→                    return (
+   532→                      <Card key={savingKey}
+   533→                        className={`border ${S_BG_COLORS[s.id]} border-l-4 ${S_BORDER_COLORS[s.id]} transition-all cursor-pointer hover:shadow-md ${isExpanded ? 'ring-2 ring-indigo-400 shadow-lg' : ''}`}
+   534→                        onClick={() => setExpandedCell(isExpanded ? null : savingKey)}>
+   535→                        <CardContent className="p-3">
+   536→                          <div className="space-y-2">
+   537→                            {/* Templates */}
+   538→                            <div className="flex items-center gap-1">
+   539→                              <FileText className="h-3 w-3 text-gray-500" />
+   540→                              <span className="text-[10px] font-semibold text-gray-500 uppercase">Plantillas</span>
+   541→                              <Badge className="text-[9px] px-1.5 py-0 ml-auto bg-indigo-100 text-indigo-700">{assignedTemplates.length}</Badge>
+   542→                            </div>
+   543→                            {assignedTemplates.length > 0 ? (
+   544→                              <div className="flex flex-wrap gap-1">
+   545→                                {assignedTemplates.map(at => (
+   546→                                  <Badge key={at.id} className={`text-[9px] px-1 py-0 ${TYPE_COLORS[at.template.type] || 'bg-gray-100 text-gray-700'}`}>
+   547→                                    {TYPE_LABELS[at.template.type] || at.template.type}
+   548→                                  </Badge>
+   549→                                ))}
+   550→                              </div>
+   551→                            ) : (
+   552→                              <p className="text-[10px] text-gray-400 italic">Sin plantillas</p>
+   553→                            )}
+   554→
+   555→                            {/* Standards */}
+   556→                            <div className="flex items-center gap-1 mt-1">
+   557→                              <Award className="h-3 w-3 text-gray-500" />
+   558→                              <span className="text-[10px] font-semibold text-gray-500 uppercase">Estándares</span>
+   559→                              <Badge className="text-[9px] px-1.5 py-0 ml-auto bg-amber-100 text-amber-700">{assignedStandards.length}</Badge>
+   560→                            </div>
+   561→                            {assignedStandards.length > 0 ? (
+   562→                              <div className="flex flex-wrap gap-1">
+   563→                                {assignedStandards.map(as_ => (
+   564→                                  <Badge key={as_.id} className="text-[9px] px-1 py-0 bg-amber-100 text-amber-700">
+   565→                                    {as_.standard.title.length > 20 ? as_.standard.title.slice(0, 20) + '...' : as_.standard.title}
+   566→                                  </Badge>
+   567→                                ))}
+   568→                              </div>
+   569→                            ) : (
+   570→                              <p className="text-[10px] text-gray-400 italic">Sin estándares</p>
+   571→                            )}
+   572→
+   573→                            <div className="flex items-center justify-center pt-1">
+   574→                              {isExpanded ? <ChevronUp className="h-3 w-3 text-gray-400" /> : <ChevronDown className="h-3 w-3 text-gray-400" />}
+   575→                            </div>
+   576→                          </div>
+   577→
+   578→                          {/* Expanded detail */}
+   579→                          {isExpanded && (
+   580→                            <div className="mt-3 pt-3 border-t space-y-3" onClick={e => e.stopPropagation()}>
+   581→                              {/* Template checkboxes */}
+   582→                              <div>
+   583→                                <p className="text-[10px] font-bold text-gray-600 uppercase mb-2 flex items-center gap-1">
+   584→                                  <FileText className="h-3 w-3" /> Seleccionar Plantillas
+   585→                                </p>
+   586→                                {pasoTemplates.length === 0 ? (
+   587→                                  <p className="text-[10px] text-gray-400 italic px-2">
+   588→                                    No hay plantillas para S{s.id} Paso {paso}. Créalas en Plantillas.
+   589→                                  </p>
+   590→                                ) : (
+   591→                                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+   592→                                    {pasoTemplates.map(t => {
+   593→                                      const isSelected = assignedTemplates.some(at => at.templateId === t.id)
+   594→                                      return (
+   595→                                        <label key={t.id} className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer text-xs transition-colors ${isSelected ? 'bg-indigo-50 border border-indigo-200' : 'hover:bg-gray-50 border border-transparent'}`}>
+   596→                                          <Checkbox checked={isSelected} onCheckedChange={() => handleToggleTemplate(s.id, paso, t.id)} disabled={isSaving} className="h-3.5 w-3.5" />
+   597→                                          <Badge className={`text-[9px] px-1 py-0 shrink-0 ${TYPE_COLORS[t.type] || 'bg-gray-100 text-gray-700'}`}>{TYPE_LABELS[t.type] || t.type}</Badge>
+   598→                                          <span className="truncate text-gray-700">{t.title}</span>
+   599→                                        </label>
+   600→                                      )
+   601→                                    })}
+   602→                                  </div>
+   603→                                )}
+   604→                              </div>
+   605→
+   606→                              {/* Standard checkboxes */}
+   607→                              <div>
+   608→                                <p className="text-[10px] font-bold text-gray-600 uppercase mb-2 flex items-center gap-1">
+   609→                                  <Award className="h-3 w-3" /> Seleccionar Estándares
+   610→                                </p>
+   611→                                {pasoStandards.length === 0 ? (
+   612→                                  <p className="text-[10px] text-gray-400 italic px-2">
+   613→                                    No hay estándares para S{s.id}. Créalos en Plantillas → Estándares.
+   614→                                  </p>
+   615→                                ) : (
+   616→                                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+   617→                                    {pasoStandards.map(std => {
+   618→                                      const isSelected = assignedStandards.some(as_ => as_.standardId === std.id)
+   619→                                      return (
+   620→                                        <label key={std.id} className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer text-xs transition-colors ${isSelected ? 'bg-amber-50 border border-amber-200' : 'hover:bg-gray-50 border border-transparent'}`}>
+   621→                                          <Checkbox checked={isSelected} onCheckedChange={() => handleToggleStandard(s.id, paso, std.id)} disabled={isSaving} className="h-3.5 w-3.5" />
+   622→                                          <Badge className="text-[9px] px-1 py-0 bg-gray-100 text-gray-600 shrink-0">{std.category}</Badge>
+   623→                                          <span className="truncate text-gray-700">{std.title}</span>
+   624→                                        </label>
+   625→                                      )
+   626→                                    })}
+   627→                                  </div>
+   628→                                )}
+   629→                              </div>
+   630→
+   631→                              {isSaving && (
+   632→                                <div className="flex items-center gap-1 pt-1">
+   633→                                  <Loader2 className="h-3 w-3 animate-spin text-purple-500" />
+   634→                                  <span className="text-[9px] text-purple-500">Guardando...</span>
+   635→                                </div>
+   636→                              )}
+   637→
+   638→                              {hasAssignments && !isSaving && (
+   639→                                <Button variant="ghost" size="sm"
+   640→                                  onClick={(e) => { e.stopPropagation(); handleClearSlot(s.id, paso) }}
+   641→                                  className="h-6 w-full text-[10px] text-red-400 hover:text-red-600 hover:bg-red-50 p-0 mt-1">
+   642→                                  <Trash2 className="h-3 w-3 mr-0.5" /> Quitar todo
+   643→                                </Button>
+   644→                              )}
+   645→                            </div>
+   646→                          )}
+   647→                        </CardContent>
+   648→                      </Card>
+   649→                    )
+   650→                  })}
+   651→                </div>
+   652→              ))}
+   653→            </div>
+   654→          </div>
+   655→        )
+   656→      )}
+   657→
+   658→      {/* Summary */}
+   659→      {selectedConfigId && (
+   660→        <div className="flex items-center justify-between border-t pt-4">
+   661→          <div className="text-sm text-muted-foreground">
+   662→            <span className="font-semibold">{slots.filter(s => s.templates.length > 0 || s.standards.length > 0).length}</span> de <span className="font-semibold">25</span> posiciones con asignaciones
+   663→            {' · '}
+   664→            <span className="font-semibold">{slots.reduce((acc, s) => acc + s.templates.length, 0)}</span> plantillas
+   665→            {' · '}
+   666→            <span className="font-semibold">{slots.reduce((acc, s) => acc + s.standards.length, 0)}</span> estándares
+   667→          </div>
+   668→          <div className="flex items-center gap-2 flex-wrap">
+   669→            {Object.entries(TYPE_LABELS).map(([type, label]) => (
+   670→              <Badge key={type} className={`text-[10px] ${TYPE_COLORS[type]}`}>{label}</Badge>
+   671→            ))}
+   672→          </div>
+   673→        </div>
+   674→      )}
+   675→
+   676→      {/* Config Edit/Create Dialog */}
+   677→      <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
+   678→        <DialogContent className="max-w-md">
+   679→          <DialogHeader>
+   680→            <DialogTitle className="flex items-center gap-2">
+   681→              {editingConfig ? <Edit3 className="h-5 w-5 text-blue-500" /> : <Plus className="h-5 w-5 text-green-500" />}
+   682→              {editingConfig ? 'Editar Tablero' : 'Nuevo Tablero'}
+   683→            </DialogTitle>
+   684→          </DialogHeader>
+   685→          <div className="space-y-4">
+   686→            <div>
+   687→              <Label>Nombre del Tablero</Label>
+   688→              <Input value={configName} onChange={e => setConfigName(e.target.value)} className="mt-1" placeholder="Ej: Tablero General, Tablero Almacén..." />
+   689→            </div>
+   690→            <div>
+   691→              <Label>Descripción (opcional)</Label>
+   692→              <Input value={configDescription} onChange={e => setConfigDescription(e.target.value)} className="mt-1" placeholder="Descripción del tablero" />
+   693→            </div>
+   694→            <label className="flex items-center gap-2 cursor-pointer">
+   695→              <input type="checkbox" checked={configIsDefault} onChange={e => setConfigIsDefault(e.target.checked)} className="rounded border-gray-300 h-4 w-4" />
+   696→              <span className="text-sm">Tablero predeterminado (se asigna a zonas sin tablero)</span>
+   697→            </label>
+   698→            <div className="flex gap-3 justify-end pt-2">
+   699→              <Button variant="outline" onClick={() => setShowConfigDialog(false)}>Cancelar</Button>
+   700→              <Button onClick={handleSaveConfig} disabled={!configName || isSavingConfig}
+   701→                className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white gap-2">
+   702→                {isSavingConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+   703→                {editingConfig ? 'Guardar' : 'Crear'}
+   704→              </Button>
+   705→            </div>
+   706→          </div>
+   707→        </DialogContent>
+   708→      </Dialog>
+   709→    </div>
+   710→  )
+   711→}
+   712→
