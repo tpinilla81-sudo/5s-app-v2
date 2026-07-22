@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  // output: 'standalone', // Disabled for local dev — causes issues with next start
 
   // Build optimizations
   typescript: {

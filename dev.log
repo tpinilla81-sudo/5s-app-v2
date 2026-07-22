@@ -147,3 +147,93 @@ Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allow
  GET /api/permissions 200 in 16ms (compile: 3ms, proxy.ts: 3ms, render: 11ms)
 ⚠ metadataBase property in metadata export is not set for resolving social open graph or twitter images, using "http://localhost:3000". See https://nextjs.org/docs/app/api-reference/functions/generate-metadata#metadatabase
  GET / 200 in 483ms (compile: 84ms, proxy.ts: 3ms, render: 396ms)
+ GET / 200 in 80ms (compile: 4ms, proxy.ts: 4ms, render: 73ms)
+ GET / 200 in 43ms (compile: 7ms, proxy.ts: 4ms, render: 33ms)
+Persisting failed: Unable to write SST file 00000189.sst
+
+Caused by:
+    No such file or directory (os error 2)
+⨯ Error: ENOENT: no such file or directory, open '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+}
+
+thread 'tokio-runtime-worker' (3302) panicked at /build/turbopack/crates/turbo-tasks-backend/src/backend/operation/mod.rs:156:17:
+Failed to restore task data (corrupted database or bug): Meta for PageEndpoint::client_module_graph (TaskId 347055))
+
+Caused by:
+    0: Looking up data for TaskId 347055 from database failed
+    1: Unable to open static sorted file referenced from 00000148.meta
+    2: Unable to open static sorted file 00000142.sst
+    3: No such file or directory (os error 2)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'tokio-runtime-worker' (3302) panicked at /build/turbopack/crates/turbo-tasks-backend/src/backend/operation/mod.rs:156:17:
+Failed to restore task data (corrupted database or bug): Meta for PageEndpoint::client_module_graph (TaskId 347055))
+
+Caused by:
+    0: Looking up data for TaskId 347055 from database failed
+    1: Unable to open static sorted file referenced from 00000148.meta
+    2: Unable to open static sorted file 00000142.sst
+    3: No such file or directory (os error 2)
+○ Compiling /_error ...
+Persisting failed: Another write batch or compaction is already active (Only a single write operations is allowed at a time)
+⨯ Error: ENOENT: no such file or directory, open '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+}
+⨯ Error: ENOENT: no such file or directory, open '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+}
+⨯ Error: ENOENT: no such file or directory, open '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+}
+⨯ Error: ENOENT: no such file or directory, open '/home/z/my-project/.next/dev/server/app/api/permissions/[__metadata_id__]/route/app-paths-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/z/my-project/.next/dev/server/app/api/permissions/[__metadata_id__]/route/app-paths-manifest.json'
+}
+⨯ Error: ENOENT: no such file or directory, open '/home/z/my-project/.next/dev/server/app/api/permissions/[__metadata_id__]/route/app-paths-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/z/my-project/.next/dev/server/app/api/permissions/[__metadata_id__]/route/app-paths-manifest.json'
+}
+⨯ Error: ENOENT: no such file or directory, open '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+}
+⨯ Error: ENOENT: no such file or directory, open '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+}
+⨯ Error: ENOENT: no such file or directory, open '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/z/my-project/.next/dev/server/app/page/build-manifest.json'
+}
