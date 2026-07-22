@@ -1,2 +1,12 @@
 skills/
 node_modules/
+.next/
+cloudflared
+upload/
+db/
+*.db
+*.sqlite
+dev.log
+scripts/
+worklog.md
+agent-ctx/
