@@ -28,3 +28,4 @@ agent-ctx/
 tool-results/
 download/
 5s-app-content.json
+.vercel
