@@ -1,0 +1,1945 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import { use5SStore } from '@/lib/store'
+     6→import { Button } from '@/components/ui/button'
+     7→import { Input } from '@/components/ui/input'
+     8→import { Label } from '@/components/ui/label'
+     9→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+    10→import { Badge } from '@/components/ui/badge'
+    11→import {
+    12→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    13→} from '@/components/ui/select'
+    14→import {
+    15→  Plus, Trash2, Edit3, Save, Loader2, BookOpen, FileCheck, ClipboardCheck, Camera,
+    16→  ChevronDown, ChevronUp, AlertTriangle, Copy, RotateCcw, X,
+    17→  Eye, Code, GripVertical, Download, Upload, ClipboardList, Award,
+    18→  ClipboardPaste, ClipboardCopy, Check,
+    19→} from 'lucide-react'
+    20→import { S_STEPS, AUDIT_CHECKLISTS, EXAM_PASS_THRESHOLD, SELF_EVAL_THRESHOLD, AUDIT_PASS_THRESHOLD, INVENTORY_CONFIGS } from '@/lib/5s-constants'
+    21→
+    22→// ═══════════════════════════════════════════════════════
+    23→// TYPES
+    24→// ═══════════════════════════════════════════════════════
+    25→interface TemplateData {
+    26→  id: string
+    27→  type: string
+    28→  sStep: number
+    29→  miniStep: number
+    30→  title: string
+    31→  description: string | null
+    32→  content: string
+    33→  notaMinima: number | null
+    34→  active: boolean
+    35→  createdAt: string
+    36→  updatedAt: string
+    37→}
+    38→
+    39→type TemplateTab = 'formacion' | 'fotos' | 'inventarios' | 'estandares' | 'auditoria_interna' | 'auditoria_externa'
+    40→
+    41→const TEMPLATE_TABS: { key: TemplateTab; label: string; icon: React.ComponentType<{ className?: string }>; types: string[] }[] = [
+    42→  { key: 'formacion', label: 'Formación y Exámenes', icon: BookOpen, types: ['formacion', 'examen'] },
+    43→  { key: 'fotos', label: 'Fotografías (Paso 2)', icon: Camera, types: ['fotos'] },
+    44→  { key: 'inventarios', label: 'Inventarios (Paso 3)', icon: ClipboardList, types: ['inventario'] },
+    45→  { key: 'estandares', label: 'Estándares (Paso 3)', icon: Award, types: ['estandar'] },
+    46→  { key: 'auditoria_interna', label: 'Auditorías Internas (Paso 4)', icon: ClipboardCheck, types: ['autoevaluacion'] },
+    47→  { key: 'auditoria_externa', label: 'Auditorías Externas (Paso 5)', icon: FileCheck, types: ['auditoria'] },
+    48→]
+    49→
+    50→const S_COLORS: Record<number, string> = { 1: '#8B5CF6', 2: '#EAB308', 3: '#3B82F6', 4: '#F43F5E', 5: '#22C55E' }
+    51→
+    52→const MINI_STEPS_LABELS: Record<number, string> = {
+    53→  1: 'Formación y Exámenes',
+    54→  2: 'Fotografías (Antes/Después)',
+    55→  3: 'Inventario / Estándar',
+    56→  4: 'Autoevaluación',
+    57→  5: 'Auditoría Externa',
+    58→}
+    59→
+    60→// ═══════════════════════════════════════════════════════
+    61→// DEFAULT CONTENT GENERATORS
+    62→// ═══════════════════════════════════════════════════════
+    63→function getDefaultFormationContent(sStep: number) {
+    64→  const formations: Record<number, { sections: { title: string; content: string }[] }> = {
+    65→    1: {
+    66→      sections: [
+    67→        { title: '¿Qué es Seiri (Clasificar)?', content: 'Seiri es la primera de las 5S y significa "clasificar" o "separar". Consiste en identificar y separar los elementos necesarios de los innecesarios en el lugar de trabajo, eliminando todo aquello que no se utiliza o que no aporta valor al proceso. El objetivo es crear un entorno de trabajo más limpio, seguro y eficiente, donde solo permanezcan los elementos esenciales para realizar las tareas diarias.' },
+    68→        { title: 'Objetivos de Seiri', content: '1. Eliminar del área de trabajo los elementos innecesarios que ocupan espacio y generan desorden.\n2. Liberar espacio útil para mejorar la organización y el flujo de trabajo.\n3. Reducir el tiempo de búsqueda de herramientas, materiales y documentos.\n4. Prevenir accidentes y errores causados por la acumulación de objetos innecesarios.\n5. Facilitar la identificación visual de los recursos realmente necesarios.' },
+    69→        { title: 'Metodología de implementación', content: '1. Recorrer el área de trabajo y clasificar todos los elementos en necesarios e innecesarios.\n2. Utilizar tarjetas de color rojo (Tarjetas Rojas) para marcar los elementos innecesarios.\n3. Colocar los elementos marcados en una "jaula de innecesarios" o zona temporal.\n4. Decidir el destino de cada elemento: eliminar, trasladar, donar o almacenar fuera del área.\n5. Documentar todas las decisiones y mantener un registro de los elementos retirados.\n6. Revisar periódicamente para evitar la acumulación de nuevos innecesarios.' },
+    70→        { title: 'Beneficios esperados', content: 'Al aplicar correctamente Seiri se obtienen beneficios como: mayor espacio disponible en el lugar de trabajo, reducción del tiempo perdido buscando elementos, disminución de accidentes por acumulación, mejora de la productividad al eliminar distracciones, y una cultura de orden y limpieza que se extiende a todas las áreas de la organización.' },
+    71→      ]
+    72→    },
+    73→    2: {
+    74→      sections: [
+    75→        { title: '¿Qué es Seiton (Organizar)?', content: 'Seiton es la segunda de las 5S y significa "organizar" o "ordenar". Consiste en establecer una ubicación definida para cada elemento necesario, de forma que sea fácil de encontrar, usar y devolver a su lugar. Seiton aplica el principio de "un lugar para cada cosa y cada cosa en su lugar", utilizando señalización visual, códigos de color y etiquetas para garantizar que cualquier persona pueda localizar y devolver los objetos de forma intuitiva.' },
+    76→        { title: 'Objetivos de Seiton', content: '1. Asignar una ubicación fija y lógica a cada elemento necesario del lugar de trabajo.\n2. Facilitar la localización rápida de herramientas, materiales y documentos.\n3. Garantizar que cualquier persona pueda encontrar y devolver los objetos sin necesidad de preguntar.\n4. Reducir el tiempo de preparación y cambio de herramientas.\n5. Implementar señalización visual y códigos de color para una identificación inmediata.' },
+    77→        { title: 'Metodología de implementación', content: '1. Analizar la frecuencia de uso de cada elemento: muy frecuente (cerca del puesto), frecuente (zona accesible), ocasional (almacén cercano) y raro (almacén lejano).\n2. Definir la ubicación óptima según la cercanía al punto de uso y la ergonomía.\n3. Implementar métodos de identificación: etiquetas, códigos de color, señales visuales, sombras, soportes.\n4. Crear un layout o distribución visual del área de trabajo.\n5. Señalizar pasillos, zonas de almacenamiento y ubicaciones específicas.\n6. Establecer reglas claras para la devolución de elementos a su ubicación.' },
+    78→        { title: 'Beneficios esperados', content: 'Los beneficios de aplicar Seiton incluyen: eliminación del tiempo perdido buscando herramientas o materiales, reducción de errores por confusión de elementos, mejora de la seguridad al tener pasillos despejados y zonas señalizadas, aumento de la eficiencia operativa, y una comunicación visual que permite detectar anomalías de forma inmediata.' },
+    79→      ]
+    80→    },
+    81→    3: {
+    82→      sections: [
+    83→        { title: '¿Qué es Seiso (Limpiar)?', content: 'Seiso es la tercera de las 5S y significa "limpiar" o "brillar". Va más allá de la simple limpieza: consiste en inspeccionar el lugar de trabajo mientras se limpia, identificando las fuentes de suciedad, las anomalías y los defectos. Seiso convierte la limpieza en una actividad de mantenimiento preventivo, donde cada persona es responsable de mantener su zona limpia y en condiciones óptimas.' },
+    84→        { title: 'Objetivos de Seiso', content: '1. Mantener el lugar de trabajo limpio y en condiciones óptimas de funcionamiento.\n2. Identificar y eliminar las fuentes de suciedad en su origen.\n3. Detectar anomalías, fugas, desgastes y defectos durante la limpieza.\n4. Establecer un plan de limpieza regular con responsables y frecuencias definidas.\n5. Crear el hábito de limpieza como parte de la rutina diaria de trabajo.' },
+    85→        { title: 'Metodología de implementación', content: '1. Realizar un inventario de puntos de suciedad: polvo, grasa, manchas, residuos, humedad, oxidación.\n2. Clasificar cada punto por nivel (leve, moderado, grave) y fuente (proceso, medio ambiente, falta de limpieza, escape, desgaste, derrame).\n3. Definir el método de limpieza adecuado para cada tipo de suciedad: aspirado, fregado, pulido, desinfección, reparación.\n4. Asignar frecuencias de limpieza: diaria, 3 veces por semana, semanal, quincenal, mensual.\n5. Crear un mapa de puntos de suciedad con responsables y plan de limpieza.\n6. Establecer un kit de limpieza accesible en cada zona.' },
+    86→        { title: 'Beneficios esperados', content: 'Aplicar Seiso aporta beneficios como: detección temprana de fallos y fugas, reducción de accidentes por suciedad, mejora de la calidad del producto al evitar contaminación, aumento de la vida útil de los equipos, y un entorno de trabajo más agradable y motivador para los empleados.' },
+    87→      ]
+    88→    },
+    89→    4: {
+    90→      sections: [
+    91→        { title: '¿Qué es Seiketsu (Estandarizar)?', content: 'Seiketsu es la cuarta de las 5S y significa "estandarizar" o "mantener el estado". Consiste en crear estándares, normas y procedimientos que mantengan los logros obtenidos con las 3S anteriores (Seiri, Seiton, Seiso). Seiketsu asegura que las mejoras no se pierdan con el tiempo y que todos los empleados sigan los mismos criterios de orden, organización y limpieza.' },
+    92→        { title: 'Objetivos de Seiketsu', content: '1. Crear estándares visuales y documentados para mantener los logros de las 3S.\n2. Establecer procedimientos claros que cualquier persona pueda seguir.\n3. Prevenir la reaparición de problemas ya resueltos.\n4. Implantar instrucciones visuales, diagramas y señalización permanente.\n5. Definir indicadores visuales que permitan detectar desviaciones de forma inmediata.' },
+    93→        { title: 'Metodología de implementación', content: '1. Documentar las mejores prácticas identificadas en las 3S anteriores.\n2. Crear estándares visuales: fotografías del estado correcto, diagramas de ubicación, etiquetas de identificación.\n3. Establecer procedimientos de inspección y mantenimiento con frecuencia y responsable.\n4. Implantar checklist de verificación diaria o semanal.\n5. Definir indicadores visuales de estado (semáforos, marcas de nivel, contornos).\n6. Revisar y actualizar los estándares periódicamente.' },
+    94→        { title: 'Beneficios esperados', content: 'Los beneficios de Seiketsu incluyen: consolidación de las mejoras de las 3S anteriores, reducción de la variabilidad en los procesos, facilitación de la formación de nuevos empleados, detección rápida de desviaciones, y creación de una base sólida para la mejora continua.' },
+    95→      ]
+    96→    },
+    97→    5: {
+    98→      sections: [
+    99→        { title: '¿Qué es Shitsuke (Disciplina)?', content: 'Shitsuke es la quinta y última de las 5S y significa "disciplina" o "sostener". Consiste en crear el hábito de respetar y cumplir los estándares establecidos en las 4S anteriores, de forma voluntaria y constante. Shitsuke transforma las normas en costumbres, asegurando que el orden, la organización, la limpieza y la estandarización se mantengan en el tiempo sin necesidad de supervisión constante.' },
+   100→        { title: 'Objetivos de Shitsuke', content: '1. Convertir el cumplimiento de los estándares en un hábito diario.\n2. Fomentar la autodisciplina y el compromiso personal con las 5S.\n3. Establecer mecanismos de seguimiento: auditorías internas y externas.\n4. Gestionar las anomalías detectadas y resolverlas de forma sistemática.\n5. Promover la mejora continua como filosofía de trabajo.' },
+   101→        { title: 'Metodología de implementación', content: '1. Realizar auditorías internas (autoevaluación) periódicas para verificar el cumplimiento de los estándares.\n2. Realizar auditorías externas con evaluadores independientes para objetividad.\n3. Registrar y gestionar las anomalías detectadas durante las auditorías.\n4. Establecer planes de acción correctiva con responsable y fecha límite.\n5. Comunicar los resultados de las auditorías a todo el equipo.\n6. Reconocer y premiar a los equipos que mantienen altos niveles de cumplimiento.' },
+   102→        { title: 'Beneficios esperados', content: 'Aplicar Shitsuke genera beneficios como: mantenimiento sostenido de las 5S en el tiempo, mejora continua de los procesos, mayor compromiso y motivación del personal, reducción de recaídas y problemas recurrentes, y una cultura de calidad que se extiende a todos los niveles de la organización.' },
+   103→      ]
+   104→    },
+   105→  }
+   106→  return formations[sStep] || formations[1]
+   107→}
+   108→
+   109→function getDefaultExamContent(sStep: number) {
+   110→  const exams: Record<number, { questions: { question: string; options: string[]; correctIndex: number }[] }> = {
+   111→    1: {
+   112→      questions: [
+   113→        { question: '¿Cuál es el objetivo principal de Seiri (Clasificar)?', options: ['Separar lo necesario de lo innecesario', 'Organizar los elementos por tamaño', 'Limpiar las máquinas', 'Crear estándares visuales'], correctIndex: 0 },
+   114→        { question: '¿Qué herramienta se utiliza en Seiri para marcar los elementos innecesarios?', options: ['Etiqueta verde', 'Tarjeta roja', 'Código de barras', 'Señal de tráfico'], correctIndex: 1 },
+   115→        { question: '¿Dónde se colocan temporalmente los elementos marcados como innecesarios?', options: ['En el almacén principal', 'En la jaula de innecesarios', 'En la mesa del responsable', 'En el pasillo'], correctIndex: 1 },
+   116→        { question: '¿Cuál es un beneficio de aplicar Seiri correctamente?', options: ['Aumentar el número de herramientas', 'Liberar espacio útil en el área de trabajo', 'Crear más documentos', 'Añadir más pasos al proceso'], correctIndex: 1 },
+   117→        { question: '¿Qué decisión NO se puede tomar sobre un elemento innecesario?', options: ['Eliminarlo', 'Trasladarlo a otra zona', 'Dejarlo donde está sin más', 'Donarlo o almacenarlo fuera del área'], correctIndex: 2 },
+   118→        { question: '¿Cada cuánto se debe revisar el área para evitar acumulación de innecesarios?', options: ['Solo al inicio del proyecto', 'Una vez al año', 'Periódicamente de forma regular', 'Nunca, solo una vez'], correctIndex: 2 },
+   119→        { question: '¿Qué tipo de elementos se deben eliminar en Seiri?', options: ['Los que se usan diariamente', 'Los que no se utilizan o no aportan valor', 'Los más caros', 'Los que tienen etiqueta'], correctIndex: 1 },
+   120→        { question: '¿Quién debe participar en el proceso de clasificación de Seiri?', options: ['Solo el responsable del área', 'Solo el jefe de producción', 'Todas las personas que trabajan en el área', 'Solo el equipo de mantenimiento'], correctIndex: 2 },
+   121→      ]
+   122→    },
+   123→    2: {
+   124→      questions: [
+   125→        { question: '¿Cuál es el objetivo principal de Seiton (Organizar)?', options: ['Eliminar innecesarios', 'Asignar una ubicación definida a cada elemento necesario', 'Limpiar los equipos', 'Auditar el proceso'], correctIndex: 1 },
+   126→        { question: '¿Qué principio fundamental aplica Seiton?', options: ['Más es mejor', 'Un lugar para cada cosa y cada cosa en su lugar', 'Todo en una sola estantería', 'Guardar todo en cajas cerradas'], correctIndex: 1 },
+   127→        { question: '¿Dónde se deben ubicar los elementos de uso muy frecuente?', options: ['En el almacén lejano', 'Cerca del puesto de trabajo', 'En el suelo del pasillo', 'En la oficina del jefe'], correctIndex: 1 },
+   128→        { question: '¿Cuál de estos NO es un método de identificación visual en Seiton?', options: ['Etiquetas', 'Código de colores', 'Memorizar la ubicación', 'Sombras y siluetas'], correctIndex: 2 },
+   129→        { question: '¿Qué es un layout en el contexto de Seiton?', options: ['Un tipo de herramienta', 'Una distribución visual del área de trabajo', 'Un informe de auditoría', 'Un código de barras'], correctIndex: 1 },
+   130→        { question: '¿Qué se debe hacer después de usar una herramienta según Seiton?', options: ['Dejarla donde se usó', 'Devolverla a su ubicación asignada', 'Pasarla al compañero', 'Guardarla en un cajón cualquiera'], correctIndex: 1 },
+   131→        { question: '¿Cómo se clasifica la frecuencia de uso en Seiton?', options: ['Barato y caro', 'Muy frecuente, frecuente, ocasional y raro', 'Grande y pequeño', 'Nuevo y viejo'], correctIndex: 1 },
+   132→        { question: '¿Qué beneficio aporta la señalización visual en Seiton?', options: ['Decorar el lugar de trabajo', 'Permitir detectar anomalías de forma inmediata', 'Aumentar el presupuesto', 'Reducir el número de herramientas'], correctIndex: 1 },
+   133→      ]
+   134→    },
+   135→    3: {
+   136→      questions: [
+   137→        { question: '¿Cuál es el objetivo principal de Seiso (Limpiar)?', options: ['Hacer que todo brille', 'Inspeccionar mientras se limpia, identificando anomalías y fuentes de suciedad', 'Pintar las paredes', 'Comprar productos de limpieza'], correctIndex: 1 },
+   138→        { question: '¿En qué se diferencia Seiso de una limpieza normal?', options: ['En que se usa más agua', 'En que convierte la limpieza en mantenimiento preventivo', 'En que solo la hace el equipo de limpieza', 'En que se hace una vez al año'], correctIndex: 1 },
+   139→        { question: '¿Qué tipos de suciedad se deben inventariar en Seiso?', options: ['Solo polvo', 'Polvo, grasa, manchas, residuos, humedad y oxidación', 'Solo grasa', 'Solo restos de comida'], correctIndex: 1 },
+   140→        { question: '¿Quién es responsable de la limpieza en Seiso?', options: ['Solo el equipo de limpieza', 'Solo el encargado', 'Cada persona en su zona de trabajo', 'El departamento de calidad'], correctIndex: 2 },
+   141→        { question: '¿Qué se debe hacer al detectar una fuga durante la limpieza?', options: ['Ignorarla y seguir limpiando', 'Identificarla como fuente de suciedad y reportarla', 'Taparla con cinta', 'Esperar a que se seque sola'], correctIndex: 1 },
+   142→        { question: '¿Qué es un mapa de puntos de suciedad?', options: ['Un mapa del mundo', 'Una representación visual de las zonas con suciedad y sus características', 'Un plano del edificio', 'Un calendario de limpieza'], correctIndex: 1 },
+   143→        { question: '¿Qué frecuencia de limpieza se recomienda para zonas de alto tráfico?', options: ['Mensual', 'Diaria o varias veces por semana', 'Anual', 'Solo cuando está muy sucio'], correctIndex: 1 },
+   144→        { question: '¿Qué debe contener un kit de limpieza según Seiso?', options: ['Solo una escoba', 'Los productos y herramientas necesarios para la limpieza de la zona', 'Documentos de calidad', 'Herramientas de producción'], correctIndex: 1 },
+   145→      ]
+   146→    },
+   147→    4: {
+   148→      questions: [
+   149→        { question: '¿Cuál es el objetivo principal de Seiketsu (Estandarizar)?', options: ['Limpiar más rápido', 'Crear estándares que mantengan los logros de las 3S anteriores', 'Eliminar más innecesarios', 'Organizar mejor las herramientas'], correctIndex: 1 },
+   150→        { question: '¿Qué tipo de estándares se crean en Seiketsu?', options: ['Solo escritos en papel', 'Visuales y documentados: fotos, diagramas, señalización, procedimientos', 'Solo verbales', 'Solo para directivos'], correctIndex: 1 },
+   151→        { question: '¿Para qué sirven los indicadores visuales en Seiketsu?', options: ['Para decorar', 'Para detectar desviaciones del estándar de forma inmediata', 'Para contar herramientas', 'Para medir la temperatura'], correctIndex: 1 },
+   152→        { question: '¿Cuál es un ejemplo de estándar visual?', options: ['Un correo electrónico', 'Una fotografía del estado correcto de una zona', 'Una reunión verbal', 'Un memorándum interno'], correctIndex: 1 },
+   153→        { question: '¿Qué es un checklist de verificación en Seiketsu?', options: ['Una lista de compras', 'Una lista de comprobación diaria o semanal del cumplimiento de estándares', 'Un inventario de herramientas', 'Un parte de trabajo'], correctIndex: 1 },
+   154→        { question: '¿Con qué frecuencia se deben revisar los estándares?', options: ['Nunca, una vez creados son fijos', 'Periódicamente para actualizarlos y mejorarlos', 'Solo cuando hay auditoría', 'Solo si hay queja del cliente'], correctIndex: 1 },
+   155→        { question: '¿Qué S anteriores sostiene Seiketsu?', options: ['Solo Seiri', 'Solo Seiton', 'Seiri, Seiton y Seiso (las 3S anteriores)', 'Ninguna'], correctIndex: 2 },
+   156→        { question: '¿Por qué es importante documentar las mejores prácticas?', options: ['Por requisito legal', 'Para que los nuevos empleados puedan seguirlas y no se pierdan las mejoras', 'Para tener más papeleo', 'Porque lo dice el jefe'], correctIndex: 1 },
+   157→      ]
+   158→    },
+   159→    5: {
+   160→      questions: [
+   161→        { question: '¿Cuál es el objetivo principal de Shitsuke (Disciplina)?', options: ['Crear más normas', 'Crear el hábito de respetar los estándares de forma voluntaria y constante', 'Poner multas a los empleados', 'Hacer auditorías puntuales'], correctIndex: 1 },
+   162→        { question: '¿Qué tipo de auditorías se realizan en Shitsuke?', options: ['Solo financieras', 'Internas (autoevaluación) y externas (evaluadores independientes)', 'Solo de producto', 'Solo de seguridad'], correctIndex: 1 },
+   163→        { question: '¿Qué se debe hacer al detectar una anomalía en una auditoría?', options: ['Ignorarla', 'Registrarla y crear un plan de acción correctiva con responsable y fecha', 'Esperar a la próxima auditoría', 'Solo informar verbalmente'], correctIndex: 1 },
+   164→        { question: '¿Qué convierte Shitsuke en hábito?', options: ['La supervisión constante', 'El cumplimiento voluntario y constante de los estándares', 'Las sanciones económicas', 'Los castigos'], correctIndex: 1 },
+   165→        { question: '¿Por qué es importante comunicar los resultados de las auditorías?', options: ['Para señalar culpables', 'Para que todo el equipo conozca el estado y participe en la mejora', 'Para archivarlos', 'Porque es obligatorio legalmente'], correctIndex: 1 },
+   166→        { question: '¿Cuál es la última etapa del ciclo de mejora continua en 5S?', options: ['Seiri', 'Shitsuke (que a su vez reinicia el ciclo)', 'Seiton', 'Seiso'], correctIndex: 1 },
+   167→        { question: '¿Qué papel tiene el reconocimiento en Shitsuke?', options: ['No tiene ningún papel', 'Motiva al equipo a mantener altos niveles de cumplimiento', 'Genera competencia negativa', 'Solo es para directivos'], correctIndex: 1 },
+   168→        { question: '¿Qué sucede si no se aplica Shitsuke correctamente?', options: ['Nada, las 4S se mantienen solas', 'Las mejoras de las 4S anteriores se pierden con el tiempo', 'Se ahorra tiempo', 'Se reducen costes'], correctIndex: 1 },
+   169→      ]
+   170→    },
+   171→  }
+   172→  return exams[sStep] || exams[1]
+   173→}
+   174→
+   175→function getDefaultChecklistContent(sStep: number) {
+   176→  const checklist = AUDIT_CHECKLISTS[sStep]
+   177→  if (!checklist) return { sections: [] }
+   178→  return {
+   179→    sections: checklist.map(section => ({
+   180→      id: section.id,
+   181→      title: section.title,
+   182→      items: section.items.map(item => ({
+   183→        id: item.id,
+   184→        description: item.description,
+   185→        hasOther: item.hasOther || false,
+   186→      }))
+   187→    }))
+   188→  }
+   189→}
+   190→
+   191→function getDefaultInventoryContent(sStep: number) {
+   192→  const cfg = INVENTORY_CONFIGS[sStep]
+   193→  if (!cfg) return { categories: [], extraFields: [] }
+   194→
+   195→  // S2: Use the comprehensive Seiton template matching the user's Excel structure
+   196→  // (categories by element type with hierarchical subcategories + traceability codes)
+   197→  if (sStep === 2) {
+   198→    return {
+   199→      title: 'Inventario de Necesarios',
+   200→      subtitle: 'SEITON — Organiza los elementos necesarios en su ubicación correcta',
+   201→      templateName: 'S2_Inventario_Necesarios_Seiton.xlsx',
+   202→      categories: [
+   203→        { value: 'materiales', label: 'MATERIALES', color: 'bg-blue-100 text-blue-800' },
+   204→        { value: 'maquinas_equipos', label: 'MÁQUINAS Y EQUIPOS', color: 'bg-purple-100 text-purple-800' },
+   205→        { value: 'mobiliario', label: 'MOBILIARIO', color: 'bg-amber-100 text-amber-800' },
+   206→        { value: 'informacion', label: 'INFORMACIÓN', color: 'bg-teal-100 text-teal-800' },
+   207→        { value: 'transporte_almacenaje', label: 'TRANSPORTE Y ALMACENAJE', color: 'bg-orange-100 text-orange-800' },
+   208→      ],
+   209→      extraFields: [
+   210→        { key: 'codigo', label: 'Código de Trazabilidad', type: 'text' },
+   211→        { key: 'subcategoria', label: 'Subcategoría', type: 'select', options: [
+   212→          'Consumibles', 'Materia Prima', 'Producto en proceso', 'Producto acabado',
+   213→          'Máquinas de trabajo', 'Utillajes de trabajo', 'Equipos y accesorios de Elevación',
+   214→          'Equipos de ensayo y verificación', 'Herramientas de ensamblaje', 'Equipos informáticos', 'Equipos de limpieza',
+   215→          'Bancos de trabajo', 'Paneles herramienta', 'Armarios o taquillas', 'Sillas, mesas', 'Paneles u otros soportes para información',
+   216→          'Planos, instrucciones, boletines de trabajo', 'Posters u otra información divulgativa', 'Información referente a indicadores', 'Carpeta o bandejas con documentación', 'Información de seguridad',
+   217→          'Máquinas de transporte', 'Utillajes de transporte, Pallets, embalajes de madera, cajas', 'Estanterías, gavetas, contenedores', 'Bolsas, plásticos, protecciones, elementos de flejado', 'Carros de transporte',
+   218→        ]},
+   219→        { key: 'zona_destino', label: 'Zona Actual / Destino', type: 'text' },
+   220→        { key: 'responsable', label: 'Responsable / Área', type: 'text' },
+   221→        { key: 'estado', label: 'Estado de Conservación', type: 'select', options: ['Excelente', 'Bueno', 'Regular', 'Requiere Mantenimiento'] },
+   222→      ],
+   223→      desplegables_jerarquicos: {
+   224→        'MATERIALES': { prefijo_codigo: 'MAT', subcategorias: ['Consumibles', 'Materia Prima', 'Producto en proceso', 'Producto acabado'] },
+   225→        'MÁQUINAS Y EQUIPOS': { prefijo_codigo: 'MAQ', subcategorias: ['Máquinas de trabajo', 'Utillajes de trabajo', 'Equipos y accesorios de Elevación', 'Equipos de ensayo y verificación', 'Herramientas de ensamblaje', 'Equipos informáticos', 'Equipos de limpieza'] },
+   226→        'MOBILIARIO': { prefijo_codigo: 'MOB', subcategorias: ['Bancos de trabajo', 'Paneles herramienta', 'Armarios o taquillas', 'Sillas, mesas', 'Paneles u otros soportes para información'] },
+   227→        'INFORMACIÓN': { prefijo_codigo: 'INF', subcategorias: ['Planos, instrucciones, boletines de trabajo', 'Posters u otra información divulgativa', 'Información referente a indicadores', 'Carpeta o bandejas con documentación', 'Información de seguridad'] },
+   228→        'TRANSPORTE Y ALMACENAJE': { prefijo_codigo: 'TRA', subcategorias: ['Máquinas de transporte', 'Utillajes de transporte, Pallets, embalajes de madera, cajas', 'Estanterías, gavetas, contenedores', 'Bolsas, plásticos, protecciones, elementos de flejado', 'Carros de transporte'] },
+   229→      },
+   230→    }
+   231→  }
+   232→
+   233→  return {
+   234→    categories: cfg.categories.map(c => ({ value: c.value, label: c.label, color: c.color })),
+   235→    extraFields: cfg.extraFields.map(f => ({
+   236→      key: f.key, label: f.label, type: f.type,
+   237→      ...(f.options ? { options: f.options } : {}),
+   238→    })),
+   239→  }
+   240→}
+   241→
+   242→function getDefaultStandardContent() {
+   243→  return {
+   244→    fields: [
+   245→      { key: 'beforePhotoUrl', label: 'Foto Antes', type: 'photo', required: true },
+   246→      { key: 'afterPhotoUrl', label: 'Foto Después', type: 'photo', required: true },
+   247→      { key: 'responsable', label: 'Quién lo ha hecho', type: 'text', required: true },
+   248→      { key: 'contacto', label: 'Contacto', type: 'text', required: true },
+   249→      { key: 'mejoraTipo', label: 'Tipo de Mejora', type: 'select', options: ['Seguridad', 'Calidad', 'Proceso', 'Logística'], required: true },
+   250→    ],
+   251→  }
+   252→}
+   253→
+   254→function getDefaultFotosContent(sStep: number) {
+   255→  const descriptions: Record<number, string> = {
+   256→    1: 'Fotografía la zona para ver qué elementos innecesarios hay antes de clasificar',
+   257→    2: 'Fotografía la zona para ver cómo está organizada antes de reordenar',
+   258→    3: 'Fotografía la zona para documentar los puntos de suciedad antes de limpiar',
+   259→    4: 'Fotografía la zona para documentar el estado actual antes de estandarizar',
+   260→    5: 'Fotografía la zona para documentar el nivel de cumplimiento de los estándares',
+   261→  }
+   262→  return {
+   263→    sections: [
+   264→      {
+   265→        title: 'Fotografías Antes',
+   266→        description: descriptions[sStep] || 'Documenta el estado actual con fotografías',
+   267→        minPhotos: 3,
+   268→        photoTypes: ['antes'],
+   269→        instructions: 'Toma un mínimo de 3 fotografías del estado actual de la zona. Incluye vistas generales y detalles de los problemas detectados.',
+   270→      },
+   271→      {
+   272→        title: 'Fotografías Después',
+   273→        description: 'Fotografía el resultado tras aplicar las mejoras',
+   274→        minPhotos: 3,
+   275→        photoTypes: ['despues'],
+   276→        instructions: 'Toma fotografías desde los mismos ángulos que las fotos "antes" para poder comparar el antes y el después.',
+   277→      },
+   278→    ],
+   279→  }
+   280→}
+   281→
+   282→// ═══════════════════════════════════════════════════════
+   283→// VISUAL EDITOR: ChecklistEditor (autoevaluacion / auditoria)
+   284→// ═══════════════════════════════════════════════════════
+   285→interface ChecklistSection {
+   286→  id: string
+   287→  title: string
+   288→  items: { id: string; description: string; hasOther: boolean }[]
+   289→}
+   290→
+   291→function ChecklistEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
+   292→  let parsed: { sections: ChecklistSection[] }
+   293→  try {
+   294→    parsed = JSON.parse(content)
+   295→  } catch {
+   296→    return (
+   297→      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+   298→        El JSON no es válido. Corrígelo en modo JSON o carga el contenido por defecto.
+   299→      </div>
+   300→    )
+   301→  }
+   302→
+   303→  const sections = parsed.sections || []
+   304→  const sPrefix = String(content.match(/"id"\s*:\s*"(\d+)\./)?.[1] || '1')
+   305→
+   306→  const update = (newSections: ChecklistSection[]) => {
+   307→    onChange(JSON.stringify({ ...parsed, sections: newSections }, null, 2))
+   308→  }
+   309→
+   310→  const addSection = () => {
+   311→    const newId = `${sPrefix}.${sections.length + 1}`
+   312→    update([...sections, { id: newId, title: 'Nueva Sección', items: [] }])
+   313→  }
+   314→
+   315→  const removeSection = (idx: number) => {
+   316→    update(sections.filter((_, i) => i !== idx))
+   317→  }
+   318→
+   319→  const updateSection = (idx: number, field: 'id' | 'title', value: string) => {
+   320→    const updated = [...sections]
+   321→    updated[idx] = { ...updated[idx], [field]: value }
+   322→    update(updated)
+   323→  }
+   324→
+   325→  const moveSection = (idx: number, dir: -1 | 1) => {
+   326→    const target = idx + dir
+   327→    if (target < 0 || target >= sections.length) return
+   328→    const updated = [...sections]
+   329→    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+   330→    update(updated)
+   331→  }
+   332→
+   333→  const addItem = (sectionIdx: number) => {
+   334→    const sec = sections[sectionIdx]
+   335→    const newItemId = `${sec.id}.${sec.items.length + 1}`
+   336→    const updated = [...sections]
+   337→    updated[sectionIdx] = {
+   338→      ...updated[sectionIdx],
+   339→      items: [...updated[sectionIdx].items, { id: newItemId, description: '', hasOther: false }]
+   340→    }
+   341→    update(updated)
+   342→  }
+   343→
+   344→  const removeItem = (sectionIdx: number, itemIdx: number) => {
+   345→    const updated = [...sections]
+   346→    updated[sectionIdx] = {
+   347→      ...updated[sectionIdx],
+   348→      items: updated[sectionIdx].items.filter((_, i) => i !== itemIdx)
+   349→    }
+   350→    update(updated)
+   351→  }
+   352→
+   353→  const updateItem = (sectionIdx: number, itemIdx: number, field: string, value: string | boolean) => {
+   354→    const updated = [...sections]
+   355→    updated[sectionIdx] = {
+   356→      ...updated[sectionIdx],
+   357→      items: updated[sectionIdx].items.map((item, i) =>
+   358→        i === itemIdx ? { ...item, [field]: value } : item
+   359→      )
+   360→    }
+   361→    update(updated)
+   362→  }
+   363→
+   364→  const moveItem = (sectionIdx: number, itemIdx: number, dir: -1 | 1) => {
+   365→    const items = sections[sectionIdx].items
+   366→    const target = itemIdx + dir
+   367→    if (target < 0 || target >= items.length) return
+   368→    const updated = [...sections]
+   369→    const newItems = [...updated[sectionIdx].items]
+   370→    ;[newItems[itemIdx], newItems[target]] = [newItems[target], newItems[itemIdx]]
+   371→    updated[sectionIdx] = { ...updated[sectionIdx], items: newItems }
+   372→    update(updated)
+   373→  }
+   374→
+   375→  return (
+   376→    <div className="space-y-4">
+   377→      {sections.map((section, sIdx) => (
+   378→        <div key={sIdx} className="border-2 rounded-lg overflow-hidden bg-white shadow-sm">
+   379→          {/* Section header */}
+   380→          <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b">
+   381→            <div className="flex flex-col gap-0.5">
+   382→              <button onClick={() => moveSection(sIdx, -1)} className="text-gray-400 hover:text-gray-600 leading-none" title="Subir sección">
+   383→                <ChevronUp className="h-4 w-4" />
+   384→              </button>
+   385→              <button onClick={() => moveSection(sIdx, 1)} className="text-gray-400 hover:text-gray-600 leading-none" title="Bajar sección">
+   386→                <ChevronDown className="h-4 w-4" />
+   387→              </button>
+   388→            </div>
+   389→            <Input
+   390→              value={section.id}
+   391→              onChange={(e) => updateSection(sIdx, 'id', e.target.value)}
+   392→              className="w-20 h-9 text-sm font-mono"
+   393→              placeholder="ID"
+   394→            />
+   395→            <Input
+   396→              value={section.title}
+   397→              onChange={(e) => updateSection(sIdx, 'title', e.target.value)}
+   398→              className="flex-1 h-9 text-base font-semibold"
+   399→              placeholder="Título de sección"
+   400→            />
+   401→            <Button variant="ghost" size="sm" onClick={() => addItem(sIdx)}
+   402→              className="h-9 w-9 p-0 text-green-600 hover:text-green-700 hover:bg-green-50" title="Añadir item">
+   403→              <Plus className="h-5 w-5" />
+   404→            </Button>
+   405→            <Button variant="ghost" size="sm" onClick={() => removeSection(sIdx)}
+   406→              className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50" title="Eliminar sección">
+   407→              <Trash2 className="h-4 w-4" />
+   408→            </Button>
+   409→          </div>
+   410→
+   411→          {/* Items */}
+   412→          <div className="p-3 space-y-2">
+   413→            {section.items.length === 0 && (
+   414→              <p className="text-sm text-muted-foreground italic px-2 py-2">Sin items. Pulsa + para añadir.</p>
+   415→            )}
+   416→            {section.items.map((item, iIdx) => (
+   417→              <div key={iIdx} className="flex items-center gap-3 group">
+   418→                <div className="flex flex-col gap-0.5">
+   419→                  <button onClick={() => moveItem(sIdx, iIdx, -1)} className="text-gray-300 hover:text-gray-500 leading-none" title="Subir">
+   420→                    <ChevronUp className="h-3.5 w-3.5" />
+   421→                  </button>
+   422→                  <button onClick={() => moveItem(sIdx, iIdx, 1)} className="text-gray-300 hover:text-gray-500 leading-none" title="Bajar">
+   423→                    <ChevronDown className="h-3.5 w-3.5" />
+   424→                  </button>
+   425→                </div>
+   426→                <Input
+   427→                  value={item.id}
+   428→                  onChange={(e) => updateItem(sIdx, iIdx, 'id', e.target.value)}
+   429→                  className="w-20 h-8 text-xs font-mono"
+   430→                  placeholder="ID"
+   431→                />
+   432→                <Input
+   433→                  value={item.description}
+   434→                  onChange={(e) => updateItem(sIdx, iIdx, 'description', e.target.value)}
+   435→                  className="flex-1 h-8 text-sm"
+   436→                  placeholder="Descripción del item"
+   437→                />
+   438→                <label className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap cursor-pointer shrink-0">
+   439→                  <input
+   440→                    type="checkbox"
+   441→                    checked={item.hasOther}
+   442→                    onChange={(e) => updateItem(sIdx, iIdx, 'hasOther', e.target.checked)}
+   443→                    className="rounded border-gray-300 h-4 w-4"
+   444→                  />
+   445→                  Otros
+   446→                </label>
+   447→                <Button variant="ghost" size="sm"
+   448→                  onClick={() => removeItem(sIdx, iIdx)}
+   449→                  className="h-8 w-8 p-0 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" title="Eliminar">
+   450→                  <Trash2 className="h-4 w-4" />
+   451→                </Button>
+   452→              </div>
+   453→            ))}
+   454→          </div>
+   455→        </div>
+   456→      ))}
+   457→
+   458→      <Button variant="outline" onClick={addSection}
+   459→        className="w-full border-dashed border-2 text-green-600 hover:bg-green-50 hover:border-green-400 gap-1 h-10">
+   460→        <Plus className="h-5 w-5" />
+   461→        Añadir sección
+   462→      </Button>
+   463→
+   464→      <div className="text-sm text-muted-foreground text-center">
+   465→        {sections.length} sección(es) · {sections.reduce((s, sec) => s + sec.items.length, 0)} item(s) en total
+   466→      </div>
+   467→    </div>
+   468→  )
+   469→}
+   470→
+   471→// ═══════════════════════════════════════════════════════
+   472→// VISUAL EDITOR: ExamEditor (examen)
+   473→// ═══════════════════════════════════════════════════════
+   474→function ExamEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
+   475→  let parsed: { questions: { question: string; options: string[]; correctIndex: number }[] }
+   476→  try {
+   477→    parsed = JSON.parse(content)
+   478→  } catch {
+   479→    return (
+   480→      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+   481→        El JSON no es válido. Corrígelo en modo JSON o carga el contenido por defecto.
+   482→      </div>
+   483→    )
+   484→  }
+   485→
+   486→  const questions = parsed.questions || []
+   487→
+   488→  const update = (newQuestions: typeof questions) => {
+   489→    onChange(JSON.stringify({ ...parsed, questions: newQuestions }, null, 2))
+   490→  }
+   491→
+   492→  const addQuestion = () => {
+   493→    update([...questions, { question: '', options: ['Opción A', 'Opción B', 'Opción C', 'Opción D'], correctIndex: 0 }])
+   494→  }
+   495→
+   496→  const removeQuestion = (idx: number) => {
+   497→    update(questions.filter((_, i) => i !== idx))
+   498→  }
+   499→
+   500→  const updateQuestion = (idx: number, field: string, value: any) => {
+   501→    const updated = [...questions]
+   502→    updated[idx] = { ...updated[idx], [field]: value }
+   503→    update(updated)
+   504→  }
+   505→
+   506→  const updateOption = (qIdx: number, oIdx: number, value: string) => {
+   507→    const updated = [...questions]
+   508→    updated[qIdx] = { ...updated[qIdx], options: updated[qIdx].options.map((o, i) => i === oIdx ? value : o) }
+   509→    update(updated)
+   510→  }
+   511→
+   512→  const addOption = (qIdx: number) => {
+   513→    const updated = [...questions]
+   514→    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+   515→    const newIdx = updated[qIdx].options.length
+   516→    updated[qIdx] = { ...updated[qIdx], options: [...updated[qIdx].options, `Opción ${letters[newIdx] || newIdx + 1}`] }
+   517→    update(updated)
+   518→  }
+   519→
+   520→  const removeOption = (qIdx: number, oIdx: number) => {
+   521→    const updated = [...questions]
+   522→    const newOptions = updated[qIdx].options.filter((_, i) => i !== oIdx)
+   523→    let newCorrect = updated[qIdx].correctIndex
+   524→    if (newCorrect >= newOptions.length) newCorrect = 0
+   525→    else if (newCorrect > oIdx) newCorrect--
+   526→    updated[qIdx] = { ...updated[qIdx], options: newOptions, correctIndex: newCorrect }
+   527→    update(updated)
+   528→  }
+   529→
+   530→  const moveQuestion = (idx: number, dir: -1 | 1) => {
+   531→    const target = idx + dir
+   532→    if (target < 0 || target >= questions.length) return
+   533→    const updated = [...questions]
+   534→    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+   535→    update(updated)
+   536→  }
+   537→
+   538→  return (
+   539→    <div className="space-y-4">
+   540→      {questions.map((q, qIdx) => (
+   541→        <div key={qIdx} className="border-2 rounded-lg overflow-hidden bg-white shadow-sm">
+   542→          <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border-b border-amber-200">
+   543→            <div className="flex flex-col gap-0.5">
+   544→              <button onClick={() => moveQuestion(qIdx, -1)} className="text-gray-400 hover:text-gray-600 leading-none">
+   545→                <ChevronUp className="h-4 w-4" />
+   546→              </button>
+   547→              <button onClick={() => moveQuestion(qIdx, 1)} className="text-gray-400 hover:text-gray-600 leading-none">
+   548→                <ChevronDown className="h-4 w-4" />
+   549→              </button>
+   550→            </div>
+   551→            <Badge className="bg-amber-200 text-amber-800 shrink-0 text-sm px-2 py-0.5">P{qIdx + 1}</Badge>
+   552→            <Input
+   553→              value={q.question}
+   554→              onChange={(e) => updateQuestion(qIdx, 'question', e.target.value)}
+   555→              className="flex-1 h-9 text-base"
+   556→              placeholder="Pregunta"
+   557→            />
+   558→            <Button variant="ghost" size="sm" onClick={() => removeQuestion(qIdx)}
+   559→              className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50" title="Eliminar pregunta">
+   560→              <Trash2 className="h-4 w-4" />
+   561→            </Button>
+   562→          </div>
+   563→
+   564→          <div className="p-4 space-y-2">
+   565→            {q.options.map((opt, oIdx) => (
+   566→              <div key={oIdx} className="flex items-center gap-3 group">
+   567→                <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+   568→                  <input
+   569→                    type="radio"
+   570→                    name={`correct-${qIdx}`}
+   571→                    checked={q.correctIndex === oIdx}
+   572→                    onChange={() => updateQuestion(qIdx, 'correctIndex', oIdx)}
+   573→                    className="h-4 w-4 text-green-600"
+   574→                  />
+   575→                  <span className="text-xs text-muted-foreground w-5 font-semibold">{String.fromCharCode(65 + oIdx)}</span>
+   576→                </label>
+   577→                <Input
+   578→                  value={opt}
+   579→                  onChange={(e) => updateOption(qIdx, oIdx, e.target.value)}
+   580→                  className={`flex-1 h-8 text-sm ${q.correctIndex === oIdx ? 'border-green-400 bg-green-50' : ''}`}
+   581→                />
+   582→                <Button variant="ghost" size="sm"
+   583→                  onClick={() => removeOption(qIdx, oIdx)}
+   584→                  className="h-8 w-8 p-0 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+   585→                  title="Eliminar opción">
+   586→                  <Trash2 className="h-4 w-4" />
+   587→                </Button>
+   588→              </div>
+   589→            ))}
+   590→            <Button variant="ghost" size="sm" onClick={() => addOption(qIdx)}
+   591→              className="h-8 text-sm text-blue-500 hover:text-blue-600 gap-1 px-3">
+   592→              <Plus className="h-4 w-4" /> Añadir opción
+   593→            </Button>
+   594→          </div>
+   595→        </div>
+   596→      ))}
+   597→
+   598→      <Button variant="outline" onClick={addQuestion}
+   599→        className="w-full border-dashed border-2 text-amber-600 hover:bg-amber-50 hover:border-amber-400 gap-1 h-10">
+   600→        <Plus className="h-5 w-5" />
+   601→        Añadir pregunta
+   602→      </Button>
+   603→
+   604→      <div className="text-sm text-muted-foreground text-center">
+   605→        {questions.length} pregunta(s)
+   606→      </div>
+   607→    </div>
+   608→  )
+   609→}
+   610→
+   611→// ═══════════════════════════════════════════════════════
+   612→// VISUAL EDITOR: FormationEditor (formacion)
+   613→// ═══════════════════════════════════════════════════════
+   614→function FormationEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
+   615→  let parsed: { sections: { title: string; content: string }[] }
+   616→  try {
+   617→    parsed = JSON.parse(content)
+   618→  } catch {
+   619→    return (
+   620→      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+   621→        El JSON no es válido. Corrígelo en modo JSON o carga el contenido por defecto.
+   622→      </div>
+   623→    )
+   624→  }
+   625→
+   626→  const sections = parsed.sections || []
+   627→
+   628→  const update = (newSections: typeof sections) => {
+   629→    onChange(JSON.stringify({ ...parsed, sections: newSections }, null, 2))
+   630→  }
+   631→
+   632→  const addSection = () => {
+   633→    update([...sections, { title: '', content: '' }])
+   634→  }
+   635→
+   636→  const removeSection = (idx: number) => {
+   637→    update(sections.filter((_, i) => i !== idx))
+   638→  }
+   639→
+   640→  const updateSection = (idx: number, field: 'title' | 'content', value: string) => {
+   641→    const updated = [...sections]
+   642→    updated[idx] = { ...updated[idx], [field]: value }
+   643→    update(updated)
+   644→  }
+   645→
+   646→  const moveSection = (idx: number, dir: -1 | 1) => {
+   647→    const target = idx + dir
+   648→    if (target < 0 || target >= sections.length) return
+   649→    const updated = [...sections]
+   650→    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+   651→    update(updated)
+   652→  }
+   653→
+   654→  return (
+   655→    <div className="space-y-4">
+   656→      {sections.map((sec, idx) => (
+   657→        <div key={idx} className="border-2 rounded-lg overflow-hidden bg-white shadow-sm">
+   658→          <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border-b border-blue-200">
+   659→            <div className="flex flex-col gap-0.5">
+   660→              <button onClick={() => moveSection(idx, -1)} className="text-gray-400 hover:text-gray-600 leading-none">
+   661→                <ChevronUp className="h-4 w-4" />
+   662→              </button>
+   663→              <button onClick={() => moveSection(idx, 1)} className="text-gray-400 hover:text-gray-600 leading-none">
+   664→                <ChevronDown className="h-4 w-4" />
+   665→              </button>
+   666→            </div>
+   667→            <Badge className="bg-blue-200 text-blue-800 shrink-0 text-sm px-2 py-0.5">Sección {idx + 1}</Badge>
+   668→            <Input
+   669→              value={sec.title}
+   670→              onChange={(e) => updateSection(idx, 'title', e.target.value)}
+   671→              className="flex-1 h-9 text-base font-semibold"
+   672→              placeholder="Título de la sección"
+   673→            />
+   674→            <Button variant="ghost" size="sm" onClick={() => removeSection(idx)}
+   675→              className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50" title="Eliminar sección">
+   676→              <Trash2 className="h-4 w-4" />
+   677→            </Button>
+   678→          </div>
+   679→          <div className="p-4">
+   680→            <textarea
+   681→              value={sec.content}
+   682→              onChange={(e) => updateSection(idx, 'content', e.target.value)}
+   683→              className="w-full h-28 p-3 border rounded-lg text-sm resize-y focus:ring-2 focus:ring-blue-300 focus:border-blue-400"
+   684→              placeholder="Contenido de la sección..."
+   685→            />
+   686→          </div>
+   687→        </div>
+   688→      ))}
+   689→
+   690→      <Button variant="outline" onClick={addSection}
+   691→        className="w-full border-dashed border-2 text-blue-600 hover:bg-blue-50 hover:border-blue-400 gap-1 h-10">
+   692→        <Plus className="h-5 w-5" />
+   693→        Añadir sección
+   694→      </Button>
+   695→
+   696→      <div className="text-sm text-muted-foreground text-center">
+   697→        {sections.length} sección(es) de formación
+   698→      </div>
+   699→    </div>
+   700→  )
+   701→}
+   702→
+   703→// ═══════════════════════════════════════════════════════
+   704→// VISUAL EDITOR: InventoryConfigEditor (inventario)
+   705→// ═══════════════════════════════════════════════════════
+   706→interface InvCategory { value: string; label: string; color: string }
+   707→interface InvField { key: string; label: string; type: 'select' | 'text' | 'number'; options?: string[] }
+   708→
+   709→function InventoryConfigEditor({ content, onChange, sStep }: { content: string; onChange: (v: string) => void; sStep: number }) {
+   710→  let parsed: { categories: InvCategory[]; extraFields: InvField[]; fixedFields?: InvFixedField[]; title?: string; subtitle?: string; templateName?: string }
+   711→  try {
+   712→    parsed = JSON.parse(content)
+   713→  } catch {
+   714→    return (
+   715→      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+   716→        El JSON no es válido. Corrígelo en modo JSON o carga el contenido por defecto.
+   717→      </div>
+   718→    )
+   719→  }
+   720→
+   721→  const categories = parsed.categories || []
+   722→  const extraFields = parsed.extraFields || []
+   723→
+   724→  const update = (newData: Partial<typeof parsed>) => {
+   725→    onChange(JSON.stringify({ ...parsed, ...newData }, null, 2))
+   726→  }
+   727→
+   728→  const addCategory = () => {
+   729→    update({ categories: [...categories, { value: '', label: '', color: 'bg-gray-100 text-gray-800' }] })
+   730→  }
+   731→
+   732→  const removeCategory = (idx: number) => {
+   733→    update({ categories: categories.filter((_, i) => i !== idx) })
+   734→  }
+   735→
+   736→  const updateCategory = (idx: number, field: keyof InvCategory, value: string) => {
+   737→    const updated = [...categories]
+   738→    updated[idx] = { ...updated[idx], [field]: value }
+   739→    update({ categories: updated })
+   740→  }
+   741→
+   742→  const moveCategory = (idx: number, dir: -1 | 1) => {
+   743→    const target = idx + dir
+   744→    if (target < 0 || target >= categories.length) return
+   745→    const updated = [...categories]
+   746→    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+   747→    update({ categories: updated })
+   748→  }
+   749→
+   750→  const addField = () => {
+   751→    update({ extraFields: [...extraFields, { key: '', label: '', type: 'text' }] })
+   752→  }
+   753→
+   754→  const removeField = (idx: number) => {
+   755→    update({ extraFields: extraFields.filter((_, i) => i !== idx) })
+   756→  }
+   757→
+   758→  const updateField = (idx: number, field: string, value: string | boolean) => {
+   759→    const updated = [...extraFields]
+   760→    updated[idx] = { ...updated[idx], [field]: value }
+   761→    // Remove options if type is not select
+   762→    if (field === 'type' && value !== 'select') {
+   763→      const { options, ...rest } = updated[idx]
+   764→      updated[idx] = rest as InvField
+   765→    }
+   766→    update({ extraFields: updated })
+   767→  }
+   768→
+   769→  const moveField = (idx: number, dir: -1 | 1) => {
+   770→    const target = idx + dir
+   771→    if (target < 0 || target >= extraFields.length) return
+   772→    const updated = [...extraFields]
+   773→    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+   774→    update({ extraFields: updated })
+   775→  }
+   776→
+   777→  const addOption = (fIdx: number) => {
+   778→    const updated = [...extraFields]
+   779→    const opts = [...(updated[fIdx].options || []), '']
+   780→    updated[fIdx] = { ...updated[fIdx], options: opts }
+   781→    update({ extraFields: updated })
+   782→  }
+   783→
+   784→  const removeOption = (fIdx: number, oIdx: number) => {
+   785→    const updated = [...extraFields]
+   786→    const opts = (updated[fIdx].options || []).filter((_, i) => i !== oIdx)
+   787→    updated[fIdx] = { ...updated[fIdx], options: opts }
+   788→    update({ extraFields: updated })
+   789→  }
+   790→
+   791→  const updateOption = (fIdx: number, oIdx: number, value: string) => {
+   792→    const updated = [...extraFields]
+   793→    const opts = [...(updated[fIdx].options || [])]
+   794→    opts[oIdx] = value
+   795→    updated[fIdx] = { ...updated[fIdx], options: opts }
+   796→    update({ extraFields: updated })
+   797→  }
+   798→
+   799→  const COLOR_PRESETS = [
+   800→    'bg-green-100 text-green-800', 'bg-blue-100 text-blue-800', 'bg-yellow-100 text-yellow-800',
+   801→    'bg-red-100 text-red-800', 'bg-purple-100 text-purple-800', 'bg-orange-100 text-orange-800',
+   802→    'bg-gray-100 text-gray-800', 'bg-cyan-100 text-cyan-800', 'bg-amber-100 text-amber-800',
+   803→    'bg-teal-100 text-teal-800', 'bg-pink-100 text-pink-800',
+   804→  ]
+   805→
+   806→  // Built-in fields that always appear in the inventory form (not editable in template, shown for reference)
+   807→  const builtInFields: { label: string; section: string; note?: string }[] = sStep === 1
+   808→    ? [
+   809→        { label: 'Elemento', section: 'Datos básicos', note: 'Nombre del elemento (obligatorio)' },
+   810→        { label: 'Zona', section: 'Datos básicos', note: 'Se rellena automáticamente con la zona actual' },
+   811→        { label: 'Categoría', section: 'Datos básicos', note: 'Innecesario (fijo)' },
+   812→        { label: 'Cantidad', section: 'Datos básicos' },
+   813→        { label: 'Precio (€)', section: 'Datos básicos' },
+   814→        { label: 'F. Entrada', section: 'Etiqueta', note: 'Fecha de entrada a la Jaula' },
+   815→        { label: 'F. Revisión', section: 'Etiqueta', note: 'Calculada automáticamente (F. Entrada + Días cuarentena)' },
+   816→        { label: 'Z. Origen', section: 'Zonas', note: 'Zona donde se encontró el elemento' },
+   817→        { label: 'Z. Destino', section: 'Zonas', note: 'Siempre "Jaula" para innecesarios' },
+   818→      ]
+   819→    : sStep === 2
+   820→    ? [
+   821→        { label: 'Elemento', section: 'Datos básicos' },
+   822→        { label: 'Ubicación', section: 'Datos básicos' },
+   823→        { label: 'Zona', section: 'Datos básicos' },
+   824→        { label: 'Categoría', section: 'Datos básicos' },
+   825→        { label: 'Total exist.', section: 'Datos básicos' },
+   826→        { label: 'Precio (€)', section: 'Datos básicos' },
+   827→      ]
+   828→    : [
+   829→        { label: 'Elemento', section: 'Datos básicos' },
+   830→        { label: 'Ubicación', section: 'Datos básicos' },
+   831→        { label: 'Zona', section: 'Datos básicos' },
+   832→        { label: 'Categoría', section: 'Datos básicos' },
+   833→        { label: 'Total exist.', section: 'Datos básicos' },
+   834→        { label: 'Precio (€)', section: 'Datos básicos' },
+   835→      ]
+   836→
+   837→  return (
+   838→    <div className="space-y-6">
+   839→      {/* BUILT-IN FIELDS (read-only reference) */}
+   840→      <div>
+   841→        <h4 className="text-sm font-bold text-blue-700 mb-2 flex items-center gap-2">
+   842→          <Badge className="bg-blue-100 text-blue-800">Campos fijos del formulario</Badge>
+   843→          {builtInFields.length} campo(s) — no editables
+   844→        </h4>
+   845→        <div className="border rounded-lg p-3 bg-blue-50/30 space-y-1">
+   846→          <p className="text-[10px] text-blue-600 mb-2">Estos campos siempre aparecen en el inventario y no se pueden quitar de la plantilla.</p>
+   847→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+   848→            {builtInFields.map((f, i) => (
+   849→              <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 rounded bg-white/60">
+   850→                <span className="font-medium text-blue-800">{f.label}</span>
+   851→                <span className="text-blue-400">—</span>
+   852→                <span className="text-blue-500 text-[10px]">{f.section}</span>
+   853→                {f.note && <span className="text-[9px] text-blue-400 italic">({f.note})</span>}
+   854→              </div>
+   855→            ))}
+   856→          </div>
+   857→        </div>
+   858→      </div>
+   859→
+   860→      {/* CATEGORIES */}
+   861→      <div>
+   862→        <h4 className="text-sm font-bold text-orange-700 mb-2 flex items-center gap-2">
+   863→          <Badge className="bg-orange-100 text-orange-800">Categorías</Badge>
+   864→          {categories.length} categoría(s)
+   865→        </h4>
+   866→        <div className="space-y-2">
+   867→          {categories.map((cat, idx) => (
+   868→            <div key={idx} className="flex items-center gap-2 group border rounded-lg p-2 bg-white">
+   869→              <div className="flex flex-col gap-0.5">
+   870→                <button onClick={() => moveCategory(idx, -1)} className="text-gray-300 hover:text-gray-500 leading-none">
+   871→                  <ChevronUp className="h-3.5 w-3.5" />
+   872→                </button>
+   873→                <button onClick={() => moveCategory(idx, 1)} className="text-gray-300 hover:text-gray-500 leading-none">
+   874→                  <ChevronDown className="h-3.5 w-3.5" />
+   875→                </button>
+   876→              </div>
+   877→              <Input value={cat.value} onChange={e => updateCategory(idx, 'value', e.target.value)}
+   878→                className="w-32 h-8 text-xs" placeholder="Valor (ej: muy_frecuente)" />
+   879→              <Input value={cat.label} onChange={e => updateCategory(idx, 'label', e.target.value)}
+   880→                className="flex-1 h-8 text-xs" placeholder="Etiqueta (ej: Muy frecuente)" />
+   881→              <select value={cat.color} onChange={e => updateCategory(idx, 'color', e.target.value)}
+   882→                className="h-8 text-xs border rounded px-1 max-w-[180px]">
+   883→                {COLOR_PRESETS.map(c => <option key={c} value={c}>{c}</option>)}
+   884→              </select>
+   885→              <Badge className={cat.color}>{cat.label || 'Preview'}</Badge>
+   886→              <Button variant="ghost" size="sm" onClick={() => removeCategory(idx)}
+   887→                className="h-8 w-8 p-0 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+   888→                <Trash2 className="h-4 w-4" />
+   889→              </Button>
+   890→            </div>
+   891→          ))}
+   892→          <Button variant="outline" onClick={addCategory} size="sm"
+   893→            className="w-full border-dashed border-2 text-orange-600 hover:bg-orange-50 hover:border-orange-400 gap-1">
+   894→            <Plus className="h-4 w-4" /> Añadir categoría
+   895→          </Button>
+   896→        </div>
+   897→      </div>
+   898→
+   899→      {/* EXTRA FIELDS */}
+   900→      <div>
+   901→        <h4 className="text-sm font-bold text-teal-700 mb-2 flex items-center gap-2">
+   902→          <Badge className="bg-teal-100 text-teal-800">Campos extra</Badge>
+   903→          {extraFields.length} campo(s)
+   904→        </h4>
+   905→        <div className="space-y-2">
+   906→          {extraFields.map((field, fIdx) => (
+   907→            <div key={fIdx} className="border-2 rounded-lg overflow-hidden bg-white shadow-sm">
+   908→              <div className="flex items-center gap-2 px-3 py-2 bg-teal-50 border-b border-teal-200">
+   909→                <div className="flex flex-col gap-0.5">
+   910→                  <button onClick={() => moveField(fIdx, -1)} className="text-gray-300 hover:text-gray-500 leading-none">
+   911→                    <ChevronUp className="h-3.5 w-3.5" />
+   912→                  </button>
+   913→                  <button onClick={() => moveField(fIdx, 1)} className="text-gray-300 hover:text-gray-500 leading-none">
+   914→                    <ChevronDown className="h-3.5 w-3.5" />
+   915→                  </button>
+   916→                </div>
+   917→                <Badge className="bg-teal-200 text-teal-800 shrink-0 text-[10px] px-1.5 py-0.5">Campo {fIdx + 1}</Badge>
+   918→                <Input value={field.key} onChange={e => updateField(fIdx, 'key', e.target.value)}
+   919→                  className="w-36 h-7 text-xs font-mono" placeholder="key (ej: ubicacion)" />
+   920→                <Input value={field.label} onChange={e => updateField(fIdx, 'label', e.target.value)}
+   921→                  className="flex-1 h-7 text-xs" placeholder="Etiqueta (ej: Ubicación asignada)" />
+   922→                <select value={field.type} onChange={e => updateField(fIdx, 'type', e.target.value)}
+   923→                  className="h-7 text-xs border rounded px-2">
+   924→                  <option value="text">Texto</option>
+   925→                  <option value="number">Número</option>
+   926→                  <option value="select">Selección</option>
+   927→                </select>
+   928→                <Button variant="ghost" size="sm" onClick={() => removeField(fIdx)}
+   929→                  className="h-7 w-7 p-0 text-red-400 hover:text-red-500">
+   930→                  <Trash2 className="h-3.5 w-3.5" />
+   931→                </Button>
+   932→              </div>
+   933→              {field.type === 'select' && (
+   934→                <div className="px-3 py-2 space-y-1">
+   935→                  <Label className="text-[10px] text-muted-foreground">Opciones:</Label>
+   936→                  {(field.options || []).map((opt, oIdx) => (
+   937→                    <div key={oIdx} className="flex items-center gap-1">
+   938→                      <Input value={opt} onChange={e => updateOption(fIdx, oIdx, e.target.value)}
+   939→                        className="flex-1 h-7 text-xs" placeholder={`Opción ${oIdx + 1}`} />
+   940→                      <Button variant="ghost" size="sm" onClick={() => removeOption(fIdx, oIdx)}
+   941→                        className="h-7 w-7 p-0 text-red-300 hover:text-red-500">
+   942→                        <Trash2 className="h-3 w-3" />
+   943→                      </Button>
+   944→                    </div>
+   945→                  ))}
+   946→                  <Button variant="ghost" size="sm" onClick={() => addOption(fIdx)}
+   947→                    className="h-7 text-xs text-teal-600 hover:text-teal-700 gap-1 px-2">
+   948→                    <Plus className="h-3 w-3" /> Añadir opción
+   949→                  </Button>
+   950→                </div>
+   951→              )}
+   952→            </div>
+   953→          ))}
+   954→          <Button variant="outline" onClick={addField} size="sm"
+   955→            className="w-full border-dashed border-2 text-teal-600 hover:bg-teal-50 hover:border-teal-400 gap-1">
+   956→            <Plus className="h-4 w-4" /> Añadir campo extra
+   957→          </Button>
+   958→        </div>
+   959→      </div>
+   960→    </div>
+   961→  )
+   962→}
+   963→
+   964→// ═══════════════════════════════════════════════════════
+   965→// VISUAL EDITOR: StandardTemplateEditor (estandar)
+   966→// ═══════════════════════════════════════════════════════
+   967→interface StdField { key: string; label: string; type: 'photo' | 'text' | 'number' | 'select'; options?: string[]; required?: boolean }
+   968→
+   969→function StandardTemplateEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
+   970→  let parsed: { fields: StdField[] }
+   971→  try {
+   972→    parsed = JSON.parse(content)
+   973→  } catch {
+   974→    return (
+   975→      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+   976→        El JSON no es válido. Corrígelo en modo JSON o carga el contenido por defecto.
+   977→      </div>
+   978→    )
+   979→  }
+   980→
+   981→  const fields = parsed.fields || []
+   982→
+   983→  const update = (newFields: StdField[]) => {
+   984→    onChange(JSON.stringify({ ...parsed, fields: newFields }, null, 2))
+   985→  }
+   986→
+   987→  const addField = () => {
+   988→    update([...fields, { key: '', label: '', type: 'text', required: false }])
+   989→  }
+   990→
+   991→  const removeField = (idx: number) => {
+   992→    update(fields.filter((_, i) => i !== idx))
+   993→  }
+   994→
+   995→  const updateField = (idx: number, field: string, value: string | boolean) => {
+   996→    const updated = [...fields]
+   997→    updated[idx] = { ...updated[idx], [field]: value }
+   998→    // Remove options if type is not select
+   999→    if (field === 'type' && value !== 'select') {
+  1000→      const { options, ...rest } = updated[idx]
+  1001→      updated[idx] = rest as StdField
+  1002→    }
+  1003→    update(updated)
+  1004→  }
+  1005→
+  1006→  const moveField = (idx: number, dir: -1 | 1) => {
+  1007→    const target = idx + dir
+  1008→    if (target < 0 || target >= fields.length) return
+  1009→    const updated = [...fields]
+  1010→    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+  1011→    update(updated)
+  1012→  }
+  1013→
+  1014→  const addOption = (fIdx: number) => {
+  1015→    const updated = [...fields]
+  1016→    const opts = [...(updated[fIdx].options || []), '']
+  1017→    updated[fIdx] = { ...updated[fIdx], options: opts }
+  1018→    update(updated)
+  1019→  }
+  1020→
+  1021→  const removeOption = (fIdx: number, oIdx: number) => {
+  1022→    const updated = [...fields]
+  1023→    const opts = (updated[fIdx].options || []).filter((_, i) => i !== oIdx)
+  1024→    updated[fIdx] = { ...updated[fIdx], options: opts }
+  1025→    update(updated)
+  1026→  }
+  1027→
+  1028→  const updateOption = (fIdx: number, oIdx: number, value: string) => {
+  1029→    const updated = [...fields]
+  1030→    const opts = [...(updated[fIdx].options || [])]
+  1031→    opts[oIdx] = value
+  1032→    updated[fIdx] = { ...updated[fIdx], options: opts }
+  1033→    update(updated)
+  1034→  }
+  1035→
+  1036→  const TYPE_LABELS: Record<string, string> = { photo: 'Foto', text: 'Texto', number: 'Número', select: 'Selección' }
+  1037→
+  1038→  return (
+  1039→    <div className="space-y-3">
+  1040→      {fields.map((field, fIdx) => (
+  1041→        <div key={fIdx} className="border-2 rounded-lg overflow-hidden bg-white shadow-sm">
+  1042→          <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 border-b border-violet-200">
+  1043→            <div className="flex flex-col gap-0.5">
+  1044→              <button onClick={() => moveField(fIdx, -1)} className="text-gray-300 hover:text-gray-500 leading-none">
+  1045→                <ChevronUp className="h-3.5 w-3.5" />
+  1046→              </button>
+  1047→              <button onClick={() => moveField(fIdx, 1)} className="text-gray-300 hover:text-gray-500 leading-none">
+  1048→                <ChevronDown className="h-3.5 w-3.5" />
+  1049→              </button>
+  1050→            </div>
+  1051→            <Badge className="bg-violet-200 text-violet-800 shrink-0 text-[10px] px-1.5 py-0.5">Campo {fIdx + 1}</Badge>
+  1052→            <Input value={field.key} onChange={e => updateField(fIdx, 'key', e.target.value)}
+  1053→              className="w-36 h-7 text-xs font-mono" placeholder="key (ej: beforePhotoUrl)" />
+  1054→            <Input value={field.label} onChange={e => updateField(fIdx, 'label', e.target.value)}
+  1055→              className="flex-1 h-7 text-xs" placeholder="Etiqueta (ej: Foto Antes)" />
+  1056→            <select value={field.type} onChange={e => updateField(fIdx, 'type', e.target.value)}
+  1057→              className="h-7 text-xs border rounded px-2">
+  1058→              <option value="text">Texto</option>
+  1059→              <option value="number">Número</option>
+  1060→              <option value="select">Selección</option>
+  1061→              <option value="photo">Foto</option>
+  1062→            </select>
+  1063→            <label className="flex items-center gap-1 text-[10px] text-muted-foreground whitespace-nowrap cursor-pointer">
+  1064→              <input type="checkbox" checked={field.required || false}
+  1065→                onChange={e => updateField(fIdx, 'required', e.target.checked)}
+  1066→                className="rounded border-gray-300 h-3.5 w-3.5" />
+  1067→              Oblig.
+  1068→            </label>
+  1069→            <Button variant="ghost" size="sm" onClick={() => removeField(fIdx)}
+  1070→              className="h-7 w-7 p-0 text-red-400 hover:text-red-500">
+  1071→              <Trash2 className="h-3.5 w-3.5" />
+  1072→            </Button>
+  1073→          </div>
+  1074→          {field.type === 'select' && (
+  1075→            <div className="px-3 py-2 space-y-1">
+  1076→              <Label className="text-[10px] text-muted-foreground">Opciones:</Label>
+  1077→              {(field.options || []).map((opt, oIdx) => (
+  1078→                <div key={oIdx} className="flex items-center gap-1">
+  1079→                  <Input value={opt} onChange={e => updateOption(fIdx, oIdx, e.target.value)}
+  1080→                    className="flex-1 h-7 text-xs" placeholder={`Opción ${oIdx + 1}`} />
+  1081→                  <Button variant="ghost" size="sm" onClick={() => removeOption(fIdx, oIdx)}
+  1082→                    className="h-7 w-7 p-0 text-red-300 hover:text-red-500">
+  1083→                    <Trash2 className="h-3 w-3" />
+  1084→                  </Button>
+  1085→                </div>
+  1086→              ))}
+  1087→              <Button variant="ghost" size="sm" onClick={() => addOption(fIdx)}
+  1088→                className="h-7 text-xs text-violet-600 hover:text-violet-700 gap-1 px-2">
+  1089→                <Plus className="h-3 w-3" /> Añadir opción
+  1090→              </Button>
+  1091→            </div>
+  1092→          )}
+  1093→        </div>
+  1094→      ))}
+  1095→
+  1096→      <Button variant="outline" onClick={addField} size="sm"
+  1097→        className="w-full border-dashed border-2 text-violet-600 hover:bg-violet-50 hover:border-violet-400 gap-1">
+  1098→        <Plus className="h-4 w-4" /> Añadir campo
+  1099→      </Button>
+  1100→
+  1101→      <div className="text-sm text-muted-foreground text-center">
+  1102→        {fields.length} campo(s) · {fields.filter(f => f.required).length} obligatorio(s)
+  1103→      </div>
+  1104→    </div>
+  1105→  )
+  1106→}
+  1107→
+  1108→// ═══════════════════════════════════════════════════════
+  1109→// COMPONENT
+  1110→// ═══════════════════════════════════════════════════════
+  1111→export default function TemplateManager() {
+  1112→  const { currentProject } = use5SStore()
+  1113→  const [activeTab, setActiveTab] = useState<TemplateTab>('formacion')
+  1114→  const [templates, setTemplates] = useState<TemplateData[]>([])
+  1115→  const [isLoading, setIsLoading] = useState(false)
+  1116→  const [editingTemplate, setEditingTemplate] = useState<TemplateData | null>(null)
+  1117→  const [isCreating, setIsCreating] = useState(false)
+  1118→  const [isSaving, setIsSaving] = useState(false)
+  1119→  const [expandedS, setExpandedS] = useState<number | null>(null)
+  1120→  const [editorMode, setEditorMode] = useState<'visual' | 'json'>('visual')
+  1121→
+  1122→  // Form state
+  1123→  const [formType, setFormType] = useState<string>('formacion')
+  1124→  const [formSStep, setFormSStep] = useState<number>(1)
+  1125→  const [formMiniStep, setFormMiniStep] = useState<number>(3)
+  1126→  const [formTitle, setFormTitle] = useState('')
+  1127→  const [formDescription, setFormDescription] = useState('')
+  1128→  const [formContent, setFormContent] = useState('')
+  1129→  const [formNotaMinima, setFormNotaMinima] = useState<number | null>(null)
+  1130→  const [notaMinimaAplica, setNotaMinimaAplica] = useState(true)
+  1131→  const [formActive, setFormActive] = useState(true)
+  1132→
+  1133→  const tabConfig = TEMPLATE_TABS.find(t => t.key === activeTab)!
+  1134→
+  1135→  const fetchTemplates = useCallback(async () => {
+  1136→    setIsLoading(true)
+  1137→    try {
+  1138→      const types = tabConfig.types
+  1139→      const allTemplates: TemplateData[] = []
+  1140→      for (const type of types) {
+  1141→        const res = await fetch(`/api/templates?type=${type}&includeInactive=true`)
+  1142→        const data = await res.json()
+  1143→        if (data.success && data.data) allTemplates.push(...data.data)
+  1144→      }
+  1145→      setTemplates(allTemplates)
+  1146→    } catch (e) { console.error('Error fetching templates:', e) }
+  1147→    finally { setIsLoading(false) }
+  1148→  }, [tabConfig.types])
+  1149→
+  1150→  useEffect(() => { fetchTemplates() }, [fetchTemplates])
+  1151→
+  1152→  const resetForm = () => {
+  1153→    setFormType(tabConfig.types[0])
+  1154→    setFormSStep(1)
+  1155→    setFormMiniStep(3)
+  1156→    setFormTitle('')
+  1157→    setFormDescription('')
+  1158→    setFormContent('')
+  1159→    setFormNotaMinima(activeTab === 'formacion' ? EXAM_PASS_THRESHOLD : activeTab === 'auditoria_interna' ? SELF_EVAL_THRESHOLD : activeTab === 'auditoria_externa' ? AUDIT_PASS_THRESHOLD : 0)
+  1160→    setFormActive(true)
+  1161→    setEditingTemplate(null)
+  1162→    setIsCreating(false)
+  1163→    setEditorMode('visual')
+  1164→    // resetForm complete
+  1165→  }
+  1166→
+  1167→  const startCreate = (sStep: number, type: string, miniStep: number = 3) => {
+  1168→    setIsCreating(true)
+  1169→    setFormType(type)
+  1170→    setFormSStep(sStep)
+  1171→    setFormMiniStep(miniStep)
+  1172→    setFormTitle(`S${sStep} - ${S_STEPS.find(s => s.id === sStep)?.japaneseName || ''}`)
+  1173→    setFormDescription('')
+  1174→    const aplicaNota = type === 'examen' || type === 'autoevaluacion' || type === 'auditoria'
+  1175→    setNotaMinimaAplica(aplicaNota)
+  1176→    setFormNotaMinima(aplicaNota ? (type === 'examen' ? EXAM_PASS_THRESHOLD : type === 'autoevaluacion' ? SELF_EVAL_THRESHOLD : AUDIT_PASS_THRESHOLD) : null)
+  1177→    setFormActive(true)
+  1178→    setEditorMode('visual')
+  1179→
+  1180→    if (type === 'formacion') {
+  1181→      setFormContent(JSON.stringify(getDefaultFormationContent(sStep), null, 2))
+  1182→    } else if (type === 'examen') {
+  1183→      setFormContent(JSON.stringify(getDefaultExamContent(sStep), null, 2))
+  1184→    } else if (type === 'fotos') {
+  1185→      setFormContent(JSON.stringify(getDefaultFotosContent(sStep), null, 2))
+  1186→    } else if (type === 'inventario') {
+  1187→      setFormContent(JSON.stringify(getDefaultInventoryContent(sStep), null, 2))
+  1188→    } else if (type === 'estandar') {
+  1189→      setFormContent(JSON.stringify(getDefaultStandardContent(), null, 2))
+  1190→    } else {
+  1191→      setFormContent(JSON.stringify(getDefaultChecklistContent(sStep), null, 2))
+  1192→    }
+  1193→  }
+  1194→
+  1195→  const startEdit = (template: TemplateData) => {
+  1196→    setEditingTemplate(template)
+  1197→    setFormType(template.type)
+  1198→    setFormSStep(template.sStep)
+  1199→    setFormMiniStep(template.miniStep || 3)
+  1200→    setFormTitle(template.title)
+  1201→    setFormDescription(template.description || '')
+  1202→    setFormContent(typeof template.content === 'string' ? template.content : JSON.stringify(template.content, null, 2))
+  1203→    const aplicaNota = template.type === 'examen' || template.type === 'autoevaluacion' || template.type === 'auditoria'
+  1204→    setNotaMinimaAplica(aplicaNota)
+  1205→    setFormNotaMinima(template.notaMinima != null ? template.notaMinima : (aplicaNota ? (template.type === 'examen' ? EXAM_PASS_THRESHOLD : template.type === 'autoevaluacion' ? SELF_EVAL_THRESHOLD : AUDIT_PASS_THRESHOLD) : null))
+  1206→    setFormActive(template.active)
+  1207→    setIsCreating(true)
+  1208→    setEditorMode('visual')
+  1209→  }
+  1210→
+  1211→  const handleSave = async () => {
+  1212→    setIsSaving(true)
+  1213→    try {
+  1214→      // Validate JSON
+  1215→      try { JSON.parse(formContent) } catch { alert('El contenido JSON no es válido. Revísalo.'); setIsSaving(false); return }
+  1216→
+  1217→      const payload = {
+  1218→        type: formType,
+  1219→        sStep: formSStep,
+  1220→        miniStep: formMiniStep,
+  1221→        title: formTitle,
+  1222→        description: formDescription || null,
+  1223→        content: formContent,
+  1224→        notaMinima: notaMinimaAplica ? formNotaMinima : null,
+  1225→        active: formActive,
+  1226→      }
+  1227→
+  1228→      if (editingTemplate) {
+  1229→        const res = await fetch('/api/templates', {
+  1230→          method: 'PUT',
+  1231→          headers: { 'Content-Type': 'application/json' },
+  1232→          body: JSON.stringify({ id: editingTemplate.id, ...payload }),
+  1233→        })
+  1234→        const data = await res.json()
+  1235→        if (!data.success) { alert('Error: ' + data.error); return }
+  1236→      } else {
+  1237→        const res = await fetch('/api/templates', {
+  1238→          method: 'POST',
+  1239→          headers: { 'Content-Type': 'application/json' },
+  1240→          body: JSON.stringify(payload),
+  1241→        })
+  1242→        const data = await res.json()
+  1243→        if (!data.success) { alert('Error: ' + data.error); return }
+  1244→      }
+  1245→
+  1246→      resetForm()
+  1247→      fetchTemplates()
+  1248→    } catch (e) { console.error('Error saving:', e); alert('Error al guardar') }
+  1249→    finally { setIsSaving(false) }
+  1250→  }
+  1251→
+  1252→  const handleDelete = async (id: string) => {
+  1253→    if (!confirm('¿Eliminar esta plantilla?')) return
+  1254→    try {
+  1255→      await fetch(`/api/templates?id=${id}`, { method: 'DELETE' })
+  1256→      fetchTemplates()
+  1257→    } catch (e) { console.error(e) }
+  1258→  }
+  1259→
+  1260→  // All template types across all tabs — used by seed to create everything at once
+  1261→  const ALL_TEMPLATE_TYPES = ['formacion', 'examen', 'fotos', 'inventario', 'estandar', 'autoevaluacion', 'auditoria'] as const
+  1262→
+  1263→  const handleSeedDefaults = async () => {
+  1264→    if (!confirm('¿Crear plantillas por defecto para TODAS las S y TODOS los tipos? Esto creará las que falten.')) return
+  1265→    setIsSaving(true)
+  1266→    try {
+  1267→      // Load ALL existing templates (including inactive) across all types
+  1268→      const allExisting: TemplateData[] = []
+  1269→      for (const type of ALL_TEMPLATE_TYPES) {
+  1270→        try {
+  1271→          const res = await fetch(`/api/templates?type=${type}&includeInactive=true`)
+  1272→          const data = await res.json()
+  1273→          if (data.success && data.data) allExisting.push(...data.data)
+  1274→        } catch (e) { console.error(`Error fetching ${type} templates:`, e) }
+  1275→      }
+  1276→
+  1277→      let created = 0
+  1278→      for (const s of S_STEPS) {
+  1279→        for (const type of ALL_TEMPLATE_TYPES) {
+  1280→          const existing = allExisting.find(t => t.sStep === s.id && t.type === type && t.active)
+  1281→          if (!existing) {
+  1282→            let content = '{}'
+  1283→            let title = ''
+  1284→            let nota = EXAM_PASS_THRESHOLD
+  1285→            let miniStep = 1
+  1286→            if (type === 'formacion') {
+  1287→              content = JSON.stringify(getDefaultFormationContent(s.id))
+  1288→              title = `Formación S${s.id} - ${s.japaneseName}`
+  1289→              miniStep = 1
+  1290→            } else if (type === 'examen') {
+  1291→              content = JSON.stringify(getDefaultExamContent(s.id))
+  1292→              title = `Examen S${s.id} - ${s.japaneseName}`
+  1293→              nota = EXAM_PASS_THRESHOLD
+  1294→              miniStep = 1
+  1295→            } else if (type === 'autoevaluacion') {
+  1296→              content = JSON.stringify(getDefaultChecklistContent(s.id))
+  1297→              title = `Autoevaluación S${s.id} - ${s.japaneseName}`
+  1298→              nota = SELF_EVAL_THRESHOLD
+  1299→              miniStep = 4
+  1300→            } else if (type === 'auditoria') {
+  1301→              content = JSON.stringify(getDefaultChecklistContent(s.id))
+  1302→              title = `Auditoría S${s.id} - ${s.japaneseName}`
+  1303→              nota = AUDIT_PASS_THRESHOLD
+  1304→              miniStep = 5
+  1305→            } else if (type === 'inventario') {
+  1306→              content = JSON.stringify(getDefaultInventoryContent(s.id))
+  1307→              title = `Inventario S${s.id} - ${s.japaneseName}`
+  1308→              nota = 0
+  1309→              miniStep = 3
+  1310→            } else if (type === 'fotos') {
+  1311→              content = JSON.stringify(getDefaultFotosContent(s.id))
+  1312→              title = `Fotos S${s.id} - ${s.japaneseName}`
+  1313→              nota = 0
+  1314→              miniStep = 2
+  1315→            } else if (type === 'estandar') {
+  1316→              content = JSON.stringify(getDefaultStandardContent())
+  1317→              title = `Estándar S${s.id} - ${s.japaneseName}`
+  1318→              nota = 0
+  1319→              miniStep = 3
+  1320→            }
+  1321→            const res = await fetch('/api/templates', {
+  1322→              method: 'POST',
+  1323→              headers: { 'Content-Type': 'application/json' },
+  1324→              body: JSON.stringify({ type, sStep: s.id, miniStep, title, content, notaMinima: nota }),
+  1325→            })
+  1326→            const data = await res.json()
+  1327→            if (data.success) created++
+  1328→            else console.error(`Error creating ${type} S${s.id}:`, data.error)
+  1329→          }
+  1330→        }
+  1331→      }
+  1332→      fetchTemplates()
+  1333→      alert(`✅ ${created} plantilla(s) creada(s). Las plantillas existentes no se modificaron.`)
+  1334→    } catch (e) { console.error(e) }
+  1335→    finally { setIsSaving(false) }
+  1336→  }
+  1337→
+  1338→  // Full template export format (includes metadata + content)
+  1339→  const exportTemplateData = (template: TemplateData) => ({
+  1340→    _5sTemplateExport: true,
+  1341→    version: 1,
+  1342→    type: template.type,
+  1343→    sStep: template.sStep,
+  1344→    miniStep: template.miniStep,
+  1345→    title: template.title,
+  1346→    description: template.description,
+  1347→    content: typeof template.content === 'string' ? JSON.parse(template.content) : template.content,
+  1348→    notaMinima: template.notaMinima,
+  1349→    active: template.active,
+  1350→  })
+  1351→
+  1352→  const handleDownload = (template: TemplateData) => {
+  1353→    try {
+  1354→      const data = exportTemplateData(template)
+  1355→      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  1356→      const url = URL.createObjectURL(blob)
+  1357→      const a = document.createElement('a')
+  1358→      a.href = url
+  1359→      a.download = `${template.type}_S${template.sStep}_${template.title.replace(/[^a-zA-Z0-9]/g, '_')}.json`
+  1360→      a.click()
+  1361→      URL.revokeObjectURL(url)
+  1362→    } catch {
+  1363→      alert('Error al descargar la plantilla')
+  1364→    }
+  1365→  }
+  1366→
+  1367→  const [copiedId, setCopiedId] = useState<string | null>(null)
+  1368→
+  1369→  const handleCopyTemplate = async (template: TemplateData) => {
+  1370→    try {
+  1371→      const data = exportTemplateData(template)
+  1372→      await navigator.clipboard.writeText(JSON.stringify(data, null, 2))
+  1373→      setCopiedId(template.id)
+  1374→      setTimeout(() => setCopiedId(null), 2000)
+  1375→    } catch {
+  1376→      // Fallback: create temporary textarea
+  1377→      try {
+  1378→        const data = exportTemplateData(template)
+  1379→        const text = JSON.stringify(data, null, 2)
+  1380→        const textarea = document.createElement('textarea')
+  1381→        textarea.value = text
+  1382→        textarea.style.position = 'fixed'
+  1383→        textarea.style.left = '-9999px'
+  1384→        document.body.appendChild(textarea)
+  1385→        textarea.select()
+  1386→        document.execCommand('copy')
+  1387→        document.body.removeChild(textarea)
+  1388→        setCopiedId(template.id)
+  1389→        setTimeout(() => setCopiedId(null), 2000)
+  1390→      } catch {
+  1391→        alert('No se pudo copiar al portapapeles')
+  1392→      }
+  1393→    }
+  1394→  }
+  1395→
+  1396→  const importTemplateData = (data: any) => {
+  1397→    // Check if it's a full export with metadata
+  1398→    if (data && data._5sTemplateExport) {
+  1399→      setFormType(data.type || 'formacion')
+  1400→      setFormSStep(data.sStep || 1)
+  1401→      setFormMiniStep(data.miniStep || 3)
+  1402→      setFormTitle(data.title ? `${data.title} (copia)` : '')
+  1403→      setFormDescription(data.description || '')
+  1404→      setFormContent(JSON.stringify(data.content, null, 2))
+  1405→      const aplicaNota = data.type === 'examen' || data.type === 'autoevaluacion' || data.type === 'auditoria'
+  1406→      setNotaMinimaAplica(aplicaNota)
+  1407→      setFormNotaMinima(data.notaMinima != null ? data.notaMinima : (aplicaNota ? (data.type === 'examen' ? EXAM_PASS_THRESHOLD : data.type === 'autoevaluacion' ? SELF_EVAL_THRESHOLD : AUDIT_PASS_THRESHOLD) : null))
+  1408→      setFormActive(data.active !== false)
+  1409→      setIsCreating(true)
+  1410→      setEditorMode('visual')
+  1411→    } else {
+  1412→      // Legacy: just content, only set formContent
+  1413→      setFormContent(JSON.stringify(data, null, 2))
+  1414→    }
+  1415→  }
+  1416→
+  1417→  const handlePasteTemplate = async () => {
+  1418→    try {
+  1419→      const text = await navigator.clipboard.readText()
+  1420→      const data = JSON.parse(text)
+  1421→      importTemplateData(data)
+  1422→    } catch {
+  1423→      alert('No se pudo leer del portapapeles. Asegúrate de que hay una plantilla copiada (formato JSON válido).')
+  1424→    }
+  1425→  }
+  1426→
+  1427→  const handleDuplicateTemplate = async (template: TemplateData) => {
+  1428→    try {
+  1429→      const payload = {
+  1430→        type: template.type,
+  1431→        sStep: template.sStep,
+  1432→        miniStep: template.miniStep,
+  1433→        title: `${template.title} (copia)`,
+  1434→        description: template.description,
+  1435→        content: template.content,
+  1436→        notaMinima: template.notaMinima,
+  1437→        active: template.active,
+  1438→      }
+  1439→      const res = await fetch('/api/templates', {
+  1440→        method: 'POST',
+  1441→        headers: { 'Content-Type': 'application/json' },
+  1442→        body: JSON.stringify(payload),
+  1443→      })
+  1444→      const data = await res.json()
+  1445→      if (!data.success) { alert('Error: ' + data.error); return }
+  1446→      fetchTemplates()
+  1447→    } catch {
+  1448→      alert('Error al duplicar la plantilla')
+  1449→    }
+  1450→  }
+  1451→
+  1452→  const handleUploadJson = () => {
+  1453→    const input = document.createElement('input')
+  1454→    input.type = 'file'
+  1455→    input.accept = '.json'
+  1456→    input.onchange = (e: any) => {
+  1457→      const file = e.target.files?.[0]
+  1458→      if (!file) return
+  1459→      const reader = new FileReader()
+  1460→      reader.onload = (ev) => {
+  1461→        try {
+  1462→          const data = JSON.parse(ev.target?.result as string)
+  1463→          importTemplateData(data)
+  1464→        } catch {
+  1465→          alert('El archivo JSON no es válido')
+  1466→        }
+  1467→      }
+  1468→      reader.readAsText(file)
+  1469→    }
+  1470→    input.click()
+  1471→  }
+  1472→
+  1473→  const templatesByS = (sStep: number) => templates.filter(t => t.sStep === sStep)
+  1474→
+  1475→  // Count summary for a template
+  1476→  const getTemplateSummary = (template: TemplateData) => {
+  1477→    try {
+  1478→      const data = typeof template.content === 'string' ? JSON.parse(template.content) : template.content
+  1479→      if (data.questions) return `${data.questions.length} pregunta(s)`
+  1480→      if (data.fields) return `${data.fields.length} campo(s)`
+  1481→      if (data.categories || data.extraFields) return `${(data.categories || []).length} cat. / ${(data.extraFields || []).length} campos`
+  1482→      if (data.sections) {
+  1483→        const totalItems = data.sections.reduce((s: number, sec: any) => s + (sec.items?.length || 0), 0)
+  1484→        return totalItems > 0 ? `${data.sections.length} sec. / ${totalItems} items` : `${data.sections.length} sección(es)`
+  1485→      }
+  1486→      return ''
+  1487→    } catch { return '' }
+  1488→  }
+  1489→
+  1490→  // ═══════════════════════════════════════════════════════
+  1491→  // RENDER
+  1492→  // ═══════════════════════════════════════════════════════
+  1493→  return (
+  1494→    <div className="flex flex-col h-full">
+  1495→      {/* Tab selector — fixed */}
+  1496→      <div className="flex gap-2 border-b pb-2 shrink-0">
+  1497→        {TEMPLATE_TABS.map(tab => {
+  1498→          const Icon = tab.icon
+  1499→          return (
+  1500→            <button key={tab.key} onClick={() => { setActiveTab(tab.key); setExpandedS(null) }}
+  1501→              className={`flex items-center gap-2 px-4 py-2 rounded-t-lg text-sm font-semibold transition-all ${
+  1502→                activeTab === tab.key
+  1503→                  ? 'bg-green-50 text-green-700 border-b-2 border-green-500'
+  1504→                  : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'
+  1505→              }`}>
+  1506→              <Icon className="h-4 w-4" />
+  1507→              {tab.label}
+  1508→            </button>
+  1509→          )
+  1510→        })}
+  1511→      </div>
+  1512→
+  1513→      {/* Header actions — fixed */}
+  1514→      <div className="flex items-center justify-between shrink-0">
+  1515→        <h2 className="text-lg font-bold flex items-center gap-2">
+  1516→          {(() => { const Icon = tabConfig.icon; return <Icon className="h-5 w-5 text-green-600" /> })()}
+  1517→          Plantillas de {tabConfig.label}
+  1518→        </h2>
+  1519→        <div className="flex items-center gap-2">
+  1520→          <Button variant="outline" size="sm" onClick={handlePasteTemplate}
+  1521→            className="gap-1 text-xs border-purple-300 text-purple-600 hover:bg-purple-50">
+  1522→            <ClipboardPaste className="h-3.5 w-3.5" />
+  1523→            Pegar plantilla
+  1524→          </Button>
+  1525→          <Button variant="outline" size="sm" onClick={handleSeedDefaults} disabled={isSaving}
+  1526→            className="gap-1 text-xs border-green-300 text-green-600 hover:bg-green-50">
+  1527→            <RotateCcw className="h-3.5 w-3.5" />
+  1528→            Crear plantillas por defecto
+  1529→          </Button>
+  1530→        </div>
+  1531→      </div>
+  1532→
+  1533→      {/* S-Step cards — scrollable */}
+  1534→      {isLoading ? (
+  1535→        <div className="flex items-center justify-center py-12">
+  1536→          <Loader2 className="h-8 w-8 text-green-500 animate-spin" />
+  1537→        </div>
+  1538→      ) : (
+  1539→        <div className="flex-1 min-h-0 overflow-auto space-y-3">
+  1540→          {S_STEPS.map(s => {
+  1541→            const sTemplates = templatesByS(s.id)
+  1542→            const isExpanded = expandedS === s.id
+  1543→            return (
+  1544→              <div key={s.id} className="rounded-xl border-2 overflow-hidden"
+  1545→                style={{ borderColor: S_COLORS[s.id] + '40' }}>
+  1546→                {/* S Header */}
+  1547→                <div className="flex items-center justify-between px-4 py-3 cursor-pointer"
+  1548→                  style={{ backgroundColor: S_COLORS[s.id] + '10' }}
+  1549→                  onClick={() => setExpandedS(isExpanded ? null : s.id)}>
+  1550→                  <div className="flex items-center gap-3">
+  1551→                    <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-black text-sm"
+  1552→                      style={{ backgroundColor: S_COLORS[s.id] }}>
+  1553→                      S{s.id}
+  1554→                    </div>
+  1555→                    <div>
+  1556→                      <span className="font-bold" style={{ color: S_COLORS[s.id] }}>{s.japaneseName}</span>
+  1557→                      <span className="text-sm text-muted-foreground ml-2">({s.spanishName})</span>
+  1558→                    </div>
+  1559→                  </div>
+  1560→                  <div className="flex items-center gap-3">
+  1561→                    <Badge variant="outline" style={{ color: S_COLORS[s.id], borderColor: S_COLORS[s.id] + '40' }}>
+  1562→                      {sTemplates.length} plantilla{sTemplates.length !== 1 ? 's' : ''}
+  1563→                    </Badge>
+  1564→                    {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+  1565→                  </div>
+  1566→                </div>
+  1567→
+  1568→                {/* Expanded */}
+  1569→                <AnimatePresence>
+  1570→                  {isExpanded && (
+  1571→                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+  1572→                      className="overflow-hidden">
+  1573→                      <div className="p-4 space-y-3">
+  1574→                        {/* Create buttons */}
+  1575→                        <div className="flex gap-2 mb-3">
+  1576→                          {tabConfig.types.map(type => {
+  1577→                            const defaultMiniStep = type === 'formacion' || type === 'examen' ? 1 : type === 'autoevaluacion' ? 4 : type === 'auditoria' ? 5 : 3
+  1578→                            return (
+  1579→                            <Button key={type} variant="outline" size="sm"
+  1580→                              className="gap-1 text-xs"
+  1581→                              onClick={() => startCreate(s.id, type, defaultMiniStep)}>
+  1582→                              <Plus className="h-3.5 w-3.5" />
+  1583→                              Nueva {type === 'formacion' ? 'Formación' : type === 'examen' ? 'Examen' : type === 'autoevaluacion' ? 'Autoevaluación' : type === 'auditoria' ? 'Auditoría Externa' : type === 'inventario' ? 'Config. Inventario' : 'Formato Estándar'}
+  1584→                            </Button>
+  1585→                          )})}
+  1586→                        </div>
+  1587→
+  1588→                        {/* Template list */}
+  1589→                        {sTemplates.length === 0 ? (
+  1590→                          <div className="text-center py-6 text-muted-foreground text-sm">
+  1591→                            No hay plantillas para S{s.id}. Crea una nueva o pulsa &quot;Crear plantillas por defecto&quot;.
+  1592→                          </div>
+  1593→                        ) : (
+  1594→                          <div className="space-y-2">
+  1595→                            {sTemplates.map(tpl => (
+  1596→                              <div key={tpl.id}
+  1597→                                className={`p-3 rounded-lg border ${tpl.active ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-300 opacity-60'}`}>
+  1598→                                {/* S / Paso indicator */}
+  1599→                                <div className="flex items-center gap-2 mb-2 px-1">
+  1600→                                  <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-bold text-white"
+  1601→                                    style={{ backgroundColor: S_COLORS[tpl.sStep] || '#666' }}>
+  1602→                                    S{tpl.sStep}
+  1603→                                  </div>
+  1604→                                  <span className="text-xs text-muted-foreground">Paso {tpl.miniStep || 3}</span>
+  1605→                                  <span className="text-xs text-muted-foreground">·</span>
+  1606→                                  <span className="text-xs font-medium" style={{ color: S_COLORS[tpl.sStep] || '#666' }}>
+  1607→                                    {MINI_STEPS_LABELS[tpl.miniStep || 3]}
+  1608→                                  </span>
+  1609→                                </div>
+  1610→                                <div className="flex items-center justify-between">
+  1611→                                <div className="flex items-center gap-3 flex-1 min-w-0">
+  1612→                                  <Badge className="shrink-0" style={{
+  1613→                                    backgroundColor: tpl.type === 'formacion' ? '#DBEAFE' : tpl.type === 'examen' ? '#FEF3C7' : tpl.type === 'autoevaluacion' ? '#D1FAE5' : tpl.type === 'auditoria' ? '#FED7AA' : tpl.type === 'inventario' ? '#FFEDD5' : '#EDE9FE',
+  1614→                                    color: tpl.type === 'formacion' ? '#1D4ED8' : tpl.type === 'examen' ? '#92400E' : tpl.type === 'autoevaluacion' ? '#065F46' : tpl.type === 'auditoria' ? '#9A3412' : tpl.type === 'inventario' ? '#9A3412' : '#6D28D9',
+  1615→                                  }}>
+  1616→                                    {tpl.type === 'formacion' ? 'Formación' : tpl.type === 'examen' ? 'Examen' : tpl.type === 'autoevaluacion' ? 'Aut. Int.' : tpl.type === 'auditoria' ? 'Aud. Ext.' : tpl.type === 'inventario' ? 'Inventario' : 'Estándar'}
+  1617→                                  </Badge>
+  1618→                                  <div className="min-w-0">
+  1619→                                    <p className="text-sm font-medium truncate">{tpl.title}</p>
+  1620→                                    {tpl.description && <p className="text-xs text-muted-foreground truncate">{tpl.description}</p>}
+  1621→                                  </div>
+  1622→                                  {getTemplateSummary(tpl) && (
+  1623→                                    <Badge variant="outline" className="shrink-0 text-[10px]">
+  1624→                                      {getTemplateSummary(tpl)}
+  1625→                                    </Badge>
+  1626→                                  )}
+  1627→                                  {tpl.notaMinima != null ? (
+  1628→                                    <Badge variant="outline" className="shrink-0 text-xs">
+  1629→                                      Nota mín: {tpl.notaMinima}%
+  1630→                                    </Badge>
+  1631→                                  ) : (
+  1632→                                    <Badge variant="outline" className="shrink-0 text-xs text-gray-400 border-gray-200">
+  1633→                                      Sin nota mín
+  1634→                                    </Badge>
+  1635→                                  )}
+  1636→                                  {!tpl.active && (
+  1637→                                    <Badge variant="outline" className="shrink-0 text-xs text-red-500 border-red-200">Inactiva</Badge>
+  1638→                                  )}
+  1639→                                </div>
+  1640→                                <div className="flex items-center gap-1 shrink-0 ml-2">
+  1641→                                  <Button variant="ghost" size="sm" onClick={() => handleCopyTemplate(tpl)}
+  1642→                                    className="h-7 w-7 p-0 text-purple-500 hover:text-purple-700 hover:bg-purple-50" title="Copiar al portapapeles">
+  1643→                                    {copiedId === tpl.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+  1644→                                  </Button>
+  1645→                                  <Button variant="ghost" size="sm" onClick={() => handleDuplicateTemplate(tpl)}
+  1646→                                    className="h-7 w-7 p-0 text-amber-500 hover:text-amber-700 hover:bg-amber-50" title="Duplicar plantilla (crea copia directa)">
+  1647→                                    <ClipboardCopy className="h-3.5 w-3.5" />
+  1648→                                  </Button>
+  1649→                                  <Button variant="ghost" size="sm" onClick={() => handleDownload(tpl)}
+  1650→                                    className="h-7 w-7 p-0 text-gray-500 hover:text-gray-700" title="Descargar JSON">
+  1651→                                    <Download className="h-3.5 w-3.5" />
+  1652→                                  </Button>
+  1653→                                  <Button variant="ghost" size="sm" onClick={() => startEdit(tpl)}
+  1654→                                    className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700">
+  1655→                                    <Edit3 className="h-3.5 w-3.5" />
+  1656→                                  </Button>
+  1657→                                  <Button variant="ghost" size="sm" onClick={() => handleDelete(tpl.id)}
+  1658→                                    className="h-7 w-7 p-0 text-red-500 hover:text-red-600">
+  1659→                                    <Trash2 className="h-3.5 w-3.5" />
+  1660→                                  </Button>
+  1661→                                </div>
+  1662→                                </div>
+  1663→                              </div>
+  1664→                            ))}
+  1665→                          </div>
+  1666→                        )}
+  1667→                      </div>
+  1668→                    </motion.div>
+  1669→                  )}
+  1670→                </AnimatePresence>
+  1671→              </div>
+  1672→            )
+  1673→          })}
+  1674→        </div>
+  1675→      )}
+  1676→
+  1677→      {/* ═══════════════════════════════════════════════════════ */}
+  1678→      {/* EDIT / CREATE — FULL-SCREEN OVERLAY */}
+  1679→      {/* ═══════════════════════════════════════════════════════ */}
+  1680→      {isCreating && (
+  1681→        <div className="fixed inset-0 z-50 bg-gray-900/60 flex items-center justify-center">
+  1682→          <div className="bg-white w-[98vw] h-[96vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
+  1683→            {/* Header bar */}
+  1684→            <div className="shrink-0 flex items-center justify-between px-6 py-3 border-b bg-gradient-to-r from-gray-50 to-white">
+  1685→              <div className="flex items-center gap-3">
+  1686→                {editingTemplate ? <Edit3 className="h-5 w-5 text-blue-500" /> : <Plus className="h-5 w-5 text-green-500" />}
+  1687→                <h2 className="text-lg font-bold">
+  1688→                  {editingTemplate ? 'Editar Plantilla' : 'Nueva Plantilla'}
+  1689→                </h2>
+  1690→                {/* S / Paso indicator inline */}
+  1691→                <div className="flex items-center gap-2 ml-4 px-3 py-1.5 rounded-lg border-2"
+  1692→                  style={{ backgroundColor: S_COLORS[formSStep] + '10', borderColor: S_COLORS[formSStep] + '40' }}>
+  1693→                  <div className="w-7 h-7 rounded flex items-center justify-center text-white font-black text-xs"
+  1694→                    style={{ backgroundColor: S_COLORS[formSStep] }}>
+  1695→                    S{formSStep}
+  1696→                  </div>
+  1697→                  <span className="text-sm font-semibold" style={{ color: S_COLORS[formSStep] }}>
+  1698→                    {S_STEPS.find(s => s.id === formSStep)?.japaneseName}
+  1699→                  </span>
+  1700→                  <Badge style={{ backgroundColor: S_COLORS[formSStep] + '20', color: S_COLORS[formSStep] }}
+  1701→                    className="text-xs px-2 py-0.5 border-0 font-semibold">
+  1702→                    Paso {formMiniStep}: {MINI_STEPS_LABELS[formMiniStep] || `Paso ${formMiniStep}`}
+  1703→                  </Badge>
+  1704→                </div>
+  1705→              </div>
+  1706→              <Button variant="ghost" size="sm" onClick={resetForm}
+  1707→                className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full">
+  1708→                <X className="h-5 w-5" />
+  1709→              </Button>
+  1710→            </div>
+  1711→
+  1712→            {/* Content area — scrollable */}
+  1713→            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+  1714→              {/* Config rows */}
+  1715→              <div className="grid grid-cols-4 gap-4">
+  1716→                <div>
+  1717→                  <Label className="text-sm font-semibold">Tipo</Label>
+  1718→                  <Select value={formType} onValueChange={setFormType}>
+  1719→                    <SelectTrigger className="mt-1 h-10">
+  1720→                      <SelectValue />
+  1721→                    </SelectTrigger>
+  1722→                    <SelectContent>
+  1723→                      <SelectItem value="formacion">Formación</SelectItem>
+  1724→                      <SelectItem value="examen">Examen</SelectItem>
+  1725→                      <SelectItem value="autoevaluacion">Auditoría Interna</SelectItem>
+  1726→                      <SelectItem value="auditoria">Auditoría Externa</SelectItem>
+  1727→                      <SelectItem value="inventario">Inventario</SelectItem>
+  1728→                      <SelectItem value="estandar">Estándar</SelectItem>
+  1729→                    </SelectContent>
+  1730→                  </Select>
+  1731→                </div>
+  1732→                <div>
+  1733→                  <Label className="text-sm font-semibold">S (Fase)</Label>
+  1734→                  <Select value={String(formSStep)} onValueChange={(v) => setFormSStep(Number(v))}>
+  1735→                    <SelectTrigger className="mt-1 h-10">
+  1736→                      <SelectValue />
+  1737→                    </SelectTrigger>
+  1738→                    <SelectContent>
+  1739→                      {S_STEPS.map(s => (
+  1740→                        <SelectItem key={s.id} value={String(s.id)}>
+  1741→                          S{s.id} - {s.japaneseName} ({s.spanishName})
+  1742→                        </SelectItem>
+  1743→                      ))}
+  1744→                    </SelectContent>
+  1745→                  </Select>
+  1746→                </div>
+  1747→                <div>
+  1748→                  <Label className="text-sm font-semibold">Paso</Label>
+  1749→                  <Select value={String(formMiniStep)} onValueChange={(v) => setFormMiniStep(Number(v))}>
+  1750→                    <SelectTrigger className="mt-1 h-10">
+  1751→                      <SelectValue />
+  1752→                    </SelectTrigger>
+  1753→                    <SelectContent>
+  1754→                      {[1, 2, 3, 4, 5].map(step => (
+  1755→                        <SelectItem key={step} value={String(step)}>
+  1756→                          Paso {step} — {MINI_STEPS_LABELS[step]}
+  1757→                        </SelectItem>
+  1758→                      ))}
+  1759→                    </SelectContent>
+  1760→                  </Select>
+  1761→                </div>
+  1762→                <div>
+  1763→                  <Label className="text-sm font-semibold">Nota mínima (pasa/no pasa)</Label>
+  1764→                  <div className="flex items-center gap-3 mt-1">
+  1765→                    <label className="flex items-center gap-1.5 cursor-pointer text-sm">
+  1766→                      <input
+  1767→                        type="checkbox"
+  1768→                        checked={notaMinimaAplica}
+  1769→                        onChange={(e) => {
+  1770→                          setNotaMinimaAplica(e.target.checked)
+  1771→                          if (!e.target.checked) setFormNotaMinima(null)
+  1772→                          else setFormNotaMinima(formType === 'examen' ? EXAM_PASS_THRESHOLD : formType === 'autoevaluacion' ? SELF_EVAL_THRESHOLD : AUDIT_PASS_THRESHOLD)
+  1773→                        }}
+  1774→                        className="rounded border-gray-300 h-4 w-4"
+  1775→                      />
+  1776→                      <span className="text-muted-foreground">Aplica</span>
+  1777→                    </label>
+  1778→                    {notaMinimaAplica ? (
+  1779→                      <div className="flex items-center gap-1">
+  1780→                        <Input type="number" value={formNotaMinima ?? 0} onChange={(e) => setFormNotaMinima(Number(e.target.value))}
+  1781→                          min={0} max={100} className="h-10 w-20" />
+  1782→                        <span className="text-sm text-muted-foreground">%</span>
+  1783→                      </div>
+  1784→                    ) : (
+  1785→                      <span className="text-sm text-gray-400 italic">No aplica</span>
+  1786→                    )}
+  1787→                  </div>
+  1788→                </div>
+  1789→              </div>
+  1790→
+  1791→              <div className="grid grid-cols-4 gap-4">
+  1792→                <div className="col-span-2">
+  1793→                  <Label className="text-sm font-semibold">Título</Label>
+  1794→                  <Input value={formTitle} onChange={(e) => setFormTitle(e.target.value)}
+  1795→                    className="mt-1 h-10" placeholder="Título de la plantilla" />
+  1796→                </div>
+  1797→                <div className="col-span-1">
+  1798→                  <Label className="text-sm font-semibold">Descripción</Label>
+  1799→                  <Input value={formDescription} onChange={(e) => setFormDescription(e.target.value)}
+  1800→                    className="mt-1 h-10" placeholder="Descripción opcional" />
+  1801→                </div>
+  1802→                <div className="flex items-center gap-3 pt-6">
+  1803→                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+  1804→                    <input type="checkbox" checked={formActive} onChange={(e) => setFormActive(e.target.checked)}
+  1805→                      className="rounded border-gray-300 h-4 w-4" />
+  1806→                    Plantilla activa
+  1807→                  </label>
+  1808→                </div>
+  1809→              </div>
+  1810→
+  1811→              {/* ═══════════ Content Editor ═══════════ */}
+  1812→              <div className="flex flex-col" style={{ minHeight: 'calc(96vh - 320px)' }}>
+  1813→                <div className="flex items-center justify-between mb-2 shrink-0">
+  1814→                  <Label className="text-sm font-semibold">Contenido</Label>
+  1815→                  <div className="flex items-center gap-2">
+  1816→                    {/* Default data buttons */}
+  1817→                    {(formType === 'autoevaluacion' || formType === 'auditoria') && (
+  1818→                      <Button variant="outline" size="sm" className="text-xs"
+  1819→                        onClick={() => setFormContent(JSON.stringify(getDefaultChecklistContent(formSStep), null, 2))}>
+  1820→                        <RotateCcw className="h-3.5 w-3.5 mr-1" />
+  1821→                        Cargar checklist por defecto
+  1822→                      </Button>
+  1823→                    )}
+  1824→                    {formType === 'formacion' && (
+  1825→                      <Button variant="outline" size="sm" className="text-xs"
+  1826→                        onClick={() => setFormContent(JSON.stringify(getDefaultFormationContent(formSStep), null, 2))}>
+  1827→                        <RotateCcw className="h-3.5 w-3.5 mr-1" />
+  1828→                        Cargar formación por defecto
+  1829→                      </Button>
+  1830→                    )}
+  1831→                    {formType === 'examen' && (
+  1832→                      <Button variant="outline" size="sm" className="text-xs"
+  1833→                        onClick={() => setFormContent(JSON.stringify(getDefaultExamContent(formSStep), null, 2))}>
+  1834→                        <RotateCcw className="h-3.5 w-3.5 mr-1" />
+  1835→                        Cargar examen por defecto
+  1836→                      </Button>
+  1837→                    )}
+  1838→                    {formType === 'inventario' && (
+  1839→                      <Button variant="outline" size="sm" className="text-xs"
+  1840→                        onClick={() => setFormContent(JSON.stringify(getDefaultInventoryContent(formSStep), null, 2))}>
+  1841→                        <RotateCcw className="h-3.5 w-3.5 mr-1" />
+  1842→                        Cargar inventario por defecto
+  1843→                      </Button>
+  1844→                    )}
+  1845→                    {formType === 'estandar' && (
+  1846→                      <Button variant="outline" size="sm" className="text-xs"
+  1847→                        onClick={() => setFormContent(JSON.stringify(getDefaultStandardContent(), null, 2))}>
+  1848→                        <RotateCcw className="h-3.5 w-3.5 mr-1" />
+  1849→                        Cargar estándar por defecto
+  1850→                      </Button>
+  1851→                    )}
+  1852→
+  1853→                    {/* Upload JSON */}
+  1854→                    <Button variant="outline" size="sm" className="text-xs" onClick={handleUploadJson}>
+  1855→                      <Upload className="h-3.5 w-3.5 mr-1" />
+  1856→                      Subir JSON
+  1857→                    </Button>
+  1858→
+  1859→                    {/* Visual / JSON toggle */}
+  1860→                    <div className="flex rounded-md border overflow-hidden">
+  1861→                      <button
+  1862→                        onClick={() => setEditorMode('visual')}
+  1863→                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+  1864→                          editorMode === 'visual' ? 'bg-green-100 text-green-700' : 'bg-white text-gray-500 hover:bg-gray-50'
+  1865→                        }`}>
+  1866→                        <Eye className="h-3.5 w-3.5" />
+  1867→                        Visual
+  1868→                      </button>
+  1869→                      <button
+  1870→                        onClick={() => setEditorMode('json')}
+  1871→                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+  1872→                          editorMode === 'json' ? 'bg-gray-800 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+  1873→                        }`}>
+  1874→                        <Code className="h-3.5 w-3.5" />
+  1875→                        JSON
+  1876→                      </button>
+  1877→                    </div>
+  1878→                  </div>
+  1879→                </div>
+  1880→
+  1881→                {/* Editor content */}
+  1882→                {editorMode === 'visual' ? (
+  1883→                  <div className="border rounded-lg p-4 flex-1 overflow-y-auto bg-gray-50">
+  1884→                    {(formType === 'autoevaluacion' || formType === 'auditoria') && (
+  1885→                      <ChecklistEditor content={formContent} onChange={setFormContent} />
+  1886→                    )}
+  1887→                    {formType === 'examen' && (
+  1888→                      <ExamEditor content={formContent} onChange={setFormContent} />
+  1889→                    )}
+  1890→                    {formType === 'formacion' && (
+  1891→                      <FormationEditor content={formContent} onChange={setFormContent} />
+  1892→                    )}
+  1893→                    {formType === 'inventario' && (
+  1894→                      <InventoryConfigEditor content={formContent} onChange={setFormContent} sStep={formSStep} />
+  1895→                    )}
+  1896→                    {formType === 'estandar' && (
+  1897→                      <StandardTemplateEditor content={formContent} onChange={setFormContent} />
+  1898→                    )}
+  1899→                  </div>
+  1900→                ) : (
+  1901→                  <textarea
+  1902→                    value={formContent}
+  1903→                    onChange={(e) => setFormContent(e.target.value)}
+  1904→                    className="w-full flex-1 p-4 border rounded-lg font-mono text-sm bg-gray-50 focus:ring-2 focus:ring-green-300 focus:border-green-400 resize-none"
+  1905→                    style={{ minHeight: 'calc(96vh - 380px)' }}
+  1906→                    spellCheck={false}
+  1907→                  />
+  1908→                )}
+  1909→
+  1910→                {/* JSON validation preview */}
+  1911→                {(() => {
+  1912→                  try {
+  1913→                    JSON.parse(formContent)
+  1914→                    return (
+  1915→                      <div className="mt-1 flex items-center gap-1 text-xs text-green-600">
+  1916→                        <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+  1917→                        JSON válido
+  1918→                      </div>
+  1919→                    )
+  1920→                  } catch { return (
+  1921→                    <div className="mt-1 flex items-center gap-1 text-xs text-red-600">
+  1922→                      <AlertTriangle className="h-3 w-3" />
+  1923→                      JSON inválido - revisa el formato
+  1924→                    </div>
+  1925→                  )}
+  1926→                })()}
+  1927→              </div>
+  1928→            </div>
+  1929→
+  1930→            {/* Footer — Save / Cancel */}
+  1931→            <div className="shrink-0 flex gap-3 justify-end px-6 py-3 border-t bg-gray-50">
+  1932→              <Button variant="outline" className="h-10 px-6" onClick={resetForm}>Cancelar</Button>
+  1933→              <Button onClick={handleSave} disabled={isSaving || !formTitle || !formContent}
+  1934→                className="h-10 px-6 bg-gradient-to-r from-green-500 to-emerald-600 text-white gap-2">
+  1935→                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+  1936→                {editingTemplate ? 'Guardar Cambios' : 'Crear Plantilla'}
+  1937→              </Button>
+  1938→            </div>
+  1939→          </div>
+  1940→        </div>
+  1941→      )}
+  1942→    </div>
+  1943→  )
+  1944→}
+  1945→

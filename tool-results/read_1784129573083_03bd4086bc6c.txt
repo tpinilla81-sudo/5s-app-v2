@@ -1,0 +1,1011 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import { use5SStore } from '@/lib/store'
+     6→import { Button } from '@/components/ui/button'
+     7→import { Input } from '@/components/ui/input'
+     8→import { Label } from '@/components/ui/label'
+     9→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+    10→import { Badge } from '@/components/ui/badge'
+    11→import {
+    12→  Dialog,
+    13→  DialogContent,
+    14→  DialogHeader,
+    15→  DialogTitle,
+    16→} from '@/components/ui/dialog'
+    17→import {
+    18→  Crown,
+    19→  Building2,
+    20→  Users,
+    21→  Plus,
+    22→  Edit3,
+    23→  Check,
+    24→  X,
+    25→  Loader2,
+    26→  Activity,
+    27→  TrendingUp,
+    28→  AlertTriangle,
+    29→  CheckCircle2,
+    30→  XCircle,
+    31→  Shield,
+    32→  UserPlus,
+    33→  Search,
+    34→  Mail,
+    35→} from 'lucide-react'
+    36→
+    37→// ─── Types ───────────────────────────────────────────────────────────────────
+    38→
+    39→interface PlatformStats {
+    40→  totals: {
+    41→    companies: number
+    42→    activeCompanies: number
+    43→    users: number
+    44→    activeUsers: number
+    45→    projects: number
+    46→    activeProjects: number
+    47→    templates: number
+    48→    auditResults: number
+    49→    actions: number
+    50→    openActions: number
+    51→  }
+    52→  roleDistribution: Record<string, number>
+    53→  companies: Array<{
+    54→    id: string
+    55→    name: string
+    56→    description: string | null
+    57→    active: boolean
+    58→    createdAt: string
+    59→    projectCount: number
+    60→    memberCount: number
+    61→    adminUser?: {
+    62→      id: string
+    63→      name: string
+    64→      email: string
+    65→      active: boolean
+    66→    } | null
+    67→  }>
+    68→  recentUsers: Array<{
+    69→    id: string
+    70→    name: string
+    71→    email: string
+    72→    role: string
+    73→    active: boolean
+    74→    createdAt: string
+    75→  }>
+    76→  projects: Array<{
+    77→    id: string
+    78→    name: string
+    79→    description: string | null
+    80→    company: string
+    81→    companyId: string | null
+    82→    companyName: string | null
+    83→    active: boolean
+    84→    startDate: string
+    85→    createdAt: string
+    86→    memberCount: number
+    87→    zoneCount: number
+    88→  }>
+    89→  users: Array<{
+    90→    id: string
+    91→    name: string
+    92→    email: string
+    93→    role: string
+    94→    active: boolean
+    95→    createdAt: string
+    96→    companies: Array<{ id: string; name: string; role: string }>
+    97→    projects: Array<{ id: string; name: string; company: string; role: string }>
+    98→  }>
+    99→}
+   100→
+   101→// ─── Constants ───────────────────────────────────────────────────────────────
+   102→
+   103→const ROLE_LABELS: Record<string, string> = {
+   104→  gestor: 'Gestor',
+   105→  admin: 'Administrador',
+   106→  gerente: 'Gerente',
+   107→  responsable: 'Responsable',
+   108→  empleado: 'Empleado',
+   109→  auditor: 'Auditor',
+   110→}
+   111→
+   112→const ROLE_COLORS: Record<string, string> = {
+   113→  gestor: 'bg-violet-100 text-violet-700 border-violet-200',
+   114→  admin: 'bg-purple-100 text-purple-700 border-purple-200',
+   115→  gerente: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+   116→  responsable: 'bg-blue-100 text-blue-700 border-blue-200',
+   117→  empleado: 'bg-green-100 text-green-700 border-green-200',
+   118→  auditor: 'bg-orange-100 text-orange-700 border-orange-200',
+   119→}
+   120→
+   121→type GestorTab = 'dashboard' | 'empresas' | 'admins'
+   122→
+   123→// ─── Component ───────────────────────────────────────────────────────────────
+   124→
+   125→export default function GestorPanel() {
+   126→  const { setCurrentView, fetchProjects, fetchCompanies, projects, setCurrentProject, currentProject } = use5SStore()
+   127→  const [activeTab, setActiveTab] = useState<GestorTab>('dashboard')
+   128→
+   129→  // Platform stats
+   130→  const [stats, setStats] = useState<PlatformStats | null>(null)
+   131→  const [isLoadingStats, setIsLoadingStats] = useState(false)
+   132→
+   133→  // Companies management
+   134→  const [showNewCompany, setShowNewCompany] = useState(false)
+   135→  const [newCompanyName, setNewCompanyName] = useState('')
+   136→  const [newCompanyDesc, setNewCompanyDesc] = useState('')
+   137→  const [editingCompany, setEditingCompany] = useState<string | null>(null)
+   138→  const [editCompanyData, setEditCompanyData] = useState({ name: '', description: '', active: true })
+   139→
+   140→  // Admin management
+   141→  const [assigningAdminTo, setAssigningAdminTo] = useState<string | null>(null)
+   142→  const [searchEmail, setSearchEmail] = useState('')
+   143→  const [searchResults, setSearchResults] = useState<PlatformStats['users']>([])
+   144→  const [isSearching, setIsSearching] = useState(false)
+   145→  const [showCreateUser, setShowCreateUser] = useState(false)
+   146→  const [newAdminData, setNewAdminData] = useState({ name: '', email: '', password: '' })
+   147→  const [isAssigning, setIsAssigning] = useState(false)
+   148→
+   149→  // ─── Data loading ────────────────────────────────────────────────────────
+   150→  const loadStats = useCallback(async () => {
+   151→    setIsLoadingStats(true)
+   152→    try {
+   153→      const res = await fetch('/api/platform-stats')
+   154→      const data = await res.json()
+   155→      if (data.success) {
+   156→        setStats(data.data)
+   157→      }
+   158→    } catch (error) {
+   159→      console.error('Error loading platform stats:', error)
+   160→    } finally {
+   161→      setIsLoadingStats(false)
+   162→    }
+   163→  }, [])
+   164→
+   165→  useEffect(() => {
+   166→    loadStats()
+   167→  }, [loadStats])
+   168→
+   169→  // ─── Company actions ────────────────────────────────────────────────────
+   170→  const handleCreateCompany = async () => {
+   171→    if (!newCompanyName.trim()) return
+   172→    try {
+   173→      const res = await fetch('/api/companies', {
+   174→        method: 'POST',
+   175→        headers: { 'Content-Type': 'application/json' },
+   176→        body: JSON.stringify({ name: newCompanyName, description: newCompanyDesc || undefined }),
+   177→      })
+   178→      if (res.ok) {
+   179→        setShowNewCompany(false)
+   180→        setNewCompanyName('')
+   181→        setNewCompanyDesc('')
+   182→        await loadStats()
+   183→        await fetchCompanies()
+   184→      } else {
+   185→        const data = await res.json()
+   186→        alert(data.error || 'Error al crear empresa')
+   187→      }
+   188→    } catch (error) {
+   189→      console.error('Error creating company:', error)
+   190→    }
+   191→  }
+   192→
+   193→  const handleUpdateCompany = async (companyId: string) => {
+   194→    try {
+   195→      const res = await fetch(`/api/companies/${companyId}`, {
+   196→        method: 'PUT',
+   197→        headers: { 'Content-Type': 'application/json' },
+   198→        body: JSON.stringify(editCompanyData),
+   199→      })
+   200→      if (res.ok) {
+   201→        setEditingCompany(null)
+   202→        await loadStats()
+   203→        await fetchCompanies()
+   204→      } else {
+   205→        const data = await res.json()
+   206→        alert(data.error || 'Error al actualizar empresa')
+   207→      }
+   208→    } catch (error) {
+   209→      console.error('Error updating company:', error)
+   210→    }
+   211→  }
+   212→
+   213→  const handleToggleCompanyActive = async (companyId: string, currentActive: boolean) => {
+   214→    try {
+   215→      const res = await fetch(`/api/companies/${companyId}`, {
+   216→        method: 'PUT',
+   217→        headers: { 'Content-Type': 'application/json' },
+   218→        body: JSON.stringify({ active: !currentActive }),
+   219→      })
+   220→      if (res.ok) {
+   221→        await loadStats()
+   222→        await fetchCompanies()
+   223→      }
+   224→    } catch (error) {
+   225→      console.error('Error toggling company active:', error)
+   226→    }
+   227→  }
+   228→
+   229→  // ─── Admin assignment actions ───────────────────────────────────────────
+   230→  const handleSearchUser = async () => {
+   231→    if (!searchEmail.trim() || searchEmail.length < 3) {
+   232→      setSearchResults([])
+   233→      return
+   234→    }
+   235→    setIsSearching(true)
+   236→    try {
+   237→      const res = await fetch(`/api/users?search=${encodeURIComponent(searchEmail)}`)
+   238→      const data = await res.json()
+   239→      if (data.success) {
+   240→        setSearchResults(data.users || [])
+   241→      }
+   242→    } catch (error) {
+   243→      console.error('Error searching users:', error)
+   244→    } finally {
+   245→      setIsSearching(false)
+   246→    }
+   247→  }
+   248→
+   249→  useEffect(() => {
+   250→    if (searchEmail.length >= 3) {
+   251→      const t = setTimeout(() => handleSearchUser(), 300)
+   252→      return () => clearTimeout(t)
+   253→    } else {
+   254→      setSearchResults([])
+   255→    }
+   256→  }, [searchEmail])
+   257→
+   258→  const handleAssignExistingUser = async (userId: string) => {
+   259→    if (!assigningAdminTo) return
+   260→    setIsAssigning(true)
+   261→    try {
+   262→      // First, ensure the user has 'admin' role
+   263→      await fetch('/api/users', {
+   264→        method: 'PUT',
+   265→        headers: { 'Content-Type': 'application/json' },
+   266→        body: JSON.stringify({ id: userId, role: 'admin' }),
+   267→      })
+   268→
+   269→      // Then assign them to the company as admin
+   270→      const res = await fetch(`/api/companies/${assigningAdminTo}/members`, {
+   271→        method: 'POST',
+   272→        headers: { 'Content-Type': 'application/json' },
+   273→        body: JSON.stringify({ userId, role: 'admin_empresa' }),
+   274→      })
+   275→
+   276→      if (res.ok) {
+   277→        setAssigningAdminTo(null)
+   278→        setSearchEmail('')
+   279→        setSearchResults([])
+   280→        await loadStats()
+   281→      } else {
+   282→        const data = await res.json()
+   283→        alert(data.error || 'Error al asignar administrador')
+   284→      }
+   285→    } catch (error) {
+   286→      console.error('Error assigning admin:', error)
+   287→    } finally {
+   288→      setIsAssigning(false)
+   289→    }
+   290→  }
+   291→
+   292→  const handleCreateAndAssignAdmin = async () => {
+   293→    if (!assigningAdminTo) return
+   294→    if (!newAdminData.name.trim() || !newAdminData.email.trim() || newAdminData.password.length < 6) {
+   295→      alert('Completa todos los campos. La contraseña debe tener al menos 6 caracteres.')
+   296→      return
+   297→    }
+   298→    setIsAssigning(true)
+   299→    try {
+   300→      // 1. Create user with role 'admin'
+   301→      const createRes = await fetch('/api/users', {
+   302→        method: 'POST',
+   303→        headers: { 'Content-Type': 'application/json' },
+   304→        body: JSON.stringify({
+   305→          name: newAdminData.name,
+   306→          email: newAdminData.email,
+   307→          password: newAdminData.password,
+   308→          role: 'admin',
+   309→          active: true,
+   310→        }),
+   311→      })
+   312→
+   313→      if (!createRes.ok) {
+   314→        const data = await createRes.json()
+   315→        alert(data.error || 'Error al crear usuario')
+   316→        setIsAssigning(false)
+   317→        return
+   318→      }
+   319→
+   320→      const createData = await createRes.json()
+   321→      const newUserId = createData.user?.id
+   322→
+   323→      if (!newUserId) {
+   324→        alert('Usuario creado pero no se pudo obtener el ID. Asigna el admin manualmente.')
+   325→        setIsAssigning(false)
+   326→        return
+   327→      }
+   328→
+   329→      // 2. Assign user to company
+   330→      const assignRes = await fetch(`/api/companies/${assigningAdminTo}/members`, {
+   331→        method: 'POST',
+   332→        headers: { 'Content-Type': 'application/json' },
+   333→        body: JSON.stringify({ userId: newUserId, role: 'admin_empresa' }),
+   334→      })
+   335→
+   336→      if (assignRes.ok) {
+   337→        // 3. Send welcome email to the new admin (non-blocking)
+   338→        const company = stats?.companies?.find(c => c.id === assigningAdminTo)
+   339→        const companyName = company?.name || 'la empresa'
+   340→        fetch('/api/email', {
+   341→          method: 'POST',
+   342→          headers: { 'Content-Type': 'application/json' },
+   343→          body: JSON.stringify({
+   344→            type: 'admin_welcome',
+   345→            adminName: newAdminData.name,
+   346→            adminEmail: newAdminData.email,
+   347→            adminPassword: newAdminData.password,
+   348→            companyName,
+   349→            gestorEmail: undefined, // could add gestor email here later
+   350→          }),
+   351→        }).catch(e => console.error('Email send error (non-critical):', e))
+   352→
+   353→        setAssigningAdminTo(null)
+   354→        setShowCreateUser(false)
+   355→        setNewAdminData({ name: '', email: '', password: '' })
+   356→        await loadStats()
+   357→      } else {
+   358→        const data = await assignRes.json()
+   359→        alert(data.error || 'Usuario creado pero error al asignar a la empresa')
+   360→      }
+   361→    } catch (error) {
+   362→      console.error('Error creating admin:', error)
+   363→    } finally {
+   364→      setIsAssigning(false)
+   365→    }
+   366→  }
+   367→
+   368→  const handleRemoveAdmin = async (companyId: string, userId: string) => {
+   369→    if (!confirm('¿Quitar a este administrador de la empresa?')) return
+   370→    try {
+   371→      const res = await fetch(`/api/companies/${companyId}/members`, {
+   372→        method: 'DELETE',
+   373→        headers: { 'Content-Type': 'application/json' },
+   374→        body: JSON.stringify({ memberUserId: userId }),
+   375→      })
+   376→      if (res.ok) {
+   377→        await loadStats()
+   378→      } else {
+   379→        const data = await res.json()
+   380→        alert(data.error || 'Error al quitar administrador')
+   381→      }
+   382→    } catch (error) {
+   383→      console.error('Error removing admin:', error)
+   384→    }
+   385→  }
+   386→  // ─── Render ──────────────────────────────────────────────────────────────
+   387→  const tabs: { key: GestorTab; label: string; icon: React.ReactNode }[] = [
+   388→    { key: 'dashboard', label: 'KPIs', icon: <Activity className="h-4 w-4" /> },
+   389→    { key: 'empresas', label: 'Empresas', icon: <Building2 className="h-4 w-4" /> },
+   390→    { key: 'admins', label: 'Administradores', icon: <Shield className="h-4 w-4" /> },
+   391→  ]
+   392→
+   393→  return (
+   394→    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-violet-950/20 to-slate-950 text-white">
+   395→      {/* Header */}
+   396→      <header className="border-b border-violet-800/30 bg-slate-950/80 backdrop-blur-sm sticky top-0 z-10">
+   397→        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+   398→          <div className="flex items-center gap-3">
+   399→            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg shadow-violet-500/30">
+   400→              <Crown className="h-5 w-5 text-yellow-300" />
+   401→            </div>
+   402→            <div>
+   403→              <h1 className="text-lg font-bold bg-gradient-to-r from-violet-300 to-purple-200 bg-clip-text text-transparent">
+   404→                Gestor Panel
+   405→              </h1>
+   406→              <p className="text-xs text-violet-400">Dueño de la Plataforma</p>
+   407→            </div>
+   408→          </div>
+   409→          <div className="flex items-center gap-2">
+   410→            <Button
+   411→              variant="outline"
+   412→              size="sm"
+   413→              onClick={() => {
+   414→                if (!currentProject && projects.length > 0) {
+   415→                  setCurrentProject(projects[0])
+   416→                }
+   417→                setCurrentView('board')
+   418→              }}
+   419→              className="gap-1.5 border-violet-700/50 text-violet-300 hover:bg-violet-900/30 hover:text-violet-200"
+   420→            >
+   421→              ← Vista App
+   422→            </Button>
+   423→            <Badge className="bg-gradient-to-r from-violet-600 to-purple-600 text-white border-0 px-3 py-1">
+   424→              <Crown className="h-3 w-3 mr-1" /> GESTOR
+   425→            </Badge>
+   426→          </div>
+   427→        </div>
+   428→      </header>
+   429→
+   430→      {/* Tabs */}
+   431→      <div className="border-b border-violet-800/20 bg-slate-950/60 backdrop-blur-sm">
+   432→        <div className="max-w-7xl mx-auto px-4 flex gap-0 overflow-x-auto">
+   433→          {tabs.map(tab => (
+   434→            <button
+   435→              key={tab.key}
+   436→              onClick={() => setActiveTab(tab.key)}
+   437→              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
+   438→                activeTab === tab.key
+   439→                  ? 'border-violet-400 text-violet-300 bg-violet-900/20'
+   440→                  : 'border-transparent text-violet-500 hover:text-violet-300 hover:border-violet-700/50'
+   441→              }`}
+   442→            >
+   443→              {tab.icon}
+   444→              {tab.label}
+   445→            </button>
+   446→          ))}
+   447→        </div>
+   448→      </div>
+   449→
+   450→      {/* Content */}
+   451→      <main className="max-w-7xl mx-auto px-4 py-6">
+   452→        <AnimatePresence mode="wait">
+   453→          {/* ═══ DASHBOARD TAB (KPIs) ═══ */}
+   454→          {activeTab === 'dashboard' && (
+   455→            <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+   456→              {isLoadingStats ? (
+   457→                <div className="flex justify-center py-20"><Loader2 className="h-10 w-10 text-violet-400 animate-spin" /></div>
+   458→              ) : stats ? (
+   459→                <>
+   460→                  {/* KPI Cards */}
+   461→                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+   462→                    <Card className="bg-gradient-to-br from-violet-900/40 to-purple-900/20 border-violet-700/30 text-white">
+   463→                      <CardContent className="p-4">
+   464→                        <div className="flex items-center justify-between mb-2">
+   465→                          <Building2 className="h-5 w-5 text-violet-400" />
+   466→                          <Badge className="bg-violet-800/50 text-violet-300 border-0 text-[10px]">
+   467→                            {stats.totals.activeCompanies}/{stats.totals.companies} activas
+   468→                          </Badge>
+   469→                        </div>
+   470→                        <p className="text-2xl font-bold">{stats.totals.companies}</p>
+   471→                        <p className="text-xs text-violet-400">Empresas</p>
+   472→                      </CardContent>
+   473→                    </Card>
+   474→                    <Card className="bg-gradient-to-br from-blue-900/40 to-indigo-900/20 border-blue-700/30 text-white">
+   475→                      <CardContent className="p-4">
+   476→                        <div className="flex items-center justify-between mb-2">
+   477→                          <Users className="h-5 w-5 text-blue-400" />
+   478→                          <Badge className="bg-blue-800/50 text-blue-300 border-0 text-[10px]">
+   479→                            {stats.totals.activeUsers}/{stats.totals.users} activos
+   480→                          </Badge>
+   481→                        </div>
+   482→                        <p className="text-2xl font-bold">{stats.totals.users}</p>
+   483→                        <p className="text-xs text-blue-400">Usuarios</p>
+   484→                      </CardContent>
+   485→                    </Card>
+   486→                    <Card className="bg-gradient-to-br from-emerald-900/40 to-green-900/20 border-emerald-700/30 text-white">
+   487→                      <CardContent className="p-4">
+   488→                        <div className="flex items-center justify-between mb-2">
+   489→                          <TrendingUp className="h-5 w-5 text-emerald-400" />
+   490→                          <Badge className="bg-emerald-800/50 text-emerald-300 border-0 text-[10px]">
+   491→                            {stats.totals.activeProjects}/{stats.totals.projects} activos
+   492→                          </Badge>
+   493→                        </div>
+   494→                        <p className="text-2xl font-bold">{stats.totals.projects}</p>
+   495→                        <p className="text-xs text-emerald-400">Proyectos</p>
+   496→                      </CardContent>
+   497→                    </Card>
+   498→                    <Card className="bg-gradient-to-br from-orange-900/40 to-amber-900/20 border-orange-700/30 text-white">
+   499→                      <CardContent className="p-4">
+   500→                        <div className="flex items-center justify-between mb-2">
+   501→                          <AlertTriangle className="h-5 w-5 text-orange-400" />
+   502→                          <Badge className="bg-orange-800/50 text-orange-300 border-0 text-[10px]">
+   503→                            de {stats.totals.actions} total
+   504→                          </Badge>
+   505→                        </div>
+   506→                        <p className="text-2xl font-bold">{stats.totals.openActions}</p>
+   507→                        <p className="text-xs text-orange-400">Acciones Abiertas</p>
+   508→                      </CardContent>
+   509→                    </Card>
+   510→                  </div>
+   511→
+   512→                  {/* Role distribution + Platform health */}
+   513→                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+   514→                    <Card className="bg-slate-900/60 border-violet-700/20">
+   515→                      <CardHeader className="pb-3">
+   516→                        <CardTitle className="text-sm text-violet-300 flex items-center gap-2">
+   517→                          <Users className="h-4 w-4" /> Distribución de Roles
+   518→                        </CardTitle>
+   519→                      </CardHeader>
+   520→                      <CardContent>
+   521→                        <div className="space-y-2">
+   522→                          {Object.entries(stats.roleDistribution).map(([role, count]) => (
+   523→                            <div key={role} className="flex items-center justify-between">
+   524→                              <div className="flex items-center gap-2">
+   525→                                <Badge className={`${ROLE_COLORS[role] || 'bg-gray-100 text-gray-700 border-gray-200'} border text-xs`}>
+   526→                                  {ROLE_LABELS[role] || role}
+   527→                                </Badge>
+   528→                              </div>
+   529→                              <div className="flex items-center gap-2">
+   530→                                <div className="w-24 h-2 bg-slate-800 rounded-full overflow-hidden">
+   531→                                  <div
+   532→                                    className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full"
+   533→                                    style={{ width: `${Math.min((count / stats.totals.users) * 100, 100)}%` }}
+   534→                                  />
+   535→                                </div>
+   536→                                <span className="text-sm font-semibold text-white w-8 text-right">{count}</span>
+   537→                              </div>
+   538→                            </div>
+   539→                          ))}
+   540→                        </div>
+   541→                      </CardContent>
+   542→                    </Card>
+   543→
+   544→                    <Card className="bg-slate-900/60 border-violet-700/20">
+   545→                      <CardHeader className="pb-3">
+   546→                        <CardTitle className="text-sm text-violet-300 flex items-center gap-2">
+   547→                          <Activity className="h-4 w-4" /> Salud de Plataforma
+   548→                        </CardTitle>
+   549→                      </CardHeader>
+   550→                      <CardContent>
+   551→                        <div className="space-y-3">
+   552→                          <div className="flex items-center justify-between">
+   553→                            <span className="text-xs text-violet-400">Empresas activas</span>
+   554→                            <span className="text-sm font-bold text-white">
+   555→                              {stats.totals.companies > 0 ? Math.round((stats.totals.activeCompanies / stats.totals.companies) * 100) : 0}%
+   556→                            </span>
+   557→                          </div>
+   558→                          <div className="flex items-center justify-between">
+   559→                            <span className="text-xs text-violet-400">Usuarios activos</span>
+   560→                            <span className="text-sm font-bold text-white">
+   561→                              {stats.totals.users > 0 ? Math.round((stats.totals.activeUsers / stats.totals.users) * 100) : 0}%
+   562→                            </span>
+   563→                          </div>
+   564→                          <div className="flex items-center justify-between">
+   565→                            <span className="text-xs text-violet-400">Proyectos activos</span>
+   566→                            <span className="text-sm font-bold text-white">
+   567→                              {stats.totals.projects > 0 ? Math.round((stats.totals.activeProjects / stats.totals.projects) * 100) : 0}%
+   568→                            </span>
+   569→                          </div>
+   570→                          <div className="flex items-center justify-between">
+   571→                            <span className="text-xs text-violet-400">Plantillas disponibles</span>
+   572→                            <span className="text-sm font-bold text-white">{stats.totals.templates}</span>
+   573→                          </div>
+   574→                          <div className="flex items-center justify-between">
+   575→                            <span className="text-xs text-violet-400">Auditorías realizadas</span>
+   576→                            <span className="text-sm font-bold text-white">{stats.totals.auditResults}</span>
+   577→                          </div>
+   578→                        </div>
+   579→                      </CardContent>
+   580→                    </Card>
+   581→                  </div>
+   582→
+   583→                  {/* Recent users */}
+   584→                  <Card className="bg-slate-900/60 border-violet-700/20">
+   585→                    <CardHeader className="pb-3">
+   586→                      <CardTitle className="text-sm text-violet-300 flex items-center gap-2">
+   587→                        <Activity className="h-4 w-4" /> Últimos Usuarios Registrados
+   588→                      </CardTitle>
+   589→                    </CardHeader>
+   590→                    <CardContent>
+   591→                      <div className="space-y-2">
+   592→                        {stats.recentUsers.map(user => (
+   593→                          <div key={user.id} className="flex items-center justify-between py-1.5 border-b border-violet-800/20 last:border-0">
+   594→                            <div className="flex items-center gap-2">
+   595→                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${user.active ? 'bg-violet-800/50 text-violet-300' : 'bg-gray-800/50 text-gray-500'}`}>
+   596→                                {user.name.charAt(0).toUpperCase()}
+   597→                              </div>
+   598→                              <div>
+   599→                                <p className="text-xs font-medium text-white">{user.name}</p>
+   600→                                <p className="text-[10px] text-violet-500">{user.email}</p>
+   601→                              </div>
+   602→                            </div>
+   603→                            <div className="flex items-center gap-2">
+   604→                              <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700 border-gray-200'} border text-[10px]`}>
+   605→                                {ROLE_LABELS[user.role] || user.role}
+   606→                              </Badge>
+   607→                              {user.active ? (
+   608→                                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+   609→                              ) : (
+   610→                                <XCircle className="h-3.5 w-3.5 text-red-500" />
+   611→                              )}
+   612→                            </div>
+   613→                          </div>
+   614→                        ))}
+   615→                        {stats.recentUsers.length === 0 && (
+   616→                          <p className="text-xs text-violet-500 text-center py-4">Aún no hay usuarios registrados</p>
+   617→                        )}
+   618→                      </div>
+   619→                    </CardContent>
+   620→                  </Card>
+   621→                </>
+   622→              ) : (
+   623→                <div className="text-center py-12 text-violet-500">
+   624→                  <p>No se pudieron cargar las estadísticas</p>
+   625→                </div>
+   626→              )}
+   627→            </motion.div>
+   628→          )}
+   629→
+   630→          {/* ═══ EMPRESAS TAB ═══ */}
+   631→          {activeTab === 'empresas' && (
+   632→            <motion.div key="empresas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+   633→              <div className="flex justify-between items-center">
+   634→                <p className="text-sm text-violet-400">Todas las empresas de la plataforma</p>
+   635→                <Button
+   636→                  onClick={() => setShowNewCompany(true)}
+   637→                  className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white"
+   638→                  size="sm"
+   639→                >
+   640→                  <Plus className="h-4 w-4 mr-1" /> Nueva Empresa
+   641→                </Button>
+   642→              </div>
+   643→
+   644→              {/* New company form */}
+   645→              {showNewCompany && (
+   646→                <Card className="bg-violet-900/20 border-violet-700/30">
+   647→                  <CardHeader className="pb-3">
+   648→                    <CardTitle className="text-sm text-violet-300 flex items-center gap-2">
+   649→                      <Plus className="h-4 w-4 text-violet-400" /> Crear Nueva Empresa
+   650→                    </CardTitle>
+   651→                  </CardHeader>
+   652→                  <CardContent className="space-y-3">
+   653→                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   654→                      <div className="space-y-1">
+   655→                        <Label className="text-xs text-violet-400">Nombre *</Label>
+   656→                        <Input placeholder="Nombre de la empresa" value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} className="bg-slate-900/60 border-violet-700/30 text-white" />
+   657→                      </div>
+   658→                      <div className="space-y-1">
+   659→                        <Label className="text-xs text-violet-400">Descripción</Label>
+   660→                        <Input placeholder="Descripción (opcional)" value={newCompanyDesc} onChange={e => setNewCompanyDesc(e.target.value)} className="bg-slate-900/60 border-violet-700/30 text-white" />
+   661→                      </div>
+   662→                    </div>
+   663→                    <div className="flex gap-2 justify-end">
+   664→                      <Button variant="outline" size="sm" onClick={() => setShowNewCompany(false)} className="border-violet-700/50 text-violet-300">Cancelar</Button>
+   665→                      <Button size="sm" onClick={handleCreateCompany} disabled={!newCompanyName.trim()} className="bg-gradient-to-r from-violet-600 to-purple-600 text-white">Crear</Button>
+   666→                    </div>
+   667→                  </CardContent>
+   668→                </Card>
+   669→              )}
+   670→
+   671→              {isLoadingStats ? (
+   672→                <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 text-violet-400 animate-spin" /></div>
+   673→              ) : (
+   674→                <div className="grid gap-3">
+   675→                  {stats?.companies.map(company => (
+   676→                    <Card key={company.id} className={`bg-slate-900/60 ${company.active ? 'border-violet-700/20' : 'border-red-700/30 opacity-60'}`}>
+   677→                      <CardContent className="p-4">
+   678→                        <div className="flex items-center justify-between">
+   679→                          <div className="flex items-center gap-3 flex-1">
+   680→                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${company.active ? 'bg-violet-800/40' : 'bg-red-900/30'}`}>
+   681→                              <Building2 className={`h-5 w-5 ${company.active ? 'text-violet-400' : 'text-red-400'}`} />
+   682→                            </div>
+   683→                            <div className="flex-1">
+   684→                              {editingCompany === company.id ? (
+   685→                                <div className="space-y-2" onClick={e => e.stopPropagation()}>
+   686→                                  <Input value={editCompanyData.name} onChange={e => setEditCompanyData(d => ({ ...d, name: e.target.value }))} className="bg-slate-800 border-violet-700/30 text-white text-sm" />
+   687→                                  <Input value={editCompanyData.description} onChange={e => setEditCompanyData(d => ({ ...d, description: e.target.value }))} className="bg-slate-800 border-violet-700/30 text-white text-sm" placeholder="Descripción" />
+   688→                                  <div className="flex gap-2">
+   689→                                    <Button size="sm" onClick={() => handleUpdateCompany(company.id)} className="bg-violet-600 text-white h-7"><Check className="h-3 w-3 mr-1" />Guardar</Button>
+   690→                                    <Button size="sm" variant="ghost" onClick={() => setEditingCompany(null)} className="text-violet-400 h-7">Cancelar</Button>
+   691→                                  </div>
+   692→                                </div>
+   693→                              ) : (
+   694→                                <>
+   695→                                  <p className="text-sm font-semibold text-white">{company.name}</p>
+   696→                                  <div className="flex items-center gap-3 mt-1">
+   697→                                    <span className="text-[10px] text-violet-500">{company.description || 'Sin descripción'}</span>
+   698→                                  </div>
+   699→                                </>
+   700→                              )}
+   701→                            </div>
+   702→                          </div>
+   703→                          <div className="flex items-center gap-3">
+   704→                            <div className="text-center">
+   705→                              <p className="text-lg font-bold text-white">{company.projectCount}</p>
+   706→                              <p className="text-[10px] text-violet-500">Proyectos</p>
+   707→                            </div>
+   708→                            <div className="text-center">
+   709→                              <p className="text-lg font-bold text-white">{company.memberCount}</p>
+   710→                              <p className="text-[10px] text-violet-500">Miembros</p>
+   711→                            </div>
+   712→                            <Badge className={`${company.active ? 'bg-green-900/30 text-green-400 border-green-700/30' : 'bg-red-900/30 text-red-400 border-red-700/30'} border text-[10px]`}>
+   713→                              {company.active ? 'Activa' : 'Inactiva'}
+   714→                            </Badge>
+   715→                            <Button
+   716→                              variant="ghost"
+   717→                              size="sm"
+   718→                              onClick={() => handleToggleCompanyActive(company.id, company.active)}
+   719→                              className={`h-7 w-7 p-0 ${company.active ? 'text-green-500 hover:bg-green-900/30' : 'text-red-500 hover:bg-red-900/30'}`}
+   720→                              title={company.active ? 'Desactivar' : 'Activar'}
+   721→                            >
+   722→                              {company.active ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+   723→                            </Button>
+   724→                            <Button
+   725→                              variant="ghost"
+   726→                              size="sm"
+   727→                              onClick={() => { setEditingCompany(company.id); setEditCompanyData({ name: company.name, description: company.description || '', active: company.active }) }}
+   728→                              className="h-7 w-7 p-0 text-violet-400 hover:bg-violet-900/30"
+   729→                              title="Editar"
+   730→                            >
+   731→                              <Edit3 className="h-4 w-4" />
+   732→                            </Button>
+   733→                          </div>
+   734→                        </div>
+   735→                      </CardContent>
+   736→                    </Card>
+   737→                  ))}
+   738→                  {(!stats || stats.companies.length === 0) && (
+   739→                    <Card className="bg-slate-900/60 border-violet-700/20">
+   740→                      <CardContent className="py-12 text-center">
+   741→                        <Building2 className="h-10 w-10 text-violet-700 mx-auto mb-3" />
+   742→                        <p className="text-sm text-violet-500">No hay empresas creadas todavía</p>
+   743→                        <p className="text-xs text-violet-600 mt-1">Pulsa "Nueva Empresa" para crear la primera</p>
+   744→                      </CardContent>
+   745→                    </Card>
+   746→                  )}
+   747→                </div>
+   748→              )}
+   749→            </motion.div>
+   750→          )}
+   751→
+   752→          {/* ═══ ADMINISTRADORES TAB ═══ */}
+   753→          {activeTab === 'admins' && (
+   754→            <motion.div key="admins" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+   755→              <div className="flex items-center gap-2 mb-2">
+   756→                <Shield className="h-5 w-5 text-violet-400" />
+   757→                <h2 className="text-lg font-bold text-white">Administradores por Empresa</h2>
+   758→              </div>
+   759→              <p className="text-sm text-violet-400 -mt-2">
+   760→                Asigna un administrador a cada empresa. El administrador gestionará los usuarios, proyectos y zonas de su empresa.
+   761→              </p>
+   762→
+   763→              {isLoadingStats ? (
+   764→                <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 text-violet-400 animate-spin" /></div>
+   765→              ) : stats && stats.companies.length > 0 ? (
+   766→                <div className="grid gap-3">
+   767→                  {stats.companies.map(company => (
+   768→                    <Card key={company.id} className="bg-slate-900/60 border-violet-700/20">
+   769→                      <CardContent className="p-4">
+   770→                        <div className="flex items-center justify-between gap-4">
+   771→                          {/* Company info */}
+   772→                          <div className="flex items-center gap-3 flex-1 min-w-0">
+   773→                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${company.active ? 'bg-violet-800/40' : 'bg-red-900/30'}`}>
+   774→                              <Building2 className={`h-5 w-5 ${company.active ? 'text-violet-400' : 'text-red-400'}`} />
+   775→                            </div>
+   776→                            <div className="flex-1 min-w-0">
+   777→                              <p className="text-sm font-semibold text-white truncate">{company.name}</p>
+   778→                              <p className="text-[10px] text-violet-500">
+   779→                                {company.projectCount} proyectos · {company.memberCount} miembros
+   780→                              </p>
+   781→                            </div>
+   782→                          </div>
+   783→
+   784→                          {/* Admin info */}
+   785→                          <div className="flex items-center gap-3">
+   786→                            {company.adminUser ? (
+   787→                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-900/20 border border-purple-700/30">
+   788→                                <div className="w-7 h-7 rounded-full bg-purple-700/50 flex items-center justify-center text-xs font-bold text-purple-200">
+   789→                                  {company.adminUser.name.charAt(0).toUpperCase()}
+   790→                                </div>
+   791→                                <div className="text-left">
+   792→                                  <p className="text-xs font-medium text-white">{company.adminUser.name}</p>
+   793→                                  <p className="text-[10px] text-purple-400">{company.adminUser.email}</p>
+   794→                                </div>
+   795→                                <Badge className="bg-purple-900/40 text-purple-300 border-purple-700/30 border text-[10px] ml-1">
+   796→                                  ADMIN
+   797→                                </Badge>
+   798→                              </div>
+   799→                            ) : (
+   800→                              <Badge className="bg-amber-900/30 text-amber-400 border-amber-700/30 border text-[10px]">
+   801→                                Sin admin
+   802→                              </Badge>
+   803→                            )}
+   804→
+   805→                            {/* Action buttons */}
+   806→                            {company.adminUser ? (
+   807→                              <Button
+   808→                                variant="outline"
+   809→                                size="sm"
+   810→                                onClick={() => handleRemoveAdmin(company.id, company.adminUser!.id)}
+   811→                                className="border-red-700/50 text-red-400 hover:bg-red-900/30 h-7 text-xs"
+   812→                              >
+   813→                                <X className="h-3 w-3 mr-1" /> Quitar
+   814→                              </Button>
+   815→                            ) : (
+   816→                              <Button
+   817→                                size="sm"
+   818→                                onClick={() => {
+   819→                                  setAssigningAdminTo(company.id)
+   820→                                  setSearchEmail('')
+   821→                                  setSearchResults([])
+   822→                                  setShowCreateUser(false)
+   823→                                }}
+   824→                                className="bg-gradient-to-r from-violet-600 to-purple-600 text-white h-7 text-xs"
+   825→                              >
+   826→                                <UserPlus className="h-3 w-3 mr-1" /> Asignar
+   827→                              </Button>
+   828→                            )}
+   829→                          </div>
+   830→                        </div>
+   831→                      </CardContent>
+   832→                    </Card>
+   833→                  ))}
+   834→                </div>
+   835→              ) : (
+   836→                <Card className="bg-slate-900/60 border-violet-700/20">
+   837→                  <CardContent className="py-12 text-center">
+   838→                    <Shield className="h-10 w-10 text-violet-700 mx-auto mb-3" />
+   839→                    <p className="text-sm text-violet-500">No hay empresas creadas</p>
+   840→                    <p className="text-xs text-violet-600 mt-1">Crea una empresa primero en la pestaña "Empresas"</p>
+   841→                  </CardContent>
+   842→                </Card>
+   843→              )}
+   844→            </motion.div>
+   845→          )}
+   846→        </AnimatePresence>
+   847→      </main>
+   848→
+   849→      {/* ═══ ASSIGN ADMIN DIALOG ═══ */}
+   850→      <Dialog open={!!assigningAdminTo} onOpenChange={(open) => !open && setAssigningAdminTo(null)}>
+   851→        <DialogContent className="bg-slate-900 border-violet-700/30 max-w-lg">
+   852→          <DialogHeader>
+   853→            <DialogTitle className="text-violet-300 flex items-center gap-2">
+   854→              <UserPlus className="h-5 w-5" /> Asignar Administrador
+   855→            </DialogTitle>
+   856→          </DialogHeader>
+   857→
+   858→          <div className="space-y-4 py-2">
+   859→            {/* Toggle: existing or new user */}
+   860→            <div className="flex gap-2">
+   861→              <Button
+   862→                variant={!showCreateUser ? 'default' : 'outline'}
+   863→                size="sm"
+   864→                onClick={() => setShowCreateUser(false)}
+   865→                className={!showCreateUser ? 'bg-violet-600 text-white' : 'border-violet-700/50 text-violet-300'}
+   866→              >
+   867→                <Search className="h-3 w-3 mr-1" /> Buscar existente
+   868→              </Button>
+   869→              <Button
+   870→                variant={showCreateUser ? 'default' : 'outline'}
+   871→                size="sm"
+   872→                onClick={() => setShowCreateUser(true)}
+   873→                className={showCreateUser ? 'bg-violet-600 text-white' : 'border-violet-700/50 text-violet-300'}
+   874→              >
+   875→                <Plus className="h-3 w-3 mr-1" /> Crear nuevo
+   876→              </Button>
+   877→            </div>
+   878→
+   879→            {/* Existing user search */}
+   880→            {!showCreateUser && (
+   881→              <div className="space-y-3">
+   882→                <div className="space-y-1">
+   883→                  <Label className="text-xs text-violet-400">Buscar por email o nombre</Label>
+   884→                  <div className="relative">
+   885→                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-violet-500" />
+   886→                    <Input
+   887→                      placeholder="email@ejemplo.com"
+   888→                      value={searchEmail}
+   889→                      onChange={e => setSearchEmail(e.target.value)}
+   890→                      className="bg-slate-800 border-violet-700/30 text-white pl-9"
+   891→                      autoFocus
+   892→                    />
+   893→                  </div>
+   894→                </div>
+   895→
+   896→                {isSearching && (
+   897→                  <div className="flex justify-center py-2"><Loader2 className="h-4 w-4 text-violet-400 animate-spin" /></div>
+   898→                )}
+   899→
+   900→                {searchResults.length > 0 && (
+   901→                  <div className="space-y-1 max-h-64 overflow-y-auto">
+   902→                    {searchResults.map(user => (
+   903→                      <div
+   904→                        key={user.id}
+   905→                        className="flex items-center justify-between p-2 rounded-lg bg-slate-800/50 hover:bg-violet-900/20 border border-violet-800/20 cursor-pointer"
+   906→                        onClick={() => handleAssignExistingUser(user.id)}
+   907→                      >
+   908→                        <div className="flex items-center gap-2">
+   909→                          <div className="w-7 h-7 rounded-full bg-violet-700/50 flex items-center justify-center text-xs font-bold text-violet-200">
+   910→                            {user.name.charAt(0).toUpperCase()}
+   911→                          </div>
+   912→                          <div>
+   913→                            <p className="text-xs font-medium text-white">{user.name}</p>
+   914→                            <p className="text-[10px] text-violet-400">{user.email}</p>
+   915→                          </div>
+   916→                        </div>
+   917→                        <div className="flex items-center gap-2">
+   918→                          <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700 border-gray-200'} border text-[10px]`}>
+   919→                            {ROLE_LABELS[user.role] || user.role}
+   920→                          </Badge>
+   921→                          <Button size="sm" disabled={isAssigning} className="bg-violet-600 text-white h-6 text-xs">
+   922→                            <Check className="h-3 w-3" />
+   923→                          </Button>
+   924→                        </div>
+   925→                      </div>
+   926→                    ))}
+   927→                  </div>
+   928→                )}
+   929→
+   930→                {searchEmail.length >= 3 && !isSearching && searchResults.length === 0 && (
+   931→                  <p className="text-xs text-violet-500 text-center py-2">
+   932→                    No se encontraron usuarios. Crea uno nuevo con el botón de arriba.
+   933→                  </p>
+   934→                )}
+   935→              </div>
+   936→            )}
+   937→
+   938→            {/* Create new user */}
+   939→            {showCreateUser && (
+   940→              <div className="space-y-3">
+   941→                <div className="space-y-1">
+   942→                  <Label className="text-xs text-violet-400">Nombre completo *</Label>
+   943→                  <Input
+   944→                    placeholder="Juan Pérez"
+   945→                    value={newAdminData.name}
+   946→                    onChange={e => setNewAdminData(d => ({ ...d, name: e.target.value }))}
+   947→                    className="bg-slate-800 border-violet-700/30 text-white"
+   948→                  />
+   949→                </div>
+   950→                <div className="space-y-1">
+   951→                  <Label className="text-xs text-violet-400">Email *</Label>
+   952→                  <Input
+   953→                    type="email"
+   954→                    placeholder="juan@empresa.com"
+   955→                    value={newAdminData.email}
+   956→                    onChange={e => setNewAdminData(d => ({ ...d, email: e.target.value }))}
+   957→                    className="bg-slate-800 border-violet-700/30 text-white"
+   958→                  />
+   959→                </div>
+   960→                <div className="space-y-1">
+   961→                  <Label className="text-xs text-violet-400">Contraseña * (mín. 6 caracteres)</Label>
+   962→                  <Input
+   963→                    type="password"
+   964→                    placeholder="••••••"
+   965→                    value={newAdminData.password}
+   966→                    onChange={e => setNewAdminData(d => ({ ...d, password: e.target.value }))}
+   967→                    className="bg-slate-800 border-violet-700/30 text-white"
+   968→                  />
+   969→                </div>
+   970→                <p className="text-[10px] text-violet-500">
+   971→                  Se creará el usuario con rol <strong>Administrador</strong> y se asignará a esta empresa.
+   972→                </p>
+   973→              </div>
+   974→            )}
+   975→
+   976→            {/* Footer actions */}
+   977→            <div className="flex gap-2 justify-end pt-2 border-t border-violet-800/20">
+   978→              <Button
+   979→                variant="outline"
+   980→                size="sm"
+   981→                onClick={() => {
+   982→                  setAssigningAdminTo(null)
+   983→                  setShowCreateUser(false)
+   984→                  setNewAdminData({ name: '', email: '', password: '' })
+   985→                  setSearchEmail('')
+   986→                  setSearchResults([])
+   987→                }}
+   988→                className="border-violet-700/50 text-violet-300"
+   989→              >
+   990→                Cancelar
+   991→              </Button>
+   992→              {showCreateUser && (
+   993→                <Button
+   994→                  size="sm"
+   995→                  onClick={handleCreateAndAssignAdmin}
+   996→                  disabled={isAssigning || !newAdminData.name.trim() || !newAdminData.email.trim() || newAdminData.password.length < 6}
+   997→                  className="bg-gradient-to-r from-violet-600 to-purple-600 text-white"
+   998→                >
+   999→                  {isAssigning ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
+  1000→                  Crear y asignar
+  1001→                </Button>
+  1002→              )}
+  1003→            </div>
+  1004→          </div>
+  1005→        </DialogContent>
+  1006→      </Dialog>
+  1007→    </div>
+  1008→  )
+  1009→}
+  1010→  
+  1011→

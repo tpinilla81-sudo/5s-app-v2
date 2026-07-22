@@ -1,0 +1,502 @@
+   600→                          <div className="flex items-center justify-between">
+   601→                            <span className="text-xs text-violet-400">Plantillas disponibles</span>
+   602→                            <span className="text-sm font-bold text-white">{stats.totals.templates}</span>
+   603→                          </div>
+   604→                          <div className="flex items-center justify-between">
+   605→                            <span className="text-xs text-violet-400">Auditorías realizadas</span>
+   606→                            <span className="text-sm font-bold text-white">{stats.totals.auditResults}</span>
+   607→                          </div>
+   608→                        </div>
+   609→                      </CardContent>
+   610→                    </Card>
+   611→                  </div>
+   612→
+   613→                  {/* Recent users */}
+   614→                  <Card className="bg-slate-900/60 border-violet-700/20">
+   615→                    <CardHeader className="pb-3">
+   616→                      <CardTitle className="text-sm text-violet-300 flex items-center gap-2">
+   617→                        <Activity className="h-4 w-4" /> Últimos Usuarios Registrados
+   618→                      </CardTitle>
+   619→                    </CardHeader>
+   620→                    <CardContent>
+   621→                      <div className="space-y-2">
+   622→                        {stats.recentUsers.map(user => (
+   623→                          <div key={user.id} className="flex items-center justify-between py-1.5 border-b border-violet-800/20 last:border-0">
+   624→                            <div className="flex items-center gap-2">
+   625→                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${user.active ? 'bg-violet-800/50 text-violet-300' : 'bg-gray-800/50 text-gray-500'}`}>
+   626→                                {user.name.charAt(0).toUpperCase()}
+   627→                              </div>
+   628→                              <div>
+   629→                                <p className="text-xs font-medium text-white">{user.name}</p>
+   630→                                <p className="text-[10px] text-violet-500">{user.email}</p>
+   631→                              </div>
+   632→                            </div>
+   633→                            <div className="flex items-center gap-2">
+   634→                              <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700 border-gray-200'} border text-[10px]`}>
+   635→                                {ROLE_LABELS[user.role] || user.role}
+   636→                              </Badge>
+   637→                              {user.active ? (
+   638→                                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+   639→                              ) : (
+   640→                                <XCircle className="h-3.5 w-3.5 text-red-500" />
+   641→                              )}
+   642→                            </div>
+   643→                          </div>
+   644→                        ))}
+   645→                      </div>
+   646→                    </CardContent>
+   647→                  </Card>
+   648→                </>
+   649→              ) : (
+   650→                <div className="text-center py-12 text-violet-500">
+   651→                  <p>No se pudieron cargar las estadísticas</p>
+   652→                </div>
+   653→              )}
+   654→            </motion.div>
+   655→          )}
+   656→
+   657→          {/* ═══ EMPRESAS TAB ═══ */}
+   658→          {activeTab === 'empresas' && (
+   659→            <motion.div key="empresas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+   660→              <div className="flex justify-between items-center">
+   661→                <p className="text-sm text-violet-400">Todas las empresas de la plataforma</p>
+   662→                <Button
+   663→                  onClick={() => setShowNewCompany(true)}
+   664→                  className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white"
+   665→                  size="sm"
+   666→                >
+   667→                  <Plus className="h-4 w-4 mr-1" /> Nueva Empresa
+   668→                </Button>
+   669→              </div>
+   670→
+   671→              {/* New company form */}
+   672→              {showNewCompany && (
+   673→                <Card className="bg-violet-900/20 border-violet-700/30">
+   674→                  <CardHeader className="pb-3">
+   675→                    <CardTitle className="text-sm text-violet-300 flex items-center gap-2">
+   676→                      <Plus className="h-4 w-4 text-violet-400" /> Crear Nueva Empresa
+   677→                    </CardTitle>
+   678→                  </CardHeader>
+   679→                  <CardContent className="space-y-3">
+   680→                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   681→                      <div className="space-y-1">
+   682→                        <Label className="text-xs text-violet-400">Nombre *</Label>
+   683→                        <Input placeholder="Nombre de la empresa" value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} className="bg-slate-900/60 border-violet-700/30 text-white" />
+   684→                      </div>
+   685→                      <div className="space-y-1">
+   686→                        <Label className="text-xs text-violet-400">Descripción</Label>
+   687→                        <Input placeholder="Descripción (opcional)" value={newCompanyDesc} onChange={e => setNewCompanyDesc(e.target.value)} className="bg-slate-900/60 border-violet-700/30 text-white" />
+   688→                      </div>
+   689→                    </div>
+   690→                    <div className="flex gap-2 justify-end">
+   691→                      <Button variant="outline" size="sm" onClick={() => setShowNewCompany(false)} className="border-violet-700/50 text-violet-300">Cancelar</Button>
+   692→                      <Button size="sm" onClick={handleCreateCompany} disabled={!newCompanyName.trim()} className="bg-gradient-to-r from-violet-600 to-purple-600 text-white">Crear</Button>
+   693→                    </div>
+   694→                  </CardContent>
+   695→                </Card>
+   696→              )}
+   697→
+   698→              {isLoadingStats ? (
+   699→                <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 text-violet-400 animate-spin" /></div>
+   700→              ) : (
+   701→                <div className="grid gap-3">
+   702→                  {stats?.companies.map(company => (
+   703→                    <Card key={company.id} className={`bg-slate-900/60 ${company.active ? 'border-violet-700/20' : 'border-red-700/30 opacity-60'}`}>
+   704→                      <CardContent className="p-4">
+   705→                        <div className="flex items-center justify-between">
+   706→                          <div className="flex items-center gap-3 flex-1">
+   707→                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${company.active ? 'bg-violet-800/40' : 'bg-red-900/30'}`}>
+   708→                              <Building2 className={`h-5 w-5 ${company.active ? 'text-violet-400' : 'text-red-400'}`} />
+   709→                            </div>
+   710→                            <div className="flex-1">
+   711→                              {editingCompany === company.id ? (
+   712→                                <div className="space-y-2" onClick={e => e.stopPropagation()}>
+   713→                                  <Input value={editCompanyData.name} onChange={e => setEditCompanyData(d => ({ ...d, name: e.target.value }))} className="bg-slate-800 border-violet-700/30 text-white text-sm" />
+   714→                                  <Input value={editCompanyData.description} onChange={e => setEditCompanyData(d => ({ ...d, description: e.target.value }))} className="bg-slate-800 border-violet-700/30 text-white text-sm" placeholder="Descripción" />
+   715→                                  <div className="flex gap-2">
+   716→                                    <Button size="sm" onClick={() => handleUpdateCompany(company.id)} className="bg-violet-600 text-white h-7"><Check className="h-3 w-3 mr-1" />Guardar</Button>
+   717→                                    <Button size="sm" variant="ghost" onClick={() => setEditingCompany(null)} className="text-violet-400 h-7">Cancelar</Button>
+   718→                                  </div>
+   719→                                </div>
+   720→                              ) : (
+   721→                                <>
+   722→                                  <p className="text-sm font-semibold text-white">{company.name}</p>
+   723→                                  <div className="flex items-center gap-3 mt-1">
+   724→                                    <span className="text-[10px] text-violet-500">{company.description || 'Sin descripción'}</span>
+   725→                                  </div>
+   726→                                </>
+   727→                              )}
+   728→                            </div>
+   729→                          </div>
+   730→                          <div className="flex items-center gap-3">
+   731→                            <div className="text-center">
+   732→                              <p className="text-lg font-bold text-white">{company.projectCount}</p>
+   733→                              <p className="text-[10px] text-violet-500">Proyectos</p>
+   734→                            </div>
+   735→                            <div className="text-center">
+   736→                              <p className="text-lg font-bold text-white">{company.memberCount}</p>
+   737→                              <p className="text-[10px] text-violet-500">Miembros</p>
+   738→                            </div>
+   739→                            <Badge className={`${company.active ? 'bg-green-900/30 text-green-400 border-green-700/30' : 'bg-red-900/30 text-red-400 border-red-700/30'} border text-[10px]`}>
+   740→                              {company.active ? 'Activa' : 'Inactiva'}
+   741→                            </Badge>
+   742→                            <Button
+   743→                              variant="ghost"
+   744→                              size="sm"
+   745→                              onClick={() => handleToggleCompanyActive(company.id, company.active)}
+   746→                              className={`h-7 w-7 p-0 ${company.active ? 'text-green-500 hover:bg-green-900/30' : 'text-red-500 hover:bg-red-900/30'}`}
+   747→                            >
+   748→                              {company.active ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+   749→                            </Button>
+   750→                            <Button
+   751→                              variant="ghost"
+   752→                              size="sm"
+   753→                              onClick={() => { setEditingCompany(company.id); setEditCompanyData({ name: company.name, description: company.description || '', active: company.active }) }}
+   754→                              className="h-7 w-7 p-0 text-violet-400 hover:bg-violet-900/30"
+   755→                            >
+   756→                              <Edit3 className="h-4 w-4" />
+   757→                            </Button>
+   758→                          </div>
+   759→                        </div>
+   760→                      </CardContent>
+   761→                    </Card>
+   762→                  ))}
+   763→                </div>
+   764→              )}
+   765→            </motion.div>
+   766→          )}
+   767→
+   768→          {/* ═══ USUARIOS TAB ═══ */}
+   769→          {activeTab === 'usuarios' && (
+   770→            <motion.div key="usuarios" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+   771→              {/* Filters */}
+   772→              <div className="flex flex-wrap gap-3 items-center">
+   773→                <p className="text-sm text-violet-400">Todos los usuarios de la plataforma</p>
+   774→                <div className="flex-1" />
+   775→                <Select value={filterCompany} onValueChange={setFilterCompany}>
+   776→                  <SelectTrigger className="w-48 bg-slate-900/60 border-violet-700/30 text-white text-xs h-8">
+   777→                    <SelectValue placeholder="Filtrar por empresa" />
+   778→                  </SelectTrigger>
+   779→                  <SelectContent>
+   780→                    <SelectItem value="__all__">Todas las empresas</SelectItem>
+   781→                    {stats?.companies.map(c => (
+   782→                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+   783→                    ))}
+   784→                  </SelectContent>
+   785→                </Select>
+   786→                <Select value={filterRole} onValueChange={setFilterRole}>
+   787→                  <SelectTrigger className="w-40 bg-slate-900/60 border-violet-700/30 text-white text-xs h-8">
+   788→                    <SelectValue placeholder="Filtrar por rol" />
+   789→                  </SelectTrigger>
+   790→                  <SelectContent>
+   791→                    <SelectItem value="__all__">Todos los roles</SelectItem>
+   792→                    {Object.entries(ROLE_LABELS).map(([key, label]) => (
+   793→                      <SelectItem key={key} value={key}>{label}</SelectItem>
+   794→                    ))}
+   795→                  </SelectContent>
+   796→                </Select>
+   797→              </div>
+   798→
+   799→              {isLoadingUsers ? (
+   800→                <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 text-violet-400 animate-spin" /></div>
+   801→              ) : (
+   802→                <Card className="bg-slate-900/60 border-violet-700/20 overflow-hidden">
+   803→                  <div className="overflow-x-auto">
+   804→                    <Table>
+   805→                      <TableHeader>
+   806→                        <TableRow className="border-violet-800/30 hover:bg-transparent">
+   807→                          <TableHead className="text-violet-400 text-xs">Usuario</TableHead>
+   808→                          <TableHead className="text-violet-400 text-xs">Email</TableHead>
+   809→                          <TableHead className="text-violet-400 text-xs">Rol</TableHead>
+   810→                          <TableHead className="text-violet-400 text-xs">Empresa</TableHead>
+   811→                          <TableHead className="text-violet-400 text-xs">Estado</TableHead>
+   812→                          <TableHead className="text-violet-400 text-xs">Acciones</TableHead>
+   813→                        </TableRow>
+   814→                      </TableHeader>
+   815→                      <TableBody>
+   816→                        {filteredUsers.map(user => (
+   817→                          <TableRow key={user.id} className="border-violet-800/20 hover:bg-violet-900/10">
+   818→                            <TableCell>
+   819→                              {editingUser === user.id ? (
+   820→                                <Input value={editUserData.name} onChange={e => setEditUserData(d => ({ ...d, name: e.target.value }))} className="bg-slate-800 border-violet-700/30 text-white text-xs h-7 w-36" />
+   821→                              ) : (
+   822→                                <div className="flex items-center gap-2">
+   823→                                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${user.active ? 'bg-violet-800/50 text-violet-300' : 'bg-gray-800/50 text-gray-500'}`}>
+   824→                                    {user.name.charAt(0).toUpperCase()}
+   825→                                  </div>
+   826→                                  <span className="text-xs text-white font-medium">{user.name}</span>
+   827→                                </div>
+   828→                              )}
+   829→                            </TableCell>
+   830→                            <TableCell className="text-xs text-violet-400">{user.email}</TableCell>
+   831→                            <TableCell>
+   832→                              {editingUser === user.id ? (
+   833→                                <Select value={editUserData.role} onValueChange={val => setEditUserData(d => ({ ...d, role: val }))}>
+   834→                                  <SelectTrigger className="bg-slate-800 border-violet-700/30 text-white text-xs h-7 w-36">
+   835→                                    <SelectValue />
+   836→                                  </SelectTrigger>
+   837→                                  <SelectContent>
+   838→                                    {Object.entries(ROLE_LABELS).map(([key, label]) => (
+   839→                                      <SelectItem key={key} value={key}>{label}</SelectItem>
+   840→                                    ))}
+   841→                                  </SelectContent>
+   842→                                </Select>
+   843→                              ) : (
+   844→                                <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700 border-gray-200'} border text-[10px]`}>
+   845→                                  {ROLE_LABELS[user.role] || user.role}
+   846→                                </Badge>
+   847→                              )}
+   848→                            </TableCell>
+   849→                            <TableCell className="text-xs text-violet-400">
+   850→                              {user.companies.length > 0
+   851→                                ? user.companies.map(c => c.name).join(', ')
+   852→                                : user.projects.length > 0
+   853→                                  ? [...new Set(user.projects.map(p => p.company))].join(', ')
+   854→                                  : '—'}
+   855→                            </TableCell>
+   856→                            <TableCell>
+   857→                              {user.active ? (
+   858→                                <Badge className="bg-green-900/30 text-green-400 border-green-700/30 border text-[10px]">Activo</Badge>
+   859→                              ) : (
+   860→                                <Badge className="bg-red-900/30 text-red-400 border-red-700/30 border text-[10px]">Inactivo</Badge>
+   861→                              )}
+   862→                            </TableCell>
+   863→                            <TableCell>
+   864→                              <div className="flex items-center gap-1">
+   865→                                {editingUser === user.id ? (
+   866→                                  <>
+   867→                                    <Button size="sm" onClick={() => handleUpdateUser(user.id)} className="bg-violet-600 text-white h-6 w-6 p-0"><Check className="h-3 w-3" /></Button>
+   868→                                    <Button size="sm" variant="ghost" onClick={() => setEditingUser(null)} className="text-violet-400 h-6 w-6 p-0"><X className="h-3 w-3" /></Button>
+   869→                                  </>
+   870→                                ) : (
+   871→                                  <>
+   872→                                    <Button variant="ghost" size="sm" onClick={() => { setEditingUser(user.id); setEditUserData({ name: user.name, email: user.email, role: user.role, active: user.active }) }} className="h-6 w-6 p-0 text-violet-400 hover:bg-violet-900/30">
+   873→                                      <Edit3 className="h-3 w-3" />
+   874→                                    </Button>
+   875→                                    <Button variant="ghost" size="sm" onClick={() => handleToggleActive(user.id, user.active)} className={`h-6 w-6 p-0 ${user.active ? 'text-red-400 hover:bg-red-900/30' : 'text-green-400 hover:bg-green-900/30'}`}>
+   876→                                      {user.active ? <XCircle className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
+   877→                                    </Button>
+   878→                                    <Button variant="ghost" size="sm" onClick={() => { setResetPasswordUserId(user.id); setNewPassword('') }} className="h-6 w-6 p-0 text-violet-400 hover:bg-violet-900/30">
+   879→                                      <Key className="h-3 w-3" />
+   880→                                    </Button>
+   881→                                  </>
+   882→                                )}
+   883→                              </div>
+   884→                            </TableCell>
+   885→                          </TableRow>
+   886→                        ))}
+   887→                      </TableBody>
+   888→                    </Table>
+   889→                  </div>
+   890→                  <div className="p-3 border-t border-violet-800/20">
+   891→                    <p className="text-xs text-violet-500">{filteredUsers.length} de {users.length} usuarios</p>
+   892→                  </div>
+   893→                </Card>
+   894→              )}
+   895→
+   896→              {/* Reset password dialog */}
+   897→              {resetPasswordUserId && (
+   898→                <Dialog open={!!resetPasswordUserId} onOpenChange={() => setResetPasswordUserId(null)}>
+   899→                  <DialogContent className="bg-slate-900 border-violet-700/30">
+   900→                    <DialogHeader>
+   901→                      <DialogTitle className="text-violet-300">Restablecer Contraseña</DialogTitle>
+   902→                    </DialogHeader>
+   903→                    <div className="space-y-3 py-2">
+   904→                      <div className="space-y-1">
+   905→                        <Label className="text-xs text-violet-400">Nueva contraseña (mín. 6 caracteres)</Label>
+   906→                        <div className="relative">
+   907→                          <Input
+   908→                            type={showPassword ? 'text' : 'password'}
+   909→                            value={newPassword}
+   910→                            onChange={e => setNewPassword(e.target.value)}
+   911→                            className="bg-slate-800 border-violet-700/30 text-white pr-10"
+   912→                          />
+   913→                          <Button variant="ghost" size="sm" onClick={() => setShowPassword(!showPassword)} className="absolute right-1 top-1 h-7 w-7 p-0 text-violet-400">
+   914→                            {showPassword ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+   915→                          </Button>
+   916→                        </div>
+   917→                      </div>
+   918→                      <div className="flex gap-2 justify-end">
+   919→                        <Button variant="outline" size="sm" onClick={() => setResetPasswordUserId(null)} className="border-violet-700/50 text-violet-300">Cancelar</Button>
+   920→                        <Button size="sm" onClick={() => handleResetPassword(resetPasswordUserId)} disabled={newPassword.length < 6} className="bg-violet-600 text-white">Guardar</Button>
+   921→                      </div>
+   922→                    </div>
+   923→                  </DialogContent>
+   924→                </Dialog>
+   925→              )}
+   926→            </motion.div>
+   927→          )}
+   928→
+   929→          {/* ═══ SUSCRIPCIONES TAB ═══ */}
+   930→          {activeTab === 'suscripciones' && (
+   931→            <motion.div key="suscripciones" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+   932→              <div className="flex items-center gap-2 mb-4">
+   933→                <CreditCard className="h-5 w-5 text-violet-400" />
+   934→                <h2 className="text-lg font-bold text-white">Suscripciones y Facturación</h2>
+   935→                <Badge className="bg-yellow-900/30 text-yellow-400 border-yellow-700/30 border text-[10px]">PRÓXIMAMENTE</Badge>
+   936→              </div>
+   937→              <Card className="bg-slate-900/60 border-violet-700/20">
+   938→                <CardContent className="p-6">
+   939→                  <div className="grid gap-4">
+   940→                    {stats?.companies.map((company, idx) => {
+   941→                      // Placeholder subscription statuses
+   942→                      const statuses = ['activa', 'prueba', 'vencida'] as const
+   943→                      const subStatus = statuses[idx % 3]
+   944→                      const statusInfo = SUBSCRIPTION_STATUS[subStatus]
+   945→                      return (
+   946→                        <div key={company.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-violet-800/20">
+   947→                          <div className="flex items-center gap-3">
+   948→                            <Building2 className="h-5 w-5 text-violet-400" />
+   949→                            <div>
+   950→                              <p className="text-sm font-semibold text-white">{company.name}</p>
+   951→                              <p className="text-[10px] text-violet-500">{company.memberCount} miembros · {company.projectCount} proyectos</p>
+   952→                            </div>
+   953→                          </div>
+   954→                          <div className="flex items-center gap-3">
+   955→                            <Badge className={`${statusInfo.color} border text-xs`}>
+   956→                              {statusInfo.label}
+   957→                            </Badge>
+   958→                            <span className="text-[10px] text-violet-600">Plan Enterprise</span>
+   959→                          </div>
+   960→                        </div>
+   961→                      )
+   962→                    })}
+   963→                    {(!stats || stats.companies.length === 0) && (
+   964→                      <p className="text-sm text-violet-500 text-center py-8">No hay empresas registradas</p>
+   965→                    )}
+   966→                  </div>
+   967→                  <div className="mt-6 p-4 bg-violet-900/20 rounded-lg border border-violet-700/30">
+   968→                    <p className="text-xs text-violet-400">
+   969→                      💡 <strong>Placeholder:</strong> La gestión de suscripciones y facturación se integrará próximamente con Stripe u otro proveedor de pagos.
+   970→                      Las empresas podrán tener planes: Gratuito, Básico y Enterprise con diferentes límites de usuarios y proyectos.
+   971→                    </p>
+   972→                  </div>
+   973→                </CardContent>
+   974→              </Card>
+   975→            </motion.div>
+   976→          )}
+   977→
+   978→          {/* ═══ CONFIGURACIÓN TAB ═══ */}
+   979→          {activeTab === 'configuracion' && (
+   980→            <motion.div key="configuracion" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+   981→              <div className="flex items-center gap-2 mb-4">
+   982→                <Settings className="h-5 w-5 text-violet-400" />
+   983→                <h2 className="text-lg font-bold text-white">Configuración de Plataforma</h2>
+   984→              </div>
+   985→
+   986→              {/* Add new config */}
+   987→              <Card className="bg-slate-900/60 border-violet-700/20">
+   988→                <CardHeader className="pb-3">
+   989→                  <CardTitle className="text-sm text-violet-300 flex items-center gap-2">
+   990→                    <Plus className="h-4 w-4 text-violet-400" /> Nueva Configuración
+   991→                  </CardTitle>
+   992→                </CardHeader>
+   993→                <CardContent>
+   994→                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+   995→                    <div className="space-y-1">
+   996→                      <Label className="text-xs text-violet-400">Clave (key)</Label>
+   997→                      <Input placeholder="platform.name" value={newConfigKey} onChange={e => setNewConfigKey(e.target.value)} className="bg-slate-800 border-violet-700/30 text-white text-sm" />
+   998→                    </div>
+   999→                    <div className="space-y-1">
+  1000→                      <Label className="text-xs text-violet-400">Valor</Label>
+  1001→                      <Input placeholder="5S Audit Platform" value={newConfigValue} onChange={e => setNewConfigValue(e.target.value)} className="bg-slate-800 border-violet-700/30 text-white text-sm" />
+  1002→                    </div>
+  1003→                    <div className="flex items-end">
+  1004→                      <Button onClick={handleSaveConfig} disabled={!newConfigKey.trim() || !newConfigValue.trim()} className="bg-gradient-to-r from-violet-600 to-purple-600 text-white w-full">
+  1005→                        <Save className="h-4 w-4 mr-1" /> Guardar
+  1006→                      </Button>
+  1007→                    </div>
+  1008→                  </div>
+  1009→                </CardContent>
+  1010→              </Card>
+  1011→
+  1012→              {/* Existing configs */}
+  1013→              {isLoadingConfigs ? (
+  1014→                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 text-violet-400 animate-spin" /></div>
+  1015→              ) : (
+  1016→                <Card className="bg-slate-900/60 border-violet-700/20">
+  1017→                  <CardContent className="p-0">
+  1018→                    <Table>
+  1019→                      <TableHeader>
+  1020→                        <TableRow className="border-violet-800/30 hover:bg-transparent">
+  1021→                          <TableHead className="text-violet-400 text-xs">Clave</TableHead>
+  1022→                          <TableHead className="text-violet-400 text-xs">Valor</TableHead>
+  1023→                          <TableHead className="text-violet-400 text-xs">Actualizado</TableHead>
+  1024→                          <TableHead className="text-violet-400 text-xs">Acciones</TableHead>
+  1025→                        </TableRow>
+  1026→                      </TableHeader>
+  1027→                      <TableBody>
+  1028→                        {configs.map(config => (
+  1029→                          <TableRow key={config.id} className="border-violet-800/20 hover:bg-violet-900/10">
+  1030→                            <TableCell className="text-xs font-mono text-violet-300">{config.key}</TableCell>
+  1031→                            <TableCell>
+  1032→                              {editingConfigKey === config.key ? (
+  1033→                                <Input value={editConfigValue} onChange={e => setEditConfigValue(e.target.value)} className="bg-slate-800 border-violet-700/30 text-white text-xs h-7" />
+  1034→                              ) : (
+  1035→                                <span className="text-xs text-white">{config.value}</span>
+  1036→                              )}
+  1037→                            </TableCell>
+  1038→                            <TableCell className="text-[10px] text-violet-500">{new Date(config.updatedAt).toLocaleString('es-ES')}</TableCell>
+  1039→                            <TableCell>
+  1040→                              <div className="flex items-center gap-1">
+  1041→                                {editingConfigKey === config.key ? (
+  1042→                                  <>
+  1043→                                    <Button size="sm" onClick={() => handleUpdateConfig(config.key)} className="bg-violet-600 text-white h-6 w-6 p-0"><Check className="h-3 w-3" /></Button>
+  1044→                                    <Button size="sm" variant="ghost" onClick={() => setEditingConfigKey(null)} className="text-violet-400 h-6 w-6 p-0"><X className="h-3 w-3" /></Button>
+  1045→                                  </>
+  1046→                                ) : (
+  1047→                                  <>
+  1048→                                    <Button variant="ghost" size="sm" onClick={() => { setEditingConfigKey(config.key); setEditConfigValue(config.value) }} className="h-6 w-6 p-0 text-violet-400 hover:bg-violet-900/30">
+  1049→                                      <Edit3 className="h-3 w-3" />
+  1050→                                    </Button>
+  1051→                                    <Button variant="ghost" size="sm" onClick={() => handleDeleteConfig(config.key)} className="h-6 w-6 p-0 text-red-400 hover:bg-red-900/30">
+  1052→                                      <Trash2 className="h-3 w-3" />
+  1053→                                    </Button>
+  1054→                                  </>
+  1055→                                )}
+  1056→                              </div>
+  1057→                            </TableCell>
+  1058→                          </TableRow>
+  1059→                        ))}
+  1060→                        {configs.length === 0 && (
+  1061→                          <TableRow>
+  1062→                            <TableCell colSpan={4} className="text-center py-6 text-violet-500 text-xs">No hay configuraciones. Agrega la primera arriba.</TableCell>
+  1063→                          </TableRow>
+  1064→                        )}
+  1065→                      </TableBody>
+  1066→                    </Table>
+  1067→                  </CardContent>
+  1068→                </Card>
+  1069→              )}
+  1070→            </motion.div>
+  1071→          )}
+  1072→
+  1073→          {/* ═══ PLANTILLAS GLOBALES TAB ═══ */}
+  1074→          {activeTab === 'plantillas' && (
+  1075→            <motion.div key="plantillas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+  1076→              <div className="flex items-center gap-2 mb-4">
+  1077→                <BookOpen className="h-5 w-5 text-violet-400" />
+  1078→                <h2 className="text-lg font-bold text-white">Plantillas Globales</h2>
+  1079→                <span className="text-xs text-violet-500">— Plantillas genéricas visibles para todas las empresas</span>
+  1080→              </div>
+  1081→              <div className="bg-slate-900/60 rounded-lg border border-violet-700/20 p-4">
+  1082→                <TemplateManager />
+  1083→              </div>
+  1084→            </motion.div>
+  1085→          )}
+  1086→
+  1087→          {/* ═══ TABLERO 5S CONFIG TAB ═══ */}
+  1088→          {activeTab === 'tablero5s' && (
+  1089→            <motion.div key="tablero5s" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+  1090→              <div className="flex items-center gap-2 mb-4">
+  1091→                <Globe className="h-5 w-5 text-violet-400" />
+  1092→                <h2 className="text-lg font-bold text-white">Configuración del Tablero 5S</h2>
+  1093→                <span className="text-xs text-violet-500">— A nivel de plataforma</span>
+  1094→              </div>
+  1095→              <div className="bg-slate-900/60 rounded-lg border border-violet-700/20 p-4">
+  1096→                <Tablero5S />
+  1097→              </div>
+  1098→            </motion.div>
+  1099→          )}
+
+[showing lines 600-1099 of 1105; use offset=1100 with limit to continue reading]
