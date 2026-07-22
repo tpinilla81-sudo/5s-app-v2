@@ -564,8 +564,8 @@ export default function HomePage() {
                         <span className="text-sm font-medium text-green-600">Permisos</span>
                       </button>
                     )}
-                    {/* 🗑️ Borrar Pasos — Testing reset button */}
-                    {canResetData && currentProject && (
+                    {/* 🗑️ Borrar Pasos — TESTING: visible for ALL non-gestor users */}
+                    {!isGestor && currentProject && (
                       <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-red-50 transition-colors text-left min-h-[44px]"
                         onClick={() => { setMobileMenuOpen(false); 
                           if (!confirm('¿Seguro que quieres borrar TODOS los pasos? Esto es solo para pruebas.')) return;
@@ -610,8 +610,8 @@ export default function HomePage() {
             </div>
           ) : (
           <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto">
-            {/* 🗑️ Borrar Pasos — BEFORE avisos, testing button */}
-            {canResetData && currentProject && (
+            {/* 🗑️ Borrar Pasos — TESTING: visible for ALL non-gestor users with a project */}
+            {!isGestor && currentProject && (
               <Button variant="outline" size="sm" onClick={async () => {
                 if (!confirm('¿Seguro que quieres borrar TODOS los pasos y datos de este proyecto? Esto es solo para pruebas.')) return;
                 try {
