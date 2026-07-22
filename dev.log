@@ -36,3 +36,8 @@ https://nextjs.org/telemetry
  GET / 200 in 43ms (compile: 8ms, proxy.ts: 4ms, render: 32ms)
  GET / 200 in 39ms (compile: 6ms, proxy.ts: 3ms, render: 30ms)
  GET / 200 in 42ms (compile: 3ms, proxy.ts: 3ms, render: 36ms)
+ GET / 200 in 124ms (compile: 3ms, proxy.ts: 3ms, render: 118ms)
+ GET / 200 in 116ms (compile: 13ms, proxy.ts: 5ms, render: 98ms)
+ GET / 200 in 38ms (compile: 3ms, proxy.ts: 3ms, render: 32ms)
+ GET / 200 in 56ms (compile: 6ms, proxy.ts: 6ms, render: 44ms)
+ GET / 200 in 39ms (compile: 3ms, proxy.ts: 3ms, render: 32ms)
