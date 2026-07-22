@@ -34,7 +34,7 @@ interface ExamQuestion {
 }
 
 export default function FormacionModal({ open, onClose, sStep, miniStep }: FormacionModalProps) {
-  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission } = use5SStore();
+  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission, openModal } = use5SStore();
   const sStepData = S_STEPS.find(s => s.id === sStep);
   const canSkipSteps = hasPermission('skip_steps');
   const canPerformStep = canPerform(sStep, miniStep);
@@ -61,6 +61,8 @@ export default function FormacionModal({ open, onClose, sStep, miniStep }: Forma
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [examNotaMinima, setExamNotaMinima] = useState(80);
+  // Track whether this is a retry after failing — questions get shuffled on retry
+  const [isRetryAfterFail, setIsRetryAfterFail] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -156,7 +158,7 @@ export default function FormacionModal({ open, onClose, sStep, miniStep }: Forma
       const res = await fetch('/api/exam', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sStep, answers: answersArray, projectId: currentProject?.id, zoneId: currentZone?.id || null, userId: currentUser?.id }),
+        body: JSON.stringify({ sStep, answers: answersArray, projectId: currentProject?.id, zoneId: currentZone?.id || null, userId: currentUser?.id, shuffledQuestions: isRetryAfterFail ? examQuestions : undefined }),
       });
 
       const json = await res.json();
@@ -352,24 +354,32 @@ export default function FormacionModal({ open, onClose, sStep, miniStep }: Forma
                 {examResult.passed ? (
                   <div className="flex justify-center">
                     <Button
-                      onClick={onClose}
+                      onClick={() => { onClose(); openModal('fotos', 2); }}
                       style={{ backgroundColor: sStepData?.color }}
                       className="text-white"
                     >
-                      Continuar al siguiente paso
+                      Continuar al paso 2: Fotos →
                     </Button>
                   </div>
                 ) : (
-                  <div className="flex justify-center">
+                  <div className="flex justify-center gap-3">
                     <Button
                       variant="outline"
                       onClick={() => {
+                        // Shuffle questions for retry so positions change
+                        const shuffled = [...examQuestions];
+                        for (let i = shuffled.length - 1; i > 0; i--) {
+                          const j = Math.floor(Math.random() * (i + 1));
+                          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                        }
+                        setExamQuestions(shuffled);
                         setExamStarted(false);
                         setAnswers({});
                         setExamResult(null);
+                        setIsRetryAfterFail(true);
                       }}
                     >
-                      Reintentar Examen
+                      Reintentar Examen (orden aleatorio)
                     </Button>
                   </div>
                 )}

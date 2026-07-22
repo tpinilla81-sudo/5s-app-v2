@@ -84,7 +84,7 @@ interface InventarioModalProps {
 }
 
 export default function InventarioModal({ open, onClose, sStep, miniStep }: InventarioModalProps) {
-  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission } = use5SStore();
+  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission, openModal } = use5SStore();
   const sStepData = S_STEPS.find(s => s.id === sStep);
   const defaultConfig: InventoryConfig = INVENTORY_CONFIGS[sStep] || INVENTORY_CONFIGS[1];
   const [customConfig, setCustomConfig] = useState<InventoryConfig | null>(null);
@@ -858,14 +858,17 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
             const v = String(cell).trim();
             return v !== '' && v !== '0';
           });
-          // A row with data must have at least 2 meaningful cells (name + something)
-          // This filters out empty numbered rows and footer rows
-          if (meaningfulCells.length < 2) return false;
+          // A row with data must have at least 1 meaningful cell that isn't just a row number
+          // (a row with just "1" is a template placeholder; a row with "Cartón viejo" is real data)
+          if (meaningfulCells.length === 0) return false;
+          // If only 1 meaningful cell and it's a number (row index), skip it
+          if (meaningfulCells.length === 1 && /^\d+$/.test(String(meaningfulCells[0]).trim())) return false;
           // Skip footer rows like "TOTAL ELEMENTOS", "Notas:", etc.
           const firstMeaningful = meaningfulCells[0].toLowerCase();
-          if (firstMeaningful.includes('total') || firstMeaningful.includes('notas') || firstMeaningful.includes('clasificación')) return false;
+          if (firstMeaningful.includes('total') || firstMeaningful.includes('notas') || firstMeaningful.includes('clasificación') || firstMeaningful.includes('empresa:') || firstMeaningful.includes('proyecto:') || firstMeaningful.includes('zona:')) return false;
           return true;
         });
+
       } else if (fileName.endsWith('.csv')) {
         // Parse CSV file
         const text = await file.text();
@@ -914,7 +917,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
         frecuenciaLimpieza: findCol(headerRow, 'frecuencia limpieza'),
         metodoLimpieza: findCol(headerRow, 'método limpieza'),
         responsable: findCol(headerRow, 'responsable'),
-        observaciones: findCol(headerRow, 'observacione'),
+        observaciones: findCol(headerRow, 'observaciones', 'observacion'),
       };
 
       const parsedItems: InventoryItemData[] = [];
@@ -1333,7 +1336,15 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
             )}
             <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
               <p className="text-sm font-semibold">→ Próximo paso: Pre-auditoría (Autoevaluación)</p>
-              <p className="text-xs mt-1">Cierra este diálogo y pulsa en el paso 4 del pentágono para continuar.</p>
+            </div>
+            <div className="mt-3 flex justify-center">
+              <Button
+                onClick={() => { onClose(); openModal('autoevaluacion', 4); }}
+                style={{ backgroundColor: sStepData?.color }}
+                className="text-white"
+              >
+                Continuar al paso 4: Autoevaluación →
+              </Button>
             </div>
           </div>
         ) : (

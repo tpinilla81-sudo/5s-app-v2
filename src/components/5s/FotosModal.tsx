@@ -62,7 +62,7 @@ interface PhotoItem {
 }
 
 export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModalProps) {
-  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission } = use5SStore();
+  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission, openModal } = use5SStore();
   const sStepData = S_STEPS.find(s => s.id === sStep);
   const miniStepData = MINI_STEPS.find(m => m.id === miniStep);
 
@@ -212,7 +212,8 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
   useEffect(() => {
     if (open && currentProject?.id) {
       setLoadingPhotos(true);
-      fetch(`/api/photo-library?projectId=${currentProject.id}&sStep=${sStep}&miniStep=2&zoneId=${currentZone?.id || ''}`)
+      const zoneIdParam = currentZone?.id ? `&zoneId=${currentZone.id}` : ''
+      fetch(`/api/photo-library?projectId=${currentProject.id}&sStep=${sStep}&miniStep=2${zoneIdParam}`)
         .then(res => res.json())
         .then(data => {
           if (data.success && data.data && data.data.length > 0) {
@@ -395,7 +396,15 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
             <p className="text-xs text-muted-foreground mt-2">Tamaño total optimizado: {formatBytes(totalSize)}</p>
             <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
               <p className="text-sm font-semibold">→ Próximo paso: Inventario (Clasificar elementos)</p>
-              <p className="text-xs mt-1">Cierra este diálogo y pulsa en el paso 3 del pentágono para continuar.</p>
+            </div>
+            <div className="mt-4 flex justify-center">
+              <Button
+                onClick={() => { onClose(); openModal('inventario', 3); }}
+                style={{ backgroundColor: sStepData?.color }}
+                className="text-white"
+              >
+                Continuar al Inventario →
+              </Button>
             </div>
           </div>
         ) : (

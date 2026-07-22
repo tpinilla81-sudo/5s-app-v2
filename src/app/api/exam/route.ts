@@ -61,9 +61,17 @@ export async function POST(request: NextRequest) {
       correctIndex: number
     }>
 
+    // Support shuffled exam: if the client sends a shuffledQuestions array,
+    // use it for validation (so answer indices match the shuffled positions)
+    // Otherwise, use the original template order
+    const validationQuestions: Array<{ question: string; options: string[]; correctIndex: number }> =
+      body.shuffledQuestions && body.shuffledQuestions.length === questions.length
+        ? body.shuffledQuestions
+        : questions
+
     let correct = 0
     const results = answers.map((a: { questionIdx: number; answerIdx: number }) => {
-      const isCorrect = questions[a.questionIdx]?.correctIndex === a.answerIdx
+      const isCorrect = validationQuestions[a.questionIdx]?.correctIndex === a.answerIdx
       if (isCorrect) correct++
       return { questionIdx: a.questionIdx, answerIdx: a.answerIdx, correct: isCorrect }
     })

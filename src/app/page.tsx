@@ -1035,29 +1035,10 @@ export default function HomePage() {
                                         className="text-[8px] font-bold text-orange-600 hover:text-orange-700 hover:bg-orange-50 px-1.5 py-0.5 rounded border border-orange-300 mb-0.5 transition-colors leading-tight whitespace-nowrap animate-pulse bg-orange-50 shadow-sm"
                                         onClick={async (e) => {
                                           e.stopPropagation();
-                                          const proposedDate = new Date();
-                                          proposedDate.setDate(proposedDate.getDate() + 2);
-                                          const dateStr = proposedDate.toISOString().slice(0, 16);
-                                          const result = prompt(`Propón fecha y hora para la auditoría S${s.id}:\n(Formato: AAAA-MM-DDTHH:MM)`, dateStr);
-                                          if (!result) return;
                                           try {
                                             const sStepData = S_STEPS.find(ss => ss.id === s.id);
-                                            const formattedDate = new Date(result).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
-                                            const msg = `Se solicita auditoría para S${s.id} (${sStepData?.japaneseName || ''}) en la zona "${currentZone?.name || ''}". Fecha propuesta: ${formattedDate}.`;
-                                            
-                                            // Save the proposed date to EvaluationSchedule so the auditor sees it pre-filled
-                                            await fetch('/api/evaluation-schedule', {
-                                              method: 'POST',
-                                              headers: { 'Content-Type': 'application/json' },
-                                              body: JSON.stringify({
-                                                sStep: s.id,
-                                                miniStep: 5,
-                                                fechaProgramada: result.slice(0, 10), // YYYY-MM-DD
-                                                horaProgramada: result.slice(11, 16),  // HH:MM
-                                                projectId: currentProject?.id,
-                                                zoneId: currentZone?.id || null,
-                                              }),
-                                            });
+                                            // Decision C: Employee does NOT propose date — only notifies auditor to schedule
+                                            const msg = `Se solicita auditoría para S${s.id} (${sStepData?.japaneseName || ''}) en la zona "${currentZone?.name || ''}". El auditor debe programar la fecha y hora.`;
                                             
                                             const membersRes = await fetch(`/api/projects/${currentProject?.id}/members`);
                                             const membersData = await membersRes.json();
@@ -1079,7 +1060,7 @@ export default function HomePage() {
                                                 }),
                                               });
                                             }
-                                            // Notify all responsables (from zone.responsableId OR from project members)
+                                            // Notify all responsables
                                             const responsableIds = new Set<string>();
                                             if (currentZone?.responsableId) responsableIds.add(currentZone.responsableId);
                                             const responsables = allMembers.filter((m: any) => m.role === 'responsable');
@@ -1099,7 +1080,7 @@ export default function HomePage() {
                                                 }),
                                               });
                                             }
-                                            // Also notify the requesting user as confirmation
+                                            // Notify the requesting user as confirmation
                                             if (currentUser?.id) {
                                               await fetch('/api/notifications', {
                                                 method: 'POST',
@@ -1108,14 +1089,14 @@ export default function HomePage() {
                                                   userId: currentUser.id,
                                                   type: 'audit_ready',
                                                   title: `Solicitud enviada: S${s.id} — ${sStepData?.japaneseName || ''}`,
-                                                  message: `Tu solicitud de auditoría para S${s.id} ha sido enviada al auditor y responsable. Fecha propuesta: ${formattedDate}.`,
+                                                  message: `Tu solicitud de auditoría para S${s.id} ha sido enviada al auditor. El auditor programará la fecha y hora.`,
                                                   sStep: s.id,
                                                   zoneId: currentZone?.id,
                                                   projectId: currentProject?.id,
                                                 }),
                                               });
                                             }
-                                            alert('Solicitud de auditoría enviada a auditor y responsable.');
+                                            alert('Solicitud de auditoría enviada. El auditor programará la fecha.');
                                           } catch (err) {
                                             console.error('Error sending audit request:', err);
                                             alert('Error al enviar la solicitud.');

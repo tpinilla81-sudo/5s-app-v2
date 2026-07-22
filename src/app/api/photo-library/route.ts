@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
     if (miniStep) where.miniStep = Number(miniStep)
     if (photoType) where.photoType = photoType
     if (category) where.category = category
-    if (zoneId) where.zoneId = zoneId
+    // Handle zoneId: empty string or 'null' means no zone filter (match both null and non-null);
+    // a real zoneId string means exact match
+    if (zoneId && zoneId !== 'null') where.zoneId = zoneId
     if (inventoryItemId) where.inventoryItemId = inventoryItemId
 
     const photos = await db.photoLibrary.findMany({

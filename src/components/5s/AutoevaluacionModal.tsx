@@ -32,7 +32,7 @@ interface AutoevaluacionModalProps {
 
 
 export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: AutoevaluacionModalProps) {
-  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission } = use5SStore();
+  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission, openModal } = use5SStore();
   const sStepData = S_STEPS.find(s => s.id === sStep);
   const canSkipSteps = hasPermission('skip_steps');
   const canPerformStep = canPerform(sStep, miniStep);
@@ -58,6 +58,9 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
   const [horaAutoevaluacion, setHoraAutoevaluacion] = useState('');
   const [fechaProgramada, setFechaProgramada] = useState('');
   const [horaProgramada, setHoraProgramada] = useState('');
+  // Track auditoría schedule (miniStep 5) — employee sees this as read-only (auditor sets it)
+  const [auditFechaProgramada, setAuditFechaProgramada] = useState('');
+  const [auditHoraProgramada, setAuditHoraProgramada] = useState('');
 
   // Load template from API (uses board config if zone has one)
   const { sections, isLoading: isLoadingTemplate, notaMinima: templateNotaMinima } = useChecklistTemplate('autoevaluacion', sStep, open, currentZone?.boardConfigId);
@@ -110,15 +113,23 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
     }
   }, [open, sStep, sections]);
 
-  // Load scheduled date/time for this autoevaluación
+  // Load scheduled date/time for this autoevaluación AND the auditoría schedule
   const loadScheduledDate = async () => {
     if (!currentProject?.id || !currentZone?.id) return;
     try {
+      // Load autoevaluación schedule (miniStep 4)
       const res = await fetch(`/api/evaluation-schedule?sStep=${sStep}&miniStep=4&projectId=${currentProject.id}&zoneId=${currentZone.id}`);
       const json = await res.json();
       if (json.success && json.data) {
         setFechaProgramada(json.data.fechaProgramada || '');
         setHoraProgramada(json.data.horaProgramada || '');
+      }
+      // Also load auditoría schedule (miniStep 5) — employee sees if auditor has set a date
+      const auditRes = await fetch(`/api/evaluation-schedule?sStep=${sStep}&miniStep=5&projectId=${currentProject.id}&zoneId=${currentZone.id}`);
+      const auditJson = await auditRes.json();
+      if (auditJson.success && auditJson.data) {
+        setAuditFechaProgramada(auditJson.data.fechaProgramada || '');
+        setAuditHoraProgramada(auditJson.data.horaProgramada || '');
       }
     } catch (e) {
       console.error('Error loading scheduled date:', e);
@@ -569,9 +580,29 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
               </p>
             )}
             {passed && (
+              <div>
               <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
                 <p className="text-sm font-semibold">→ Próximo paso: Auditoría (Paso 5)</p>
-                <p className="text-xs mt-1">Cierra este diálogo y pulsa en el paso 5 del pentágono, o usa el botón 🔔 Auditar para solicitar una fecha.</p>
+                <p className="text-xs mt-1">Pulsa 🔔 Auditar en el pentágono para notificar al auditor. El auditor programará la fecha.</p>
+                {auditFechaProgramada ? (
+                  <p className="text-xs mt-1 text-green-700 font-medium">
+                    ✅ Auditoría programada: {auditFechaProgramada} a las {auditHoraProgramada}
+                  </p>
+                ) : (
+                  <p className="text-xs mt-1 text-amber-700 font-medium">
+                    ⏳ Pendiente de programar — el auditor asignará fecha y hora
+                  </p>
+                )}
+              </div>
+              <div className="mt-3 flex justify-center">
+                <Button
+                  onClick={() => { onClose(); openModal('auditoria', 5); }}
+                  style={{ backgroundColor: sStepData?.color }}
+                  className="text-white"
+                >
+                  Continuar al paso 5: Auditoría →
+                </Button>
+              </div>
               </div>
             )}
           </div>

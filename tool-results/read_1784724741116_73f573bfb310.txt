@@ -1,0 +1,870 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useMemo, useRef } from 'react';
+     4→import {
+     5→  Dialog,
+     6→  DialogContent,
+     7→  DialogHeader,
+     8→  DialogTitle,
+     9→} from '@/components/ui/dialog';
+    10→import { Button } from '@/components/ui/button';
+    11→import { Card, CardContent } from '@/components/ui/card';
+    12→import { Badge } from '@/components/ui/badge';
+    13→import { Input } from '@/components/ui/input';
+    14→import { Textarea } from '@/components/ui/textarea';
+    15→import { Label } from '@/components/ui/label';
+    16→import { CheckSquare, CheckCircle, XCircle, Camera, ChevronDown, ChevronRight, Maximize2, Minimize2, AlertCircle, Upload, X, Image as ImageIcon, Calendar } from 'lucide-react';
+    17→import { use5SStore } from '@/lib/store';
+    18→import {
+    19→  S_STEPS,
+    20→  SELF_EVAL_THRESHOLD,
+    21→} from '@/lib/5s-constants';
+    22→import type { AuditSection, AuditItemResult } from '@/lib/5s-constants';
+    23→import { useChecklistTemplate } from '@/lib/checklist-templates';
+    24→
+    25→interface AutoevaluacionModalProps {
+    26→  open: boolean;
+    27→  onClose: () => void;
+    28→  sStep: number;
+    29→  miniStep: number;
+    30→}
+    31→
+    32→
+    33→
+    34→export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: AutoevaluacionModalProps) {
+    35→  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission } = use5SStore();
+    36→  const sStepData = S_STEPS.find(s => s.id === sStep);
+    37→  const canSkipSteps = hasPermission('skip_steps');
+    38→  const canPerformStep = canPerform(sStep, miniStep);
+    39→  const canViewStep = canView(sStep, miniStep);
+    40→  // Permission-driven: read-only if no execute perm OR if candado closed for skip_steps users
+    41→  const isReadOnly = !canPerformStep || (canSkipSteps && !adminFreeNavigation);
+    42→  const canPerformAutoeval = canPerformStep;
+    43→
+    44→  const [isFullscreen, setIsFullscreen] = useState(true);
+    45→  const [results, setResults] = useState<Record<string, AuditItemResult>>({});
+    46→  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+    47→  const [observaciones, setObservaciones] = useState('');
+    48→  const [isSubmitting, setIsSubmitting] = useState(false);
+    49→  const [isCompleted, setIsCompleted] = useState(false);
+    50→  const [finalScore, setFinalScore] = useState(0);
+    51→  const [notaMinima, setNotaMinima] = useState(70);
+    52→  const [autoevalPhotos, setAutoevalPhotos] = useState<{ file: File; preview: string; uploading?: boolean; serverUrl?: string }[]>([]);
+    53→  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+    54→  const photoInputRef = useRef<HTMLInputElement>(null);
+    55→
+    56→  // Date/Time for scheduling and recording the evaluation
+    57→  const [fechaAutoevaluacion, setFechaAutoevaluacion] = useState('');
+    58→  const [horaAutoevaluacion, setHoraAutoevaluacion] = useState('');
+    59→  const [fechaProgramada, setFechaProgramada] = useState('');
+    60→  const [horaProgramada, setHoraProgramada] = useState('');
+    61→
+    62→  // Load template from API (uses board config if zone has one)
+    63→  const { sections, isLoading: isLoadingTemplate, notaMinima: templateNotaMinima } = useChecklistTemplate('autoevaluacion', sStep, open, currentZone?.boardConfigId);
+    64→
+    65→  // Apply template notaMinima when loaded
+    66→  useEffect(() => {
+    67→    if (templateNotaMinima !== null) setNotaMinima(templateNotaMinima);
+    68→  }, [templateNotaMinima]);
+    69→
+    70→
+    71→
+    72→  // Fetch dynamic threshold (overrides template if present)
+    73→  useEffect(() => {
+    74→    if (open && currentProject?.id) {
+    75→      const fetchThreshold = async () => {
+    76→        try {
+    77→          const params = new URLSearchParams({ projectId: currentProject.id });
+    78→          if (currentZone?.id) params.set('zoneId', currentZone.id);
+    79→          const res = await fetch(`/api/audit-targets?${params}`);
+    80→          const json = await res.json();
+    81→          if (json.success && json.data) {
+    82→            const zoneTarget = json.data.find((t: any) => t.sStep === sStep && t.miniStep === 4 && t.zoneId === currentZone?.id);
+    83→            const projectTarget = json.data.find((t: any) => t.sStep === sStep && t.miniStep === 4 && t.zoneId === null);
+    84→            const target = zoneTarget || projectTarget;
+    85→            if (target?.notaMinima) setNotaMinima(target.notaMinima);
+    86→          }
+    87→        } catch (e) { console.error('Error fetching threshold:', e); }
+    88→      };
+    89→      fetchThreshold();
+    90→    }
+    91→  }, [open, sStep, currentProject?.id, currentZone?.id]);
+    92→
+    93→  // Initialize expanded sections
+    94→  useEffect(() => {
+    95→    if (open && sections.length > 0) {
+    96→      const expanded: Record<string, boolean> = {};
+    97→      sections.forEach(s => { expanded[s.id] = true; });
+    98→      setExpandedSections(expanded);
+    99→      setResults({});
+   100→      setObservaciones('');
+   101→      setIsCompleted(false);
+   102→      setFinalScore(0);
+   103→      setAutoevalPhotos([]);
+   104→      // Auto-fill current date/time for the evaluation
+   105→      const now = new Date();
+   106→      setFechaAutoevaluacion(now.toISOString().split('T')[0]);
+   107→      setHoraAutoevaluacion(now.toTimeString().slice(0, 5));
+   108→      // Load scheduled date if available
+   109→      loadScheduledDate();
+   110→    }
+   111→  }, [open, sStep, sections]);
+   112→
+   113→  // Load scheduled date/time for this autoevaluación
+   114→  const loadScheduledDate = async () => {
+   115→    if (!currentProject?.id || !currentZone?.id) return;
+   116→    try {
+   117→      const res = await fetch(`/api/evaluation-schedule?sStep=${sStep}&miniStep=4&projectId=${currentProject.id}&zoneId=${currentZone.id}`);
+   118→      const json = await res.json();
+   119→      if (json.success && json.data) {
+   120→        setFechaProgramada(json.data.fechaProgramada || '');
+   121→        setHoraProgramada(json.data.horaProgramada || '');
+   122→      }
+   123→    } catch (e) {
+   124→      console.error('Error loading scheduled date:', e);
+   125→    }
+   126→  };
+   127→
+   128→  // Save scheduled date/time
+   129→  const handleSaveSchedule = async () => {
+   130→    if (!currentProject?.id || !currentZone?.id) return;
+   131→    try {
+   132→      await fetch('/api/evaluation-schedule', {
+   133→        method: 'POST',
+   134→        headers: { 'Content-Type': 'application/json' },
+   135→        body: JSON.stringify({
+   136→          sStep,
+   137→          miniStep: 4,
+   138→          projectId: currentProject.id,
+   139→          zoneId: currentZone.id,
+   140→          fechaProgramada,
+   141→          horaProgramada,
+   142→        }),
+   143→      });
+   144→      toast.success('Fecha programada guardada');
+   145→    } catch (e) {
+   146→      console.error('Error saving schedule:', e);
+   147→      toast.error('Error al guardar la fecha programada');
+   148→    }
+   149→  };
+   150→
+   151→  const totalItems = sections.reduce((sum, s) => sum + s.items.length, 0) || 26;
+   152→
+   153→  const scoring = useMemo(() => {
+   154→    const allResults = Object.values(results);
+   155→    const okCount = allResults.filter(r => r.status === 'ok').length;
+   156→    const nokCount = allResults.filter(r => r.status === 'nok').length;
+   157→    const answeredCount = okCount + nokCount;
+   158→    const scorePercent = totalItems > 0 ? Math.min(Math.round((okCount / totalItems) * 100), 100) : 0;
+   159→    return { okCount, nokCount, answeredCount, scorePercent };
+   160→  }, [results, totalItems]);
+   161→
+   162→  // Check that all NOK items have hallazgo and mejora filled
+   163→  const nokItems = Object.values(results).filter(r => r.status === 'nok');
+   164→  const allNokCompleted = nokItems.length === 0 || nokItems.every(r => (r.hallazgo || '').trim() !== '' && (r.mejora || '').trim() !== '');
+   165→
+   166→  const passed = scoring.scorePercent >= notaMinima;
+   167→  const canSubmit = canPerformAutoeval && scoring.answeredCount > 0 && allNokCompleted;
+   168→
+   169→  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   170→    const files = e.target.files;
+   171→    if (!files) return;
+   172→    for (const file of Array.from(files)) {
+   173→      const preview = URL.createObjectURL(file);
+   174→      setAutoevalPhotos(prev => [...prev, { file, preview }]);
+   175→    }
+   176→    // Reset input
+   177→    if (photoInputRef.current) photoInputRef.current.value = '';
+   178→  };
+   179→
+   180→  const removeAutoevalPhoto = (index: number) => {
+   181→    setAutoevalPhotos(prev => {
+   182→      const photo = prev[index];
+   183→      if (photo.preview) URL.revokeObjectURL(photo.preview);
+   184→      return prev.filter((_, i) => i !== index);
+   185→    });
+   186→  };
+   187→
+   188→  const toggleSection = (sectionId: string) => {
+   189→    setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+   190→  };
+   191→
+   192→  const setItemStatus = (itemId: string, status: 'ok' | 'nok' | 'na') => {
+   193→    setResults(prev => ({
+   194→      ...prev,
+   195→      [itemId]: { ...prev[itemId], itemId, status },
+   196→    }));
+   197→  };
+   198→
+   199→  const setItemField = (itemId: string, field: 'hallazgo' | 'mejora' | 'otherText', value: string) => {
+   200→    setResults(prev => ({
+   201→      ...prev,
+   202→      [itemId]: { ...prev[itemId], itemId, [field]: value },
+   203→    }));
+   204→  };
+   205→
+   206→  const handleSubmit = async () => {
+   207→    if (!canSubmit) return;
+   208→    if (!canPerformAutoeval) return; // Only responsable/admin for S4, or any employee for S1/S2/S3/S5
+   209→    setIsSubmitting(true);
+   210→    try {
+   211→      // Only mark as completed if score meets notaMinima threshold
+   212→      // If not passed, still save results but step stays available for retry
+   213→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+   214→        method: 'PUT',
+   215→        headers: { 'Content-Type': 'application/json' },
+   216→        body: JSON.stringify({
+   217→          completed: passed,
+   218→          score: scoring.scorePercent,
+   219→          notes: JSON.stringify({
+   220→            type: 'autoevaluacion',
+   221→            passed,
+   222→            notaMinima,
+   223→            results: Object.values(results),
+   224→            observaciones,
+   225→            fechaAutoevaluacion,
+   226→            horaAutoevaluacion,
+   227→            fechaProgramada: fechaProgramada || null,
+   228→            horaProgramada: horaProgramada || null,
+   229→          }),
+   230→          projectId: currentProject?.id,
+   231→          zoneId: currentZone?.id || null,
+   232→        }),
+   233→      });
+   234→      const json = await res.json();
+   235→      if (json.success) {
+   236→        setIsCompleted(true);
+   237→        setFinalScore(scoring.scorePercent);
+   238→        await fetchProgress();
+   239→
+   240→        // ─── Create EmployeeProgress record for individual step 4 (autoevaluación) ───
+   241→        // Step 4 is individual for S1/S2/S3/S5 (done by employees) and for S4 (done by responsable)
+   242→        // We need to track individual completion so the gating system unlocks step 5
+   243→        if (passed && currentUser?.id && currentProject?.id && currentZone?.id) {
+   244→          try {
+   245→            await fetch('/api/employee-progress', {
+   246→              method: 'POST',
+   247→              headers: { 'Content-Type': 'application/json' },
+   248→              body: JSON.stringify({
+   249→                sStep,
+   250→                miniStep: 4,
+   251→                completed: true,
+   252→                score: scoring.scorePercent,
+   253→                projectId: currentProject.id,
+   254→                zoneId: currentZone.id,
+   255→                userId: currentUser.id,
+   256→              }),
+   257→            });
+   258→            // Also refresh employee progress so step 5 unlocks immediately
+   259→            const { fetchEmployeeProgress } = use5SStore.getState();
+   260→            await fetchEmployeeProgress(currentProject.id, currentZone.id);
+   261→          } catch (empErr) {
+   262→            console.error('Error creating employee progress for autoeval:', empErr);
+   263→          }
+   264→        }
+   265→
+   266→        // ─── Upload photos to library with traceability ───
+   267→        if (autoevalPhotos.length > 0) {
+   268→          setIsUploadingPhotos(true);
+   269→          for (let idx = 0; idx < autoevalPhotos.length; idx++) {
+   270→            const photo = autoevalPhotos[idx];
+   271→            try {
+   272→              // Step 1: Upload the file to get a server URL
+   273→              const formData = new FormData();
+   274→              formData.append('file', photo.file);
+   275→              formData.append('filename', `S${sStep}_autoeval_${currentZone?.name || 'zona'}_${idx + 1}_${Date.now()}.jpg`);
+   276→
+   277→              const uploadRes = await fetch('/api/upload', {
+   278→                method: 'POST',
+   279→                body: formData,
+   280→              });
+   281→              const uploadData = await uploadRes.json();
+   282→
+   283→              if (uploadData.success && uploadData.url) {
+   284→                // Step 2: Save to photo library with full traceability
+   285→                await fetch('/api/photo-library', {
+   286→                  method: 'POST',
+   287→                  headers: { 'Content-Type': 'application/json' },
+   288→                  body: JSON.stringify({
+   289→                    sStep,
+   290→                    miniStep: 4,
+   291→                    title: `Autoeval S${sStep} - Foto ${idx + 1}`,
+   292→                    description: `${sStepData?.japaneseName || 'S' + sStep} - ${currentZone?.name || 'Zona'} - Paso 4 Autoevaluación - Subida por ${currentUser?.name || 'Usuario'}`,
+   293→                    photoUrl: uploadData.url,
+   294→                    photoType: 'hallazgo',
+   295→                    category: `paso4_s${sStep}`,
+   296→                    tags: JSON.stringify([`S${sStep}`, sStepData?.japaneseName || '', currentZone?.name || '', 'paso4', 'autoevaluacion', 'hallazgo']),
+   297→                    projectId: currentProject?.id,
+   298→                    zoneId: currentZone?.id || null,
+   299→                    uploadedBy: currentUser?.id || null,
+   300→                  }),
+   301→                });
+   302→              }
+   303→            } catch (photoErr) {
+   304→              console.error('Error uploading autoeval photo:', photoErr);
+   305→            }
+   306→          }
+   307→          setIsUploadingPhotos(false);
+   308→        }
+   309→
+   310→        // ─── Create Action Items for NOK (disfunciones) ───
+   311→        const nokResults = Object.values(results).filter((r: any) => r.status === 'nok');
+   312→        for (const nok of nokResults) {
+   313→          if (!nok.hallazgo && !nok.mejora) continue; // Skip items without description
+   314→          try {
+   315→            await fetch('/api/actions', {
+   316→              method: 'POST',
+   317→              headers: { 'Content-Type': 'application/json' },
+   318→              body: JSON.stringify({
+   319→                sStep,
+   320→                miniStep: 4,
+   321→                itemId: nok.itemId,
+   322→                itemDescription: `Disfunción detectada en autoevaluación: ${nok.itemId}`,
+   323→                hallazgo: nok.hallazgo || nok.itemId,
+   324→                mejora: nok.mejora || '',
+   325→                responsable: null,
+   326→                prioridad: 'media',
+   327→                estado: 'abierta',
+   328→                source: 'autoevaluacion',
+   329→                auditor: null,
+   330→                projectId: currentProject?.id,
+   331→                zoneId: currentZone?.id || null,
+   332→              }),
+   333→            });
+   334→          } catch (actionError) {
+   335→            console.error('Error creating action item from autoevaluación:', actionError);
+   336→          }
+   337→        }
+   338→
+   339→        // ─── Notify responsables of NOK disfunciones ───
+   340→        if (nokResults.length > 0 && currentProject?.id && currentZone?.id) {
+   341→          try {
+   342→            const membersRes = await fetch(`/api/projects/${currentProject.id}/members`);
+   343→            const membersData = await membersRes.json();
+   344→            const allMembers = membersData?.members || [];
+   345→
+   346→            const sStepData = S_STEPS.find(s => s.id === sStep);
+   347→            const disfuncionMessage = `Se han detectado ${nokResults.length} disfunción(es) en la autoevaluación de S${sStep} (${sStepData?.japaneseName || ''}) en la zona "${currentZone.name}". Revisa el Plan de Acción.`;
+   348→
+   349→            // Notify zone responsable
+   350→            const responsableIds = new Set<string>();
+   351→            if (currentZone.responsableId) responsableIds.add(currentZone.responsableId);
+   352→            const responsables = allMembers.filter((m: any) => m.role === 'responsable');
+   353→            for (const resp of responsables) responsableIds.add(resp.userId);
+   354→
+   355→            for (const respId of responsableIds) {
+   356→              await fetch('/api/notifications', {
+   357→                method: 'POST',
+   358→                headers: { 'Content-Type': 'application/json' },
+   359→                body: JSON.stringify({
+   360→                  userId: respId,
+   361→                  type: 'disfuncion',
+   362→                  title: `Disfunciones detectadas: S${sStep} — ${sStepData?.japaneseName || ''}`,
+   363→                  message: disfuncionMessage,
+   364→                  sStep,
+   365→                  zoneId: currentZone.id,
+   366→                  projectId: currentProject.id,
+   367→                }),
+   368→              });
+   369→            }
+   370→          } catch (notifError) {
+   371→            console.error('Error notifying responsables of disfunciones:', notifError);
+   372→          }
+   373→        }
+   374→
+   375→        // Check if Steps 1-4 are now all completed for this S-step in the zone
+   376→        // If so, notify auditor(s) that they can perform Step 5
+   377→        if (currentProject?.id && currentZone?.id) {
+   378→          try {
+   379→            // Fetch all progress for this zone and S-step
+   380→            const progRes = await fetch(`/api/progress?projectId=${currentProject.id}`);
+   381→            const progData = await progRes.json();
+   382→            const allProgress = progData?.data || [];
+   383→
+   384→            // Also fetch employee progress for individual steps (formación = step 1)
+   385→            const empProgRes = await fetch(`/api/employee-progress?projectId=${currentProject.id}&zoneId=${currentZone.id}`);
+   386→            const empProgData = await empProgRes.json();
+   387→            const allEmpProgress = empProgData?.data || [];
+   388→
+   389→            // Check steps 1-4 completed (both zone-level progress AND employee progress)
+   390→            let allStepsCompleted = true;
+   391→            for (let ms = 1; ms <= 4; ms++) {
+   392→              const zoneStep = allProgress.find((p: any) =>
+   393→                p.sStep === sStep &&
+   394→                p.miniStep === ms &&
+   395→                (p.zoneId === currentZone.id || p.zoneId === null) &&
+   396→                p.completed
+   397→              );
+   398→              if (zoneStep) continue; // Zone-level completed
+   399→
+   400→              // Also check employee progress for individual steps
+   401→              const empStep = allEmpProgress.some((ep: any) =>
+   402→                ep.sStep === sStep &&
+   403→                ep.miniStep === ms &&
+   404→                ep.zoneId === currentZone.id &&
+   405→                ep.completed
+   406→              );
+   407→              if (empStep) continue; // Some employee completed this step
+   408→
+   409→              allStepsCompleted = false;
+   410→              break;
+   411→            }
+   412→
+   413→            if (allStepsCompleted) {
+   414→              // Find auditor and responsable users for this project and notify them
+   415→              const membersRes = await fetch(`/api/projects/${currentProject.id}/members`);
+   416→              const membersData = await membersRes.json();
+   417→              const allMembers = membersData?.members || [];
+   418→
+   419→              const sStepData = S_STEPS.find(s => s.id === sStep);
+   420→              const notifMessage = `Los pasos 1-4 de S${sStep} (${sStepData?.japaneseName || ''}) en la zona "${currentZone.name}" han sido completados. La auditoría (Paso 5) está lista para realizarse.`;
+   421→
+   422→              // Notify auditors
+   423→              const auditors = allMembers.filter((m: any) => m.role === 'auditor');
+   424→              for (const auditor of auditors) {
+   425→                await fetch('/api/notifications', {
+   426→                  method: 'POST',
+   427→                  headers: { 'Content-Type': 'application/json' },
+   428→                  body: JSON.stringify({
+   429→                    userId: auditor.userId,
+   430→                    type: 'audit_ready',
+   431→                    title: `Auditoría lista: S${sStep} — ${sStepData?.japaneseName || ''}`,
+   432→                    message: notifMessage,
+   433→                    sStep,
+   434→                    zoneId: currentZone.id,
+   435→                    projectId: currentProject.id,
+   436→                  }),
+   437→                });
+   438→              }
+   439→
+   440→              // Notify responsable of the zone (from zone.responsableId OR from project members)
+   441→              const responsableIds = new Set<string>();
+   442→              if (currentZone.responsableId) responsableIds.add(currentZone.responsableId);
+   443→              const responsables = allMembers.filter((m: any) => m.role === 'responsable');
+   444→              for (const resp of responsables) responsableIds.add(resp.userId);
+   445→              for (const respId of responsableIds) {
+   446→                await fetch('/api/notifications', {
+   447→                  method: 'POST',
+   448→                  headers: { 'Content-Type': 'application/json' },
+   449→                  body: JSON.stringify({
+   450→                    userId: respId,
+   451→                    type: 'audit_ready',
+   452→                    title: `Auditoría lista: S${sStep} — ${sStepData?.japaneseName || ''}`,
+   453→                    message: notifMessage,
+   454→                    sStep,
+   455→                    zoneId: currentZone.id,
+   456→                    projectId: currentProject.id,
+   457→                  }),
+   458→                });
+   459→              }
+   460→            }
+   461→          } catch (notifError) {
+   462→            console.error('Error sending notification to auditor:', notifError);
+   463→          }
+   464→        }
+   465→      }
+   466→    } catch (error) {
+   467→      console.error('Error submitting self-evaluation:', error);
+   468→    } finally {
+   469→      setIsSubmitting(false);
+   470→    }
+   471→  };
+   472→
+   473→  const handleAdminSkip = async () => {
+   474→    try {
+   475→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+   476→        method: 'PUT',
+   477→        headers: { 'Content-Type': 'application/json' },
+   478→        body: JSON.stringify({ completed: true, score: 100, notes: 'Completado por administrador (skip)', skipMissingTemplate: true, projectId: currentProject?.id, zoneId: currentZone?.id || null }),
+   479→      });
+   480→      const json = await res.json();
+   481→      if (json.success) {
+   482→        await fetchProgress();
+   483→        onClose();
+   484→      }
+   485→    } catch (error) {
+   486→      console.error('Error admin skip:', error);
+   487→    }
+   488→  };
+   489→
+   490→  return (
+   491→    <Dialog open={open} onOpenChange={() => onClose()}>
+   492→      <DialogContent size={isFullscreen ? "fullscreen" : "xl"} className="flex flex-col overflow-hidden p-0">
+   493→        <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
+   494→          <DialogTitle className="flex items-center gap-2">
+   495→            <CheckSquare className="h-5 w-5" style={{ color: sStepData?.color }} />
+   496→            <span>Autoevaluación Interna</span>
+   497→            <Badge variant="outline" style={{ borderColor: sStepData?.color, color: sStepData?.color }}>
+   498→              {sStepData?.japaneseName} — {sStepData?.spanishName}
+   499→            </Badge>
+   500→            <button
+   501→              onClick={() => setIsFullscreen(!isFullscreen)}
+   502→              className="ml-auto p-1 rounded hover:bg-muted transition-colors"
+   503→              title={isFullscreen ? "Reducir ventana" : "Pantalla completa"}
+   504→            >
+   505→              {isFullscreen ? <Minimize2 className="h-4 w-4 text-muted-foreground" /> : <Maximize2 className="h-4 w-4 text-muted-foreground" />}
+   506→            </button>
+   507→          </DialogTitle>
+   508→        </DialogHeader>
+   509→
+   510→        {canSkipSteps && !isCompleted && (
+   511→          <div className="flex items-center gap-2 p-2 mx-6 flex-shrink-0 bg-amber-50 border border-amber-200 rounded-lg">
+   512→            <span className="text-xs text-amber-700 font-medium">Modo Admin:</span>
+   513→            <Button
+   514→              variant="outline"
+   515→              size="sm"
+   516→              className="text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
+   517→              onClick={handleAdminSkip}
+   518→            >
+   519→              Completar paso sin autoevaluación
+   520→            </Button>
+   521→          </div>
+   522→        )}
+   523→
+   524→        {isReadOnly && !isCompleted && (
+   525→          <div className="flex items-center gap-2 p-2 mx-6 flex-shrink-0 bg-blue-50 border border-blue-200 rounded-lg">
+   526→            <span className="text-xs text-blue-700 font-medium">Solo lectura: {canSkipSteps ? 'Activa el candado para poder realizar pasos.' : 'Puedes ver pero no modificar.'}</span>
+   527→          </div>
+   528→        )}
+   529→
+   530→        <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
+   531→        {isLoadingTemplate ? (
+   532→          <div className="flex items-center justify-center py-12">
+   533→            <div className="h-8 w-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+   534→          </div>
+   535→        ) : sections.length === 0 ? (
+   536→          <div className="text-center py-12">
+   537→            <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-3" />
+   538→            <h3 className="text-lg font-bold mb-2">No hay checklist configurado</h3>
+   539→            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+   540→              No se encontró una plantilla de autoevaluación para S{sStep}. 
+   541→              Crea una plantilla en <strong>Administración → Plantillas → Auditoría Interna</strong> 
+   542→              o pulsa el botón &quot;Crear plantillas por defecto&quot;.
+   543→            </p>
+   544→          </div>
+   545→        ) : isCompleted ? (
+   546→          <div className="text-center py-8">
+   547→            {passed ? (
+   548→              <>
+   549→                <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-3" />
+   550→                <h3 className="text-xl font-bold mb-2 text-green-700">¡Autoevaluación Aprobada!</h3>
+   551→              </>
+   552→            ) : (
+   553→              <>
+   554→                <XCircle className="h-16 w-16 text-red-500 mx-auto mb-3" />
+   555→                <h3 className="text-xl font-bold mb-2 text-red-700">Autoevaluación No Aprobada</h3>
+   556→              </>
+   557→            )}
+   558→            <p className="text-lg mb-1">Puntuación: <strong>{finalScore}%</strong></p>
+   559→            <p className="text-sm text-muted-foreground">
+   560→              {scoring.okCount} OK / {scoring.nokCount} NOK de {totalItems} puntos de verificación
+   561→            </p>
+   562→            <p className="text-xs text-muted-foreground mt-1">
+   563→              Mínimo requerido: {notaMinima}%
+   564→            </p>
+   565→            {!passed && (
+   566→              <p className="text-sm text-amber-600 mt-3">
+   567→                Debes obtener al menos {notaMinima}% para desbloquear el Paso 5 (Auditoría). 
+   568→                Corrige las disfunciones y vuelve a realizar la autoevaluación.
+   569→              </p>
+   570→            )}
+   571→            {passed && (
+   572→              <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
+   573→                <p className="text-sm font-semibold">→ Próximo paso: Auditoría (Paso 5)</p>
+   574→                <p className="text-xs mt-1">Cierra este diálogo y pulsa en el paso 5 del pentágono, o usa el botón 🔔 Auditar para solicitar una fecha.</p>
+   575→              </div>
+   576→            )}
+   577→          </div>
+   578→        ) : (
+   579→          <div className="space-y-4">
+   580→            {/* Info banner */}
+   581→            <div className="p-3 rounded-lg border-l-4" style={{ borderColor: sStepData?.color, backgroundColor: `${sStepData?.color}08` }}>
+   582→              <p className="text-sm font-medium" style={{ color: sStepData?.color }}>
+   583→                Autoevaluación Interna — {sStepData?.japaneseName}
+   584→              </p>
+   585→              <p className="text-sm text-muted-foreground mt-1">
+   586→                Evalúa cada punto de verificación. Marca OK si cumple, NOK si hay desviación. 
+   587→                Los NOKs generan hallazgos y puntos de mejora como plan de acción.
+   588→              </p>
+   589→            </div>
+   590→
+   591→            {/* Date/Time: Programación y Registro */}
+   592→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+   593→              <div className="space-y-2">
+   594→                <p className="text-xs font-semibold text-blue-700 flex items-center gap-1">
+   595→                  <Calendar className="h-3.5 w-3.5" />
+   596→                  Programar Autoevaluación
+   597→                </p>
+   598→                <div className="grid grid-cols-2 gap-2">
+   599→                  <div>
+   600→                    <Label htmlFor="fechaProgramada" className="text-[10px] text-blue-600">Fecha programada</Label>
+   601→                    <Input id="fechaProgramada" type="date" value={fechaProgramada}
+   602→                      onChange={e => setFechaProgramada(e.target.value)}
+   603→                      className="h-7 text-xs" />
+   604→                  </div>
+   605→                  <div>
+   606→                    <Label htmlFor="horaProgramada" className="text-[10px] text-blue-600">Hora programada</Label>
+   607→                    <Input id="horaProgramada" type="time" value={horaProgramada}
+   608→                      onChange={e => setHoraProgramada(e.target.value)}
+   609→                      className="h-7 text-xs" />
+   610→                  </div>
+   611→                </div>
+   612→                {fechaProgramada && (
+   613→                  <Button size="sm" variant="outline" className="h-6 text-[10px] border-blue-300 text-blue-700"
+   614→                    onClick={handleSaveSchedule}>
+   615→                    Guardar programación
+   616→                  </Button>
+   617→                )}
+   618→              </div>
+   619→              <div className="space-y-2">
+   620→                <p className="text-xs font-semibold text-blue-700 flex items-center gap-1">
+   621→                  <CheckSquare className="h-3.5 w-3.5" />
+   622→                  Registro de Autoevaluación
+   623→                </p>
+   624→                <div className="grid grid-cols-2 gap-2">
+   625→                  <div>
+   626→                    <Label htmlFor="fechaAutoeval" className="text-[10px] text-blue-600">Fecha realización</Label>
+   627→                    <Input id="fechaAutoeval" type="date" value={fechaAutoevaluacion}
+   628→                      onChange={e => setFechaAutoevaluacion(e.target.value)}
+   629→                      className="h-7 text-xs" />
+   630→                  </div>
+   631→                  <div>
+   632→                    <Label htmlFor="horaAutoeval" className="text-[10px] text-blue-600">Hora realización</Label>
+   633→                    <Input id="horaAutoeval" type="time" value={horaAutoevaluacion}
+   634→                      onChange={e => setHoraAutoevaluacion(e.target.value)}
+   635→                      className="h-7 text-xs" />
+   636→                  </div>
+   637→                </div>
+   638→              </div>
+   639→            </div>
+   640→
+   641→            {/* Score indicator */}
+   642→            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+   643→              <div>
+   644→                <span className="text-sm font-medium">Puntuación</span>
+   645→                <p className="text-xs text-muted-foreground">
+   646→                  {scoring.okCount} OK / {scoring.nokCount} NOK de {totalItems} puntos
+   647→                </p>
+   648→              </div>
+   649→              <div className="flex items-center gap-2">
+   650→                <Badge className="bg-green-100 text-green-800">OK: {scoring.okCount}</Badge>
+   651→                <Badge className="bg-red-100 text-red-800">NOK: {scoring.nokCount}</Badge>
+   652→                <Badge variant={scoring.scorePercent >= notaMinima ? 'default' : 'secondary'}>
+   653→                  {scoring.scorePercent}% (mín. {notaMinima}%)
+   654→                </Badge>
+   655→              </div>
+   656→            </div>
+   657→
+   658→            {/* Checklist sections */}
+   659→            <div className="space-y-3">
+   660→              {sections.map(section => (
+   661→                <Card key={section.id} className="overflow-hidden">
+   662→                  {/* Section header */}
+   663→                  <button
+   664→                    className="w-full p-3 flex items-center gap-2 hover:bg-muted/50 transition-colors text-left"
+   665→                    onClick={() => toggleSection(section.id)}
+   666→                  >
+   667→                    {expandedSections[section.id] ? (
+   668→                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+   669→                    ) : (
+   670→                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+   671→                    )}
+   672→                    <Badge variant="outline" className="text-xs font-mono">{section.id}</Badge>
+   673→                    <span className="font-semibold text-sm">{section.title}</span>
+   674→                    <span className="ml-auto text-xs text-muted-foreground">
+   675→                      {section.items.length} puntos
+   676→                    </span>
+   677→                  </button>
+   678→
+   679→                  {/* Section items */}
+   680→                  {expandedSections[section.id] && (
+   681→                    <CardContent className="px-4 pb-4 pt-0 space-y-3">
+   682→                      {section.items.map(item => {
+   683→                        const result = results[item.id];
+   684→                        const isNok = result?.status === 'nok';
+   685→
+   686→                        return (
+   687→                          <div key={item.id} className="border rounded-lg p-3 space-y-2">
+   688→                            {/* Item header: description + status buttons */}
+   689→                            <div className="flex items-start gap-3">
+   690→                              <span className="text-xs font-mono text-muted-foreground shrink-0 mt-0.5">
+   691→                                {item.id}
+   692→                              </span>
+   693→                              <p className="text-sm flex-1">{item.description}</p>
+   694→                              <div className="flex gap-1 shrink-0">
+   695→                                <button
+   696→                                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+   697→                                    result?.status === 'ok'
+   698→                                      ? 'bg-green-500 text-white'
+   699→                                      : 'bg-green-50 text-green-700 hover:bg-green-100'
+   700→                                  }`}
+   701→                                  onClick={() => setItemStatus(item.id, 'ok')}
+   702→                                >
+   703→                                  OK
+   704→                                </button>
+   705→                                <button
+   706→                                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+   707→                                    result?.status === 'nok'
+   708→                                      ? 'bg-red-500 text-white'
+   709→                                      : 'bg-red-50 text-red-700 hover:bg-red-100'
+   710→                                  }`}
+   711→                                  onClick={() => setItemStatus(item.id, 'nok')}
+   712→                                >
+   713→                                  NOK
+   714→                                </button>
+   715→                                <button
+   716→                                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+   717→                                    result?.status === 'na'
+   718→                                      ? 'bg-gray-500 text-white'
+   719→                                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+   720→                                  }`}
+   721→                                  onClick={() => setItemStatus(item.id, 'na')}
+   722→                                >
+   723→                                  N/A
+   724→                                </button>
+   725→                              </div>
+   726→                            </div>
+   727→
+   728→                            {/* "Otros" text field */}
+   729→                            {item.hasOther && (
+   730→                              <Input
+   731→                                placeholder="Especificar..."
+   732→                                value={result?.otherText || ''}
+   733→                                onChange={e => setItemField(item.id, 'otherText', e.target.value)}
+   734→                                className="text-sm"
+   735→                              />
+   736→                            )}
+   737→
+   738→                            {/* NOK details: hallazgo + mejora — OBLIGATORIOS */}
+   739→                            {isNok && (
+   740→                              <div className="space-y-2 pl-6 border-l-2 border-red-200">
+   741→                                <div>
+   742→                                  <label className="text-xs font-medium text-red-700">Referencia del hallazgo (desviación) *</label>
+   743→                                  <Textarea
+   744→                                    placeholder="Obligatorio: describa la desviación encontrada..."
+   745→                                    value={result?.hallazgo || ''}
+   746→                                    onChange={e => setItemField(item.id, 'hallazgo', e.target.value)}
+   747→                                    className={`text-sm mt-1 ${!(result?.hallazgo || '').trim() ? 'border-red-400 focus:border-red-500' : ''}`}
+   748→                                    rows={2}
+   749→                                  />
+   750→                                  {!(result?.hallazgo || '').trim() && (
+   751→                                    <p className="text-[10px] text-red-500 mt-0.5">Campo obligatorio</p>
+   752→                                  )}
+   753→                                </div>
+   754→                                <div>
+   755→                                  <label className="text-xs font-medium text-amber-700">Punto a Mejorar (sugerencia) *</label>
+   756→                                  <Textarea
+   757→                                    placeholder="Obligatorio: sugiera una mejora..."
+   758→                                    value={result?.mejora || ''}
+   759→                                    onChange={e => setItemField(item.id, 'mejora', e.target.value)}
+   760→                                    className={`text-sm mt-1 ${!(result?.mejora || '').trim() ? 'border-amber-400 focus:border-amber-500' : ''}`}
+   761→                                    rows={2}
+   762→                                  />
+   763→                                  {!(result?.mejora || '').trim() && (
+   764→                                    <p className="text-[10px] text-amber-500 mt-0.5">Campo obligatorio</p>
+   765→                                  )}
+   766→                                </div>
+   767→                                <div>
+   768→                                  <Button variant="outline" size="sm" className="text-xs">
+   769→                                    <Camera className="h-3 w-3 mr-1" /> Añadir foto (biblioteca paso 2)
+   770→                                  </Button>
+   771→                                </div>
+   772→                              </div>
+   773→                            )}
+   774→                          </div>
+   775→                        );
+   776→                      })}
+   777→                    </CardContent>
+   778→                  )}
+   779→                </Card>
+   780→              ))}
+   781→            </div>
+   782→
+   783→            {/* Observaciones */}
+   784→            <Card>
+   785→              <CardContent className="p-4">
+   786→                <label className="text-sm font-medium">Observaciones generales</label>
+   787→                <Textarea
+   788→                  placeholder="Observaciones adicionales de la autoevaluación..."
+   789→                  value={observaciones}
+   790→                  onChange={e => setObservaciones(e.target.value)}
+   791→                  className="mt-2"
+   792→                  rows={3}
+   793→                />
+   794→              </CardContent>
+   795→            </Card>
+   796→
+   797→            {/* Fotos de la autoevaluación */}
+   798→            <Card>
+   799→              <CardContent className="p-4 space-y-3">
+   800→                <div className="flex items-center justify-between">
+   801→                  <div className="flex items-center gap-2">
+   802→                    <Camera className="h-4 w-4 text-muted-foreground" />
+   803→                    <label className="text-sm font-medium">Fotos de la autoevaluación</label>
+   804→                  </div>
+   805→                  <span className="text-xs text-muted-foreground">{autoevalPhotos.length} foto{autoevalPhotos.length !== 1 ? 's' : ''}</span>
+   806→                </div>
+   807→                <p className="text-xs text-muted-foreground">
+   808→                  Añade fotos de hallazgos o disfunciones detectadas. Se guardarán en la biblioteca con trazabilidad.
+   809→                </p>
+   810→                <input
+   811→                  ref={photoInputRef}
+   812→                  type="file"
+   813→                  accept="image/*"
+   814→                  multiple
+   815→                  className="hidden"
+   816→                  onChange={handlePhotoSelect}
+   817→                />
+   818→                <button
+   819→                  className="w-full border-2 border-dashed rounded-lg p-4 flex flex-col items-center gap-2 hover:border-primary/50 hover:bg-muted/30 transition-colors"
+   820→                  onClick={() => photoInputRef.current?.click()}
+   821→                >
+   822→                  <Upload className="h-5 w-5 text-muted-foreground" />
+   823→                  <span className="text-xs font-medium">Seleccionar fotos</span>
+   824→                </button>
+   825→                {autoevalPhotos.length > 0 && (
+   826→                  <div className="grid grid-cols-4 gap-2">
+   827→                    {autoevalPhotos.map((photo, idx) => (
+   828→                      <div key={idx} className="relative group">
+   829→                        <img src={photo.preview} alt={`Foto ${idx + 1}`} className="w-full h-20 object-cover rounded-lg border" />
+   830→                        <button
+   831→                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+   832→                          onClick={() => removeAutoevalPhoto(idx)}
+   833→                        >
+   834→                          <X className="h-3 w-3" />
+   835→                        </button>
+   836→                      </div>
+   837→                    ))}
+   838→                  </div>
+   839→                )}
+   840→              </CardContent>
+   841→            </Card>
+   842→
+   843→            {/* NOK incomplete warning */}
+   844→            {nokItems.length > 0 && !allNokCompleted && (
+   845→              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+   846→                <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+   847→                <p className="text-xs text-red-700">
+   848→                  Debes completar los campos <strong>"Referencia del hallazgo"</strong> y <strong>"Punto a Mejorar"</strong> en todos los items NOK ({nokItems.filter(r => !(r.hallazgo || '').trim() || !(r.mejora || '').trim()).length} pendientes)
+   849→                </p>
+   850→              </div>
+   851→            )}
+   852→
+   853→            {/* Submit button */}
+   854→            <div className="flex justify-end">
+   855→              <Button
+   856→                onClick={handleSubmit}
+   857→                disabled={!canSubmit || isSubmitting}
+   858→                style={canSubmit ? { backgroundColor: passed ? sStepData?.color : '#dc2626' } : undefined}
+   859→              >
+   860→                {isSubmitting ? 'Enviando...' : passed ? `Completar Autoevaluación (${scoring.scorePercent}% - Apto)` : `Enviar Autoevaluación (${scoring.scorePercent}% - No Apto, mín. ${notaMinima}%)`}
+   861→              </Button>
+   862→            </div>
+   863→          </div>
+   864→        )}
+   865→        </div>
+   866→      </DialogContent>
+   867→    </Dialog>
+   868→  );
+   869→}
+   870→

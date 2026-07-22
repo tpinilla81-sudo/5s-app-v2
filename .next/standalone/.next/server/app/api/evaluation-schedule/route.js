@@ -1,0 +1,7 @@
+var R=require("../../../chunks/[turbopack]_runtime.js")("server/app/api/evaluation-schedule/route.js")
+R.c("server/chunks/[root-of-the-server]__76d6cb1e._.js")
+R.c("server/chunks/[root-of-the-server]__8f5ebbc3._.js")
+R.c("server/chunks/node_modules_next_1402a1da._.js")
+R.c("server/chunks/_next-internal_server_app_api_evaluation-schedule_route_actions_ae004af5.js")
+R.m(65601)
+module.exports=R.m(65601).exports
