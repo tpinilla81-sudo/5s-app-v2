@@ -1044,6 +1044,21 @@ export default function HomePage() {
                                             const sStepData = S_STEPS.find(ss => ss.id === s.id);
                                             const formattedDate = new Date(result).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
                                             const msg = `Se solicita auditoría para S${s.id} (${sStepData?.japaneseName || ''}) en la zona "${currentZone?.name || ''}". Fecha propuesta: ${formattedDate}.`;
+                                            
+                                            // Save the proposed date to EvaluationSchedule so the auditor sees it pre-filled
+                                            await fetch('/api/evaluation-schedule', {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({
+                                                sStep: s.id,
+                                                miniStep: 5,
+                                                fechaProgramada: result.slice(0, 10), // YYYY-MM-DD
+                                                horaProgramada: result.slice(11, 16),  // HH:MM
+                                                projectId: currentProject?.id,
+                                                zoneId: currentZone?.id || null,
+                                              }),
+                                            });
+                                            
                                             const membersRes = await fetch(`/api/projects/${currentProject?.id}/members`);
                                             const membersData = await membersRes.json();
                                             const allMembers = membersData?.members || [];

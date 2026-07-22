@@ -568,6 +568,12 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                 Corrige las disfunciones y vuelve a realizar la autoevaluación.
               </p>
             )}
+            {passed && (
+              <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
+                <p className="text-sm font-semibold">→ Próximo paso: Auditoría (Paso 5)</p>
+                <p className="text-xs mt-1">Cierra este diálogo y pulsa en el paso 5 del pentágono, o usa el botón 🔔 Auditar para solicitar una fecha.</p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-4">

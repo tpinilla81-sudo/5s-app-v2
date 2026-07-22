@@ -832,13 +832,23 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
           return;
         }
 
-        // Find the header row: look for a row that contains 'Nº' or 'Elemento' or 'Nombre'
+        // Find the header row: look for a row that contains MULTIPLE keywords
+        // (not just one — subtitle rows like "Identificar y eliminar los elementos innecesarios"
+        // contain "elemento" but are NOT header rows)
         let headerIdx = 0;
+        let bestScore = 0;
+        const HEADER_KEYWORDS = ['elemento', 'nombre', 'nº', 'punto', 'ubicación', 'zona', 'cantidad', 'precio', 'estado', 'frecuencia', 'decisión', 'responsable', 'observaciones', 'categoría'];
         for (let i = 0; i < Math.min(10, rawData.length); i++) {
           const rowStr = rawData[i].map(c => String(c).toLowerCase()).join('|');
-          if (rowStr.includes('elemento') || rowStr.includes('nombre') || rowStr.includes('nº') || rowStr.includes('punto')) {
+          // Count how many header keywords match AND how many non-empty cells exist
+          const keywordScore = HEADER_KEYWORDS.filter(kw => rowStr.includes(kw)).length;
+          const nonEmptyCells = rawData[i].filter(c => String(c).trim() !== '').length;
+          // Header rows have MANY keyword matches AND many non-empty short-label cells
+          // Subtitle rows have few keywords (just 1-2) and few cells
+          const combinedScore = keywordScore * 2 + (nonEmptyCells >= 3 ? nonEmptyCells : 0);
+          if (combinedScore > bestScore) {
+            bestScore = combinedScore;
             headerIdx = i;
-            break;
           }
         }
         headerRow = rawData[headerIdx].map((h: any) => String(h).trim().toLowerCase());
@@ -1321,6 +1331,10 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                 <span className="text-sm text-green-600">Necesarios: {necesarios.length}</span>
               </div>
             )}
+            <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
+              <p className="text-sm font-semibold">→ Próximo paso: Pre-auditoría (Autoevaluación)</p>
+              <p className="text-xs mt-1">Cierra este diálogo y pulsa en el paso 4 del pentágono para continuar.</p>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -1610,17 +1624,33 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                       />
                     </div>
                     {sStep === 1 ? (
-                      /* S1: Zona is pre-filled from current zone, read-only */
+                      /* S1: Zona selectable (allows changing if item belongs to different zone) */
                       <div>
                         <label className="text-xs font-medium flex items-center gap-1">
                           <MapPin className="h-3 w-3" />
-                          Zona
+                          Zona origen
                         </label>
-                        <Input
-                          value={currentZone?.name || newItem.zonaOrigen || 'Sin zona'}
-                          readOnly
-                          className="bg-gray-50 text-gray-600"
-                        />
+                        {currentProject?.zones && currentProject.zones.length > 0 ? (
+                          <Select
+                            value={newItem.zonaOrigen || currentZone?.name || undefined}
+                            onValueChange={val => setNewItem(prev => ({ ...prev, zonaOrigen: val }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar zona" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {currentProject.zones.map(z => (
+                                <SelectItem key={z.id} value={z.name}>{z.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            value={newItem.zonaOrigen || currentZone?.name || ''}
+                            onChange={e => setNewItem(prev => ({ ...prev, zonaOrigen: e.target.value }))}
+                            placeholder="Zona origen"
+                          />
+                        )}
                       </div>
                     ) : (
                       /* Non-S1: Zona selectable */

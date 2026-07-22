@@ -206,11 +206,46 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
     addPhoto(base64);
   }, [facingMode, addPhoto]);
 
+  // Load existing photos from DB when modal opens
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
+
+  useEffect(() => {
+    if (open && currentProject?.id) {
+      setLoadingPhotos(true);
+      fetch(`/api/photo-library?projectId=${currentProject.id}&sStep=${sStep}&miniStep=2&zoneId=${currentZone?.id || ''}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.data && data.data.length > 0) {
+            const existingPhotos: PhotoItem[] = data.data.map((p: any) => ({
+              preview: p.photoUrl, // Use the stored URL as preview
+              serverUrl: p.photoUrl,
+              uploaded: true,
+              uploading: false,
+              estimatedSize: 0,
+              title: p.title || '',
+              photoType: p.photoType || 'antes',
+              savedToLibrary: true, // Already saved in DB
+            }));
+            setPhotos(existingPhotos);
+            // If step was already completed, mark it
+            const antesCount = existingPhotos.filter(p => p.photoType === 'antes').length;
+            const despuesCount = existingPhotos.filter(p => p.photoType === 'despues').length;
+            if (antesCount >= MIN_PHOTOS) setIsCompleted(true);
+          }
+          setLoadingPhotos(false);
+        })
+        .catch(err => {
+          console.error('Error loading existing photos:', err);
+          setLoadingPhotos(false);
+        });
+    }
+  }, [open, currentProject?.id, sStep, currentZone?.id]);
+
   useEffect(() => {
     if (!open) {
       stopStream();
-      setPhotos([]);
-      setIsCompleted(false);
+      // Don't clear photos on close — they should persist
+      // Only clear transient UI state
       setCameraError(null);
       setCameraMode('idle');
       setActiveTab('camera');
@@ -252,10 +287,12 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
       const urls = photos.map(p => p.serverUrl || p.preview).join(',');
 
       // Save each photo to the PhotoLibrary with full traceability
+      // Use serverUrl if available, otherwise use preview (base64) as the photoUrl
       const libraryPromises = photos
-        .filter(p => p.serverUrl && !p.savedToLibrary)
+        .filter(p => !p.savedToLibrary)
         .map((p, idx) => {
-          const allUploadedBefore = photos.slice(0, idx).filter(pp => pp.serverUrl).length;
+          const allUploadedBefore = photos.slice(0, idx).filter(pp => pp.serverUrl || pp.preview).length;
+          const photoUrlForDb = p.serverUrl || p.preview; // Use base64 as fallback if upload failed
           return fetch('/api/photo-library', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -264,7 +301,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
               miniStep: 2,
               title: p.title || generatePhotoTitle(allUploadedBefore, p.photoType),
               description: `${sStepData?.japaneseName || 'S' + sStep} - ${currentZone?.name || 'Zona'} - Paso 2 Fotos - Subida por ${currentUser?.name || 'Usuario'}`,
-              photoUrl: p.serverUrl,
+              photoUrl: photoUrlForDb,
               photoType: p.photoType || 'antes',
               category: `paso2_s${sStep}`,
               tags: JSON.stringify([`S${sStep}`, sStepData?.japaneseName || '', currentZone?.name || '', `paso2`, p.photoType]),
@@ -275,13 +312,15 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
           });
         });
       
-      // Save to library in parallel (don't block if it fails)
-      Promise.allSettled(libraryPromises).then(results => {
-        const saved = results.filter(r => r.status === 'fulfilled').length;
-        const failed = results.filter(r => r.status === 'rejected').length;
-        if (failed > 0) console.warn(`[FotosModal] ${failed} photos failed to save to library`);
-        else if (saved > 0) console.log(`[FotosModal] ${saved} photos saved to library`);
-      });
+      // Wait for ALL photo library saves to complete before proceeding
+      const libraryResults = await Promise.allSettled(libraryPromises);
+      const savedCount = libraryResults.filter(r => r.status === 'fulfilled').length;
+      const failedCount = libraryResults.filter(r => r.status === 'rejected').length;
+      if (failedCount > 0) console.warn(`[FotosModal] ${failedCount} photos failed to save to library`);
+      else if (savedCount > 0) console.log(`[FotosModal] ${savedCount} photos saved to library`);
+      
+      // Mark all photos as saved in local state
+      setPhotos(prev => prev.map(p => ({ ...p, savedToLibrary: true })));
 
       // Save progress
       const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
@@ -354,6 +393,10 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
             <h3 className="text-xl font-bold mb-2">Fotografías del ANTES Guardadas</h3>
             <p className="text-muted-foreground">Ha guardado {photos.length} fotos como evidencia del estado inicial.</p>
             <p className="text-xs text-muted-foreground mt-2">Tamaño total optimizado: {formatBytes(totalSize)}</p>
+            <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
+              <p className="text-sm font-semibold">→ Próximo paso: Inventario (Clasificar elementos)</p>
+              <p className="text-xs mt-1">Cierra este diálogo y pulsa en el paso 3 del pentágono para continuar.</p>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
