@@ -96,7 +96,7 @@ try:
     repo_info = api_call(f"https://api.github.com/repos/{repo}")
     size_mb = repo_info.get("size", 0) / 1024
     print(f"  Repo size: {size_mb:.1f} MB")
-    
+
     print("Checking new tree for cloudflared...")
     new_ref = api_call(f"https://api.github.com/repos/{repo}/git/refs/heads/{branch}")
     new_cs = new_ref["object"]["sha"]
