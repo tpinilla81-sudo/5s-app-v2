@@ -111,7 +111,7 @@ interface FiveSState {
   // Auth & Project State
   currentUser: User | null
   currentProject: Project | null
-  authView: 'login' | 'register' | 'setup' | 'board' | 'no_projects'
+  authView: 'landing' | 'login' | 'register' | 'setup' | 'board' | 'no_projects'
   projects: Project[]
   companies: Company[]
   isAuthLoading: boolean       // Only for initial session check
@@ -157,7 +157,7 @@ interface FiveSState {
   fetchCompanies: () => Promise<void>
   createProject: (data: { name: string; description?: string; company: string; companyId?: string; zones: { name: string; description?: string; color?: string }[] }) => Promise<void>
   setCurrentProject: (project: Project | null) => void
-  setAuthView: (view: 'login' | 'register' | 'setup' | 'board') => void
+  setAuthView: (view: 'landing' | 'login' | 'register' | 'setup' | 'board') => void
   clearAuthError: () => void
 }
 
@@ -178,7 +178,7 @@ export const use5SStore = create<FiveSState>((set, get) => ({
   // Auth & Project State
   currentUser: null,
   currentProject: null,
-  authView: 'login',
+  authView: 'landing',
   projects: [],
   companies: [],
   isAuthLoading: true,
@@ -836,7 +836,7 @@ export const use5SStore = create<FiveSState>((set, get) => ({
       currentProject: null,
       currentZone: null,
       userZones: [],
-      authView: 'login',
+      authView: 'landing',
       projects: [],
       companies: [],
       isLoginLoading: false,
@@ -882,11 +882,11 @@ export const use5SStore = create<FiveSState>((set, get) => ({
           }
         }
       } else {
-        set({ authView: 'login' })
+        set({ authView: 'landing' })
       }
     } catch (error) {
       console.error('Session check error:', error)
-      set({ authView: 'login' })
+      set({ authView: 'landing' })
     } finally {
       set({ isAuthLoading: false })
     }
@@ -961,7 +961,7 @@ export const use5SStore = create<FiveSState>((set, get) => ({
     }
   },
 
-  setAuthView: (view) => set({ authView: view as 'login' | 'register' | 'setup' | 'board' | 'no_projects', authError: null }),
+  setAuthView: (view) => set({ authView: view as 'landing' | 'login' | 'register' | 'setup' | 'board' | 'no_projects', authError: null }),
 
   clearAuthError: () => set({ authError: null }),
 }))

@@ -16,6 +16,7 @@ import PhotoLibrary from '@/components/5s/PhotoLibrary';
 import AutoevaluacionModal from '@/components/5s/AutoevaluacionModal';
 import AuditoriaModal from '@/components/5s/AuditoriaModal';
 import LoginPage from '@/components/auth/LoginPage';
+import LandingPage from '@/components/auth/LandingPage';
 import ProjectSetup from '@/components/auth/ProjectSetup';
 import TeamManagement from '@/components/auth/TeamManagement';
 import RolePermissions from '@/components/auth/RolePermissions';
@@ -92,6 +93,7 @@ export default function HomePage() {
     isAuthLoading,
     checkSession,
     logout,
+    setAuthView,
     adminFreeNavigation,
     setAdminFreeNavigation,
     currentZone,
@@ -306,6 +308,7 @@ export default function HomePage() {
     );
   }
 
+  if (authView === 'landing') return <LandingPage onLogin={() => setAuthView('login')} />;
   if (authView === 'login' || authView === 'register') return <LoginPage />;
   if (authView === 'setup') return <ProjectSetup />;
   if (authView === 'no_projects') {
