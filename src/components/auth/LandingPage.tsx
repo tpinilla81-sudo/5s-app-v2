@@ -1,11 +1,15 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import {
   Search, ArrowRight, Sparkles, BarChart3, ShieldCheck,
   ClipboardList, Camera, CheckSquare, GraduationCap,
-  TrendingUp, Users, Target, Award, ArrowDown
+  TrendingUp, Users, Target, Award, ArrowDown, ArrowDownRight,
+  RotateCcw, Eye, LayoutDashboard, Zap, Clock, Layers,
+  ChevronRight, Play, CheckCircle2, Circle, AlertCircle,
+  Lightbulb, Wrench, FileText, MapPin
 } from 'lucide-react'
 
 interface LandingPageProps {
@@ -18,36 +22,114 @@ const fadeUp = {
   transition: { duration: 0.6 }
 }
 
-const S_STEPS_DATA = [
-  { num: 1, name: 'Seiri', label: 'Revisar', color: '#ef4444', icon: Search, desc: 'Identificar y eliminar lo innecesario. Solo lo que se necesita, en la cantidad justa, en el lugar adecuado.' },
-  { num: 2, name: 'Seiton', label: 'Ordenar', color: '#f97316', icon: ArrowRight, desc: 'Un lugar para cada cosa y cada cosa en su lugar. Ordenar para encontrar al instante.' },
-  { num: 3, name: 'Seiso', label: 'Limpiar', color: '#eab308', icon: Sparkles, desc: 'Limpiar es inspeccionar. La limpieza como método de detección de anomalías y prevención.' },
-  { num: 4, name: 'Seiketsu', label: 'Estandarizar', color: '#22c55e', icon: ClipboardList, desc: 'Crear estándares visuales y procedimientos para mantener los logros alcanzados.' },
-  { num: 5, name: 'Shitsuke', label: 'Mantener', color: '#3b82f6', icon: ShieldCheck, desc: 'Disciplina y mejora continua. Convertir las buenas prácticas en hábito permanente.' },
+// ── Animated counter hook ──
+function useCounter(end: number, duration = 2000, startOnView = true) {
+  const [count, setCount] = useState(0)
+  const ref = useRef<HTMLDivElement>(null)
+  const started = useRef(false)
+
+  useEffect(() => {
+    if (!startOnView) return
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !started.current) {
+        started.current = true
+        const startTime = performance.now()
+        const step = () => {
+          const progress = Math.min((performance.now() - startTime) / duration, 1)
+          const eased = 1 - Math.pow(1 - progress, 3) // easeOutCubic
+          setCount(Math.round(eased * end))
+          if (progress < 1) requestAnimationFrame(step)
+        }
+        requestAnimationFrame(step)
+      }
+    }, { threshold: 0.3 })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [end, duration, startOnView])
+
+  return { count, ref }
+}
+
+// ── 5S Cycle data ──
+const S_CYCLE = [
+  { num: 1, name: 'SEIRI', label: 'Revisar', color: '#ef4444', angle: 270,
+    desc: 'Identificar y separar lo necesario de lo innecesario. Eliminar lo que no aporta valor.',
+    result: 'Espacio liberado, desperdicios eliminados' },
+  { num: 2, name: 'SEITON', label: 'Ordenar', color: '#f97316', angle: 342,
+    desc: 'Un lugar para cada cosa. Etiquetar, señalar y ordenar para acceso inmediato.',
+    result: 'Tiempo de búsqueda reducido a 0' },
+  { num: 3, name: 'SEISO', label: 'Limpiar', color: '#eab308', angle: 54,
+    desc: 'Limpiar es inspeccionar. Detectar fugas, desgastes y anomalías durante la limpieza.',
+    result: 'Anomalías detectadas al instante' },
+  { num: 4, name: 'SEIKETSU', label: 'Estandarizar', color: '#22c55e', angle: 126,
+    desc: 'Crear estándares visuales y procedimientos que mantengan los tres pasos anteriores.',
+    result: 'Consistencia: siempre igual, siempre bien' },
+  { num: 5, name: 'SHITSUKE', label: 'Mantener', color: '#3b82f6', angle: 198,
+    desc: 'Disciplina y mejora continua. Convertir las buenas prácticas en hábito permanente.',
+    result: 'Cultura de mejora continua arraigada' },
 ]
 
-const BENEFITS = [
-  { icon: TrendingUp, title: 'Reducción de costes', desc: 'Elimina desperdicios, reduce tiempos de búsqueda y minimiza el inventario innecesario.' },
-  { icon: Target, title: 'Mayor productividad', desc: 'Menos tiempo buscando herramientas y materiales, más tiempo produciendo valor.' },
-  { icon: ShieldCheck, title: 'Seguridad laboral', desc: 'Un entorno ordenado y limpio reduce accidentes hasta un 60% según estudios.' },
-  { icon: BarChart3, title: 'Control visual total', desc: 'Anomalías visibles al instante. El problema se detecta cuando aparece, no cuando explota.' },
-  { icon: Users, title: 'Compromiso del equipo', desc: 'Todos participan, todos son responsables. La mejora es cosa de todos, no de un departamento.' },
-  { icon: Award, title: 'Mejora continua real', desc: 'PDCA integrado. No es un proyecto, es una forma de trabajar que evoluciona cada día.' },
+// ── Stats ──
+const STATS = [
+  { value: 60, suffix: '%', label: 'Reducción de accidentes', icon: ShieldCheck },
+  { value: 40, suffix: '%', label: 'Aumento de productividad', icon: TrendingUp },
+  { value: 85, suffix: '%', label: 'Reducción tiempos búsqueda', icon: Clock },
+  { value: 3, suffix: 'x', label: 'Retorno de la inversión', icon: BarChart3 },
 ]
 
-const FEATURES = [
-  { icon: GraduationCap, title: 'Formación integrada', desc: 'Contenido formativo para cada S con evaluación del conocimiento.' },
-  { icon: Camera, title: 'Evidencia fotográfica', desc: 'Fotos antes/después con trazabilidad completa por zona y elemento.' },
-  { icon: CheckSquare, title: 'Autoevaluación y auditoría', desc: 'Checklists personalizables, puntuación automática y seguimiento de hallazgos.' },
-  { icon: ClipboardList, title: 'Gestión de inventarios', desc: 'Innecessarios, necesarios, puntos de suciedad, estándares y disciplina.' },
-  { icon: Sparkles, title: 'Tablero visual 5S', desc: 'Vista del progreso por zonas con indicadores de estado en tiempo real.' },
-  { icon: BarChart3, title: 'PDCA y planes de acción', desc: 'Planificación, ejecución, verificación y actuación integrados en cada paso.' },
+// ── Flow: How the app connects everything ──
+const FLOW_STEPS = [
+  { icon: GraduationCap, title: 'Formación', desc: 'El equipo aprende cada S con contenido interactivo y exámenes', color: '#ef4444' },
+  { icon: Camera, title: 'Evidencia', desc: 'Fotos antes/después con geolocalización y trazabilidad', color: '#f97316' },
+  { icon: ClipboardList, title: 'Inventario', desc: 'Listados digitales de innecesarios, necesarios, suciedad y estándares', color: '#eab308' },
+  { icon: CheckSquare, title: 'Autoevaluación', desc: 'Checklists con puntuación automática y detección de hallazgos', color: '#22c55e' },
+  { icon: ShieldCheck, title: 'Auditoría', desc: 'Auditorías trimestrales con informes, seguimiento y planes de acción', color: '#3b82f6' },
+]
+
+// ── App Preview: simulated board ──
+const PREVIEW_ZONES = [
+  { name: 'Almacén', s1: 92, s2: 85, s3: 78, s4: 65, s5: 50 },
+  { name: 'Producción', s1: 88, s2: 90, s3: 82, s4: 70, s5: 55 },
+  { name: 'Oficinas', s1: 95, s2: 88, s3: 90, s4: 75, s5: 60 },
+]
+
+// ── Interaction connections ──
+const CONNECTIONS = [
+  { from: 'Gestor', to: 'Empresa', desc: 'Crea y gestiona empresas desde el panel central' },
+  { from: 'Admin', to: 'Proyecto', desc: 'Configura zonas, tableros y asigna responsables' },
+  { from: 'Responsable', to: 'Zona', desc: 'Dirige la autoevaluación y seguimiento de su zona' },
+  { from: 'Empleado', to: 'Pasos 5S', desc: 'Completa formación, fotos e inventario' },
+  { from: 'Auditor', to: 'Auditoría', desc: 'Realiza auditorías trimestrales y genera informes' },
+  { from: 'Gerente', to: 'Dashboard', desc: 'Supervisa progreso, KPIs y planes de acción' },
 ]
 
 export default function LandingPage({ onLogin }: LandingPageProps) {
+  const [activeS, setActiveS] = useState(0)
+  const [activeFlow, setActiveFlow] = useState(0)
+  const stat1 = useCounter(60)
+  const stat2 = useCounter(40)
+  const stat3 = useCounter(85)
+  const stat4 = useCounter(3)
+  const statRefs = [stat1, stat2, stat3, stat4]
+
+  // Auto-cycle 5S
+  useEffect(() => {
+    const interval = setInterval(() => setActiveS(prev => (prev + 1) % 5), 3000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Auto-cycle flow
+  useEffect(() => {
+    const interval = setInterval(() => setActiveFlow(prev => (prev + 1) % FLOW_STEPS.length), 2500)
+    return () => clearInterval(interval)
+  }, [])
+
   return (
-    <div className="min-h-screen bg-white">
-      {/* Hero */}
+    <div className="min-h-screen bg-white overflow-x-hidden">
+
+      {/* ═══ HERO ═══ */}
       <section className="relative overflow-hidden bg-gradient-to-br from-green-600 via-emerald-600 to-teal-700 text-white">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-20 left-10 w-72 h-72 bg-white rounded-full blur-3xl" />
@@ -69,148 +151,384 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
                 más orden, más limpieza, más eficiencia, más competitividad.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
-                <Button
-                  size="lg"
-                  onClick={onLogin}
-                  className="bg-white text-green-700 hover:bg-green-50 text-lg px-8 py-6 shadow-xl shadow-green-900/20 font-semibold"
-                >
+                <Button size="lg" onClick={onLogin}
+                  className="bg-white text-green-700 hover:bg-green-50 text-lg px-8 py-6 shadow-xl shadow-green-900/20 font-semibold">
                   Iniciar Sesión
                 </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => document.getElementById('que-es')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="border-white/40 text-white hover:bg-white/10 text-lg px-8 py-6"
-                >
-                  Descubre más
+                <Button size="lg" variant="outline"
+                  onClick={() => document.getElementById('ciclo')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="border-white/40 text-white hover:bg-white/10 text-lg px-8 py-6">
+                  Ver cómo funciona
                   <ArrowDown className="h-5 w-5 ml-2" />
                 </Button>
               </div>
             </motion.div>
-            <motion.div
-              className="flex-shrink-0 w-48 h-48 md:w-64 md:h-64"
-              initial={{ scale: 0, rotate: -20 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: 'spring', stiffness: 100, delay: 0.3 }}
-            >
+            <motion.div className="flex-shrink-0 w-48 h-48 md:w-64 md:h-64"
+              initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 100, delay: 0.3 }}>
               <img src="/5s-logo.png" alt="5S Logo" className="w-full h-full object-contain drop-shadow-2xl" />
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Qué es 5S */}
-      <section id="que-es" className="py-16 md:py-24 bg-gradient-to-b from-white to-green-50/50">
+      {/* ═══ STATS COUNTER ═══ */}
+      <section className="py-12 md:py-16 bg-white border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-6">
-          <motion.div className="text-center mb-16" {...fadeUp}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
+            {STATS.map((stat, i) => (
+              <div key={i} ref={statRefs[i].ref} className="text-center">
+                <div className="flex items-center justify-center mb-2">
+                  <stat.icon className="h-5 w-5 text-green-500 mr-2" />
+                  <span className="text-3xl md:text-4xl font-bold text-gray-900">
+                    {statRefs[i].count}{stat.suffix}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ 5S CYCLE INTERACTIVE ═══ */}
+      <section id="ciclo" className="py-16 md:py-24 bg-gradient-to-b from-white to-green-50/30">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div className="text-center mb-12" {...fadeUp}>
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Las 5 S del éxito empresarial
+              El ciclo 5S: 5 pasos, 1 transformación
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Cinco principios japoneses que, aplicados con disciplina, transforman radicalmente
-              cualquier entorno de trabajo. De la fábrica a la oficina, del almacén al hospital.
+              Cada S alimenta la siguiente. Es un ciclo virtuoso que se refuerza a sí mismo.
+              Haz clic en cada paso para ver cómo se conectan.
             </p>
           </motion.div>
 
-          <div className="grid gap-6 md:gap-8">
-            {S_STEPS_DATA.map((s, i) => (
-              <motion.div
-                key={s.num}
-                initial={{ opacity: 0, x: i % 2 === 0 ? -40 : 40 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: '-50px' }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
-                className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6 bg-white rounded-2xl p-6 md:p-8 shadow-lg shadow-gray-200/50 border border-gray-100"
-              >
-                <div
-                  className="flex-shrink-0 w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg"
-                  style={{ backgroundColor: s.color }}
+          <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
+            {/* Pentagon visual */}
+            <div className="flex-shrink-0 w-[280px] h-[280px] md:w-[340px] md:h-[340px] relative">
+              <svg viewBox="0 0 200 200" className="w-full h-full">
+                {/* Center circle */}
+                <circle cx="100" cy="100" r="28" fill="#059669" opacity="0.1" />
+                <text x="100" y="96" textAnchor="middle" className="text-[9px] font-bold" fill="#059669">CICLO</text>
+                <text x="100" y="108" textAnchor="middle" className="text-[8px]" fill="#059669">5S</text>
+
+                {/* Connecting lines */}
+                {S_CYCLE.map((s, i) => {
+                  const next = S_CYCLE[(i + 1) % 5]
+                  const r = 75
+                  const x1 = 100 + r * Math.cos((s.angle - 90) * Math.PI / 180)
+                  const y1 = 100 + r * Math.sin((s.angle - 90) * Math.PI / 180)
+                  const x2 = 100 + r * Math.cos((next.angle - 90) * Math.PI / 180)
+                  const y2 = 100 + r * Math.sin((next.angle - 90) * Math.PI / 180)
+                  return (
+                    <line key={`line-${i}`} x1={x1} y1={y1} x2={x2} y2={y2}
+                      stroke={i === activeS ? s.color : '#d1d5db'} strokeWidth={i === activeS ? 2.5 : 1}
+                      strokeDasharray={i === activeS ? 'none' : '4 3'} opacity={i === activeS ? 1 : 0.4} />
+                  )
+                })}
+
+                {/* Nodes */}
+                {S_CYCLE.map((s, i) => {
+                  const r = 75
+                  const x = 100 + r * Math.cos((s.angle - 90) * Math.PI / 180)
+                  const y = 100 + r * Math.sin((s.angle - 90) * Math.PI / 180)
+                  const isActive = i === activeS
+                  return (
+                    <g key={`node-${i}`} onClick={() => setActiveS(i)} className="cursor-pointer">
+                      <circle cx={x} cy={y} r={isActive ? 20 : 15}
+                        fill={isActive ? s.color : 'white'} stroke={s.color}
+                        strokeWidth={isActive ? 3 : 2}
+                        style={{ transition: 'all 0.3s' }} />
+                      <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="middle"
+                        className="text-[10px] font-bold" fill={isActive ? 'white' : s.color}>
+                        S{s.num}
+                      </text>
+                    </g>
+                  )
+                })}
+              </svg>
+            </div>
+
+            {/* Active step detail */}
+            <div className="flex-1 min-w-0">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeS}
+                  initial={{ opacity: 0, x: 30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -30 }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-white rounded-2xl p-6 md:p-8 shadow-xl border border-gray-100"
                 >
-                  {s.num}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xl font-bold text-gray-900">{s.label}</h3>
-                    <span className="text-sm font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 italic">{s.name}</span>
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg"
+                      style={{ backgroundColor: S_CYCLE[activeS].color }}>
+                      S{S_CYCLE[activeS].num}
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-900">{S_CYCLE[activeS].label}</h3>
+                      <span className="text-sm font-medium text-gray-400 italic">{S_CYCLE[activeS].name}</span>
+                    </div>
                   </div>
-                  <p className="text-gray-600 leading-relaxed">{s.desc}</p>
+                  <p className="text-gray-600 leading-relaxed mb-4">{S_CYCLE[activeS].desc}</p>
+                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                    <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                    <span className="text-sm font-medium text-green-800">{S_CYCLE[activeS].result}</span>
+                  </div>
+                  {/* Progress dots */}
+                  <div className="flex gap-2 mt-6">
+                    {S_CYCLE.map((s, i) => (
+                      <button key={i} onClick={() => setActiveS(i)}
+                        className={`h-2 rounded-full transition-all ${i === activeS ? 'w-8' : 'w-2'}`}
+                        style={{ backgroundColor: i === activeS ? s.color : '#d1d5db' }} />
+                    ))}
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ APP FLOW: How it all connects ═══ */}
+      <section className="py-16 md:py-24 bg-gray-50">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div className="text-center mb-12" {...fadeUp}>
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              Cómo funciona la plataforma
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Cada paso del método 5S se despliega en 5 mini-pasos interconectados.
+              Todo fluye, nada se pierde.
+            </p>
+          </motion.div>
+
+          {/* Flow visualization */}
+          <div className="relative">
+            <div className="flex flex-col md:flex-row items-stretch gap-3 md:gap-0">
+              {FLOW_STEPS.map((step, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.4, delay: i * 0.15 }}
+                  className={`flex-1 relative ${i === activeFlow ? 'z-10' : 'z-0'}`}
+                  onClick={() => setActiveFlow(i)}
+                >
+                  <div className={`mx-1 md:mx-2 rounded-xl p-4 md:p-5 border-2 transition-all cursor-pointer ${
+                    i === activeFlow
+                      ? 'bg-white shadow-lg border-green-500 scale-105'
+                      : 'bg-white/60 border-gray-200 hover:border-gray-300'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: step.color + '15' }}>
+                        <step.icon className="h-4 w-4" style={{ color: step.color }} />
+                      </div>
+                      <span className={`font-semibold text-sm ${i === activeFlow ? 'text-gray-900' : 'text-gray-500'}`}>
+                        {step.title}
+                      </span>
+                    </div>
+                    <AnimatePresence mode="wait">
+                      {i === activeFlow && (
+                        <motion.p
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="text-xs text-gray-600 leading-relaxed"
+                        >
+                          {step.desc}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  {/* Arrow connector */}
+                  {i < FLOW_STEPS.length - 1 && (
+                    <div className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-20">
+                      <ChevronRight className="h-4 w-4 text-gray-300" />
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          {/* Connection line */}
+          <div className="mt-3 flex justify-center gap-1">
+            {FLOW_STEPS.map((_, i) => (
+              <button key={i} onClick={() => setActiveFlow(i)}
+                className={`h-1.5 rounded-full transition-all ${i === activeFlow ? 'w-6 bg-green-500' : 'w-1.5 bg-gray-300'}`} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ APP PREVIEW: Simulated Board ═══ */}
+      <section className="py-16 md:py-24 bg-gradient-to-b from-gray-900 to-gray-800 text-white">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div className="text-center mb-12" {...fadeUp}>
+            <div className="inline-flex items-center gap-2 bg-green-500/10 rounded-full px-4 py-1.5 text-sm mb-4 text-green-400">
+              <Eye className="h-4 w-4" />
+              Vista previa de la plataforma
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Así se ve el tablero 5S
+            </h2>
+            <p className="text-lg text-gray-400 max-w-2xl mx-auto">
+              Cada zona muestra su progreso en los 5 pasos. Verde = completado, amarillo = en progreso, gris = pendiente.
+            </p>
+          </motion.div>
+
+          {/* Mock board */}
+          <div className="bg-gray-800/50 rounded-2xl p-6 md:p-8 border border-gray-700/50">
+            <div className="flex items-center gap-3 mb-6">
+              <LayoutDashboard className="h-5 w-5 text-green-400" />
+              <span className="font-semibold">Tablero 5S — Proyecto Roncal</span>
+              <span className="ml-auto text-xs text-gray-500">3 zonas</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="text-left py-3 px-2 text-sm text-gray-400 font-medium">Zona</th>
+                    <th className="text-center py-3 px-2 text-sm text-gray-400">S1</th>
+                    <th className="text-center py-3 px-2 text-sm text-gray-400">S2</th>
+                    <th className="text-center py-3 px-2 text-sm text-gray-400">S3</th>
+                    <th className="text-center py-3 px-2 text-sm text-gray-400">S4</th>
+                    <th className="text-center py-3 px-2 text-sm text-gray-400">S5</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PREVIEW_ZONES.map((zone, i) => (
+                    <motion.tr key={i}
+                      initial={{ opacity: 0, x: -20 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: i * 0.15 }}
+                      className="border-b border-gray-700/50">
+                      <td className="py-3 px-2 font-medium text-sm">{zone.name}</td>
+                      {[zone.s1, zone.s2, zone.s3, zone.s4, zone.s5].map((score, j) => {
+                        const S_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']
+                        const isComplete = score >= 80
+                        const isProgress = score >= 50 && score < 80
+                        return (
+                          <td key={j} className="text-center py-3 px-2">
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              whileInView={{ scale: 1 }}
+                              viewport={{ once: true }}
+                              transition={{ delay: i * 0.15 + j * 0.08, type: 'spring', stiffness: 200 }}
+                              className="inline-flex flex-col items-center gap-1"
+                            >
+                              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold relative overflow-hidden"
+                                style={{ backgroundColor: isComplete ? S_COLORS[j] + '20' : isProgress ? '#fef3c7' : '#f3f4f6' }}>
+                                <span style={{ color: isComplete ? S_COLORS[j] : isProgress ? '#d97706' : '#9ca3af' }}>{score}%</span>
+                              </div>
+                              {isComplete && <CheckCircle2 className="h-3 w-3" style={{ color: S_COLORS[j] }} />}
+                              {!isComplete && isProgress && <AlertCircle className="h-3 w-3 text-amber-500" />}
+                              {!isComplete && !isProgress && <Circle className="h-3 w-3 text-gray-400" />}
+                            </motion.div>
+                          </td>
+                        )
+                      })}
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center gap-6 mt-6 text-xs text-gray-400">
+              <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-green-500" /> Completado (≥80%)</span>
+              <span className="flex items-center gap-1"><AlertCircle className="h-3 w-3 text-amber-500" /> En progreso</span>
+              <span className="flex items-center gap-1"><Circle className="h-3 w-3 text-gray-500" /> Pendiente</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ ROLES & CONNECTIONS ═══ */}
+      <section className="py-16 md:py-24 bg-white">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div className="text-center mb-12" {...fadeUp}>
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              Cada rol, su conexión
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              La plataforma conecta a cada persona con su responsabilidad.
+              Todos participan, nada queda huérfano.
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {CONNECTIONS.map((c, i) => (
+              <motion.div key={i}
+                initial={{ opacity: 0, y: 15 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: i * 0.1 }}
+                className="bg-gray-50 rounded-xl p-5 border border-gray-100 hover:border-green-200 hover:bg-green-50/30 transition-all"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+                    {c.from}
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 text-gray-300" />
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
+                    {c.to}
+                  </span>
                 </div>
-                <s.icon className="hidden md:block flex-shrink-0 h-10 w-10 opacity-20" style={{ color: s.color }} />
+                <p className="text-sm text-gray-600 leading-relaxed">{c.desc}</p>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Beneficios */}
-      <section className="py-16 md:py-24 bg-gray-900 text-white">
+      {/* ═══ BENEFITS ═══ */}
+      <section className="py-16 md:py-24 bg-gradient-to-b from-green-50/30 to-white">
         <div className="max-w-6xl mx-auto px-6">
-          <motion.div className="text-center mb-16" {...fadeUp}>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              ¿Qué consigues con 5S?
+          <motion.div className="text-center mb-12" {...fadeUp}>
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+              El poder de 5S digitalizado
             </h2>
-            <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-              Las empresas que implementan 5S de forma sostenida obtienen resultados medibles
-              desde el primer trimestre.
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              El papel se pierde, el Excel se desactualiza. La plataforma 5S mantiene todo vivo,
+              conectado y en tiempo real.
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {BENEFITS.map((b, i) => (
-              <motion.div
-                key={i}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[
+              { icon: Zap, title: 'Detección inmediata', desc: 'Las anomalías se detectan cuando aparecen, no cuando causan un paro. El control visual digital permite reaccionar antes de que el problema crezca, reduciendo costes de no calidad hasta un 40%.', color: '#f59e0b' },
+              { icon: Layers, title: 'Trazabilidad total', desc: 'Cada foto, cada hallazgo, cada acción queda registrado con fecha, autor y zona. Nada se pierde. Puedes reconstruir la historia completa de mejora de cualquier área con un clic.', color: '#8b5cf6' },
+              { icon: RotateCcw, title: 'Ciclo PDCA integrado', desc: 'Planificar, hacer, verificar, actuar. Cada hallazgo genera un plan de acción, cada acción se verifica, cada verificación cierra el ciclo. La mejora no se para nunca.', color: '#06b6d4' },
+              { icon: Lightbulb, title: 'Inteligencia de datos', desc: 'La plataforma no solo registra: analiza. Tendencias de puntuación, zonas críticas, evolución temporal. Datos que se convierten en decisiones informadas, no en intuiciones.', color: '#ec4899' },
+            ].map((b, i) => (
+              <motion.div key={i}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: i * 0.1 }}
-                className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 hover:border-green-500/30 transition-colors"
+                className="flex gap-5 bg-white rounded-2xl p-6 md:p-8 shadow-lg border border-gray-100 hover:border-green-200 transition-all"
               >
-                <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center mb-4">
-                  <b.icon className="h-6 w-6 text-green-400" />
+                <div className="flex-shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center"
+                  style={{ backgroundColor: b.color + '12' }}>
+                  <b.icon className="h-7 w-7" style={{ color: b.color }} />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">{b.title}</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">{b.desc}</p>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">{b.title}</h3>
+                  <p className="text-gray-600 text-sm leading-relaxed">{b.desc}</p>
+                </div>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Funcionalidades */}
-      <section className="py-16 md:py-24 bg-gradient-to-b from-green-50/50 to-white">
-        <div className="max-w-6xl mx-auto px-6">
-          <motion.div className="text-center mb-16" {...fadeUp}>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Todo lo que incluye la plataforma
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              No es solo un checklist. Es una plataforma completa que digitaliza
-              todo el ciclo 5S de tu organización.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {FEATURES.map((f, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: i * 0.08 }}
-                className="bg-white rounded-2xl p-6 shadow-lg shadow-gray-200/50 border border-gray-100 hover:shadow-xl hover:border-green-200 transition-all"
-              >
-                <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center mb-4">
-                  <f.icon className="h-6 w-6 text-green-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{f.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{f.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA final */}
+      {/* ═══ CTA ═══ */}
       <section className="py-16 md:py-24 bg-gradient-to-r from-green-600 to-emerald-600 text-white">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <motion.div {...fadeUp}>
@@ -221,18 +539,15 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
               El orden no es un lujo, es una ventaja competitiva.
               Empieza hoy con la plataforma 5S digital.
             </p>
-            <Button
-              size="lg"
-              onClick={onLogin}
-              className="bg-white text-green-700 hover:bg-green-50 text-lg px-10 py-6 shadow-xl font-semibold"
-            >
+            <Button size="lg" onClick={onLogin}
+              className="bg-white text-green-700 hover:bg-green-50 text-lg px-10 py-6 shadow-xl font-semibold">
               Acceder a la plataforma
             </Button>
           </motion.div>
         </div>
       </section>
 
-      {/* Footer */}
+      {/* ═══ FOOTER ═══ */}
       <footer className="py-8 bg-gray-50 border-t border-gray-200">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
