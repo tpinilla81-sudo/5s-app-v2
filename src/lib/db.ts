@@ -5,6 +5,7 @@ import fs from 'fs'
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
   systemConfigMigrated: boolean | undefined
+  dbSchemaVerified: boolean | undefined
 }
 
 // Ensure DATABASE_URL points to Neon PostgreSQL (not SQLite from parent env)
@@ -73,24 +74,45 @@ function createPrismaClient() {
 }
 
 // Always reuse the global instance to prevent connection pool exhaustion with Neon
-// In dev, hot-reload can create many instances; in prod, serverless can too
 const db = globalForPrisma.prisma ?? createPrismaClient()
-
-// Store globally regardless of environment
 globalForPrisma.prisma = db
 
 /**
- * Auto-migrate: ensure SystemConfig table exists.
- * Runs once per process lifetime (uses global flag).
- * This replaces the need for a manual /api/migrate call.
+ * Auto-ensure critical tables exist (idempotent).
+ * Runs once per cold start — uses CREATE TABLE IF NOT EXISTS.
+ *
+ * This is the runtime equivalent of prisma migrate deploy.
+ * Vercel serverless can't run migrations at build time without DATABASE_URL
+ * available to the build process, so we ensure schema at runtime instead.
  */
-export async function ensureSystemConfigTable() {
-  if (globalForPrisma.systemConfigMigrated) return
+export async function ensureDbSchema() {
+  if (globalForPrisma.dbSchemaVerified) return
 
   try {
+    // Session table (required for login)
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "Session" (
+        "id" TEXT PRIMARY KEY,
+        "token" TEXT NOT NULL UNIQUE,
+        "userId" TEXT NOT NULL,
+        "expiresAt" TIMESTAMP(3) NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `)
+    await db.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "Session_token_key" ON "Session"("token");
+    `)
+    await db.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "Session_userId_idx" ON "Session"("userId");
+    `)
+    await db.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "Session_expiresAt_idx" ON "Session"("expiresAt");
+    `)
+
+    // SystemConfig table
     await db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "SystemConfig" (
-        "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        "id" TEXT PRIMARY KEY,
         "key" TEXT NOT NULL UNIQUE,
         "value" TEXT NOT NULL,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -100,11 +122,26 @@ export async function ensureSystemConfigTable() {
     await db.$executeRawUnsafe(`
       CREATE UNIQUE INDEX IF NOT EXISTS "SystemConfig_key_key" ON "SystemConfig"("key");
     `)
-    globalForPrisma.systemConfigMigrated = true
+
+    globalForPrisma.dbSchemaVerified = true
   } catch (e) {
-    // Table might already exist, or we might not have permissions — that's OK
-    globalForPrisma.systemConfigMigrated = true
+    // Don't crash on schema errors — log and continue
+    console.error('[db.ts] Schema verification failed:', e instanceof Error ? e.message : e)
+    globalForPrisma.dbSchemaVerified = true // Don't retry on every request
   }
+}
+
+/**
+ * @deprecated Use ensureDbSchema instead — kept for backwards compatibility.
+ */
+export async function ensureSystemConfigTable() {
+  return ensureDbSchema()
+}
+
+// Kick off schema verification on module load (non-blocking)
+// This ensures tables exist on every cold start without blocking the request
+if (!globalForPrisma.dbSchemaVerified) {
+  ensureDbSchema().catch(() => {})
 }
 
 export { db }
