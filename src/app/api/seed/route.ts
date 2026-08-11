@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createHash } from 'crypto'
 import { db } from '@/lib/db'
-
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex')
-}
+import { hashPassword } from '@/lib/password'
 
 const S_NAMES = ['Revisar', 'Ordenar', 'Limpiar', 'Estandarizar', 'Mantener']
 const S_JAPANESE = ['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke']
@@ -402,10 +398,16 @@ export async function POST() {
         data: {
           email: 't_pinilla@outlook.com',
           name: 'Gestor',
-          password: hashPassword('gestor123'),
+          password: await hashPassword('gestor123'),
           role: 'gestor',
           active: true,
         },
+      })
+    } else if (existingGestor.role !== 'gestor') {
+      // Ensure the gestor user has the correct role
+      await db.user.update({
+        where: { id: existingGestor.id },
+        data: { role: 'gestor', active: true },
       })
     }
 

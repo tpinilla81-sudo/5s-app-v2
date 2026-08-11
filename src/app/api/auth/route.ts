@@ -1,12 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHash, randomBytes } from 'crypto'
+import { randomBytes } from 'crypto'
 import { db, verifyDatabaseConfig } from '@/lib/db'
 import { getAuthUser, SESSION_COOKIE, getSessionExpiry } from '@/lib/auth-helpers'
+import { hashPassword, verifyAndMigratePassword, isLegacyHash } from '@/lib/password'
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 
-function hashPasswordSync(password: string): string {
-  return createHash('sha256').update(password).digest('hex')
+// Simple in-memory rate limiter (per Vercel serverless instance)
+// Note: Across instances this is not perfect, but it stops brute force on a single instance
+const loginAttempts = new Map<string, { count: number; lastAttempt: number }>()
+const MAX_ATTEMPTS = 10
+const WINDOW_MS = 15 * 60 * 1000 // 15 minutes
+
+function checkRateLimit(ip: string): { allowed: boolean; retryAfterSec?: number } {
+  const now = Date.now()
+  const entry = loginAttempts.get(ip)
+
+  if (!entry || now - entry.lastAttempt > WINDOW_MS) {
+    loginAttempts.set(ip, { count: 1, lastAttempt: now })
+    return { allowed: true }
+  }
+
+  entry.count++
+  entry.lastAttempt = now
+
+  if (entry.count > MAX_ATTEMPTS) {
+    const retryAfterSec = Math.ceil((WINDOW_MS - (now - entry.lastAttempt)) / 1000)
+    return { allowed: false, retryAfterSec }
+  }
+
+  return { allowed: true }
+}
+
+function recordFailedAttempt(ip: string) {
+  const now = Date.now()
+  const entry = loginAttempts.get(ip) || { count: 0, lastAttempt: now }
+  entry.count++
+  entry.lastAttempt = now
+  loginAttempts.set(ip, entry)
+}
+
+function clearAttempts(ip: string) {
+  loginAttempts.delete(ip)
 }
 
 // GET /api/auth - Get current session user
@@ -29,6 +64,19 @@ export async function GET(request: NextRequest) {
 
 // POST /api/auth - Login
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+             request.headers.get('x-real-ip') ||
+             'unknown'
+
+  // Rate limit check
+  const rateLimit = checkRateLimit(ip)
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: `Demasiados intentos. Intenta de nuevo en ${rateLimit.retryAfterSec}s.` },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSec) } }
+    )
+  }
+
   try {
     // Verify database configuration before any DB operation
     const dbError = verifyDatabaseConfig()
@@ -55,15 +103,18 @@ export async function POST(request: NextRequest) {
     })
 
     if (!user) {
+      recordFailedAttempt(ip)
       return NextResponse.json(
         { error: 'Credenciales inválidas' },
         { status: 401 }
       )
     }
 
-    const hashedPassword = hashPasswordSync(password)
+    // Verify password AND auto-migrate from SHA256 to bcrypt if needed
+    const { valid, migrated } = await verifyAndMigratePassword(user.id, password, user.password)
 
-    if (user.password !== hashedPassword) {
+    if (!valid) {
+      recordFailedAttempt(ip)
       return NextResponse.json(
         { error: 'Credenciales inválidas' },
         { status: 401 }
@@ -96,6 +147,13 @@ export async function POST(request: NextRequest) {
         expiresAt: { lt: new Date() },
       },
     }).catch(() => {})
+
+    // Clear rate limit on successful login
+    clearAttempts(ip)
+
+    if (migrated) {
+      console.log(`[auth] User ${user.email} password migrated from SHA256 to bcrypt`)
+    }
 
     const response = NextResponse.json(
       {
@@ -133,7 +191,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, email, password, role } = body
+    const { name, email, password } = body
 
     if (!name || !email || !password) {
       return NextResponse.json(
@@ -142,10 +200,16 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Self-registration is always 'empleado' role — admin creates users with specific roles
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: 'La contraseña debe tener al menos 6 caracteres' },
+        { status: 400 }
+      )
+    }
+
+    // Self-registration is always 'empleado' role
     const userRole = 'empleado'
 
-    // Check if user already exists
     const existingUser = await db.user.findUnique({
       where: { email: email.toLowerCase().trim() },
     })
@@ -157,7 +221,8 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const hashedPassword = hashPasswordSync(password)
+    // Use bcrypt for new users
+    const hashedPassword = await hashPassword(password)
 
     const user = await db.user.create({
       data: {
@@ -168,7 +233,6 @@ export async function PUT(request: NextRequest) {
       },
     })
 
-    // Create a secure session token for auto-login
     const token = randomBytes(32).toString('hex')
     const expiresAt = getSessionExpiry()
 
@@ -194,7 +258,6 @@ export async function PUT(request: NextRequest) {
       { status: 201 }
     )
 
-    // Auto-login after registration
     response.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,
       path: '/',
@@ -218,7 +281,6 @@ export async function DELETE(request: NextRequest) {
   try {
     const sessionToken = request.cookies.get(SESSION_COOKIE)?.value
 
-    // Delete the session from database
     if (sessionToken) {
       await db.session.deleteMany({
         where: { token: sessionToken },

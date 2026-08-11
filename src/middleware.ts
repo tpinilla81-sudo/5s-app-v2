@@ -53,6 +53,11 @@ export function middleware(request: NextRequest) {
   // X-XSS-Protection: protección legacy contra XSS
   response.headers.set('X-XSS-Protection', '1; mode=block');
 
+  // HSTS: forzar HTTPS en producción (2 años, include subdomains, preload-ready)
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  }
+
   // Cache control: no cachear páginas dinámicas, pero sí assets estáticos
   if (!url.pathname.startsWith('/_next/static/') && !url.pathname.startsWith('/_next/image/')) {
     response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate, proxy-revalidate');

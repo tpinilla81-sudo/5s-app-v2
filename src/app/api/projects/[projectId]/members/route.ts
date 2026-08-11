@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHash } from 'crypto'
 import { db } from '@/lib/db'
-
-function hashPasswordSync(password: string): string {
-  return createHash('sha256').update(password).digest('hex')
-}
+import { hashPassword } from '@/lib/password'
 
 // GET /api/projects/[projectId]/members - List members with zones, role, and password
 export async function GET(
@@ -119,7 +115,7 @@ export async function POST(
 
       if (!user) {
         // Create user with provided password or default
-        const hashedPassword = hashPasswordSync(rawPassword)
+        const hashedPassword = await hashPassword(rawPassword)
         user = await db.user.create({
           data: {
             email: email.toLowerCase().trim(),

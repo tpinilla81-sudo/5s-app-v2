@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHash } from 'crypto'
 import { db } from '@/lib/db'
 import { getAuthUser } from '@/lib/auth-helpers'
-
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex')
-}
+import { hashPassword, verifyPassword } from '@/lib/password'
 
 // GET /api/users - List all users with their project memberships
 // Gestor sees all users; admin/gerente sees only users from their companies
@@ -147,7 +143,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: name.trim(),
         email: email.trim().toLowerCase(),
-        password: hashPassword(password),
+        password: await hashPassword(password),
         plainPassword: password,
         role: role || 'empleado',
         active: active !== undefined ? active : true,
@@ -210,7 +206,7 @@ export async function PUT(request: NextRequest) {
     if (position !== undefined) updateData.position = position
     if (employeeId !== undefined) updateData.employeeId = employeeId
     if (password && password.length >= 6) {
-      updateData.password = hashPassword(password)
+      updateData.password = await hashPassword(password)
       updateData.plainPassword = password
     }
 

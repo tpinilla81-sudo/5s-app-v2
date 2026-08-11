@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHash } from 'crypto'
 import { db } from '@/lib/db'
-
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex')
-}
+import { verifyPassword } from '@/lib/password'
 
 /**
  * POST /api/users/verify-password
@@ -26,8 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ valid: false, error: 'Usuario no encontrado' }, { status: 404 })
     }
 
-    const hashedPassword = hashPassword(password)
-    const valid = user.password === hashedPassword
+    const valid = await verifyPassword(password, user.password)
 
     return NextResponse.json({ valid })
   } catch (error) {
