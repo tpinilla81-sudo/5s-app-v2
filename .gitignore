@@ -3,3 +3,9 @@ node_modules/
 
 # Next.js build output
 .next/
+
+# Environment variables — MUST be set in Vercel dashboard, never in repo
+.env
+.env.local
+.env.production
+.env.*.local

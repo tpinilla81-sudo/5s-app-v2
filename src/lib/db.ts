@@ -39,12 +39,34 @@ if (!process.env.DATABASE_URL_UNPOOLED) {
   }
 }
 
+/**
+ * Verify that DATABASE_URL is correctly configured for PostgreSQL (Neon).
+ * Returns an error message string if misconfigured, or null if OK.
+ */
+export function verifyDatabaseConfig(): string | null {
+  const url = process.env.DATABASE_URL
+  if (!url) {
+    return 'DATABASE_URL no está configurada. Configúrala en Vercel: Settings → Environment Variables → DATABASE_URL = postgresql://...neon.tech/...?sslmode=require'
+  }
+  if (url.startsWith('file:')) {
+    return 'DATABASE_URL apunta a SQLite local (file:...). En Vercel debe apuntar a PostgreSQL de Neon. Configúrala en: Vercel → Settings → Environment Variables.'
+  }
+  if (!url.startsWith('postgresql://') && !url.startsWith('postgres://')) {
+    return `DATABASE_URL tiene formato inválido. Debe ser postgresql://... (Neon). Valor actual: ${url.substring(0, 30)}...`
+  }
+  return null
+}
+
 function createPrismaClient() {
+  const url = process.env.DATABASE_URL
+  if (!url || url.startsWith('file:') || (!url.startsWith('postgresql://') && !url.startsWith('postgres://'))) {
+    console.error('[db.ts] DATABASE_URL misconfigured:', url ? url.substring(0, 50) + '...' : 'undefined')
+  }
   return new PrismaClient({
     log: ['error'],
     datasources: {
       db: {
-        url: process.env.DATABASE_URL,
+        url,
       },
     },
   })

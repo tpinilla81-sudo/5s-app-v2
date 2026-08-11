@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash, randomBytes } from 'crypto'
-import { db } from '@/lib/db'
+import { db, verifyDatabaseConfig } from '@/lib/db'
 import { getAuthUser, SESSION_COOKIE, getSessionExpiry } from '@/lib/auth-helpers'
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
@@ -30,6 +30,16 @@ export async function GET(request: NextRequest) {
 // POST /api/auth - Login
 export async function POST(request: NextRequest) {
   try {
+    // Verify database configuration before any DB operation
+    const dbError = verifyDatabaseConfig()
+    if (dbError) {
+      console.error('[auth] Database config error:', dbError)
+      return NextResponse.json(
+        { error: 'Configuración de base de datos incorrecta. Revisa DATABASE_URL en Vercel.' },
+        { status: 500 }
+      )
+    }
+
     const body = await request.json()
     const { email, password } = body
 
