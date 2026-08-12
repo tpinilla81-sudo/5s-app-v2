@@ -15,6 +15,10 @@ import StandardsLibrary from '@/components/5s/StandardsLibrary';
 import PhotoLibrary from '@/components/5s/PhotoLibrary';
 import AutoevaluacionModal from '@/components/5s/AutoevaluacionModal';
 import AuditoriaModal from '@/components/5s/AuditoriaModal';
+import JaulaView from '@/components/5s/JaulaView';
+import ActivosView from '@/components/5s/ActivosView';
+import PuntoLimpioView from '@/components/5s/PuntoLimpioView';
+import PlanDeAccionView from '@/components/5s/PlanDeAccionView';
 import LoginPage from '@/components/auth/LoginPage';
 import LandingPage from '@/components/auth/LandingPage';
 import ProjectSetup from '@/components/auth/ProjectSetup';
@@ -303,9 +307,9 @@ export default function HomePage() {
 
   // Available tabs based on role
   // GESTOR (dueño de la app): ONLY sees "Gestión" tab (company management platform)
-  // ALL OTHER ROLES: Tablero (fixed, always) + Mejora Continua (only when 5S cycle complete)
+  // ALL OTHER ROLES: Tablero + inventarios (Jaula/Activos/P.Limpio/Plan Acción) + Mejora Continua (when 5S complete)
   // Admin panel is accessed from header, not main tab bar
-  const availableTabs: { key: 'board' | 'maintenance' | 'gestion'; label: string; icon: React.ReactNode }[] = [];
+  const availableTabs: { key: 'board' | 'jaula' | 'activos' | 'puntoLimpio' | 'actionplan' | 'maintenance' | 'gestion'; label: string; icon: React.ReactNode }[] = [];
 
   if (isGestor) {
     // Gestor ONLY sees the platform management tab
@@ -313,6 +317,16 @@ export default function HomePage() {
   } else {
     // Tablero 5S — fixed, always visible, the main tool for everyone
     availableTabs.push({ key: 'board', label: 'Tablero', icon: <LayoutDashboard className="h-3.5 w-3.5" /> });
+    // Inventario Jaula de Excedentes
+    availableTabs.push({ key: 'jaula', label: 'Jaula', icon: <Package className="h-3.5 w-3.5" /> });
+    // Activos necesarios
+    availableTabs.push({ key: 'activos', label: 'Activos', icon: <BoxSelect className="h-3.5 w-3.5" /> });
+    // Punto Limpio (puntos de suciedad)
+    availableTabs.push({ key: 'puntoLimpio', label: 'P. Limpio', icon: <Droplets className="h-3.5 w-3.5" /> });
+    // Plan de Acción — visible para todos excepto auditor
+    if (currentUser?.role !== 'auditor') {
+      availableTabs.push({ key: 'actionplan', label: 'Plan Acción', icon: <ListChecks className="h-3.5 w-3.5" /> });
+    }
     // Mejora Continua (PDCA) — solo visible cuando se completa el ciclo completo del tablero (las 5S)
     if (is5SCompleted()) {
       availableTabs.push({ key: 'maintenance', label: 'Mejora Continua', icon: <Sparkles className="h-3.5 w-3.5" /> });
@@ -564,6 +578,38 @@ export default function HomePage() {
                         <span className="text-sm font-medium text-indigo-600">Estándares</span>
                       </button>
                     )}
+                    {/* 📦 Jaula de Excedentes */}
+                    {canSeeNotifications && (
+                      <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-red-50 transition-colors text-left min-h-[44px]"
+                        onClick={() => { setMobileMenuOpen(false); setActiveTab('jaula'); }}>
+                        <Package className="h-5 w-5 text-red-500 shrink-0" />
+                        <span className="text-sm font-medium text-red-600">Jaula</span>
+                      </button>
+                    )}
+                    {/* ✅ Activos necesarios */}
+                    {canSeeNotifications && (
+                      <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-green-50 transition-colors text-left min-h-[44px]"
+                        onClick={() => { setMobileMenuOpen(false); setActiveTab('activos'); }}>
+                        <BoxSelect className="h-5 w-5 text-green-500 shrink-0" />
+                        <span className="text-sm font-medium text-green-600">Activos</span>
+                      </button>
+                    )}
+                    {/* 💧 Punto Limpio (suciedad) */}
+                    {canSeeNotifications && (
+                      <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-blue-50 transition-colors text-left min-h-[44px]"
+                        onClick={() => { setMobileMenuOpen(false); setActiveTab('puntoLimpio'); }}>
+                        <Droplets className="h-5 w-5 text-blue-500 shrink-0" />
+                        <span className="text-sm font-medium text-blue-600">Punto Limpio</span>
+                      </button>
+                    )}
+                    {/* 📋 Plan de Acción */}
+                    {canSeeNotifications && currentUser?.role !== 'auditor' && (
+                      <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-orange-50 transition-colors text-left min-h-[44px]"
+                        onClick={() => { setMobileMenuOpen(false); setActiveTab('actionplan'); }}>
+                        <ListChecks className="h-5 w-5 text-orange-500 shrink-0" />
+                        <span className="text-sm font-medium text-orange-600">Plan de Acción</span>
+                      </button>
+                    )}
                     {/* 📊 Gerencia */}
                     {canSeeGerentePanel && (
                       <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-blue-50 transition-colors text-left min-h-[44px]"
@@ -740,6 +786,46 @@ export default function HomePage() {
                 title="Biblioteca de Estándares">
                 <BookOpen className="h-3 w-3" />
                 <span className="hidden sm:inline">Estándares</span>
+              </Button>
+            )}
+            {/* 📦 Jaula de Excedentes */}
+            {canSeeNotifications && (
+              <Button variant="outline" size="sm"
+                className="gap-1 text-[10px] h-8 border-red-300 text-red-600 hover:bg-red-50"
+                onClick={() => setActiveTab('jaula')}
+                title="Jaula de Excedentes">
+                <Package className="h-3 w-3" />
+                <span className="hidden sm:inline">Jaula</span>
+              </Button>
+            )}
+            {/* ✅ Activos necesarios */}
+            {canSeeNotifications && (
+              <Button variant="outline" size="sm"
+                className="gap-1 text-[10px] h-8 border-green-300 text-green-600 hover:bg-green-50"
+                onClick={() => setActiveTab('activos')}
+                title="Activos (Necesarios)">
+                <BoxSelect className="h-3 w-3" />
+                <span className="hidden sm:inline">Activos</span>
+              </Button>
+            )}
+            {/* 💧 Punto Limpio (suciedad) */}
+            {canSeeNotifications && (
+              <Button variant="outline" size="sm"
+                className="gap-1 text-[10px] h-8 border-blue-300 text-blue-600 hover:bg-blue-50"
+                onClick={() => setActiveTab('puntoLimpio')}
+                title="Punto Limpio (Suciedad)">
+                <Droplets className="h-3 w-3" />
+                <span className="hidden sm:inline">P. Limpio</span>
+              </Button>
+            )}
+            {/* 📋 Plan de Acción General */}
+            {canSeeNotifications && currentUser?.role !== 'auditor' && (
+              <Button variant="outline" size="sm"
+                className="gap-1 text-[10px] h-8 border-orange-300 text-orange-600 hover:bg-orange-50"
+                onClick={() => setActiveTab('actionplan')}
+                title="Plan de Acción General">
+                <ListChecks className="h-3 w-3" />
+                <span className="hidden sm:inline">Plan Acc.</span>
               </Button>
             )}
             {/* 📊 Gerencia — accessible from header for roles with view_progress */}
@@ -1394,6 +1480,34 @@ export default function HomePage() {
               {activeTab === 'gestion' && isGestor && (
                 <motion.div key="gestion" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 min-h-0 overflow-auto p-4">
                   <ConstructorPanel />
+                </motion.div>
+              )}
+
+              {/* ═══ TAB: JAULA (Excedentes) ═══ */}
+              {activeTab === 'jaula' && (
+                <motion.div key="jaula" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 min-h-0 overflow-hidden">
+                  <JaulaView />
+                </motion.div>
+              )}
+
+              {/* ═══ TAB: ACTIVOS (Necesarios) ═══ */}
+              {activeTab === 'activos' && (
+                <motion.div key="activos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 min-h-0 overflow-hidden">
+                  <ActivosView />
+                </motion.div>
+              )}
+
+              {/* ═══ TAB: PUNTO LIMPIO (Suciedad) ═══ */}
+              {activeTab === 'puntoLimpio' && (
+                <motion.div key="puntoLimpio" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 min-h-0 overflow-hidden">
+                  <PuntoLimpioView />
+                </motion.div>
+              )}
+
+              {/* ═══ TAB: PLAN DE ACCIÓN ═══ */}
+              {activeTab === 'actionplan' && currentUser?.role !== 'auditor' && (
+                <motion.div key="actionplan" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 min-h-0 overflow-hidden">
+                  <PlanDeAccionView />
                 </motion.div>
               )}
 
