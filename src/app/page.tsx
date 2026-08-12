@@ -307,9 +307,9 @@ export default function HomePage() {
 
   // Available tabs based on role
   // GESTOR (dueño de la app): ONLY sees "Gestión" tab (company management platform)
-  // ALL OTHER ROLES: Tablero + inventarios (Jaula/Activos/P.Limpio/Plan Acción) + Mejora Continua (when 5S complete)
-  // Admin panel is accessed from header, not main tab bar
-  const availableTabs: { key: 'board' | 'jaula' | 'activos' | 'puntoLimpio' | 'actionplan' | 'maintenance' | 'gestion'; label: string; icon: React.ReactNode }[] = [];
+  // ALL OTHER ROLES: Tablero (always) + Admin (if admin) + Mejora Continua (when 5S complete)
+  // Inventario (Jaula/Activos/P.Limpio) y Plan de Acción se acceden desde la toolbar superior
+  const availableTabs: { key: 'board' | 'admin' | 'maintenance' | 'gestion'; label: string; icon: React.ReactNode }[] = [];
 
   if (isGestor) {
     // Gestor ONLY sees the platform management tab
@@ -317,15 +317,9 @@ export default function HomePage() {
   } else {
     // Tablero 5S — fixed, always visible, the main tool for everyone
     availableTabs.push({ key: 'board', label: 'Tablero', icon: <LayoutDashboard className="h-3.5 w-3.5" /> });
-    // Inventario Jaula de Excedentes
-    availableTabs.push({ key: 'jaula', label: 'Jaula', icon: <Package className="h-3.5 w-3.5" /> });
-    // Activos necesarios
-    availableTabs.push({ key: 'activos', label: 'Activos', icon: <BoxSelect className="h-3.5 w-3.5" /> });
-    // Punto Limpio (puntos de suciedad)
-    availableTabs.push({ key: 'puntoLimpio', label: 'P. Limpio', icon: <Droplets className="h-3.5 w-3.5" /> });
-    // Plan de Acción — visible para todos excepto auditor
-    if (currentUser?.role !== 'auditor') {
-      availableTabs.push({ key: 'actionplan', label: 'Plan Acción', icon: <ListChecks className="h-3.5 w-3.5" /> });
+    // Admin — visible solo para admin de empresa
+    if (isAdmin) {
+      availableTabs.push({ key: 'admin', label: 'Admin', icon: <Shield className="h-3.5 w-3.5" /> });
     }
     // Mejora Continua (PDCA) — solo visible cuando se completa el ciclo completo del tablero (las 5S)
     if (is5SCompleted()) {
@@ -838,16 +832,7 @@ export default function HomePage() {
                 <span className="hidden sm:inline">Gerencia</span>
               </Button>
             )}
-            {/* 🛡️ Admin — accessible from header for admin role */}
-            {isAdmin && (
-              <Button variant="outline" size="sm"
-                className="gap-1 text-[10px] h-8 border-slate-300 text-slate-600 hover:bg-slate-50"
-                onClick={() => setActiveTab('admin')}
-                title="Panel de Administración">
-                <Shield className="h-3 w-3" />
-                <span className="hidden sm:inline">Admin</span>
-              </Button>
-            )}
+            {/* 🛡️ Admin — ahora es tab principal, no botón del header */}
             {/* Free navigation lock */}
             {(isAdmin || canSkipSteps) && (
               <Button variant={adminFreeNavigation ? 'default' : 'outline'} size="sm"
