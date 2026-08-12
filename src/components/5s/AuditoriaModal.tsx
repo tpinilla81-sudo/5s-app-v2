@@ -135,9 +135,30 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
     }
   }, [open, sStep, currentProject?.id, currentZone?.id]);
 
-  // Initialize expanded sections + pre-mark all items as 'ok' once sections load.
-  // Guard with a ref so we don't re-fire (and wipe user edits) if `sections` ref
-  // changes due to a boardConfigId re-fetch.
+  // ─────────────────────────────────────────────────────────────
+  // ROBUST PRE-TICK: Merge missing items as 'ok' whenever sections change.
+  // This replaces the fragile one-shot pre-tick. Instead of setting results
+  // once and praying the effect fires after sections loads, we continuously
+  // MERGE missing items as 'ok' into `results` without overwriting user
+  // edits. This guarantees that every visible item always has an 'ok' entry
+  // unless the user explicitly marks it NOK/N/A.
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!open || sections.length === 0) return;
+    setResults(prev => {
+      const next = { ...prev };
+      let changed = false;
+      sections.forEach(s => s.items.forEach(item => {
+        if (!next[item.id]) {
+          next[item.id] = { itemId: item.id, status: 'ok' };
+          changed = true;
+        }
+      }));
+      return changed ? next : prev;
+    });
+  }, [open, sections]);
+
+  // Initialize expanded sections + reset form state once per (sStep + sections signature)
   useEffect(() => {
     if (!open || sections.length === 0) return;
     const sig = `${sStep}:${sections.map(s => s.items.map(i => i.id).join(',')).join('|')}`;
@@ -147,12 +168,6 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
     const expanded: Record<string, boolean> = {};
     sections.forEach(s => { expanded[s.id] = true; });
     setExpandedSections(expanded);
-    // Pre-mark all items as 'ok' (audit default — auditor only marks NOKs)
-    const initialOk: Record<string, AuditItemResult> = {};
-    sections.forEach(s => s.items.forEach(item => {
-      initialOk[item.id] = { itemId: item.id, status: 'ok' };
-    }));
-    setResults(initialOk);
     setAuditorName(currentUser?.name || '');
     setObservaciones('');
     setIsCompleted(false);
