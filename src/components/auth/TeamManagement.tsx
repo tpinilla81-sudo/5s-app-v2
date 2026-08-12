@@ -45,6 +45,10 @@ import {
   ClipboardCheck,
   Mail,
   ShieldCheck,
+  Key,
+  RefreshCw,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 
@@ -101,6 +105,19 @@ export default function TeamManagement({ open, onClose }: TeamManagementProps) {
   const [newMemberEmail, setNewMemberEmail] = useState('')
   const [newMemberRole, setNewMemberRole] = useState('empleado')
   const [newMemberZones, setNewMemberZones] = useState<string[]>([])
+  const [newMemberPassword, setNewMemberPassword] = useState('')
+  const [showMemberPassword, setShowMemberPassword] = useState(false)
+
+  // Generate a readable random password (8 chars: letters + digits)
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+    let pwd = ''
+    for (let i = 0; i < 8; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    setNewMemberPassword(pwd)
+    setShowMemberPassword(true)
+  }
   const [isLoadingMembers, setIsLoadingMembers] = useState(false)
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
   const [generatedMemberName, setGeneratedMemberName] = useState<string | null>(null)
@@ -186,6 +203,11 @@ export default function TeamManagement({ open, onClose }: TeamManagementProps) {
 
   const handleAddMember = async () => {
     if (!currentProject || !newMemberName.trim() || !newMemberEmail.trim()) return
+    // Validate password if provided (min 6 chars). If empty, backend will use default '123456'.
+    if (newMemberPassword && newMemberPassword.length < 6) {
+      alert('La contraseña debe tener al menos 6 caracteres.')
+      return
+    }
     try {
       const res = await fetch(`/api/projects/${currentProject.id}/members`, {
         method: 'POST',
@@ -195,6 +217,7 @@ export default function TeamManagement({ open, onClose }: TeamManagementProps) {
           name: newMemberName,
           role: newMemberRole,
           zoneIds: newMemberZones.length > 0 ? newMemberZones : undefined,
+          password: newMemberPassword || undefined,
         }),
       })
       if (res.ok) {
@@ -206,12 +229,18 @@ export default function TeamManagement({ open, onClose }: TeamManagementProps) {
         setNewMemberName('')
         setNewMemberEmail('')
         setNewMemberRole('empleado')
+        setNewMemberPassword('')
+        setShowMemberPassword(false)
         setNewMemberZones(zones.map(z => z.id))
         await fetchMembers()
         await fetchZones()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert('Error al agregar miembro: ' + (data.error || 'desconocido'))
       }
     } catch (error) {
       console.error('Add member error:', error)
+      alert('Error de red al agregar miembro')
     }
   }
 
@@ -516,6 +545,46 @@ export default function TeamManagement({ open, onClose }: TeamManagementProps) {
                           ))}
                         </div>
                       </div>
+                    </div>
+                    {/* Contraseña de acceso */}
+                    <div className="space-y-1">
+                      <Label className="text-xs flex items-center gap-1">
+                        <Key className="h-3 w-3" />
+                        Contraseña de acceso
+                      </Label>
+                      <div className="flex gap-1.5">
+                        <div className="relative flex-1">
+                          <Input
+                            type={showMemberPassword ? 'text' : 'password'}
+                            placeholder="Dejar vacío para auto-generar"
+                            value={newMemberPassword}
+                            onChange={(e) => setNewMemberPassword(e.target.value)}
+                            className="pr-8 text-sm font-mono"
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowMemberPassword(!showMemberPassword)}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            tabIndex={-1}
+                          >
+                            {showMemberPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={generatePassword}
+                          title="Generar contraseña aleatoria"
+                          className="h-9 px-2"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Mínimo 6 caracteres. Si la dejas vacía, se asignará automáticamente <code className="font-mono bg-muted px-1 rounded">123456</code>.
+                      </p>
                     </div>
                     <Button
                       onClick={handleAddMember}
