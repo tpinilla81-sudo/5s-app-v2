@@ -644,7 +644,7 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
             <Badge variant="outline" style={{ borderColor: sStepData?.color, color: sStepData?.color }}>
               {sStepData?.japaneseName} — {sStepData?.spanishName}
             </Badge>
-            <span className="ml-2 text-[10px] text-muted-foreground font-mono" title="Versión del modal">v2.2</span>
+            <span className="ml-2 text-[10px] text-muted-foreground font-mono" title="Versión del modal">v2.3</span>
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               className="ml-auto p-1 rounded hover:bg-muted transition-colors"
