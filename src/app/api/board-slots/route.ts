@@ -2,15 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
 // GET /api/board-slots?boardConfigId=xxx[&sStep=1][&miniStep=1]
+// Si no se pasa boardConfigId, se usa automáticamente la configuración por defecto.
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const boardConfigId = searchParams.get('boardConfigId')
+    let boardConfigId = searchParams.get('boardConfigId')
     const sStepParam = searchParams.get('sStep')
     const miniStepParam = searchParams.get('miniStep')
 
+    // Si no se pasa boardConfigId, usar la configuración por defecto (auto-creada si hace falta)
     if (!boardConfigId) {
-      return NextResponse.json({ success: false, error: 'Se requiere boardConfigId' }, { status: 400 })
+      let defaultConfig = await db.boardConfiguration.findFirst({
+        where: { isDefault: true },
+      })
+      if (!defaultConfig) {
+        // Último recurso: crear el predeterminado
+        defaultConfig = await db.boardConfiguration.create({
+          data: { name: 'Tablero 5S', description: 'Tablero predeterminado del sistema', isDefault: true },
+        })
+      }
+      boardConfigId = defaultConfig.id
     }
 
     const where: any = { boardConfigId }

@@ -62,7 +62,6 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { S_STEPS } from '@/lib/5s-constants'
 import TemplateManager from './TemplateManager'
-import Tablero5S from './Tablero5S'
 
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -174,7 +173,7 @@ interface AdminPanelProps {
 
 export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
   const { setCurrentView, fetchProjects, fetchCompanies, projects, setCurrentProject, currentProject } = use5SStore()
-  const [activeTab, setActiveTab] = useState<'companies' | 'projects' | 'plantillas' | 'tablero5s' | 'mejoraContinua'>('companies')
+  const [activeTab, setActiveTab] = useState<'companies' | 'projects' | 'plantillas' | 'mejoraContinua'>('companies')
 
   // ─── Projects state ──────────────────────────────────────────────────────
   const [allProjects, setAllProjects] = useState<ProjectData[]>([])
@@ -974,18 +973,6 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
           </button>
 
           <button
-            onClick={() => { setActiveTab('tablero5s'); setSelectedProjectId(null) }}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'tablero5s'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <LayoutGrid className="h-4 w-4" />
-            Configuración de Tablero
-          </button>
-
-          <button
             onClick={() => { setActiveTab('mejoraContinua'); setSelectedProjectId(null) }}
             className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'mejoraContinua'
@@ -1000,7 +987,7 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
       </div>
 
       {/* Content */}
-      <main className={`flex-1 min-h-0 overflow-auto w-full px-4 py-6 ${(activeTab === 'tablero5s' || activeTab === 'mejoraContinua') ? 'max-w-7xl mx-auto' : embedded ? '' : 'max-w-5xl mx-auto'}`}>
+      <main className={`flex-1 min-h-0 overflow-auto w-full px-4 py-6 ${activeTab === 'mejoraContinua' ? 'max-w-7xl mx-auto' : embedded ? '' : 'max-w-5xl mx-auto'}`}>
         <AnimatePresence mode="wait">
           {/* ═══ PROJECTS TAB ═══ */}
           {activeTab === 'projects' && (
@@ -1226,24 +1213,11 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                           <div key={zone.id} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border bg-white text-xs">
                                             <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
                                             <span className="font-medium">{zone.name}</span>
-                                            {/* Board config selector */}
-                                            <select
-                                              value={zone.boardConfigId || ''}
-                                              onChange={e => handleZoneBoardConfig(zone.id, e.target.value)}
-                                              className="h-6 text-[10px] border rounded px-1 bg-gray-50 ml-1"
-                                            >
-                                              <option value="">— Sin tablero —</option>
-                                              {boardConfigs.map(bc => (
-                                                <option key={bc.id} value={bc.id}>
-                                                  {bc.name}{bc.isDefault ? ' ★' : ''}
-                                                </option>
-                                              ))}
-                                            </select>
-                                            {zone.boardConfig && (
-                                              <Badge className="text-[9px] px-1 py-0 bg-indigo-100 text-indigo-700 border-0">
-                                                {zone.boardConfig.name}
-                                              </Badge>
-                                            )}
+                                            {/* Tablero fijo: siempre el predeterminado, no editable */}
+                                            <Badge className="text-[9px] px-1 py-0 bg-indigo-100 text-indigo-700 border-0 ml-1" title="Esta zona usa el tablero predeterminado del sistema">
+                                              <LayoutGrid className="h-2.5 w-2.5 mr-0.5 inline" />
+                                              Tablero predeterminado
+                                            </Badge>
                                             <button onClick={() => handleDeleteZone(zone.id, zone.name)} className="text-red-400 hover:text-red-600 ml-1" title="Eliminar zona"><Trash2 className="h-3 w-3" /></button>
                                           </div>
                                         ))}
@@ -2098,13 +2072,6 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
           {activeTab === 'plantillas' && (
             <motion.div key="plantillas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <TemplateManager />
-            </motion.div>
-          )}
-
-          {/* ═══ CONFIGURACIÓN DE TABLEROS TAB ═══ */}
-          {activeTab === 'tablero5s' && (
-            <motion.div key="tablero5s" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <Tablero5S />
             </motion.div>
           )}
 

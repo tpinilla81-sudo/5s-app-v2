@@ -74,28 +74,27 @@ export async function fetchChecklistTemplate(
   miniStep: number = type === 'autoevaluacion' ? 4 : 5,
   boardConfigId?: string | null
 ): Promise<{ sections: AuditSection[]; notaMinima: number | null } | null> {
-  // If board config is provided, try it first
-  if (boardConfigId) {
-    try {
-      const slotsRes = await fetch(`/api/board-slots?boardConfigId=${boardConfigId}&sStep=${sStep}&miniStep=${miniStep}`)
-      const slotsJson = await slotsRes.json()
-      if (slotsJson.success && slotsJson.data.length > 0) {
-        const slot = slotsJson.data[0]
-        const matchingTemplates = (slot.templates || []).filter(
-          (t: any) => t.template?.type === type
-        )
-        if (matchingTemplates.length > 0) {
-          const tpl = matchingTemplates[0].template
-          const parsed = typeof tpl.content === 'string' ? JSON.parse(tpl.content) : tpl.content
-          const sections = templateToAuditSections(parsed)
-          if (sections.length > 0) {
-            return { sections, notaMinima: tpl.notaMinima ?? null }
-          }
+  // If board config is provided, try it first; otherwise use default config (no boardConfigId param)
+  try {
+    const slotsUrl = `/api/board-slots?sStep=${sStep}&miniStep=${miniStep}${boardConfigId ? `&boardConfigId=${boardConfigId}` : ''}`
+    const slotsRes = await fetch(slotsUrl)
+    const slotsJson = await slotsRes.json()
+    if (slotsJson.success && slotsJson.data.length > 0) {
+      const slot = slotsJson.data[0]
+      const matchingTemplates = (slot.templates || []).filter(
+        (t: any) => t.template?.type === type
+      )
+      if (matchingTemplates.length > 0) {
+        const tpl = matchingTemplates[0].template
+        const parsed = typeof tpl.content === 'string' ? JSON.parse(tpl.content) : tpl.content
+        const sections = templateToAuditSections(parsed)
+        if (sections.length > 0) {
+          return { sections, notaMinima: tpl.notaMinima ?? null }
         }
       }
-    } catch (e) {
-      console.error(`Error fetching ${type} template from board config for S${sStep}:`, e)
     }
+  } catch (e) {
+    console.error(`Error fetching ${type} template from board config for S${sStep}:`, e)
   }
 
   // Fallback: global template

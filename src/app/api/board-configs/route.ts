@@ -2,14 +2,29 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
 // GET /api/board-configs — List all board configurations with slot counts
+// Auto-creates a default config named "Tablero 5S" if none exists.
 export async function GET() {
   try {
-    const configs = await db.boardConfiguration.findMany({
+    let configs = await db.boardConfiguration.findMany({
       include: {
         _count: { select: { slots: true, zones: true } },
       },
       orderBy: { isDefault: 'desc' },
     })
+
+    // Auto-create default if none exists — the board config is the "soul" of the app
+    // and should always be present.
+    if (configs.length === 0) {
+      const created = await db.boardConfiguration.create({
+        data: {
+          name: 'Tablero 5S',
+          description: 'Tablero predeterminado del sistema',
+          isDefault: true,
+        },
+        include: { _count: { select: { slots: true, zones: true } } },
+      })
+      configs = [created]
+    }
 
     return NextResponse.json({ success: true, data: configs })
   } catch (error) {
