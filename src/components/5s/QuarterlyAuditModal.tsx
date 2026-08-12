@@ -144,16 +144,22 @@ export default function QuarterlyAuditModal({ open, onClose }: QuarterlyAuditMod
   const totalItems = sections.reduce((sum, s) => sum + s.items.length, 0) || 1;
 
   const scoring = useMemo(() => {
-    const allResults = Object.values(results);
-    const okCount = allResults.filter(r => r.status === 'ok').length;
-    const nokCount = allResults.filter(r => r.status === 'nok').length;
+    // SCORING: Treat missing results as 'ok' (default).
+    // Bulletproof — does NOT depend on useEffect timing.
+    let okCount = 0;
+    let nokCount = 0;
+    sections.forEach(s => s.items.forEach(item => {
+      const status = results[item.id]?.status ?? 'ok';
+      if (status === 'ok') okCount++;
+      else if (status === 'nok') nokCount++;
+    }));
     const answeredCount = okCount + nokCount;
     const checklistScore = totalItems > 0 ? Math.round((okCount / totalItems) * 90) : 0;
     const validMejorasCount = haMejoras ? mejoras.filter(m => m.descripcion.trim()).length : 0;
     const mejorasScore = Math.min(validMejorasCount, 2) * 5;
     const scorePercent = Math.min(checklistScore + mejorasScore, 100);
     return { okCount, nokCount, answeredCount, checklistScore, mejorasScore, validMejorasCount, scorePercent };
-  }, [results, totalItems, haMejoras, mejoras]);
+  }, [results, sections, totalItems, haMejoras, mejoras]);
 
   const canSubmit = auditorName.trim() !== '' && scoring.answeredCount > 0 && scoring.scorePercent >= AUDIT_PASS_THRESHOLD;
 
@@ -186,13 +192,12 @@ export default function QuarterlyAuditModal({ open, onClose }: QuarterlyAuditMod
     setIsSubmitting(true);
     try {
       // Build checklist data for saving (and for NOK → action items)
+      // Build checklist data for saving — treat missing results as 'ok' (default)
       const checklistObj: Record<string, any> = {};
       sections.forEach(s => {
         s.items.forEach(item => {
-          const r = results[item.id];
-          if (r) {
-            checklistObj[item.id] = { ...r, description: item.description };
-          }
+          const r = results[item.id] ?? { itemId: item.id, status: 'ok' as const };
+          checklistObj[item.id] = { ...r, description: item.description };
         });
       });
 
@@ -390,8 +395,10 @@ export default function QuarterlyAuditModal({ open, onClose }: QuarterlyAuditMod
                           {expandedSections[section.id] && (
                             <CardContent className="px-3 pb-3 pt-0 space-y-2">
                               {section.items.map(item => {
+                                // DEFAULT 'ok': if no result, treat as 'ok' (bulletproof — no useEffect dependency)
                                 const result = results[item.id];
-                                const isNok = result?.status === 'nok';
+                                const status = result?.status ?? 'ok';
+                                const isNok = status === 'nok';
                                 return (
                                   <div key={item.id} className="border rounded-lg p-2.5 space-y-1.5">
                                     <div className="flex items-start gap-2">
@@ -399,15 +406,15 @@ export default function QuarterlyAuditModal({ open, onClose }: QuarterlyAuditMod
                                       <p className="text-xs flex-1">{item.description}</p>
                                       <div className="flex gap-1 shrink-0">
                                         <button
-                                          className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${result?.status === 'ok' ? 'bg-green-500 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}
+                                          className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${status === 'ok' ? 'bg-green-500 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}
                                           onClick={() => setItemStatus(item.id, 'ok')}
                                         >OK</button>
                                         <button
-                                          className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${result?.status === 'nok' ? 'bg-red-500 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}
+                                          className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${status === 'nok' ? 'bg-red-500 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}
                                           onClick={() => setItemStatus(item.id, 'nok')}
                                         >NOK</button>
                                         <button
-                                          className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${result?.status === 'na' ? 'bg-gray-500 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                                          className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${status === 'na' ? 'bg-gray-500 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
                                           onClick={() => setItemStatus(item.id, 'na')}
                                         >N/A</button>
                                       </div>

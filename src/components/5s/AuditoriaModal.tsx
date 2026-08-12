@@ -229,9 +229,15 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
   const totalItems = sections.reduce((sum, s) => sum + s.items.length, 0) || 26;
 
   const scoring = useMemo(() => {
-    const allResults = Object.values(results);
-    const okCount = allResults.filter(r => r.status === 'ok').length;
-    const nokCount = allResults.filter(r => r.status === 'nok').length;
+    // SCORING: Treat missing results as 'ok' (default).
+    // Bulletproof — does NOT depend on useEffect timing.
+    let okCount = 0;
+    let nokCount = 0;
+    sections.forEach(s => s.items.forEach(item => {
+      const status = results[item.id]?.status ?? 'ok';
+      if (status === 'ok') okCount++;
+      else if (status === 'nok') nokCount++;
+    }));
     const answeredCount = okCount + nokCount;
     // Checklist maxes at 90%
     const checklistScore = totalItems > 0 ? Math.round((okCount / totalItems) * 90) : 0;
@@ -240,7 +246,7 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
     const mejorasScore = Math.min(validMejorasCount, 2) * 5;
     const scorePercent = Math.min(checklistScore + mejorasScore, 100); // HARD CAP: never exceeds 100%
     return { okCount, nokCount, answeredCount, checklistScore, mejorasScore, validMejorasCount, scorePercent };
-  }, [results, totalItems, haMejoras, mejoras]);
+  }, [results, sections, totalItems, haMejoras, mejoras]);
 
   const canSubmit = canAudit && auditorName.trim() !== '' && scoring.answeredCount > 0;
 
@@ -427,6 +433,11 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
         }
 
         // Mark the mini-step as completed
+        // Build effective results: merge missing items as 'ok' (default) before sending to backend
+        const effectiveResults = sections.flatMap(s => s.items).map(item => {
+          const r = results[item.id];
+          return r ?? { itemId: item.id, status: 'ok' as const };
+        });
         const progressRes = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -439,7 +450,7 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
               result: isApto ? 'apto' : 'no_apto',
               fecha: fechaAuditoria,
               hora: horaAuditoria,
-              results: Object.values(results),
+              results: effectiveResults,
               observaciones,
               mejorasRealizadas: haMejoras,
               mejoras: haMejoras ? mejoras.filter(m => m.descripcion.trim()) : [],
@@ -766,8 +777,10 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
                   {expandedSections[section.id] && (
                     <CardContent className="px-4 pb-4 pt-0 space-y-3">
                       {section.items.map(item => {
+                        // DEFAULT 'ok': if no result, treat as 'ok' (bulletproof — no useEffect dependency)
                         const result = results[item.id];
-                        const isNok = result?.status === 'nok';
+                        const status = result?.status ?? 'ok';
+                        const isNok = status === 'nok';
 
                         return (
                           <div key={item.id} className="border rounded-lg p-3 space-y-2">
@@ -779,7 +792,7 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
                               <div className="flex gap-1 shrink-0">
                                 <button
                                   className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                                    result?.status === 'ok'
+                                    status === 'ok'
                                       ? 'bg-green-500 text-white'
                                       : 'bg-green-50 text-green-700 hover:bg-green-100'
                                   }`}
@@ -789,7 +802,7 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
                                 </button>
                                 <button
                                   className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                                    result?.status === 'nok'
+                                    status === 'nok'
                                       ? 'bg-red-500 text-white'
                                       : 'bg-red-50 text-red-700 hover:bg-red-100'
                                   }`}
@@ -799,7 +812,7 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
                                 </button>
                                 <button
                                   className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                                    result?.status === 'na'
+                                    status === 'na'
                                       ? 'bg-gray-500 text-white'
                                       : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                                   }`}

@@ -216,14 +216,21 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
 
   const totalItems = sections.reduce((sum, s) => sum + s.items.length, 0) || 26;
 
+  // SCORING: Treat missing results as 'ok' (default).
+  // This is bulletproof — does NOT depend on useEffect timing.
+  // Every visible item that hasn't been explicitly marked NOK/N/A counts as OK.
   const scoring = useMemo(() => {
-    const allResults = Object.values(results);
-    const okCount = allResults.filter(r => r.status === 'ok').length;
-    const nokCount = allResults.filter(r => r.status === 'nok').length;
+    let okCount = 0;
+    let nokCount = 0;
+    sections.forEach(s => s.items.forEach(item => {
+      const status = results[item.id]?.status ?? 'ok';
+      if (status === 'ok') okCount++;
+      else if (status === 'nok') nokCount++;
+    }));
     const answeredCount = okCount + nokCount;
     const scorePercent = totalItems > 0 ? Math.min(Math.round((okCount / totalItems) * 100), 100) : 0;
     return { okCount, nokCount, answeredCount, scorePercent };
-  }, [results, totalItems]);
+  }, [results, sections, totalItems]);
 
   // Check that all NOK items have hallazgo, mejora and responsable filled
   const nokItems = Object.values(results).filter(r => r.status === 'nok');
@@ -274,6 +281,11 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
     if (!canPerformAutoeval) return; // Only responsable/admin for S4, or any employee for S1/S2/S3/S5
     setIsSubmitting(true);
     try {
+      // Build effective results: merge missing items as 'ok' (default) before sending to backend
+      const effectiveResults = sections.flatMap(s => s.items).map(item => {
+        const r = results[item.id];
+        return r ?? { itemId: item.id, status: 'ok' as const };
+      });
       // Only mark as completed if score meets notaMinima threshold
       // If not passed, still save results but step stays available for retry
       const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
@@ -286,7 +298,7 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
             type: 'autoevaluacion',
             passed,
             notaMinima,
-            results: Object.values(results),
+            results: effectiveResults,
             observaciones,
             fechaAutoevaluacion,
             horaAutoevaluacion,
@@ -766,8 +778,10 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                   {expandedSections[section.id] && (
                     <CardContent className="px-4 pb-4 pt-0 space-y-3">
                       {section.items.map(item => {
+                        // DEFAULT 'ok': if no result, treat as 'ok' (bulletproof — no useEffect dependency)
                         const result = results[item.id];
-                        const isNok = result?.status === 'nok';
+                        const status = result?.status ?? 'ok';
+                        const isNok = status === 'nok';
 
                         return (
                           <div key={item.id} className="border rounded-lg p-3 space-y-2">
@@ -780,7 +794,7 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                               <div className="flex gap-1 shrink-0">
                                 <button
                                   className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                                    result?.status === 'ok'
+                                    status === 'ok'
                                       ? 'bg-green-500 text-white'
                                       : 'bg-green-50 text-green-700 hover:bg-green-100'
                                   }`}
@@ -790,7 +804,7 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                                 </button>
                                 <button
                                   className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                                    result?.status === 'nok'
+                                    status === 'nok'
                                       ? 'bg-red-500 text-white'
                                       : 'bg-red-50 text-red-700 hover:bg-red-100'
                                   }`}
@@ -800,7 +814,7 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                                 </button>
                                 <button
                                   className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                                    result?.status === 'na'
+                                    status === 'na'
                                       ? 'bg-gray-500 text-white'
                                       : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                                   }`}
