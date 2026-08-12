@@ -283,6 +283,7 @@ export default function QuarterlyAuditModal({ open, onClose }: QuarterlyAuditMod
             <Badge className="bg-orange-100 text-orange-700 border border-orange-200">
               Completa
             </Badge>
+            <span className="ml-2 text-[10px] text-muted-foreground font-mono" title="Versión del modal">v2.2</span>
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               className="ml-auto p-1 rounded hover:bg-muted transition-colors"

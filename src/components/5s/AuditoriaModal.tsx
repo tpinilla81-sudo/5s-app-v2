@@ -182,11 +182,47 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
     setHoraAuditoria(now.toTimeString().slice(0, 5));
     // Load scheduled date if available
     loadScheduledDate();
+    // Load previously saved results (so user can see what was saved before)
+    loadSavedResults();
   }, [open, sStep, sections]);
+
+  // Load previously saved audit results from the backend
+  const loadSavedResults = async () => {
+    if (!currentProject?.id) return;
+    try {
+      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}&projectId=${currentProject.id}${currentZone?.id ? `&zoneId=${currentZone.id}` : ''}`);
+      const json = await res.json();
+      if (json.success && json.data?.notes) {
+        try {
+          const notes = typeof json.data.notes === 'string' ? JSON.parse(json.data.notes) : json.data.notes;
+          if (notes?.results && Array.isArray(notes.results)) {
+            const loaded: Record<string, AuditItemResult> = {};
+            notes.results.forEach((r: any) => {
+              if (r?.itemId) loaded[r.itemId] = r;
+            });
+            if (Object.keys(loaded).length > 0) {
+              setResults(loaded);
+              if (notes.observaciones) setObservaciones(notes.observaciones);
+              if (notes.fechaAuditoria) setFechaAuditoria(notes.fechaAuditoria);
+              if (notes.horaAuditoria) setHoraAuditoria(notes.horaAuditoria);
+              if (notes.auditorName) setAuditorName(notes.auditorName);
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing saved notes:', e);
+        }
+      }
+    } catch (e) {
+      console.error('Error loading saved results:', e);
+    }
+  };
 
   // Reset the init guard when modal closes, so next open re-initializes
   useEffect(() => {
-    if (!open) initializedFor.current = '';
+    if (!open) {
+      initializedFor.current = '';
+      setResults({});
+    }
   }, [open]);
 
   // Load scheduled date/time for this auditoría
@@ -561,6 +597,7 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
             <Badge variant="outline" style={{ borderColor: sStepData?.color, color: sStepData?.color }}>
               {sStepData?.japaneseName} — {sStepData?.spanishName}
             </Badge>
+            <span className="ml-2 text-[10px] text-muted-foreground font-mono" title="Versión del modal">v2.2</span>
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               className="ml-auto p-1 rounded hover:bg-muted transition-colors"

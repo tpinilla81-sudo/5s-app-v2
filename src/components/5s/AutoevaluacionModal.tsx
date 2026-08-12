@@ -161,11 +161,49 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
     setHoraAutoevaluacion(now.toTimeString().slice(0, 5));
     // Load scheduled date if available
     loadScheduledDate();
+    // Load previously saved results (so user can see what was saved before)
+    loadSavedResults();
   }, [open, sStep, sections]);
+
+  // Load previously saved audit results from the backend so the user can see
+  // what was actually persisted. This makes the save behavior verifiable.
+  const loadSavedResults = async () => {
+    if (!currentProject?.id) return;
+    try {
+      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}&projectId=${currentProject.id}${currentZone?.id ? `&zoneId=${currentZone.id}` : ''}`);
+      const json = await res.json();
+      if (json.success && json.data?.notes) {
+        try {
+          const notes = typeof json.data.notes === 'string' ? JSON.parse(json.data.notes) : json.data.notes;
+          if (notes?.results && Array.isArray(notes.results)) {
+            const loaded: Record<string, AuditItemResult> = {};
+            notes.results.forEach((r: any) => {
+              if (r?.itemId) loaded[r.itemId] = r;
+            });
+            // Only set if there's at least one real entry (don't overwrite with empty)
+            if (Object.keys(loaded).length > 0) {
+              setResults(loaded);
+              if (notes.observaciones) setObservaciones(notes.observaciones);
+              if (notes.fechaAutoevaluacion) setFechaAutoevaluacion(notes.fechaAutoevaluacion);
+              if (notes.horaAutoevaluacion) setHoraAutoevaluacion(notes.horaAutoevaluacion);
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing saved notes:', e);
+        }
+      }
+    } catch (e) {
+      console.error('Error loading saved results:', e);
+    }
+  };
 
   // Reset the init guard when modal closes, so next open re-initializes
   useEffect(() => {
-    if (!open) initializedFor.current = '';
+    if (!open) {
+      initializedFor.current = '';
+      // Also clear results on close so next open starts fresh (then loads saved)
+      setResults({});
+    }
   }, [open]);
 
   // Load scheduled date/time for this autoevaluación AND the auditoría schedule
@@ -606,6 +644,7 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
             <Badge variant="outline" style={{ borderColor: sStepData?.color, color: sStepData?.color }}>
               {sStepData?.japaneseName} — {sStepData?.spanishName}
             </Badge>
+            <span className="ml-2 text-[10px] text-muted-foreground font-mono" title="Versión del modal">v2.2</span>
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               className="ml-auto p-1 rounded hover:bg-muted transition-colors"
