@@ -622,6 +622,37 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
           </div>
         )}
 
+        {/* Barra FIJA con acciones rápidas — siempre visible, fuera del scroll */}
+        {!isCompleted && sections.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap px-6 py-2 flex-shrink-0 bg-green-50 border-b border-green-200">
+            <CheckCheck className="h-4 w-4 text-green-700 shrink-0" />
+            <span className="text-xs text-green-800 font-medium">Acciones rápidas:</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-100 bg-white"
+              onClick={markAllOk}
+              title="Marca como OK todos los items que aún no tienen estado (respeta los NOK/N/A ya marcados)"
+            >
+              Marcar todo OK
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100 bg-white"
+              onClick={forceAllOk}
+              title="Fuerza TODOS los items a OK (sobreescribe NOK existentes)"
+            >
+              Forzar TODO OK
+            </Button>
+            <span className="ml-auto text-[10px] text-muted-foreground font-mono">
+              {scoring.okCount} OK · {scoring.nokCount} NOK · {scoring.scorePercent}%
+            </span>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
         {/* Permission check */}
         {!canAudit && !isCompleted && (
@@ -818,32 +849,6 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
                 <Badge className="bg-red-100 text-red-800">NOK: {scoring.nokCount}</Badge>
               </div>
               <p className="text-[10px] text-muted-foreground">Mínimo para aprobar: {notaMinima}%</p>
-            </div>
-
-            {/* Marcar todo OK — botonera rápida */}
-            <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-              <CheckCheck className="h-4 w-4 text-green-700 shrink-0" />
-              <span className="text-xs text-green-800 font-medium mr-auto">Acciones rápidas:</span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-100"
-                onClick={markAllOk}
-                title="Marca como OK todos los items que aún no tienen estado (respeta los NOK/N/A ya marcados)"
-              >
-                Marcar todo OK
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
-                onClick={forceAllOk}
-                title="Fuerza TODOS los items a OK (sobreescribe NOK existentes)"
-              >
-                Forzar TODO OK
-              </Button>
             </div>
 
             {/* Checklist sections - same checklist as autoevaluación */}
