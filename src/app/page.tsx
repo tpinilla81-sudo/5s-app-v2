@@ -26,7 +26,6 @@ import TeamManagement from '@/components/auth/TeamManagement';
 import RolePermissions from '@/components/auth/RolePermissions';
 import AdminPanel from '@/components/admin/AdminPanel';
 import ConstructorPanel from '@/components/admin/ConstructorPanel';
-import MaintenanceView from '@/components/5s/MaintenanceView';
 import GerentePanel from '@/components/auth/GerentePanel';
 import { UserTaskCalendar } from '@/components/5s/UserTaskCalendar';
 import { Button } from '@/components/ui/button';
@@ -42,7 +41,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   Loader2, RefreshCw, LogOut, Settings, ChevronDown, Shield, ShieldCheck, Unlock, Lock,
-  LayoutDashboard, Wrench, Sparkles, BarChart3, FileText, MapPin, ListChecks,
+  LayoutDashboard, Wrench, BarChart3, FileText, MapPin, ListChecks,
   Crown, Trash2,
   ClipboardList, GraduationCap, Camera, CheckSquare, Trophy, ChevronRight,
   Lock as LockIcon, AlertTriangle, Building2, Zap, Bell, BellRing, BookOpen, Image as ImageIcon,
@@ -105,7 +104,6 @@ export default function HomePage() {
     setCurrentZone,
     userZones,
     getAvailableZones,
-    is5SCompleted,
     getMiniStepStatus,
     isQuesitoEarned,
     progress,
@@ -307,8 +305,8 @@ export default function HomePage() {
 
   // Available tabs based on role
   // GESTOR (dueño de la app): ONLY sees "Gestión" tab (company management platform)
-  // ADMIN: Tablero + Admin (gestiona empresas, usuarios, proyectos, plantillas, config tableros)
-  // OTROS: Tablero + Mejora Continua (cuando 5S completo)
+  // ADMIN: Tablero + Admin (gestiona empresas, proyectos, plantillas, config tableros)
+  // OTROS: Tablero
   // Inventario (Jaula/Activos/P.Limpio) y Plan de Acción se acceden desde la toolbar superior
   const availableTabs: { key: 'board' | 'admin' | 'maintenance' | 'gestion'; label: string; icon: React.ReactNode }[] = [];
 
@@ -318,13 +316,9 @@ export default function HomePage() {
   } else {
     // Tablero 5S — fixed, always visible, the main tool for everyone
     availableTabs.push({ key: 'board', label: 'Tablero', icon: <LayoutDashboard className="h-3.5 w-3.5" /> });
-    // Admin — visible solo para admin de empresa (gestiona empresas, usuarios, proyectos, plantillas, tableros)
+    // Admin — visible solo para admin de empresa (gestiona empresas, proyectos, plantillas, tableros)
     if (isAdmin) {
       availableTabs.push({ key: 'admin', label: 'Admin', icon: <Shield className="h-3.5 w-3.5" /> });
-    }
-    // Mejora Continua (PDCA) — solo visible cuando se completa el ciclo completo del tablero (las 5S)
-    if (is5SCompleted()) {
-      availableTabs.push({ key: 'maintenance', label: 'Mejora Continua', icon: <Sparkles className="h-3.5 w-3.5" /> });
     }
   }
 
@@ -1067,14 +1061,6 @@ export default function HomePage() {
                       );
                     })()}
 
-                    {/* Mejora Continua button */}
-                    {currentZone && is5SCompleted() && (
-                      <Button onClick={() => setActiveTab('maintenance')}
-                        className="mt-2 gap-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow text-xs h-8"
-                        size="sm">
-                        <Sparkles className="h-3.5 w-3.5" /> Mejora Continua
-                      </Button>
-                    )}
                   </div>
 
                   {/* BOTTOM: S-Step Cards — Compact horizontal row (only when zone selected) */}
@@ -1482,12 +1468,6 @@ export default function HomePage() {
                 </motion.div>
               )}
 
-              {/* ═══ TAB: MAINTENANCE / MEJORA CONTINUA (only when 5S cycle complete) ═══ */}
-              {activeTab === 'maintenance' && (
-                <motion.div key="maintenance" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 min-h-0 overflow-auto p-4">
-                  <MaintenanceView embedded />
-                </motion.div>
-              )}
             </AnimatePresence>
           </div>
         )}

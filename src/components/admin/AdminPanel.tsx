@@ -138,7 +138,7 @@ interface AdminPanelProps {
 
 export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
   const { setCurrentView, fetchProjects, fetchCompanies, projects, setCurrentProject, currentProject } = use5SStore()
-  const [activeTab, setActiveTab] = useState<'companies' | 'users' | 'projects' | 'plantillas' | 'tablero5s'>('companies')
+  const [activeTab, setActiveTab] = useState<'companies' | 'projects' | 'plantillas' | 'tablero5s'>('companies')
 
   // ─── Projects state ──────────────────────────────────────────────────────
   const [allProjects, setAllProjects] = useState<ProjectData[]>([])
@@ -338,11 +338,8 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
     loadCompanies()
   }, [loadProjects, loadUsers, loadCompanies])
 
-  useEffect(() => {
-    if (activeTab === '5s-steps') {
-      load5SProgress()
-    }
-  }, [activeTab, load5SProgress])
+  // 5S-steps tab was removed; load5SProgress kept for potential future use
+  void load5SProgress;
 
   useEffect(() => {
     if (selectedProjectId) {
@@ -837,7 +834,7 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
         </header>
       )}
 
-      {/* Tabs — Order: Empresas / Usuarios / Proyectos / Plantillas */}
+      {/* Tabs — Order: Empresas / Proyectos / Plantillas / Configuración de Tableros */}
       <div className="border-b bg-white shrink-0">
         <div className={`flex gap-1 ${embedded ? '' : 'max-w-5xl mx-auto px-4'}`}>
           <button
@@ -850,17 +847,6 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
           >
             <Building2 className="h-4 w-4" />
             Empresas
-          </button>
-          <button
-            onClick={() => { setActiveTab('users'); setSelectedProjectId(null) }}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'users'
-                ? 'border-purple-500 text-purple-600'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Users className="h-4 w-4" />
-            Usuarios
           </button>
           <button
             onClick={() => { setActiveTab('projects'); setSelectedProjectId(null) }}
@@ -1483,208 +1469,6 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                 </div>
               )}
 
-              {/* ═══ USERS TAB ═══ */}
-            </motion.div>
-          )}
-
-          {activeTab === 'users' && (
-            <motion.div key="users" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-              {/* New user button */}
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-muted-foreground">
-                  Gestiona los usuarios del sistema y sus accesos
-                </p>
-                <Button
-                  onClick={() => setShowNewUser(true)}
-                  className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white"
-                  size="sm"
-                >
-                  <UserPlus className="h-4 w-4 mr-1" /> Nuevo Usuario
-                </Button>
-              </div>
-
-              {/* New user form */}
-              {showNewUser && (
-                <Card className="border-purple-200 bg-purple-50/30">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <UserPlus className="h-4 w-4 text-purple-500" />
-                      Crear Nuevo Usuario
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Nombre completo *</Label>
-                        <div className="relative">
-                          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <Input placeholder="Juan Pérez" value={newUserName} onChange={e => setNewUserName(e.target.value)} className="pl-9 h-9" />
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Email *</Label>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <Input placeholder="email@ejemplo.com" type="email" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} className="pl-9 h-9" />
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Contraseña *</Label>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <Input placeholder="Mínimo 6 caracteres" type="password" value={newUserPassword} onChange={e => setNewUserPassword(e.target.value)} className="pl-9 h-9" />
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Rol</Label>
-                        <Select value={newUserRole} onValueChange={setNewUserRole}>
-                          <SelectTrigger className="h-9">
-                            <Shield className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">Administrador</SelectItem>
-                            <SelectItem value="gerente">Gerente</SelectItem>
-                            <SelectItem value="responsable">Responsable</SelectItem>
-                            <SelectItem value="empleado">Empleado</SelectItem>
-                            <SelectItem value="auditor">Auditor</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 justify-end">
-                      <Button variant="outline" size="sm" onClick={() => setShowNewUser(false)}>Cancelar</Button>
-                      <Button size="sm" onClick={handleCreateUser} disabled={!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim() || newUserPassword.length < 6} className="bg-purple-600 text-white">
-                        Crear Usuario
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Users table */}
-              {isLoadingUsers ? (
-                <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 text-purple-500 animate-spin" /></div>
-              ) : users.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No hay usuarios en el sistema</p>
-                </div>
-              ) : (
-                <div className="rounded-lg border overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-xs">Nombre</TableHead>
-                        <TableHead className="text-xs">Email</TableHead>
-                        <TableHead className="text-xs">Rol</TableHead>
-                        <TableHead className="text-xs">Estado</TableHead>
-                        <TableHead className="text-xs">Proyectos</TableHead>
-                        <TableHead className="text-xs">Acciones</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {users.map(user => (
-                        <TableRow key={user.id} className={!user.active ? 'opacity-50' : ''}>
-                          <TableCell className="text-xs font-medium">
-                            {editingUser === user.id ? (
-                              <Input value={editUserData.name} onChange={e => setEditUserData(d => ({ ...d, name: e.target.value }))} className="h-7 text-xs" />
-                            ) : (
-                              user.name
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {editingUser === user.id ? (
-                              <Input value={editUserData.email} onChange={e => setEditUserData(d => ({ ...d, email: e.target.value }))} className="h-7 text-xs" />
-                            ) : (
-                              user.email
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {editingUser === user.id ? (
-                              <Select value={editUserData.role} onValueChange={v => setEditUserData(d => ({ ...d, role: v }))}>
-                                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="admin">Administrador</SelectItem>
-                                  <SelectItem value="gerente">Gerente</SelectItem>
-                                  <SelectItem value="responsable">Responsable</SelectItem>
-                                  <SelectItem value="empleado">Empleado</SelectItem>
-                                  <SelectItem value="auditor">Auditor</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <Badge className={`${ROLE_COLORS[user.role] || ''} border text-[10px]`}>
-                                {ROLE_LABELS[user.role] || user.role}
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {editingUser === user.id ? (
-                              <Select value={editUserData.active ? 'true' : 'false'} onValueChange={v => setEditUserData(d => ({ ...d, active: v === 'true' }))}>
-                                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="true">Activo</SelectItem>
-                                  <SelectItem value="false">Inactivo</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <Badge className={user.active ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'} variant="outline">
-                                {user.active ? 'Activo' : 'Inactivo'}
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {user.projects.length === 0 ? (
-                              <span className="text-muted-foreground">Ninguno</span>
-                            ) : (
-                              <div className="space-y-0.5">
-                                {user.projects.map((p, i) => (
-                                  <div key={i} className="flex items-center gap-1 flex-wrap">
-                                    <span>{p.projectName}</span>
-                                    <Badge className={`${ROLE_COLORS[p.role] || ''} border text-[9px] px-1 py-0`}>
-                                      {ROLE_LABELS[p.role]}
-                                    </Badge>
-                                    {p.zones.length > 0 && (
-                                      <span className="text-[9px] text-muted-foreground">
-                                        ({p.zones.map(z => z.name).join(', ')})
-                                      </span>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              {editingUser === user.id ? (
-                                <>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-green-500" onClick={() => handleUpdateUser(user.id)}><Check className="h-3.5 w-3.5" /></Button>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setEditingUser(null)}><X className="h-3.5 w-3.5" /></Button>
-                                </>
-                              ) : (
-                                <>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-500" onClick={() => { setEditingUser(user.id); setEditUserData({ name: user.name, email: user.email, role: user.role, active: user.active }) }} title="Editar">
-                                    <Edit3 className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-amber-500" onClick={() => { setResetPasswordUserId(user.id); setNewPassword('') }} title="Cambiar contraseña">
-                                    <Key className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleToggleActive(user.id, user.active)} title={user.active ? 'Desactivar' : 'Activar'}>
-                                    {user.active ? <EyeOff className="h-3.5 w-3.5 text-muted-foreground" /> : <Eye className="h-3.5 w-3.5 text-green-500" />}
-                                  </Button>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600" onClick={() => handleDeleteUser(user.id)} title="Eliminar">
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
             </motion.div>
           )}
 
