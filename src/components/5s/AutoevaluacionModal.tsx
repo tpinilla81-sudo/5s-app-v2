@@ -121,7 +121,12 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
       const expanded: Record<string, boolean> = {};
       sections.forEach(s => { expanded[s.id] = true; });
       setExpandedSections(expanded);
-      setResults({});
+      // Pre-mark all items as 'ok' (audit default — operator only marks NOKs)
+      const initialOk: Record<string, AuditItemResult> = {};
+      sections.forEach(s => s.items.forEach(item => {
+        initialOk[item.id] = { itemId: item.id, status: 'ok' };
+      }));
+      setResults(initialOk);
       setObservaciones('');
       setIsCompleted(false);
       setFinalScore(0);

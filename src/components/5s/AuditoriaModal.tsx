@@ -137,7 +137,12 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
       const expanded: Record<string, boolean> = {};
       sections.forEach(s => { expanded[s.id] = true; });
       setExpandedSections(expanded);
-      setResults({});
+      // Pre-mark all items as 'ok' (audit default — auditor only marks NOKs)
+      const initialOk: Record<string, AuditItemResult> = {};
+      sections.forEach(s => s.items.forEach(item => {
+        initialOk[item.id] = { itemId: item.id, status: 'ok' };
+      }));
+      setResults(initialOk);
       setAuditorName(currentUser?.name || '');
       setObservaciones('');
       setIsCompleted(false);

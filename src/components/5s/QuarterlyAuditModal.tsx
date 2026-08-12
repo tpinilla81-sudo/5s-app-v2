@@ -97,7 +97,12 @@ export default function QuarterlyAuditModal({ open, onClose }: QuarterlyAuditMod
       const expanded: Record<string, boolean> = {};
       sections.forEach(s => { expanded[s.id] = false; }); // Start collapsed since there are many
       setExpandedSections(expanded);
-      setResults({});
+      // Pre-mark all items as 'ok' (audit default — auditor only marks NOKs)
+      const initialOk: Record<string, AuditItemResult> = {};
+      sections.forEach(s => s.items.forEach(item => {
+        initialOk[item.id] = { itemId: item.id, status: 'ok' };
+      }));
+      setResults(initialOk);
       setAuditorName('');
       setObservaciones('');
       setIsCompleted(false);

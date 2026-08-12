@@ -97,7 +97,12 @@ export default function PeriodicAuditModal({
       const expanded: Record<string, boolean> = {};
       sections.forEach(s => { expanded[s.id] = true; }); // Start expanded since fewer items
       setExpandedSections(expanded);
-      setResults({});
+      // Pre-mark all items as 'ok' (audit default — auditor only marks NOKs)
+      const initialOk: Record<string, AuditItemResult> = {};
+      sections.forEach(s => s.items.forEach(item => {
+        initialOk[item.id] = { itemId: item.id, status: 'ok' };
+      }));
+      setResults(initialOk);
       setAuditorName('');
       setObservaciones('');
       setIsCompleted(false);
