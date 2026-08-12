@@ -55,6 +55,7 @@ import {
   Save,
   BookOpen,
   LayoutGrid,
+  Sparkles,
 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { S_STEPS } from '@/lib/5s-constants'
@@ -138,7 +139,7 @@ interface AdminPanelProps {
 
 export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
   const { setCurrentView, fetchProjects, fetchCompanies, projects, setCurrentProject, currentProject } = use5SStore()
-  const [activeTab, setActiveTab] = useState<'companies' | 'projects' | 'plantillas' | 'tablero5s'>('companies')
+  const [activeTab, setActiveTab] = useState<'companies' | 'projects' | 'plantillas' | 'tablero5s' | 'mejoraContinua'>('companies')
 
   // ─── Projects state ──────────────────────────────────────────────────────
   const [allProjects, setAllProjects] = useState<ProjectData[]>([])
@@ -883,11 +884,23 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
             <LayoutGrid className="h-4 w-4" />
             Configuración de Tableros
           </button>
+
+          <button
+            onClick={() => { setActiveTab('mejoraContinua'); setSelectedProjectId(null) }}
+            className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'mejoraContinua'
+                ? 'border-emerald-500 text-emerald-600'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Sparkles className="h-4 w-4" />
+            Mejora Continua
+          </button>
         </div>
       </div>
 
       {/* Content */}
-      <main className={`flex-1 min-h-0 overflow-auto w-full px-4 py-6 ${activeTab === 'tablero5s' ? 'max-w-7xl mx-auto' : embedded ? '' : 'max-w-5xl mx-auto'}`}>
+      <main className={`flex-1 min-h-0 overflow-auto w-full px-4 py-6 ${(activeTab === 'tablero5s' || activeTab === 'mejoraContinua') ? 'max-w-7xl mx-auto' : embedded ? '' : 'max-w-5xl mx-auto'}`}>
         <AnimatePresence mode="wait">
           {/* ═══ PROJECTS TAB ═══ */}
           {activeTab === 'projects' && (
@@ -1986,6 +1999,25 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
           {activeTab === 'tablero5s' && (
             <motion.div key="tablero5s" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <Tablero5S />
+            </motion.div>
+          )}
+
+          {/* ═══ MEJORA CONTINUA TAB ═══ */}
+          {activeTab === 'mejoraContinua' && (
+            <motion.div key="mejoraContinua" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+                <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
+                  <Sparkles className="h-8 w-8 text-emerald-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Mejora Continua</h2>
+                <p className="text-sm text-muted-foreground max-w-md mb-4">
+                  Aquí se configurará el panel de Mejora Continua (ciclo PDCA) para los proyectos 5S.
+                  Esta sección estará disponible próximamente.
+                </p>
+                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                  Próximamente
+                </Badge>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
