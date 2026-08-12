@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import {
   Loader2, X, FileText, Award, Settings2, Plus, Trash2, Edit3, Save,
-  ChevronDown, ChevronUp, Star, Copy, LayoutGrid,
+  ChevronDown, ChevronUp, Star, Copy, LayoutGrid, Building2,
 } from 'lucide-react'
 import { S_STEPS } from '@/lib/5s-constants'
 
@@ -134,6 +134,25 @@ export default function Tablero5S() {
   const [isLoading, setIsLoading] = useState(false)
   const [savingSlot, setSavingSlot] = useState<string | null>(null)
   const [expandedCell, setExpandedCell] = useState<string | null>(null)
+
+  // ─── Projects & zones assignment state ────────────────────────────────
+  interface ProjectZoneAssignment {
+    projectId: string
+    projectName: string
+    companyName: string
+    zones: Array<{
+      id: string
+      name: string
+      color: string
+      boardConfigId: string | null
+      boardConfigName: string | null
+    }>
+  }
+  const [projectAssignments, setProjectAssignments] = useState<ProjectZoneAssignment[]>([])
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState(false)
+  const [savingZoneAssignment, setSavingZoneAssignment] = useState<string | null>(null)
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({})
+  const [showAssignmentPanel, setShowAssignmentPanel] = useState(false)
 
   // ─── Responsive scaling ───────────────────────────────────────────────
   const boardContainerRef = useRef<HTMLDivElement>(null)
@@ -329,11 +348,20 @@ export default function Tablero5S() {
   }
 
   const handleDeleteConfig = async (id: string) => {
-    if (!confirm('¿Eliminar este tablero? Las zonas que lo usen quedarán sin tablero asignado.')) return
+    const config = configs.find(c => c.id === id)
+    const zoneCount = config?._count?.zones || 0
+    const isLast = configs.length <= 1
+    const msg = isLast
+      ? `¿Eliminar el ÚNICO tablero "${config?.name}"?\n\nEsto dejará todas las zonas sin tablero asignado. Podrás crear uno nuevo después.`
+      : zoneCount > 0
+        ? `¿Eliminar el tablero "${config?.name}"?\n\nLas ${zoneCount} zona(s) que lo usan quedarán sin tablero asignado.`
+        : `¿Eliminar el tablero "${config?.name}"?`
+    if (!confirm(msg)) return
     try {
       await fetch(`/api/board-configs?id=${id}`, { method: 'DELETE' })
       if (selectedConfigId === id) setSelectedConfigId(null)
       await loadConfigs()
+      await loadProjectZoneAssignments()
     } catch (error) { console.error('Error deleting config:', error) }
   }
 
@@ -381,11 +409,104 @@ export default function Tablero5S() {
         body: JSON.stringify({ id: config.id, isDefault: true }),
       })
       await loadConfigs()
+      await loadProjectZoneAssignments()
     } catch (error) { console.error('Error setting default:', error) }
+  }
+
+  // ─── Project zone assignments ─────────────────────────────────────────
+  const loadProjectZoneAssignments = useCallback(async () => {
+    setIsLoadingAssignments(true)
+    try {
+      const res = await fetch('/api/projects')
+      const data = await res.json()
+      const projects: ProjectZoneAssignment[] = []
+      for (const p of (data.projects || [])) {
+        try {
+          const zRes = await fetch(`/api/projects/${p.id}/zones`)
+          const zData = await zRes.json()
+          projects.push({
+            projectId: p.id,
+            projectName: p.name,
+            companyName: p.company,
+            zones: (zData.zones || []).map((z: any) => ({
+              id: z.id,
+              name: z.name,
+              color: z.color,
+              boardConfigId: z.boardConfigId,
+              boardConfigName: z.boardConfig?.name || null,
+            })),
+          })
+        } catch (e) { console.error(`Error loading zones for project ${p.id}:`, e) }
+      }
+      setProjectAssignments(projects)
+      // Auto-expand projects that have at least one zone using the currently selected config
+      const initial: Record<string, boolean> = {}
+      const configId = selectedConfigId
+      projects.forEach(p => {
+        // Default: expand if any zone uses the selected config OR if no zones use any config
+        initial[p.projectId] = configId
+          ? p.zones.some(z => z.boardConfigId === configId)
+          : p.zones.some(z => !z.boardConfigId)
+      })
+      setExpandedProjects(initial)
+    } catch (error) { console.error('Error loading project assignments:', error) }
+    finally { setIsLoadingAssignments(false) }
+  }, [selectedConfigId])
+
+  useEffect(() => {
+    if (showAssignmentPanel) loadProjectZoneAssignments()
+  }, [showAssignmentPanel, loadProjectZoneAssignments])
+
+  const handleAssignZone = async (projectId: string, zoneId: string, boardConfigId: string) => {
+    setSavingZoneAssignment(zoneId)
+    try {
+      const res = await fetch(`/api/projects/${projectId}/zones`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zoneId, boardConfigId }),
+      })
+      if (res.ok) {
+        setProjectAssignments(prev => prev.map(p =>
+          p.projectId === projectId
+            ? {
+                ...p,
+                zones: p.zones.map(z => {
+                  if (z.id === zoneId) {
+                    const cfg = configs.find(c => c.id === boardConfigId)
+                    return { ...z, boardConfigId: boardConfigId || null, boardConfigName: cfg?.name || null }
+                  }
+                  return z
+                }),
+              }
+            : p
+        ))
+      }
+    } catch (error) { console.error('Error assigning zone:', error) }
+    finally { setSavingZoneAssignment(null) }
+  }
+
+  const handleAssignAllZones = async (projectId: string, boardConfigId: string) => {
+    const project = projectAssignments.find(p => p.projectId === projectId)
+    if (!project) return
+    for (const zone of project.zones) {
+      // Skip zones already using this config
+      if (zone.boardConfigId === boardConfigId) continue
+      setSavingZoneAssignment(zone.id)
+      try {
+        await fetch(`/api/projects/${projectId}/zones`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zoneId: zone.id, boardConfigId }),
+        })
+      } catch (e) { console.error('Error assigning zone:', e) }
+    }
+    setSavingZoneAssignment(null)
+    await loadProjectZoneAssignments()
   }
 
   // ─── Render ──────────────────────────────────────────────────────────
   const selectedConfig = configs.find(c => c.id === selectedConfigId)
+  const defaultConfig = configs.find(c => c.isDefault)
 
   return (
     <div className="space-y-6">
@@ -443,12 +564,10 @@ export default function Tablero5S() {
                   <Star className="h-3.5 w-3.5" />
                 </Button>
               )}
-              {configs.length > 1 && (
-                <Button variant="outline" size="sm" onClick={() => handleDeleteConfig(selectedConfig.id)}
-                  className="gap-1 text-red-500 hover:text-red-600">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              )}
+              <Button variant="outline" size="sm" onClick={() => handleDeleteConfig(selectedConfig.id)}
+                className="gap-1 text-red-500 hover:text-red-600" title="Eliminar tablero">
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
             </>
           )}
         </div>
@@ -464,7 +583,161 @@ export default function Tablero5S() {
             {selectedConfig.description && <span>· {selectedConfig.description}</span>}
           </div>
         )}
+
+        {/* Toggle assignment panel */}
+        {configs.length > 0 && (
+          <div className="flex items-center gap-2 pt-2 border-t">
+            <Button
+              variant={showAssignmentPanel ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowAssignmentPanel(!showAssignmentPanel)}
+              className="gap-1.5"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              {showAssignmentPanel ? 'Ocultar asignación a proyectos' : 'Asignar a proyectos / zonas'}
+            </Button>
+            {defaultConfig && (
+              <span className="text-xs text-muted-foreground ml-auto">
+                ★ Predeterminado: <strong>{defaultConfig.name}</strong> — se asigna automáticamente a zonas nuevas.
+              </span>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Assignment panel — choose which project/zone uses the selected (or default) board config */}
+      {showAssignmentPanel && configs.length > 0 && (
+        <div className="border rounded-xl p-4 bg-gradient-to-r from-indigo-50/40 to-purple-50/40 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                <LayoutGrid className="h-4 w-4 text-indigo-500" />
+                Asignación de tableros a proyectos / zonas
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Elige qué tablero usa cada zona. Las zonas sin tablero caen al predeterminado (★).
+              </p>
+            </div>
+            {isLoadingAssignments && <Loader2 className="h-4 w-4 text-indigo-500 animate-spin" />}
+          </div>
+
+          {!isLoadingAssignments && projectAssignments.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              No hay proyectos disponibles. Crea un proyecto en la pestaña Proyectos.
+            </p>
+          )}
+
+          <div className="space-y-2">
+            {projectAssignments.map(project => {
+              const isExpanded = expandedProjects[project.projectId]
+              const zonesUsingSelected = project.zones.filter(z => z.boardConfigId === selectedConfigId).length
+              const zonesWithoutConfig = project.zones.filter(z => !z.boardConfigId).length
+
+              return (
+                <div key={project.projectId} className="border rounded-lg bg-white overflow-hidden">
+                  {/* Project header row */}
+                  <div className="flex items-center gap-2 p-2.5 hover:bg-gray-50 cursor-pointer"
+                    onClick={() => setExpandedProjects(prev => ({ ...prev, [project.projectId]: !isExpanded }))}
+                  >
+                    <button className="p-0.5 text-gray-400 hover:text-gray-700">
+                      {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    </button>
+                    <Building2 className="h-3.5 w-3.5 text-purple-500" />
+                    <span className="font-medium text-sm text-gray-900">{project.projectName}</span>
+                    <span className="text-xs text-gray-400">· {project.companyName}</span>
+                    <div className="ml-auto flex items-center gap-1.5">
+                      <Badge className="text-[10px] bg-gray-100 text-gray-700 border-0">
+                        {project.zones.length} zona{project.zones.length !== 1 ? 's' : ''}
+                      </Badge>
+                      {selectedConfig && zonesUsingSelected > 0 && (
+                        <Badge className="text-[10px] bg-indigo-100 text-indigo-700 border-0">
+                          {zonesUsingSelected} usa(n) actual
+                        </Badge>
+                      )}
+                      {zonesWithoutConfig > 0 && (
+                        <Badge className="text-[10px] bg-amber-100 text-amber-700 border-0">
+                          {zonesWithoutConfig} sin tablero
+                        </Badge>
+                      )}
+                      {selectedConfig && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleAssignAllZones(project.projectId, selectedConfig.id)
+                          }}
+                          className="h-6 text-[10px] gap-1"
+                          disabled={savingZoneAssignment !== null}
+                        >
+                          {selectedConfig.isDefault ? <Star className="h-3 w-3" /> : <LayoutGrid className="h-3 w-3" />}
+                          Aplicar a todo
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Zones list */}
+                  {isExpanded && (
+                    <div className="border-t bg-gray-50/50 p-2 space-y-1">
+                      {project.zones.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic px-2 py-2">
+                          Este proyecto no tiene zonas.
+                        </p>
+                      ) : (
+                        project.zones.map(zone => {
+                          const isAssigned = zone.boardConfigId === selectedConfigId
+                          const isSaving = savingZoneAssignment === zone.id
+                          return (
+                            <div key={zone.id} className="flex items-center gap-2 px-2 py-1.5 rounded bg-white border">
+                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
+                              <span className="text-xs font-medium text-gray-800 min-w-[80px]">{zone.name}</span>
+                              {zone.boardConfigName ? (
+                                <Badge className={`text-[10px] border-0 ${isAssigned ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
+                                  {zone.boardConfigName}
+                                </Badge>
+                              ) : (
+                                <Badge className="text-[10px] bg-amber-50 text-amber-700 border-0">Sin tablero</Badge>
+                              )}
+                              <div className="ml-auto flex items-center gap-1">
+                                {isSaving && <Loader2 className="h-3 w-3 text-purple-500 animate-spin" />}
+                                <select
+                                  value={zone.boardConfigId || ''}
+                                  onChange={e => handleAssignZone(project.projectId, zone.id, e.target.value)}
+                                  disabled={isSaving}
+                                  className="h-7 text-[11px] border rounded px-1.5 bg-white"
+                                >
+                                  <option value="">— Sin tablero (usa predeterminado) —</option>
+                                  {configs.map(c => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.name}{c.isDefault ? ' ★' : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                                {selectedConfig && (
+                                  <Button
+                                    variant={isAssigned ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => handleAssignZone(project.projectId, zone.id, isAssigned ? '' : selectedConfig.id)}
+                                    disabled={isSaving}
+                                    className="h-7 text-[10px] gap-1"
+                                  >
+                                    {isAssigned ? '✓ Asignado' : 'Asignar'}
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* No configs message */}
       {configs.length === 0 && (
