@@ -21,11 +21,14 @@ export function templateToAuditSections(content: unknown): AuditSection[] {
     return parsed.sections.map((section: any, sIdx: number) => ({
       id: section.id || `sec-${sIdx}`,
       title: section.title || `Sección ${sIdx + 1}`,
-      items: (section.items || []).map((item: any, iIdx: number) => ({
-        id: item.id || `item-${sIdx}-${iIdx}`,
-        description: item.description || '',
-        hasOther: item.hasOther || false,
-      })),
+      items: (section.items || [])
+        // Filtrar items marcados como `active: false` (ocultos en el tablero)
+        .filter((item: any) => item.active !== false)
+        .map((item: any, iIdx: number) => ({
+          id: item.id || `item-${sIdx}-${iIdx}`,
+          description: item.description || '',
+          hasOther: item.hasOther || false,
+        })),
     }))
   }
 

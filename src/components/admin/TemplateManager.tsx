@@ -15,7 +15,7 @@ import {
 import {
   Plus, Trash2, Edit3, Save, Loader2, BookOpen, FileCheck, ClipboardCheck, Camera,
   ChevronDown, ChevronUp, AlertTriangle, Copy, RotateCcw, X,
-  Eye, Code, GripVertical, Download, Upload, ClipboardList, Award,
+  Eye, EyeOff, Code, GripVertical, Download, Upload, ClipboardList, Award,
   ClipboardPaste, ClipboardCopy, Check, ArrowRightLeft,
   Play, SearchCheck, Rocket, Target, Sparkles, LayoutGrid,
 } from 'lucide-react'
@@ -363,10 +363,17 @@ function getDefaultFotosContent(sStep: number) {
 // ═══════════════════════════════════════════════════════
 // VISUAL EDITOR: ChecklistEditor (autoevaluacion / auditoria)
 // ═══════════════════════════════════════════════════════
+interface ChecklistItem {
+  id: string
+  description: string
+  hasOther: boolean
+  active?: boolean // true (default) → aparece en el tablero (apartados 4/5); false → oculta
+}
+
 interface ChecklistSection {
   id: string
   title: string
-  items: { id: string; description: string; hasOther: boolean }[]
+  items: ChecklistItem[]
 }
 
 function ChecklistEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
@@ -417,7 +424,7 @@ function ChecklistEditor({ content, onChange }: { content: string; onChange: (v:
     const updated = [...sections]
     updated[sectionIdx] = {
       ...updated[sectionIdx],
-      items: [...updated[sectionIdx].items, { id: newItemId, description: '', hasOther: false }]
+      items: [...updated[sectionIdx].items, { id: newItemId, description: '', hasOther: false, active: true }]
     }
     update(updated)
   }
@@ -455,7 +462,18 @@ function ChecklistEditor({ content, onChange }: { content: string; onChange: (v:
 
   return (
     <div className="space-y-4">
-      {sections.map((section, sIdx) => (
+      {/* Leyenda rápida */}
+      <div className="flex items-center gap-3 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-md text-xs text-indigo-800">
+        <Eye className="h-3.5 w-3.5 shrink-0" />
+        <span><b>En tablero</b> = la pregunta aparece en los apartados 4/5 de las S del tablero.</span>
+        <span className="text-indigo-400">·</span>
+        <EyeOff className="h-3.5 w-3.5 shrink-0" />
+        <span><b>Oculta</b> = no aparece en el tablero. Pulsa el badge para alternar.</span>
+      </div>
+      {sections.map((section, sIdx) => {
+        const activeCount = section.items.filter(it => it.active !== false).length
+        const totalCount = section.items.length
+        return (
         <div key={sIdx} className="border-2 rounded-lg overflow-hidden bg-white shadow-sm">
           {/* Section header */}
           <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b">
@@ -479,6 +497,18 @@ function ChecklistEditor({ content, onChange }: { content: string; onChange: (v:
               className="flex-1 h-9 text-base font-semibold"
               placeholder="Título de sección"
             />
+            <span
+              className={`text-xs font-medium px-2 py-1 rounded-md whitespace-nowrap shrink-0 ${
+                activeCount === totalCount
+                  ? 'bg-green-100 text-green-700'
+                  : activeCount === 0
+                  ? 'bg-gray-200 text-gray-600'
+                  : 'bg-amber-100 text-amber-700'
+              }`}
+              title={`${activeCount} de ${totalCount} preguntas aparecen en el tablero`}
+            >
+              {activeCount}/{totalCount} en tablero
+            </span>
             <Button variant="ghost" size="sm" onClick={() => addItem(sIdx)}
               className="h-9 w-9 p-0 text-green-600 hover:text-green-700 hover:bg-green-50" title="Añadir item">
               <Plus className="h-5 w-5" />
@@ -494,47 +524,82 @@ function ChecklistEditor({ content, onChange }: { content: string; onChange: (v:
             {section.items.length === 0 && (
               <p className="text-sm text-muted-foreground italic px-2 py-2">Sin items. Pulsa + para añadir.</p>
             )}
-            {section.items.map((item, iIdx) => (
-              <div key={iIdx} className="flex items-center gap-3 group">
-                <div className="flex flex-col gap-0.5">
-                  <button onClick={() => moveItem(sIdx, iIdx, -1)} className="text-gray-300 hover:text-gray-500 leading-none" title="Subir">
-                    <ChevronUp className="h-3.5 w-3.5" />
-                  </button>
-                  <button onClick={() => moveItem(sIdx, iIdx, 1)} className="text-gray-300 hover:text-gray-500 leading-none" title="Bajar">
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <Input
-                  value={item.id}
-                  onChange={(e) => updateItem(sIdx, iIdx, 'id', e.target.value)}
-                  className="w-20 h-8 text-xs font-mono"
-                  placeholder="ID"
-                />
-                <Input
-                  value={item.description}
-                  onChange={(e) => updateItem(sIdx, iIdx, 'description', e.target.value)}
-                  className="flex-1 h-8 text-sm"
-                  placeholder="Descripción del item"
-                />
-                <label className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={item.hasOther}
-                    onChange={(e) => updateItem(sIdx, iIdx, 'hasOther', e.target.checked)}
-                    className="rounded border-gray-300 h-4 w-4"
+            {section.items.map((item, iIdx) => {
+              // Un item se considera "en tablero" a menos que explícitamente esté active:false.
+              // Esto mantiene compatibilidad con plantillas antiguas que no tienen el campo `active`.
+              const isOnBoard = item.active !== false
+              return (
+                <div
+                  key={iIdx}
+                  className={`flex items-center gap-3 group rounded-md px-1 py-0.5 transition-colors ${
+                    isOnBoard ? '' : 'bg-gray-50'
+                  }`}
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <button onClick={() => moveItem(sIdx, iIdx, -1)} className="text-gray-300 hover:text-gray-500 leading-none" title="Subir">
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => moveItem(sIdx, iIdx, 1)} className="text-gray-300 hover:text-gray-500 leading-none" title="Bajar">
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <Input
+                    value={item.id}
+                    onChange={(e) => updateItem(sIdx, iIdx, 'id', e.target.value)}
+                    className="w-20 h-8 text-xs font-mono"
+                    placeholder="ID"
                   />
-                  Otros
-                </label>
-                <Button variant="ghost" size="sm"
-                  onClick={() => removeItem(sIdx, iIdx)}
-                  className="h-8 w-8 p-0 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" title="Eliminar">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+                  <Input
+                    value={item.description}
+                    onChange={(e) => updateItem(sIdx, iIdx, 'description', e.target.value)}
+                    className={`flex-1 h-8 text-sm ${
+                      isOnBoard ? '' : 'text-gray-400 line-through decoration-gray-300'
+                    }`}
+                    placeholder="Descripción del item"
+                  />
+                  {/* Toggle "En tablero" — Controla si esta pregunta aparece en los apartados 4/5 de las S del tablero */}
+                  <button
+                    type="button"
+                    onClick={() => updateItem(sIdx, iIdx, 'active', !isOnBoard)}
+                    className={`flex items-center gap-1 px-2 h-8 rounded-md text-xs font-medium border transition-colors whitespace-nowrap shrink-0 ${
+                      isOnBoard
+                        ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                        : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'
+                    }`}
+                    title={
+                      isOnBoard
+                        ? 'Esta pregunta aparece en el tablero. Clic para ocultarla.'
+                        : 'Esta pregunta NO aparece en el tablero. Clic para mostrarla.'
+                    }
+                  >
+                    {isOnBoard ? (
+                      <Eye className="h-3.5 w-3.5" />
+                    ) : (
+                      <EyeOff className="h-3.5 w-3.5" />
+                    )}
+                    {isOnBoard ? 'En tablero' : 'Oculta'}
+                  </button>
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={item.hasOther}
+                      onChange={(e) => updateItem(sIdx, iIdx, 'hasOther', e.target.checked)}
+                      className="rounded border-gray-300 h-4 w-4"
+                    />
+                    Otros
+                  </label>
+                  <Button variant="ghost" size="sm"
+                    onClick={() => removeItem(sIdx, iIdx)}
+                    className="h-8 w-8 p-0 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" title="Eliminar">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )
+            })}
           </div>
         </div>
-      ))}
+        )
+      })}
 
       <Button variant="outline" onClick={addSection}
         className="w-full border-dashed border-2 text-green-600 hover:bg-green-50 hover:border-green-400 gap-1 h-10">
@@ -543,7 +608,7 @@ function ChecklistEditor({ content, onChange }: { content: string; onChange: (v:
       </Button>
 
       <div className="text-sm text-muted-foreground text-center">
-        {sections.length} sección(es) · {sections.reduce((s, sec) => s + sec.items.length, 0)} item(s) en total
+        {sections.length} sección(es) · {sections.reduce((s, sec) => s + sec.items.length, 0)} item(s) en total · {sections.reduce((s, sec) => s + sec.items.filter(it => it.active !== false).length, 0)} en tablero
       </div>
     </div>
   )
