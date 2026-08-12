@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { toast } from 'sonner';
 
 interface AutoevaluacionModalProps {
   open: boolean;
@@ -379,7 +380,13 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
         }),
       });
       const json = await res.json();
+      if (!res.ok || !json.success) {
+        toast.error(`Error del servidor: ${json.error || res.statusText || 'Error desconocido'}`);
+        return;
+      }
       if (json.success) {
+        // Feedback visible al usuario
+        toast.success(`Autoevaluación guardada: ${effectiveResults.length} items (${scoring.okCount} OK, ${scoring.nokCount} NOK, score ${scoring.scorePercent}%)`);
         setIsCompleted(true);
         setFinalScore(scoring.scorePercent);
         await fetchProgress();
@@ -612,6 +619,7 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
       }
     } catch (error) {
       console.error('Error submitting self-evaluation:', error);
+      toast.error('Error al guardar la autoevaluación. Revisa la consola (F12) para más detalles.');
     } finally {
       setIsSubmitting(false);
     }

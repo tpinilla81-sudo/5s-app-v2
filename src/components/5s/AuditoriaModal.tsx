@@ -48,6 +48,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { toast } from 'sonner';
 
 interface AuditoriaModalProps {
   open: boolean;
@@ -397,6 +398,34 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
         return;
       }
       if (auditJson.success) {
+        // Feedback visible
+        toast.success(`Auditoría guardada: ${Object.keys(results).length} items (${scoring.okCount} OK, ${scoring.nokCount} NOK, score ${scoring.scorePercent}%)`);
+        // Also save results in progress.notes so loadSavedResults can find them on reopen
+        try {
+          await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              completed: isApto,
+              score: scoring.scorePercent,
+              notes: JSON.stringify({
+                type: 'auditoria',
+                passed: isApto,
+                notaMinima,
+                results: Object.values(results),
+                observaciones,
+                auditorName,
+                fechaAuditoria,
+                horaAuditoria,
+              }),
+              projectId: currentProject?.id,
+              zoneId: currentZone?.id || null,
+            }),
+          });
+        } catch (progressErr) {
+          console.error('Error saving audit results to progress.notes:', progressErr);
+        }
+
         // Create action items for each NOK to transmit disfunciones to the operator
         const nokResults = Object.values(results).filter(r => r.status === 'nok');
         for (const nok of nokResults) {
@@ -550,6 +579,7 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
       }
     } catch (error) {
       console.error('Error submitting audit:', error);
+      toast.error('Error al guardar la auditoría. Revisa la consola (F12) para más detalles.');
     } finally {
       setIsSubmitting(false);
     }
