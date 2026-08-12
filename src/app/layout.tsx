@@ -148,17 +148,47 @@ export default function RootLayout({
                   });
                 }
 
-                // STEP 3: Version check — auto-reload when new deployment detected
+                // STEP 3: Version check — show banner + auto-reload when new deployment detected
                 var currentVersion = null;
+                function showUpdateBanner(newVersion) {
+                  if (document.getElementById('app-update-banner')) return;
+                  var banner = document.createElement('div');
+                  banner.id = 'app-update-banner';
+                  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#dc2626;color:white;padding:12px 16px;font-family:system-ui,sans-serif;font-size:14px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+                  banner.innerHTML = '<strong>Nueva versión disponible.</strong> <span>Pulsa para actualizar.</span> <button id="app-update-btn" style="background:white;color:#dc2626;border:none;padding:6px 14px;border-radius:4px;font-weight:600;cursor:pointer;">Actualizar ahora</button>';
+                  document.body.appendChild(banner);
+                  document.getElementById('app-update-btn').addEventListener('click', function() {
+                    // Aggressive cache clear before reload
+                    if ('caches' in window) {
+                      caches.keys().then(function(names) {
+                        Promise.all(names.map(function(n) { return caches.delete(n); })).then(function() {
+                          window.location.href = window.location.pathname + '?_nocache=' + Date.now();
+                        });
+                      });
+                    } else {
+                      window.location.href = window.location.pathname + '?_nocache=' + Date.now();
+                    }
+                  });
+                }
                 function checkVersion() {
                   fetch('/version?t=' + Date.now(), { cache: 'no-store' })
                     .then(function(r) { return r.text(); })
                     .then(function(v) {
+                      v = v.trim();
                       if (currentVersion === null) {
                         currentVersion = v;
+                        // Also stash in localStorage to detect version change across sessions
+                        try {
+                          var prev = localStorage.getItem('app_version');
+                          if (prev && prev !== v) {
+                            // Version changed since last visit — show banner
+                            showUpdateBanner(v);
+                          }
+                          localStorage.setItem('app_version', v);
+                        } catch (e) {}
                       } else if (currentVersion !== v) {
                         console.log('[App] Version changed from', currentVersion, 'to', v);
-                        window.location.href = window.location.pathname + '?_nocache=' + Date.now();
+                        showUpdateBanner(v);
                       }
                     })
                     .catch(function() {});
