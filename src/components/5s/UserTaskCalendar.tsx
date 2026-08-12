@@ -252,14 +252,19 @@ export function UserTaskCalendar({
                 modifiersClassNames={modifiersClassNames}
                 className="rounded-md border"
                 components={{
-                  Day: (props: any) => {
-                    const date = props.date
-                    const key = format(date, 'yyyy-MM-dd')
-                    const items = tasksByDate.get(key) || []
-                    const hasOverdue = items.some((t) => t._status === 'vencida')
-                    const hasToday = isToday(date)
+                  DayButton: (props: any) => {
+                    const date = props?.day?.date
+                    let items: TaskItem[] = []
+                    let hasOverdue = false
+                    let hasToday = false
+                    if (date instanceof Date && !isNaN(date.getTime())) {
+                      const key = format(date, 'yyyy-MM-dd')
+                      items = tasksByDate.get(key) || []
+                      hasOverdue = items.some((t) => t._status === 'vencida')
+                      hasToday = isToday(date)
+                    }
                     return (
-                      <div className="relative h-9 w-9">
+                      <span className="relative inline-flex w-full h-full items-center justify-center">
                         <button
                           {...props}
                           className={cn(
@@ -270,12 +275,12 @@ export function UserTaskCalendar({
                         {items.length > 0 && (
                           <span
                             className={cn(
-                              'absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1.5 w-1.5 rounded-full',
+                              'pointer-events-none absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1.5 w-1.5 rounded-full',
                               hasOverdue ? 'bg-red-500' : hasToday ? 'bg-orange-500' : 'bg-blue-500'
                             )}
                           />
                         )}
-                      </div>
+                      </span>
                     )
                   },
                 }}
