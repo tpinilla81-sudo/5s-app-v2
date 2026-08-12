@@ -1196,150 +1196,82 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                         <Users className="h-3 w-3" /> Miembros del Proyecto
                                       </h4>
 
-                                      {/* Add member form */}
+                                      {/* Assign existing user to project — new users are created in the "Usuarios" tab */}
                                       <Card className="mb-3 border-gray-200">
                                         <CardContent className="p-3">
-                                          {/* Mode toggle */}
-                                          <div className="flex gap-2 mb-3">
-                                            <button
-                                              type="button"
-                                              onClick={() => setAddMemberMode('existing')}
-                                              className={`flex-1 text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
-                                                addMemberMode === 'existing'
-                                                  ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                                                  : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100'
-                                              }`}
-                                            >
-                                              <UserPlus className="h-3 w-3 inline mr-1" />
-                                              Usuario Existente
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => setAddMemberMode('new')}
-                                              className={`flex-1 text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
-                                                addMemberMode === 'new'
-                                                  ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                                                  : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100'
-                                              }`}
-                                            >
-                                              <Plus className="h-3 w-3 inline mr-1" />
-                                              Nuevo Usuario
-                                            </button>
+                                          {/* Info: where to create new users */}
+                                          <div className="mb-3 flex items-start gap-2 p-2 rounded-md bg-blue-50 border border-blue-200 text-[11px] text-blue-800">
+                                            <UserPlus className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                            <span>
+                                              Para crear un <strong>nuevo usuario</strong> con su contraseña, ve a la pestaña <strong>«Usuarios»</strong>. Aquí solo se asignan usuarios ya existentes a este proyecto.
+                                            </span>
                                           </div>
 
-                                          {addMemberMode === 'existing' ? (
-                                            /* Existing user selection */
-                                            <div className="space-y-2">
-                                              <Select value={selectedExistingUserId} onValueChange={setSelectedExistingUserId}>
-                                                <SelectTrigger className="h-8 text-xs">
-                                                  <SelectValue placeholder="Seleccionar usuario existente..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                  {users
-                                                    .filter(u => !projectMembers.some(m => m.user.id === u.id))
-                                                    .map(u => (
-                                                      <SelectItem key={u.id} value={u.id}>
-                                                        <div className="flex items-center gap-2">
-                                                          <span>{u.name}</span>
-                                                          <span className="text-muted-foreground">({u.email})</span>
-                                                          <Badge className={`${ROLE_COLORS[u.role] || ''} border text-[9px] py-0`}>
-                                                            {ROLE_LABELS[u.role] || u.role}
+                                          {/* Existing user selection */}
+                                          <div className="space-y-2">
+                                            <Select value={selectedExistingUserId} onValueChange={setSelectedExistingUserId}>
+                                              <SelectTrigger className="h-8 text-xs">
+                                                <SelectValue placeholder="Seleccionar usuario existente..." />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {users
+                                                  .filter(u => !projectMembers.some(m => m.user.id === u.id))
+                                                  .map(u => (
+                                                    <SelectItem key={u.id} value={u.id}>
+                                                      <div className="flex items-center gap-2">
+                                                        <span>{u.name}</span>
+                                                        <span className="text-muted-foreground">({u.email})</span>
+                                                        <Badge className={`${ROLE_COLORS[u.role] || ''} border text-[9px] py-0`}>
+                                                          {ROLE_LABELS[u.role] || u.role}
+                                                        </Badge>
+                                                        {u.projects.length === 0 && (
+                                                          <Badge className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] py-0">
+                                                            Sin proyecto
                                                           </Badge>
-                                                          {u.projects.length === 0 && (
-                                                            <Badge className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] py-0">
-                                                              Sin proyecto
-                                                            </Badge>
-                                                          )}
-                                                        </div>
-                                                      </SelectItem>
-                                                    ))}
+                                                        )}
+                                                      </div>
+                                                    </SelectItem>
+                                                  ))}
+                                              </SelectContent>
+                                            </Select>
+                                            <div className="grid grid-cols-2 gap-2">
+                                              <Select value={newMemberRole} onValueChange={setNewMemberRole}>
+                                                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                  <SelectItem value="admin">Administrador</SelectItem>
+                                                  <SelectItem value="gerente">Gerente</SelectItem>
+                                                  <SelectItem value="responsable">Responsable</SelectItem>
+                                                  <SelectItem value="empleado">Empleado</SelectItem>
+                                                  <SelectItem value="auditor">Auditor</SelectItem>
                                                 </SelectContent>
                                               </Select>
-                                              <div className="grid grid-cols-2 gap-2">
-                                                <Select value={newMemberRole} onValueChange={setNewMemberRole}>
-                                                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                                                  <SelectContent>
-                                                    <SelectItem value="admin">Administrador</SelectItem>
-                                                    <SelectItem value="gerente">Gerente</SelectItem>
-                                                    <SelectItem value="responsable">Responsable</SelectItem>
-                                                    <SelectItem value="empleado">Empleado</SelectItem>
-                                                    <SelectItem value="auditor">Auditor</SelectItem>
-                                                  </SelectContent>
-                                                </Select>
-                                                <div className="space-y-1">
-                                                  <p className="text-[10px] text-muted-foreground font-medium">Zonas (todas por defecto)</p>
-                                                  <div className="space-y-0.5 max-h-32 overflow-y-auto">
-                                                    {projectZones.map(z => (
-                                                      <label key={z.id} className="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
-                                                        <Checkbox
-                                                          checked={newMemberZones.includes(z.id)}
-                                                          onCheckedChange={(checked) => {
-                                                            if (checked) {
-                                                              setNewMemberZones([...newMemberZones, z.id])
-                                                            } else {
-                                                              setNewMemberZones(newMemberZones.filter(id => id !== z.id))
-                                                            }
-                                                          }}
-                                                          className="h-3.5 w-3.5"
-                                                        />
-                                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: z.color }} />
-                                                        <span>{z.name}</span>
-                                                      </label>
-                                                    ))}
-                                                  </div>
+                                              <div className="space-y-1">
+                                                <p className="text-[10px] text-muted-foreground font-medium">Zonas (todas por defecto)</p>
+                                                <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                                                  {projectZones.map(z => (
+                                                    <label key={z.id} className="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
+                                                      <Checkbox
+                                                        checked={newMemberZones.includes(z.id)}
+                                                        onCheckedChange={(checked) => {
+                                                          if (checked) {
+                                                            setNewMemberZones([...newMemberZones, z.id])
+                                                          } else {
+                                                            setNewMemberZones(newMemberZones.filter(id => id !== z.id))
+                                                          }
+                                                        }}
+                                                        className="h-3.5 w-3.5"
+                                                      />
+                                                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: z.color }} />
+                                                      <span>{z.name}</span>
+                                                    </label>
+                                                  ))}
                                                 </div>
                                               </div>
-                                              <Button size="sm" onClick={handleAddMember} disabled={!selectedExistingUserId} className="w-full h-8 text-xs bg-purple-600 text-white">
-                                                <UserPlus className="h-3 w-3 mr-1" /> Asignar al Proyecto
-                                              </Button>
                                             </div>
-                                          ) : (
-                                            /* New user form */
-                                            <>
-                                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                                <Input placeholder="Nombre" value={newMemberName} onChange={e => setNewMemberName(e.target.value)} className="h-8 text-xs" />
-                                                <Input placeholder="Email" type="email" value={newMemberEmail} onChange={e => setNewMemberEmail(e.target.value)} className="h-8 text-xs" />
-                                                <Input placeholder="Contraseña (mín. 6 chars)" type="password" value={newMemberPassword} onChange={e => setNewMemberPassword(e.target.value)} className="h-8 text-xs" />
-                                              </div>
-                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                                                <Select value={newMemberRole} onValueChange={setNewMemberRole}>
-                                                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                                                  <SelectContent>
-                                                    <SelectItem value="admin">Administrador</SelectItem>
-                                                    <SelectItem value="gerente">Gerente</SelectItem>
-                                                    <SelectItem value="responsable">Responsable</SelectItem>
-                                                    <SelectItem value="empleado">Empleado</SelectItem>
-                                                    <SelectItem value="auditor">Auditor</SelectItem>
-                                                  </SelectContent>
-                                                </Select>
-                                                <div className="space-y-1">
-                                                  <p className="text-[10px] text-muted-foreground font-medium">Zonas (todas por defecto)</p>
-                                                  <div className="space-y-0.5 max-h-32 overflow-y-auto">
-                                                    {projectZones.map(z => (
-                                                      <label key={z.id} className="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
-                                                        <Checkbox
-                                                          checked={newMemberZones.includes(z.id)}
-                                                          onCheckedChange={(checked) => {
-                                                            if (checked) {
-                                                              setNewMemberZones([...newMemberZones, z.id])
-                                                            } else {
-                                                              setNewMemberZones(newMemberZones.filter(id => id !== z.id))
-                                                            }
-                                                          }}
-                                                          className="h-3.5 w-3.5"
-                                                        />
-                                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: z.color }} />
-                                                        <span>{z.name}</span>
-                                                      </label>
-                                                    ))}
-                                                  </div>
-                                                </div>
-                                              </div>
-                                              <Button size="sm" onClick={handleAddMember} disabled={!newMemberName.trim() || !newMemberEmail.trim()} className="w-full h-8 text-xs bg-purple-600 text-white mt-2">
-                                                <Plus className="h-3 w-3 mr-1" /> Crear y Añadir
-                                              </Button>
-                                            </>
-                                          )}
+                                            <Button size="sm" onClick={handleAddMember} disabled={!selectedExistingUserId} className="w-full h-8 text-xs bg-purple-600 text-white">
+                                              <UserPlus className="h-3 w-3 mr-1" /> Asignar al Proyecto
+                                            </Button>
+                                          </div>
                                         </CardContent>
                                       </Card>
 
