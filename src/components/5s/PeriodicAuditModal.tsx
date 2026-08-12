@@ -281,7 +281,7 @@ export default function PeriodicAuditModal({
             <Badge className="border" style={{ borderColor: color, color, backgroundColor: `${color}10` }}>
               {auditType === 'weekly' ? 'Semanal' : 'Mensual'}
             </Badge>
-            <span className="ml-2 text-[10px] text-muted-foreground font-mono" title="Versión del modal">v2.3</span>
+            <span className="ml-2 text-[10px] text-muted-foreground font-mono" title="Versión del modal">v2.4</span>
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               className="ml-auto p-1 rounded hover:bg-muted transition-colors"
