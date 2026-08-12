@@ -1203,34 +1203,55 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                   <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 text-purple-500 animate-spin" /></div>
                                 ) : (
                                   <>
-                                    {/* Zones */}
+                                    {/* Zonas existentes */}
                                     <div>
                                       <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1">
-                                        <MapPin className="h-3 w-3" /> Zonas
+                                        <MapPin className="h-3 w-3" /> Zonas del Proyecto
+                                        {projectZones.length > 0 && (
+                                          <Badge className="ml-1 text-[9px] py-0 px-1.5 bg-gray-100 text-gray-600 border-0">
+                                            {projectZones.length}
+                                          </Badge>
+                                        )}
                                       </h4>
-                                      <div className="flex flex-wrap gap-2 mb-2">
-                                        {projectZones.map(zone => (
-                                          <div key={zone.id} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border bg-white text-xs">
-                                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
-                                            <span className="font-medium">{zone.name}</span>
-                                            {/* Tablero fijo: siempre el predeterminado, no editable */}
-                                            <Badge className="text-[9px] px-1 py-0 bg-indigo-100 text-indigo-700 border-0 ml-1" title="Esta zona usa el tablero predeterminado del sistema">
-                                              <LayoutGrid className="h-2.5 w-2.5 mr-0.5 inline" />
-                                              Tablero predeterminado
-                                            </Badge>
-                                            <button onClick={() => handleDeleteZone(zone.id, zone.name)} className="text-red-400 hover:text-red-600 ml-1" title="Eliminar zona"><Trash2 className="h-3 w-3" /></button>
-                                          </div>
-                                        ))}
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <div className="flex gap-1">
+                                      {projectZones.length === 0 ? (
+                                        <div className="p-4 rounded-lg border border-dashed bg-gray-50 text-center">
+                                          <MapPin className="h-6 w-6 mx-auto mb-1 text-gray-300" />
+                                          <p className="text-xs text-muted-foreground">Todavía no hay zonas en este proyecto.</p>
+                                          <p className="text-[10px] text-muted-foreground mt-0.5">Crea la primera zona más abajo.</p>
+                                        </div>
+                                      ) : (
+                                        <div className="flex flex-wrap gap-2">
+                                          {projectZones.map(zone => (
+                                            <div key={zone.id} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border bg-white text-xs">
+                                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
+                                              <span className="font-medium">{zone.name}</span>
+                                              {/* Tablero fijo: siempre el predeterminado, no editable */}
+                                              <Badge className="text-[9px] px-1 py-0 bg-indigo-100 text-indigo-700 border-0 ml-1" title="Esta zona usa el tablero predeterminado del sistema">
+                                                <LayoutGrid className="h-2.5 w-2.5 mr-0.5 inline" />
+                                                Tablero predeterminado
+                                              </Badge>
+                                              <button onClick={() => handleDeleteZone(zone.id, zone.name)} className="text-red-400 hover:text-red-600 ml-1" title="Eliminar zona"><Trash2 className="h-3 w-3" /></button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Crear nueva zona — separado del listado */}
+                                    <div className="rounded-lg border border-dashed border-purple-200 bg-purple-50/40 p-3">
+                                      <h4 className="text-xs font-semibold text-purple-700 uppercase mb-2 flex items-center gap-1">
+                                        <Plus className="h-3 w-3" /> Crear Nueva Zona
+                                      </h4>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-[10px] text-muted-foreground mr-1">Color:</span>
                                           {PRESET_COLORS.map(c => (
                                             <button key={c} type="button" className={`w-5 h-5 rounded-full border-2 ${newZoneColor === c ? 'border-gray-800' : 'border-transparent'}`} style={{ backgroundColor: c }} onClick={() => setNewZoneColor(c)} />
                                           ))}
                                         </div>
-                                        <Input placeholder="Nueva zona" value={newZoneName} onChange={e => setNewZoneName(e.target.value)} className="h-8 text-xs max-w-[200px]" />
+                                        <Input placeholder="Nombre de la nueva zona" value={newZoneName} onChange={e => setNewZoneName(e.target.value)} className="h-8 text-xs flex-1 min-w-[180px] max-w-[260px]" />
                                         <Button size="sm" onClick={handleAddZone} disabled={!newZoneName.trim()} className="h-8 text-xs bg-purple-600 text-white">
-                                          <Plus className="h-3 w-3 mr-1" /> Agregar
+                                          <Plus className="h-3 w-3 mr-1" /> Agregar zona
                                         </Button>
                                       </div>
                                     </div>
