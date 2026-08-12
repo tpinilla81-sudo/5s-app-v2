@@ -43,6 +43,7 @@ import {
   Mail,
   Lock,
   User,
+  UserCircle,
   Shield,
   MapPin,
   UserPlus,
@@ -56,6 +57,7 @@ import {
   BookOpen,
   LayoutGrid,
   Sparkles,
+  FileText,
 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { S_STEPS } from '@/lib/5s-constants'
@@ -130,6 +132,39 @@ const ROLE_COLORS: Record<string, string> = {
 }
 
 const PRESET_COLORS = ['#8B5CF6', '#EAB308', '#3B82F6', '#F43F5E', '#F97316', '#22C55E', '#06B6D4', '#EC4899']
+
+// ─── Field helper for Datos Empresa ─────────────────────────────────────────
+// Muestra el valor en modo lectura o un Input editable según `editing`.
+function Field({
+  label, k, value, edit, setEdit, editing,
+}: {
+  label: string
+  k: string
+  value: string | null | undefined
+  edit: Record<string, string>
+  setEdit: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  editing: boolean
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      {editing ? (
+        <Input
+          value={edit[k] ?? ''}
+          onChange={e => setEdit(prev => ({ ...prev, [k]: e.target.value }))}
+          className="h-8 text-sm"
+          placeholder={label}
+        />
+      ) : (
+        <div className={`h-8 px-2 flex items-center text-sm rounded-md border border-transparent bg-gray-50 ${
+          (value ?? '').trim() === '' ? 'text-muted-foreground italic' : 'text-gray-900'
+        }`}>
+          {(value ?? '').trim() === '' ? '— sin rellenar —' : value}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -207,6 +242,20 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
   const [isLoadingCompanyDetail, setIsLoadingCompanyDetail] = useState(false)
   const [deleteCompanyDialog, setDeleteCompanyDialog] = useState<{ open: boolean; companyId: string; companyName: string; projectCount: number }>({ open: false, companyId: '', companyName: '', projectCount: 0 })
 
+  // ─── My Company (Datos Empresa) state ───────────────────────────────────
+  const [myCompany, setMyCompany] = useState<{
+    id: string; name: string; description: string | null; nif: string | null; sector: string | null;
+    address: string | null; city: string | null; province: string | null; postalCode: string | null; country: string | null;
+    phone: string | null; website: string | null;
+    billingEmail: string | null; billingName: string | null; billingNif: string | null;
+    billingAddress: string | null; billingCity: string | null; billingPostalCode: string | null; iban: string | null;
+    contactName: string | null; contactEmail: string | null; contactPhone: string | null;
+  } | null>(null)
+  const [isLoadingMyCompany, setIsLoadingMyCompany] = useState(false)
+  const [isSavingMyCompany, setIsSavingMyCompany] = useState(false)
+  const [myCompanyEdit, setMyCompanyEdit] = useState<Record<string, string>>({})
+  const [isEditingMyCompany, setIsEditingMyCompany] = useState(false)
+
   // ─── 5S Steps state ────────────────────────────────────────────────────
   const [progress5S, setProgress5S] = useState<Array<{ id: string; sStep: number; miniStep: number; completed: boolean; score: number | null; notes: string | null; zoneId: string | null; zoneName?: string }>>([])
   const [isLoading5S, setIsLoading5S] = useState(false)
@@ -273,6 +322,56 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
     }
   }, [])
 
+  // ─── My Company (Datos Empresa) ─────────────────────────────────────────
+  const loadMyCompany = useCallback(async () => {
+    setIsLoadingMyCompany(true)
+    try {
+      const res = await fetch('/api/my-company')
+      const data = await res.json()
+      if (data.success && data.company) {
+        setMyCompany(data.company)
+        // Pre-fill editable copy
+        const edit: Record<string, string> = {}
+        for (const [k, v] of Object.entries(data.company)) {
+          if (typeof v === 'string' || v === null) edit[k] = (v as string) ?? ''
+        }
+        setMyCompanyEdit(edit)
+      }
+    } catch (error) {
+      console.error('Error loading my company:', error)
+    } finally {
+      setIsLoadingMyCompany(false)
+    }
+  }, [])
+
+  const handleSaveMyCompany = async () => {
+    setIsSavingMyCompany(true)
+    try {
+      const res = await fetch('/api/my-company', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(myCompanyEdit),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setMyCompany(data.company)
+        const edit: Record<string, string> = {}
+        for (const [k, v] of Object.entries(data.company)) {
+          if (typeof v === 'string' || v === null) edit[k] = (v as string) ?? ''
+        }
+        setMyCompanyEdit(edit)
+        setIsEditingMyCompany(false)
+      } else {
+        alert(data.error || 'Error al guardar los datos de la empresa')
+      }
+    } catch (error) {
+      console.error('Error saving my company:', error)
+      alert('Error al guardar los datos de la empresa')
+    } finally {
+      setIsSavingMyCompany(false)
+    }
+  }
+
   const loadProjectDetail = useCallback(async (projectId: string) => {
     setIsLoadingDetail(true)
     try {
@@ -337,7 +436,8 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
     loadProjects()
     loadUsers()
     loadCompanies()
-  }, [loadProjects, loadUsers, loadCompanies])
+    loadMyCompany()
+  }, [loadProjects, loadUsers, loadCompanies, loadMyCompany])
 
   // 5S-steps tab was removed; load5SProgress kept for potential future use
   void load5SProgress;
@@ -847,7 +947,7 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
             }`}
           >
             <Building2 className="h-4 w-4" />
-            Empresas
+            Datos Empresa
           </button>
           <button
             onClick={() => { setActiveTab('projects'); setSelectedProjectId(null) }}
@@ -882,7 +982,7 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
             }`}
           >
             <LayoutGrid className="h-4 w-4" />
-            Configuración de Tableros
+            Configuración de Tablero
           </button>
 
           <button
@@ -894,7 +994,7 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
             }`}
           >
             <Sparkles className="h-4 w-4" />
-            Mejora Continua
+            Configuración Mejora Continua
           </button>
         </div>
       </div>
@@ -1167,26 +1267,45 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                         <Users className="h-3 w-3" /> Miembros del Proyecto
                                       </h4>
 
-                                      {/* Assign existing user to project — new users are created in the "Usuarios" tab */}
+                                      {/* Alta de usuarios: modo "existente" o "nuevo" */}
                                       <Card className="mb-3 border-gray-200">
-                                        <CardContent className="p-3">
-                                          {/* Info: where to create new users */}
-                                          <div className="mb-3 flex items-start gap-2 p-2 rounded-md bg-blue-50 border border-blue-200 text-[11px] text-blue-800">
-                                            <UserPlus className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                                            <span>
-                                              Para crear un <strong>nuevo usuario</strong> con su contraseña, ve a la pestaña <strong>«Usuarios»</strong>. Aquí solo se asignan usuarios ya existentes a este proyecto.
-                                            </span>
+                                        <CardContent className="p-3 space-y-3">
+                                          {/* Toggle modo */}
+                                          <div className="flex gap-1 bg-gray-100 p-1 rounded-md">
+                                            <button
+                                              type="button"
+                                              onClick={() => setAddMemberMode('existing')}
+                                              className={`flex-1 h-7 text-xs font-medium rounded transition-colors ${
+                                                addMemberMode === 'existing'
+                                                  ? 'bg-white text-purple-700 shadow-sm'
+                                                  : 'text-gray-600 hover:text-gray-800'
+                                              }`}
+                                            >
+                                              Asignar existente
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setAddMemberMode('new')}
+                                              className={`flex-1 h-7 text-xs font-medium rounded transition-colors ${
+                                                addMemberMode === 'new'
+                                                  ? 'bg-white text-purple-700 shadow-sm'
+                                                  : 'text-gray-600 hover:text-gray-800'
+                                              }`}
+                                            >
+                                              <UserPlus className="h-3 w-3 inline mr-1" />
+                                              Crear nuevo usuario
+                                            </button>
                                           </div>
 
-                                          {/* Existing user selection */}
-                                          <div className="space-y-2">
+                                          {/* Modo: asignar existente */}
+                                          {addMemberMode === 'existing' ? (
                                             <Select value={selectedExistingUserId} onValueChange={setSelectedExistingUserId}>
                                               <SelectTrigger className="h-8 text-xs">
                                                 <SelectValue placeholder="Seleccionar usuario existente..." />
                                               </SelectTrigger>
                                               <SelectContent>
                                                 {users
-                                                  .filter(u => !projectMembers.some(m => m.user.id === u.id))
+                                                  .filter(u => u.active && !projectMembers.some(m => m.user.id === u.id))
                                                   .map(u => (
                                                     <SelectItem key={u.id} value={u.id}>
                                                       <div className="flex items-center gap-2">
@@ -1205,44 +1324,90 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                                   ))}
                                               </SelectContent>
                                             </Select>
-                                            <div className="grid grid-cols-2 gap-2">
-                                              <Select value={newMemberRole} onValueChange={setNewMemberRole}>
-                                                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                                                <SelectContent>
-                                                  <SelectItem value="admin">Administrador</SelectItem>
-                                                  <SelectItem value="gerente">Gerente</SelectItem>
-                                                  <SelectItem value="responsable">Responsable</SelectItem>
-                                                  <SelectItem value="empleado">Empleado</SelectItem>
-                                                  <SelectItem value="auditor">Auditor</SelectItem>
-                                                </SelectContent>
-                                              </Select>
-                                              <div className="space-y-1">
-                                                <p className="text-[10px] text-muted-foreground font-medium">Zonas (todas por defecto)</p>
-                                                <div className="space-y-0.5 max-h-32 overflow-y-auto">
-                                                  {projectZones.map(z => (
-                                                    <label key={z.id} className="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
-                                                      <Checkbox
-                                                        checked={newMemberZones.includes(z.id)}
-                                                        onCheckedChange={(checked) => {
-                                                          if (checked) {
-                                                            setNewMemberZones([...newMemberZones, z.id])
-                                                          } else {
-                                                            setNewMemberZones(newMemberZones.filter(id => id !== z.id))
-                                                          }
-                                                        }}
-                                                        className="h-3.5 w-3.5"
-                                                      />
-                                                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: z.color }} />
-                                                      <span>{z.name}</span>
-                                                    </label>
-                                                  ))}
-                                                </div>
+                                          ) : (
+                                            /* Modo: crear nuevo usuario */
+                                            <div className="space-y-2">
+                                              <div className="grid grid-cols-2 gap-2">
+                                                <Input
+                                                  placeholder="Nombre completo *"
+                                                  value={newMemberName}
+                                                  onChange={e => setNewMemberName(e.target.value)}
+                                                  className="h-8 text-xs"
+                                                />
+                                                <Input
+                                                  type="email"
+                                                  placeholder="Email *"
+                                                  value={newMemberEmail}
+                                                  onChange={e => setNewMemberEmail(e.target.value)}
+                                                  className="h-8 text-xs"
+                                                />
+                                              </div>
+                                              <Input
+                                                type="password"
+                                                placeholder="Contraseña (mín. 6 car.; vacío = auto-generada)"
+                                                value={newMemberPassword}
+                                                onChange={e => setNewMemberPassword(e.target.value)}
+                                                className="h-8 text-xs"
+                                              />
+                                              {newMemberPassword && newMemberPassword.length < 6 && (
+                                                <p className="text-[10px] text-amber-600">La contraseña debe tener al menos 6 caracteres.</p>
+                                              )}
+                                              <p className="text-[10px] text-muted-foreground">
+                                                Si dejas la contraseña vacía, se generará una automáticamente y se mostrará una vez creada.
+                                              </p>
+                                            </div>
+                                          )}
+
+                                          {/* Rol + Zonas (compartido por ambos modos) */}
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <Select value={newMemberRole} onValueChange={setNewMemberRole}>
+                                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="admin">Administrador</SelectItem>
+                                                <SelectItem value="gerente">Gerente</SelectItem>
+                                                <SelectItem value="responsable">Responsable</SelectItem>
+                                                <SelectItem value="empleado">Empleado</SelectItem>
+                                                <SelectItem value="auditor">Auditor</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                            <div className="space-y-1">
+                                              <p className="text-[10px] text-muted-foreground font-medium">Zonas (todas por defecto)</p>
+                                              <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                                                {projectZones.map(z => (
+                                                  <label key={z.id} className="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
+                                                    <Checkbox
+                                                      checked={newMemberZones.includes(z.id)}
+                                                      onCheckedChange={(checked) => {
+                                                        if (checked) {
+                                                          setNewMemberZones([...newMemberZones, z.id])
+                                                        } else {
+                                                          setNewMemberZones(newMemberZones.filter(id => id !== z.id))
+                                                        }
+                                                      }}
+                                                      className="h-3.5 w-3.5"
+                                                    />
+                                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: z.color }} />
+                                                    <span>{z.name}</span>
+                                                  </label>
+                                                ))}
                                               </div>
                                             </div>
-                                            <Button size="sm" onClick={handleAddMember} disabled={!selectedExistingUserId} className="w-full h-8 text-xs bg-purple-600 text-white">
-                                              <UserPlus className="h-3 w-3 mr-1" /> Asignar al Proyecto
-                                            </Button>
                                           </div>
+
+                                          {/* Botón: cambia según modo */}
+                                          <Button
+                                            size="sm"
+                                            onClick={handleAddMember}
+                                            disabled={
+                                              addMemberMode === 'existing'
+                                                ? !selectedExistingUserId
+                                                : !newMemberName.trim() || !newMemberEmail.trim()
+                                            }
+                                            className="w-full h-8 text-xs bg-purple-600 text-white"
+                                          >
+                                            <UserPlus className="h-3 w-3 mr-1" />
+                                            {addMemberMode === 'existing' ? 'Asignar al Proyecto' : 'Crear y Asignar al Proyecto'}
+                                          </Button>
                                         </CardContent>
                                       </Card>
 
@@ -1485,178 +1650,119 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
             </motion.div>
           )}
 
-          {/* ═══ COMPANIES TAB ═══ */}
+          {/* ═══ DATOS EMPRESA TAB ═══ */}
           {activeTab === 'companies' && (
             <motion.div key="companies" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
               <div className="flex justify-between items-center">
                 <p className="text-sm text-muted-foreground">
-                  Gestiona las empresas y asigna gerentes
+                  Datos fiscales y de facturación de tu empresa
                 </p>
-                <Button
-                  onClick={() => setShowNewCompany(true)}
-                  className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white"
-                  size="sm"
-                >
-                  <Plus className="h-4 w-4 mr-1" /> Nueva Empresa
-                </Button>
+                {myCompany && (
+                  <Button
+                    variant={isEditingMyCompany ? 'outline' : 'default'}
+                    size="sm"
+                    onClick={() => setIsEditingMyCompany(!isEditingMyCompany)}
+                    className={isEditingMyCompany ? '' : 'bg-gradient-to-r from-purple-500 to-purple-600 text-white'}
+                  >
+                    {isEditingMyCompany ? (
+                      <><X className="h-4 w-4 mr-1" /> Cancelar edición</>
+                    ) : (
+                      <><Edit3 className="h-4 w-4 mr-1" /> Editar datos</>
+                    )}
+                  </Button>
+                )}
               </div>
 
-              {/* New company form */}
-              {showNewCompany && (
-                <Card className="border-purple-200 bg-purple-50/30">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Plus className="h-4 w-4 text-purple-500" />
-                      Crear Nueva Empresa
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Nombre de la Empresa *</Label>
-                        <Input placeholder="Nombre" value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Descripción</Label>
-                        <Input placeholder="Descripción (opcional)" value={newCompanyDesc} onChange={e => setNewCompanyDesc(e.target.value)} />
-                      </div>
-                    </div>
-                    <div className="flex gap-2 justify-end">
-                      <Button variant="outline" size="sm" onClick={() => setShowNewCompany(false)}>Cancelar</Button>
-                      <Button size="sm" onClick={handleCreateCompany} disabled={!newCompanyName.trim()} className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
-                        Crear Empresa
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Companies list */}
-              {isLoadingCompanies ? (
+              {isLoadingMyCompany ? (
                 <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 text-purple-500 animate-spin" /></div>
-              ) : companies.length === 0 ? (
+              ) : !myCompany ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Building2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No hay empresas creadas</p>
-                  <p className="text-xs mt-1">Crea una empresa para organizar los proyectos por organización</p>
+                  <p className="text-sm">No tienes empresa asignada</p>
+                  <p className="text-xs mt-1">Contacta con el gestor de la plataforma para darte de alta en una empresa.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {companies.map(company => (
-                    <Card key={company.id} className={`transition-all ${expandedCompanyId === company.id ? 'border-purple-300 shadow-md' : 'hover:border-gray-300'}`}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => setExpandedCompanyId(expandedCompanyId === company.id ? null : company.id)}>
-                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-100 to-teal-50 flex items-center justify-center">
-                              <Building2 className="h-5 w-5 text-teal-600" />
-                            </div>
-                            <div className="flex-1">
-                              {editingCompany === company.id ? (
-                                <div className="space-y-2" onClick={e => e.stopPropagation()}>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <Input value={editCompanyData.name} onChange={e => setEditCompanyData(d => ({ ...d, name: e.target.value }))} className="text-sm" />
-                                    <Input value={editCompanyData.description} onChange={e => setEditCompanyData(d => ({ ...d, description: e.target.value }))} className="text-sm" placeholder="Descripción" />
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <Button size="sm" onClick={() => handleUpdateCompany(company.id)} className="bg-purple-600 text-white h-7"><Check className="h-3 w-3 mr-1" />Guardar</Button>
-                                    <Button size="sm" variant="outline" onClick={() => setEditingCompany(null)} className="h-7">Cancelar</Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
-                                  <h3 className="font-semibold text-sm">{company.name}</h3>
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <span>{company.projectCount} proyectos</span>
-                                    <span>·</span>
-                                    <span>{company.memberCount} gerentes</span>
-                                    {!company.active && <Badge className="bg-red-100 text-red-700 border border-red-200 ml-1">Inactiva</Badge>}
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          {editingCompany !== company.id && (
-                            <div className="flex items-center gap-1">
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700" onClick={() => { setEditingCompany(company.id); setEditCompanyData({ name: company.name, description: company.description || '' }) }} title="Editar empresa"><Edit3 className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600" onClick={() => handleDeleteCompany(company.id)} title="Eliminar empresa"><Trash2 className="h-4 w-4" /></Button>
-                            </div>
-                          )}
-                        </div>
+                <>
+                  {/* ───── DATOS FISCALES DE LA EMPRESA ───── */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-purple-500" />
+                        Datos Fiscales de la Empresa
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Field label="Nombre / Razón Social" k="name" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.name} />
+                      <Field label="NIF / CIF" k="nif" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.nif} />
+                      <Field label="Sector / Industria" k="sector" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.sector} />
+                      <Field label="Teléfono" k="phone" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.phone} />
+                      <Field label="Dirección" k="address" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.address} />
+                      <Field label="Sitio Web" k="website" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.website} />
+                      <Field label="Código Postal" k="postalCode" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.postalCode} />
+                      <Field label="Ciudad" k="city" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.city} />
+                      <Field label="Provincia" k="province" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.province} />
+                      <Field label="País" k="country" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.country} />
+                    </CardContent>
+                  </Card>
 
-                        {/* Expanded company detail: gerentes */}
-                        <AnimatePresence>
-                          {expandedCompanyId === company.id && (
-                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-                              <div className="mt-4 pt-4 border-t space-y-4">
-                                {isLoadingCompanyDetail ? (
-                                  <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 text-purple-500 animate-spin" /></div>
-                                ) : (
-                                  <>
-                                    <div>
-                                      <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1">
-                                        <Shield className="h-3 w-3" /> Gerentes asignados
-                                      </h4>
-                                      {companyMembers.length > 0 ? (
-                                        <div className="space-y-1.5 mb-3">
-                                          {companyMembers.map((m) => (
-                                            <div key={m.id} className="flex items-center justify-between p-2 rounded-lg border bg-white text-xs">
-                                              <div className="flex items-center gap-2">
-                                                <div className="w-7 h-7 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-xs">{m.user.name.charAt(0)}</div>
-                                                <div>
-                                                  <p className="font-medium">{m.user.name}</p>
-                                                  <p className="text-muted-foreground">{m.user.email}</p>
-                                                </div>
-                                                <Badge className={`${ROLE_COLORS[m.role] || ROLE_COLORS.gerente} border text-[9px] py-0`}>
-                                                  {ROLE_LABELS[m.role] || m.role}
-                                                </Badge>
-                                              </div>
-                                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400 hover:text-red-600" onClick={() => handleRemoveCompanyMember(m.userId, m.user.name)}>
-                                                <X className="h-3 w-3" />
-                                              </Button>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <p className="text-xs text-muted-foreground mb-3">No hay gerentes asignados a esta empresa</p>
-                                      )}
+                  {/* ───── DATOS DE FACTURACIÓN ───── */}
+                  <Card className="border-amber-200">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-amber-500" />
+                        Datos de Facturación
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Field label="Razón Social (facturación)" k="billingName" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.billingName} />
+                      <Field label="NIF de Facturación" k="billingNif" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.billingNif} />
+                      <Field label="Email de Facturación" k="billingEmail" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.billingEmail} />
+                      <Field label="IBAN (domiciliación)" k="iban" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.iban} />
+                      <Field label="Dirección de Facturación" k="billingAddress" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.billingAddress} />
+                      <Field label="Ciudad de Facturación" k="billingCity" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.billingCity} />
+                      <Field label="CP de Facturación" k="billingPostalCode" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.billingPostalCode} />
+                    </CardContent>
+                  </Card>
 
-                                      {/* Add gerente */}
-                                      <div className="flex items-center gap-2">
-                                        <Select value={addGerenteUserId || undefined} onValueChange={setAddGerenteUserId}>
-                                          <SelectTrigger className="h-8 text-xs flex-1">
-                                            <SelectValue placeholder="Seleccionar usuario para asignar..." />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {users
-                                              .filter(u => u.active && !companyMembers.some(m => m.userId === u.id))
-                                              .map(u => (
-                                                <SelectItem key={u.id} value={u.id}>
-                                                  <div className="flex items-center gap-2">
-                                                    <span>{u.name}</span>
-                                                    <span className="text-muted-foreground">({u.email})</span>
-                                                    <Badge className={`${ROLE_COLORS[u.role] || ''} border text-[9px] py-0`}>
-                                                      {ROLE_LABELS[u.role] || u.role}
-                                                    </Badge>
-                                                  </div>
-                                                </SelectItem>
-                                              ))}
-                                          </SelectContent>
-                                        </Select>
-                                        <Button size="sm" onClick={handleAddGerente} disabled={!addGerenteUserId} className="h-8 text-xs bg-purple-600 text-white">
-                                          <UserPlus className="h-3 w-3 mr-1" /> Asignar
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                  {/* ───── PERSONA DE CONTACTO ───── */}
+                  <Card className="border-blue-200">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <UserCircle className="h-4 w-4 text-blue-500" />
+                        Persona de Contacto
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <Field label="Nombre de contacto" k="contactName" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.contactName} />
+                      <Field label="Email de contacto" k="contactEmail" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.contactEmail} />
+                      <Field label="Teléfono de contacto" k="contactPhone" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.contactPhone} />
+                    </CardContent>
+                  </Card>
+
+                  {/* ───── ACCIONES DE EDICIÓN ───── */}
+                  {isEditingMyCompany && (
+                    <div className="flex justify-end gap-2 sticky bottom-2 z-10 bg-white/90 backdrop-blur border rounded-lg p-2 shadow-md">
+                      <Button variant="outline" size="sm" onClick={() => {
+                        setIsEditingMyCompany(false)
+                        // Revertir cambios: recargar del estado original
+                        const edit: Record<string, string> = {}
+                        for (const [k, v] of Object.entries(myCompany)) {
+                          if (typeof v === 'string' || v === null) edit[k] = (v as string) ?? ''
+                        }
+                        setMyCompanyEdit(edit)
+                      }}>
+                        Cancelar
+                      </Button>
+                      <Button size="sm" onClick={handleSaveMyCompany} disabled={isSavingMyCompany} className="bg-purple-600 text-white">
+                        {isSavingMyCompany ? (
+                          <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Guardando…</>
+                        ) : (
+                          <><Save className="h-4 w-4 mr-1" /> Guardar cambios</>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </motion.div>
           )}
