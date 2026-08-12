@@ -23,6 +23,7 @@ import {
   Maximize2,
   Minimize2,
   UserCircle,
+  CheckCheck,
 } from 'lucide-react';
 import { use5SStore } from '@/lib/store';
 import {
@@ -172,6 +173,35 @@ export default function QuarterlyAuditModal({ open, onClose }: QuarterlyAuditMod
       ...prev,
       [itemId]: { ...prev[itemId], itemId, status },
     }));
+  };
+
+  // Marcar TODOS los items como OK de una sola vez. Respeta NOK/N/A ya marcados.
+  const markAllOk = () => {
+    setResults(prev => {
+      const next = { ...prev };
+      sections.forEach(s => s.items.forEach(item => {
+        const existing = next[item.id];
+        if (!existing || existing.status === 'ok') {
+          next[item.id] = { ...existing, itemId: item.id, status: 'ok' };
+        }
+      }));
+      return next;
+    });
+  };
+
+  // Forzar TODOS los items como OK (sobreescribe NOK/N/A). Con confirmación.
+  const forceAllOk = () => {
+    const nokCount = sections.reduce((acc, s) => acc + s.items.filter(i => results[i.id]?.status === 'nok').length, 0);
+    if (nokCount > 0) {
+      if (!confirm(`¿Sobreescribir ${nokCount} hallazgo(s) NOK y marcar TODO como OK?`)) return;
+    }
+    setResults(prev => {
+      const next = { ...prev };
+      sections.forEach(s => s.items.forEach(item => {
+        next[item.id] = { ...next[item.id], itemId: item.id, status: 'ok' };
+      }));
+      return next;
+    });
   };
 
   const setItemField = (itemId: string, field: 'hallazgo' | 'mejora' | 'otherText' | 'responsable', value: string) => {
@@ -353,6 +383,32 @@ export default function QuarterlyAuditModal({ open, onClose }: QuarterlyAuditMod
                 <Badge className="bg-red-100 text-red-800">NOK: {scoring.nokCount}</Badge>
               </div>
               <p className="text-[10px] text-muted-foreground">Mínimo para aprobar: {AUDIT_PASS_THRESHOLD}%</p>
+            </div>
+
+            {/* Marcar todo OK — botonera rápida */}
+            <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+              <CheckCheck className="h-4 w-4 text-green-700 shrink-0" />
+              <span className="text-xs text-green-800 font-medium mr-auto">Acciones rápidas:</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-100"
+                onClick={markAllOk}
+                title="Marca como OK todos los items que aún no tienen estado (respeta los NOK/N/A ya marcados)"
+              >
+                Marcar todo OK
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
+                onClick={forceAllOk}
+                title="Fuerza TODOS los items a OK (sobreescribe NOK existentes)"
+              >
+                Forzar TODO OK
+              </Button>
             </div>
 
             {/* Checklist sections grouped by S */}
