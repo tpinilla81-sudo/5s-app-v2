@@ -24,6 +24,7 @@ import AdminPanel from '@/components/admin/AdminPanel';
 import ConstructorPanel from '@/components/admin/ConstructorPanel';
 import MaintenanceView from '@/components/5s/MaintenanceView';
 import GerentePanel from '@/components/auth/GerentePanel';
+import { UserTaskCalendar } from '@/components/5s/UserTaskCalendar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -41,7 +42,7 @@ import {
   Crown, Trash2,
   ClipboardList, GraduationCap, Camera, CheckSquare, Trophy, ChevronRight,
   Lock as LockIcon, AlertTriangle, Building2, Zap, Bell, BellRing, BookOpen, Image as ImageIcon,
-  Package, BoxSelect, Menu, Droplets
+  Package, BoxSelect, Menu, Droplets, CalendarDays
 } from 'lucide-react';
 
 const MODAL_MAP: Record<string, React.ComponentType<{
@@ -117,6 +118,8 @@ export default function HomePage() {
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [showNotifs, setShowNotifs] = useState(false);
   const [notifs, setNotifs] = useState<any[]>([]);
+  const [showUserCalendar, setShowUserCalendar] = useState(false);
+  const [userTaskCount, setUserTaskCount] = useState(0);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showGerencia, setShowGerencia] = useState(false);
@@ -269,6 +272,28 @@ export default function HomePage() {
     }
   }, [canSeeNotifications, currentUser?.id, currentProject?.id]);
 
+  // Fetch user task count for the calendar badge (vencidas + hoy)
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setUserTaskCount(0);
+      return;
+    }
+    const fetchTaskCount = async () => {
+      try {
+        const params = new URLSearchParams({ userId: currentUser.id });
+        if (currentProject?.id) params.set('projectId', currentProject.id);
+        const res = await fetch(`/api/my-tasks?${params.toString()}`);
+        const data = await res.json();
+        if (data.success && data.stats) {
+          setUserTaskCount((data.stats.vencidas || 0) + (data.stats.hoy || 0));
+        }
+      } catch (e) { /* silent */ }
+    };
+    fetchTaskCount();
+    const interval = setInterval(fetchTaskCount, 60000); // every 60s
+    return () => clearInterval(interval);
+  }, [currentUser?.id, currentProject?.id]);
+
   const canManageTeam = currentUser && hasPermission('add_members');
   const canSkipSteps = hasPermission('skip_steps');
   const canSeeGerentePanel = hasPermission('view_progress') || hasPermission('edit_project');
@@ -404,6 +429,19 @@ export default function HomePage() {
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center animate-pulse">{unreadNotifs > 9 ? '9+' : unreadNotifs}</span>
                 )}
               </Button>
+              {/* 📅 Calendario de acciones */}
+              {currentUser && (
+                <Button variant={userTaskCount > 0 ? 'default' : 'outline'} size="sm"
+                  className={`relative gap-1 text-[10px] h-8 ${userTaskCount > 0 ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : 'border-blue-300 text-blue-600 hover:bg-blue-50'}`}
+                  onClick={() => setShowUserCalendar(true)}
+                  title="Mi calendario de acciones">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  <span>Calendario</span>
+                  {userTaskCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center animate-pulse">{userTaskCount > 9 ? '9+' : userTaskCount}</span>
+                  )}
+                </Button>
+              )}
               {/* Manual */}
               <Button variant="ghost" size="sm" onClick={async () => {
                 try {
@@ -567,6 +605,17 @@ export default function HomePage() {
                         <span className="text-sm font-medium text-green-600">Permisos</span>
                       </button>
                     )}
+                    {/* 📅 Mi Calendario — acciones del Plan de Acción */}
+                    {currentUser && (
+                      <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-blue-50 transition-colors text-left min-h-[44px]"
+                        onClick={() => { setMobileMenuOpen(false); setShowUserCalendar(true); }}>
+                        <CalendarDays className="h-5 w-5 text-blue-500 shrink-0" />
+                        <span className="text-sm font-medium text-blue-600">Mi Calendario</span>
+                        {userTaskCount > 0 && (
+                          <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full px-2 py-0.5">{userTaskCount}</span>
+                        )}
+                      </button>
+                    )}
                     {/* 🗑️ Borrar Pasos — TESTING: visible for ALL non-gestor users */}
                     {!isGestor && currentProject && (
                       <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-red-50 transition-colors text-left min-h-[44px]"
@@ -637,6 +686,19 @@ export default function HomePage() {
               }} className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 h-8 px-2 gap-1" title="Borrar Pasos (pruebas)">
                 <Trash2 className="h-3.5 w-3.5" />
                 <span className="text-xs font-semibold">Borrar</span>
+              </Button>
+            )}
+            {/* 📅 Calendario de acciones */}
+            {currentUser && (
+              <Button variant={userTaskCount > 0 ? 'default' : 'outline'} size="sm"
+                className={`relative gap-1 text-[10px] h-8 ${userTaskCount > 0 ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : 'border-blue-300 text-blue-600 hover:bg-blue-50'}`}
+                onClick={() => setShowUserCalendar(true)}
+                title="Mi calendario de acciones">
+                <CalendarDays className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Calendario</span>
+                {userTaskCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center animate-pulse">{userTaskCount > 9 ? '9+' : userTaskCount}</span>
+                )}
               </Button>
             )}
             {/* 🔔 Notification bell */}
@@ -1440,6 +1502,17 @@ export default function HomePage() {
         <div className="fixed bottom-1 right-2 z-50 pointer-events-none">
           <span className="text-[8px] text-gray-300 font-mono select-none" title="Build version (refresh if stale)">v:{appVersion}</span>
         </div>
+      )}
+
+      {/* 📅 User Task Calendar — accessible from header toolbar */}
+      {currentUser && (
+        <UserTaskCalendar
+          open={showUserCalendar}
+          onClose={() => setShowUserCalendar(false)}
+          userId={currentUser.id}
+          projectId={currentProject?.id}
+          userName={currentUser.name}
+        />
       )}
     </div>
   );
