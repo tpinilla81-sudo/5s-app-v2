@@ -75,6 +75,7 @@ interface MemberData {
     role: string
     avatar: string | null
     active: boolean
+    plainPassword?: string | null
   }
   zones: Array<{
     id: string
@@ -86,9 +87,10 @@ interface MemberData {
 interface TeamManagementProps {
   open: boolean
   onClose: () => void
+  embedded?: boolean // Si true, renderiza sin Dialog (para usar como tab)
 }
 
-export default function TeamManagement({ open, onClose }: TeamManagementProps) {
+export default function TeamManagement({ open, onClose, embedded = false }: TeamManagementProps) {
   const { currentProject } = use5SStore()
   const [activeTab, setActiveTab] = useState<'info' | 'zones' | 'members' | 'permissions'>('info')
 
@@ -273,41 +275,31 @@ export default function TeamManagement({ open, onClose }: TeamManagementProps) {
     { key: 'permissions' as const, label: 'Permisos', icon: Shield },
   ]
 
-  return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-2">
-          <DialogTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold text-sm">
-              5S
-            </div>
-            Gestión del Proyecto
-          </DialogTitle>
-        </DialogHeader>
+  const content = (
+    <>
+      {/* Tabs */}
+      <div className="flex border-b px-6">
+        {tabs.map((tab) => {
+          const Icon = tab.icon
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.key
+                  ? 'border-green-500 text-green-600'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
 
-        {/* Tabs */}
-        <div className="flex border-b px-6">
-          {tabs.map((tab) => {
-            const Icon = tab.icon
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.key
-                    ? 'border-green-500 text-green-600'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-6 py-4">
           <AnimatePresence mode="wait">
             {/* Info Tab */}
             {activeTab === 'info' && currentProject && (
@@ -636,6 +628,7 @@ export default function TeamManagement({ open, onClose }: TeamManagementProps) {
                           <TableHead>Email</TableHead>
                           <TableHead>Rol</TableHead>
                           <TableHead>Zona</TableHead>
+                          <TableHead>Contraseña</TableHead>
                           <TableHead className="text-center">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -667,6 +660,24 @@ export default function TeamManagement({ open, onClose }: TeamManagementProps) {
                                 </div>
                               ) : (
                                 <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {member.user.plainPassword ? (
+                                <div className="flex items-center gap-1">
+                                  <code className="font-mono text-xs bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-amber-900 select-all">
+                                    {member.user.plainPassword}
+                                  </code>
+                                  <button
+                                    onClick={() => navigator.clipboard.writeText(member.user.plainPassword || '')}
+                                    className="text-gray-400 hover:text-gray-600"
+                                    title="Copiar contraseña"
+                                  >
+                                    <ClipboardCheck className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic">No disponible</span>
                               )}
                             </TableCell>
                             <TableCell className="text-center">
@@ -797,6 +808,37 @@ export default function TeamManagement({ open, onClose }: TeamManagementProps) {
             )}
           </AnimatePresence>
         </div>
+      </>
+  )
+
+  if (embedded) {
+    return (
+      <div className="flex flex-col h-full bg-white">
+        <div className="px-6 pt-4 pb-2 border-b">
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold text-xs">
+              5S
+            </div>
+            Gestión del Proyecto
+          </h2>
+        </div>
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-2">
+          <DialogTitle className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold text-sm">
+              5S
+            </div>
+            Gestión del Proyecto
+          </DialogTitle>
+        </DialogHeader>
+        {content}
       </DialogContent>
     </Dialog>
   )
