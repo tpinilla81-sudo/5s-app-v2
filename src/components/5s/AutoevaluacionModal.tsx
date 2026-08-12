@@ -55,6 +55,9 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
+  // Track which (open, sStep, sections-signature) we've already initialized for,
+  // so we don't reset user edits if `sections` ref changes mid-session.
+  const initializedFor = useRef<string>('');
   const [notaMinima, setNotaMinima] = useState(70);
   const [autoevalPhotos, setAutoevalPhotos] = useState<{ file: File; preview: string; uploading?: boolean; serverUrl?: string }[]>([]);
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
@@ -115,30 +118,40 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
     }
   }, [open, sStep, currentProject?.id, currentZone?.id]);
 
-  // Initialize expanded sections
+  // Initialize expanded sections + pre-mark all items as 'ok' once sections load.
+  // Guard with a ref so we don't re-fire (and wipe user edits) if `sections` ref
+  // changes due to a boardConfigId re-fetch.
   useEffect(() => {
-    if (open && sections.length > 0) {
-      const expanded: Record<string, boolean> = {};
-      sections.forEach(s => { expanded[s.id] = true; });
-      setExpandedSections(expanded);
-      // Pre-mark all items as 'ok' (audit default — operator only marks NOKs)
-      const initialOk: Record<string, AuditItemResult> = {};
-      sections.forEach(s => s.items.forEach(item => {
-        initialOk[item.id] = { itemId: item.id, status: 'ok' };
-      }));
-      setResults(initialOk);
-      setObservaciones('');
-      setIsCompleted(false);
-      setFinalScore(0);
-      setAutoevalPhotos([]);
-      // Auto-fill current date/time for the evaluation
-      const now = new Date();
-      setFechaAutoevaluacion(now.toISOString().split('T')[0]);
-      setHoraAutoevaluacion(now.toTimeString().slice(0, 5));
-      // Load scheduled date if available
-      loadScheduledDate();
-    }
+    if (!open || sections.length === 0) return;
+    const sig = `${sStep}:${sections.map(s => s.items.map(i => i.id).join(',')).join('|')}`;
+    if (initializedFor.current === sig) return;
+    initializedFor.current = sig;
+
+    const expanded: Record<string, boolean> = {};
+    sections.forEach(s => { expanded[s.id] = true; });
+    setExpandedSections(expanded);
+    // Pre-mark all items as 'ok' (audit default — operator only marks NOKs)
+    const initialOk: Record<string, AuditItemResult> = {};
+    sections.forEach(s => s.items.forEach(item => {
+      initialOk[item.id] = { itemId: item.id, status: 'ok' };
+    }));
+    setResults(initialOk);
+    setObservaciones('');
+    setIsCompleted(false);
+    setFinalScore(0);
+    setAutoevalPhotos([]);
+    // Auto-fill current date/time for the evaluation
+    const now = new Date();
+    setFechaAutoevaluacion(now.toISOString().split('T')[0]);
+    setHoraAutoevaluacion(now.toTimeString().slice(0, 5));
+    // Load scheduled date if available
+    loadScheduledDate();
   }, [open, sStep, sections]);
+
+  // Reset the init guard when modal closes, so next open re-initializes
+  useEffect(() => {
+    if (!open) initializedFor.current = '';
+  }, [open]);
 
   // Load scheduled date/time for this autoevaluación AND the auditoría schedule
   const loadScheduledDate = async () => {

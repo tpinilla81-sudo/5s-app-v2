@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -73,6 +73,9 @@ export default function PeriodicAuditModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
+  // Track which (open, sections-signature) we've already initialized for,
+  // so we don't reset user edits if `sections` ref changes mid-session.
+  const initializedFor = useRef<string>('');
 
   // Mejoras
   const [haMejoras, setHaMejoras] = useState<boolean | null>(null);
@@ -92,24 +95,35 @@ export default function PeriodicAuditModal({
     }
   }, [open, currentProject?.id]);
 
+  // Initialize expanded sections + pre-mark all items as 'ok' once sections load.
+  // Guard with a ref so we don't re-fire (and wipe user edits) if `sections` ref
+  // changes mid-session.
   useEffect(() => {
-    if (open && sections.length > 0) {
-      const expanded: Record<string, boolean> = {};
-      sections.forEach(s => { expanded[s.id] = true; }); // Start expanded since fewer items
-      setExpandedSections(expanded);
-      // Pre-mark all items as 'ok' (audit default — auditor only marks NOKs)
-      const initialOk: Record<string, AuditItemResult> = {};
-      sections.forEach(s => s.items.forEach(item => {
-        initialOk[item.id] = { itemId: item.id, status: 'ok' };
-      }));
-      setResults(initialOk);
-      setAuditorName('');
-      setObservaciones('');
-      setIsCompleted(false);
-      setFinalScore(0);
-      setHaMejoras(null);
-      setMejoras([]);
-    }
+    if (!open || sections.length === 0) return;
+    const sig = sections.map(s => s.items.map(i => i.id).join(',')).join('|');
+    if (initializedFor.current === sig) return;
+    initializedFor.current = sig;
+
+    const expanded: Record<string, boolean> = {};
+    sections.forEach(s => { expanded[s.id] = true; }); // Start expanded since fewer items
+    setExpandedSections(expanded);
+    // Pre-mark all items as 'ok' (audit default — auditor only marks NOKs)
+    const initialOk: Record<string, AuditItemResult> = {};
+    sections.forEach(s => s.items.forEach(item => {
+      initialOk[item.id] = { itemId: item.id, status: 'ok' };
+    }));
+    setResults(initialOk);
+    setAuditorName('');
+    setObservaciones('');
+    setIsCompleted(false);
+    setFinalScore(0);
+    setHaMejoras(null);
+    setMejoras([]);
+  }, [open, sections]);
+
+  // Reset the init guard when modal closes, so next open re-initializes
+  useEffect(() => {
+    if (!open) initializedFor.current = '';
   }, [open]);
 
   const scoring = useMemo(() => {

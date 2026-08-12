@@ -70,6 +70,9 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
+  // Track which (open, sStep, sections-signature) we've already initialized for,
+  // so we don't reset user edits if `sections` ref changes mid-session.
+  const initializedFor = useRef<string>('');
   const [notaMinima, setNotaMinima] = useState(75);
   const [fechaAuditoria, setFechaAuditoria] = useState('');
   const [horaAuditoria, setHoraAuditoria] = useState('');
@@ -132,32 +135,43 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
     }
   }, [open, sStep, currentProject?.id, currentZone?.id]);
 
+  // Initialize expanded sections + pre-mark all items as 'ok' once sections load.
+  // Guard with a ref so we don't re-fire (and wipe user edits) if `sections` ref
+  // changes due to a boardConfigId re-fetch.
   useEffect(() => {
-    if (open && sections.length > 0) {
-      const expanded: Record<string, boolean> = {};
-      sections.forEach(s => { expanded[s.id] = true; });
-      setExpandedSections(expanded);
-      // Pre-mark all items as 'ok' (audit default — auditor only marks NOKs)
-      const initialOk: Record<string, AuditItemResult> = {};
-      sections.forEach(s => s.items.forEach(item => {
-        initialOk[item.id] = { itemId: item.id, status: 'ok' };
-      }));
-      setResults(initialOk);
-      setAuditorName(currentUser?.name || '');
-      setObservaciones('');
-      setIsCompleted(false);
-      setFinalScore(0);
-      setHaMejoras(null);
-      setAuditPhotos([]);
-      setMejoras([]);
-      // Auto-fill date and time of the audit
-      const now = new Date();
-      setFechaAuditoria(now.toISOString().slice(0, 10));
-      setHoraAuditoria(now.toTimeString().slice(0, 5));
-      // Load scheduled date if available
-      loadScheduledDate();
-    }
+    if (!open || sections.length === 0) return;
+    const sig = `${sStep}:${sections.map(s => s.items.map(i => i.id).join(',')).join('|')}`;
+    if (initializedFor.current === sig) return;
+    initializedFor.current = sig;
+
+    const expanded: Record<string, boolean> = {};
+    sections.forEach(s => { expanded[s.id] = true; });
+    setExpandedSections(expanded);
+    // Pre-mark all items as 'ok' (audit default — auditor only marks NOKs)
+    const initialOk: Record<string, AuditItemResult> = {};
+    sections.forEach(s => s.items.forEach(item => {
+      initialOk[item.id] = { itemId: item.id, status: 'ok' };
+    }));
+    setResults(initialOk);
+    setAuditorName(currentUser?.name || '');
+    setObservaciones('');
+    setIsCompleted(false);
+    setFinalScore(0);
+    setHaMejoras(null);
+    setAuditPhotos([]);
+    setMejoras([]);
+    // Auto-fill date and time of the audit
+    const now = new Date();
+    setFechaAuditoria(now.toISOString().slice(0, 10));
+    setHoraAuditoria(now.toTimeString().slice(0, 5));
+    // Load scheduled date if available
+    loadScheduledDate();
   }, [open, sStep, sections]);
+
+  // Reset the init guard when modal closes, so next open re-initializes
+  useEffect(() => {
+    if (!open) initializedFor.current = '';
+  }, [open]);
 
   // Load scheduled date/time for this auditoría
   const loadScheduledDate = async () => {
