@@ -17,7 +17,7 @@ import {
   ChevronDown, ChevronUp, AlertTriangle, Copy, RotateCcw, X,
   Eye, Code, GripVertical, Download, Upload, ClipboardList, Award,
   ClipboardPaste, ClipboardCopy, Check, ArrowRightLeft,
-  Play, SearchCheck, Rocket, Target, Sparkles,
+  Play, SearchCheck, Rocket, Target, Sparkles, LayoutGrid,
 } from 'lucide-react'
 import { S_STEPS, AUDIT_CHECKLISTS, EXAM_PASS_THRESHOLD, SELF_EVAL_THRESHOLD, AUDIT_PASS_THRESHOLD, INVENTORY_CONFIGS, MC_STEP_CONFIG, MC_PASO_CONFIG, PDCA_STEPS } from '@/lib/5s-constants'
 
@@ -1692,6 +1692,34 @@ export default function TemplateManager() {
   // Save feedback
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
+  // ─── Track which templates are assigned to at least one board slot ───
+  // This lets the admin see, in the plantillas list, which templates are
+  // "in use" (added to a tablero) vs which are still unassigned. Without
+  // this indicator, the admin could not tell from the plantillas view
+  // whether a template had been added to the tablero — even though the
+  // assignment was actually saved (visible in Tablero5S).
+  const [templateUsage, setTemplateUsage] = useState<Record<string, number>>({})
+
+  const fetchTemplateUsage = useCallback(async () => {
+    try {
+      const res = await fetch('/api/boards')
+      const data = await res.json()
+      if (!data.success || !Array.isArray(data.data)) return
+      const counts: Record<string, number> = {}
+      for (const board of data.data) {
+        for (const slot of board.slots || []) {
+          for (const st of slot.templates || []) {
+            const tid = st.templateId
+            counts[tid] = (counts[tid] || 0) + 1
+          }
+        }
+      }
+      setTemplateUsage(counts)
+    } catch (e) {
+      console.error('Error fetching template usage:', e)
+    }
+  }, [])
+
   // Fetch ALL templates at once (all types)
   const ALL_TYPES = ['formacion', 'examen', 'fotos', 'inventario', 'estandar', 'layout', 'plan_limpieza', 'autoevaluacion', 'plan_accion', 'auditoria', 'pdca'] as const
 
@@ -1720,7 +1748,10 @@ export default function TemplateManager() {
     finally { setIsLoading(false) }
   }, [])
 
-  useEffect(() => { fetchTemplates(true) }, [fetchTemplates])
+  useEffect(() => {
+    fetchTemplates(true)
+    fetchTemplateUsage()
+  }, [fetchTemplates, fetchTemplateUsage])
 
   const resetForm = () => {
     setFormType('formacion')
@@ -1835,6 +1866,7 @@ export default function TemplateManager() {
 
       resetForm()
       fetchTemplates()
+      fetchTemplateUsage()
       setSaveMessage('Plantilla guardada correctamente')
       setTimeout(() => setSaveMessage(null), 3000)
     } catch (e) { console.error('Error saving:', e); alert('Error al guardar') }
@@ -1846,6 +1878,7 @@ export default function TemplateManager() {
     try {
       await fetch(`/api/templates?id=${id}`, { method: 'DELETE' })
       fetchTemplates()
+      fetchTemplateUsage()
     } catch (e) { console.error(e) }
   }
 
@@ -2183,6 +2216,18 @@ export default function TemplateManager() {
                                                     Sin nota mín
                                                   </Badge>
                                                 )}
+                                                {templateUsage[tpl.id] ? (
+                                                  <Badge variant="outline" className="shrink-0 text-xs text-indigo-600 border-indigo-200 bg-indigo-50"
+                                                    title={`Asignada a ${templateUsage[tpl.id]} posición(es) de tablero(s)`}>
+                                                    <LayoutGrid className="h-3 w-3 mr-0.5" />
+                                                    En tablero{templateUsage[tpl.id] > 1 ? ` (${templateUsage[tpl.id]})` : ''}
+                                                  </Badge>
+                                                ) : (
+                                                  <Badge variant="outline" className="shrink-0 text-xs text-gray-400 border-gray-200"
+                                                    title="Esta plantilla no está asignada a ningún tablero">
+                                                    Sin asignar
+                                                  </Badge>
+                                                )}
                                                 {!tpl.active && (
                                                   <Badge variant="outline" className="shrink-0 text-xs text-red-500 border-red-200">Inactiva</Badge>
                                                 )}
@@ -2364,6 +2409,18 @@ export default function TemplateManager() {
                                                   <p className="text-sm font-medium truncate">{tpl.title}</p>
                                                   {tpl.description && <p className="text-xs text-muted-foreground truncate">{tpl.description}</p>}
                                                 </div>
+                                                {templateUsage[tpl.id] ? (
+                                                  <Badge variant="outline" className="shrink-0 text-[10px] text-indigo-600 border-indigo-200 bg-indigo-50"
+                                                    title={`Asignada a ${templateUsage[tpl.id]} posición(es) de tablero(s)`}>
+                                                    <LayoutGrid className="h-3 w-3 mr-0.5" />
+                                                    En tablero{templateUsage[tpl.id] > 1 ? ` (${templateUsage[tpl.id]})` : ''}
+                                                  </Badge>
+                                                ) : (
+                                                  <Badge variant="outline" className="shrink-0 text-[10px] text-gray-400 border-gray-200"
+                                                    title="Esta plantilla no está asignada a ningún tablero">
+                                                    Sin asignar
+                                                  </Badge>
+                                                )}
                                               </div>
                                               <div className="flex items-center gap-1">
                                                 <Button variant="ghost" size="sm" onClick={() => startEdit(tpl)}
