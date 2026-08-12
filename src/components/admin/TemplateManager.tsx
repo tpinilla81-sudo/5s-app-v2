@@ -579,15 +579,6 @@ function ChecklistEditor({ content, onChange }: { content: string; onChange: (v:
                     )}
                     {isOnBoard ? 'En tablero' : 'Oculta'}
                   </button>
-                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap cursor-pointer shrink-0">
-                    <input
-                      type="checkbox"
-                      checked={item.hasOther}
-                      onChange={(e) => updateItem(sIdx, iIdx, 'hasOther', e.target.checked)}
-                      className="rounded border-gray-300 h-4 w-4"
-                    />
-                    Otros
-                  </label>
                   <Button variant="ghost" size="sm"
                     onClick={() => removeItem(sIdx, iIdx)}
                     className="h-8 w-8 p-0 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" title="Eliminar">
