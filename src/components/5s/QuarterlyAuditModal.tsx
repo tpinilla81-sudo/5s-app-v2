@@ -22,6 +22,7 @@ import {
   TrendingUp,
   Maximize2,
   Minimize2,
+  UserCircle,
 } from 'lucide-react';
 import { use5SStore } from '@/lib/store';
 import {
@@ -30,6 +31,13 @@ import {
 } from '@/lib/5s-constants';
 import type { AuditSection, AuditItemResult } from '@/lib/5s-constants';
 import { fetchAllChecklistTemplates } from '@/lib/checklist-templates';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface QuarterlyAuditModalProps {
   open: boolean;
@@ -47,6 +55,20 @@ export default function QuarterlyAuditModal({ open, onClose }: QuarterlyAuditMod
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
+
+  // Project members for responsable selector on NOK items
+  const [projectMembers, setProjectMembers] = useState<Array<{ id: string; userId: string; role: string; user: { id: string; name: string; email: string; role: string; active: boolean } }>>([]);
+
+  useEffect(() => {
+    if (open && currentProject?.id) {
+      fetch(`/api/projects/${currentProject.id}/members`)
+        .then(r => r.json())
+        .then(data => setProjectMembers(data?.members || []))
+        .catch(err => console.error('Error loading project members:', err));
+    } else {
+      setProjectMembers([]);
+    }
+  }, [open, currentProject?.id]);
 
   // Load all checklist templates from API and combine them for quarterly audit
   useEffect(() => {
@@ -112,7 +134,7 @@ export default function QuarterlyAuditModal({ open, onClose }: QuarterlyAuditMod
     }));
   };
 
-  const setItemField = (itemId: string, field: 'hallazgo' | 'mejora' | 'otherText', value: string) => {
+  const setItemField = (itemId: string, field: 'hallazgo' | 'mejora' | 'otherText' | 'responsable', value: string) => {
     setResults(prev => ({
       ...prev,
       [itemId]: { ...prev[itemId], itemId, [field]: value },
@@ -368,6 +390,34 @@ export default function QuarterlyAuditModal({ open, onClose }: QuarterlyAuditMod
                                         <div>
                                           <label className="text-[10px] font-medium text-amber-700">Punto a Mejorar</label>
                                           <Textarea placeholder="Sugerencia de mejora..." value={result?.mejora || ''} onChange={e => setItemField(item.id, 'mejora', e.target.value)} className="text-xs mt-0.5" rows={2} />
+                                        </div>
+                                        <div>
+                                          <label className="text-[10px] font-medium text-blue-700 flex items-center gap-1">
+                                            <UserCircle className="h-3 w-3" />
+                                            Responsable de la acción
+                                          </label>
+                                          <Select
+                                            value={result?.responsable || ''}
+                                            onValueChange={val => setItemField(item.id, 'responsable', val)}
+                                          >
+                                            <SelectTrigger className="text-xs mt-0.5 h-7">
+                                              <SelectValue placeholder="Selecciona quien debe resolverlo..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {projectMembers.length === 0 ? (
+                                                <SelectItem value="__none__" disabled>No hay miembros</SelectItem>
+                                              ) : (
+                                                projectMembers
+                                                  .filter(m => m.user?.active !== false)
+                                                  .map(m => (
+                                                    <SelectItem key={m.id} value={m.user.name}>
+                                                      <span>{m.user.name}</span>
+                                                      <span className="text-[10px] text-muted-foreground ml-1">({m.role})</span>
+                                                    </SelectItem>
+                                                  ))
+                                              )}
+                                            </SelectContent>
+                                          </Select>
                                         </div>
                                       </div>
                                     )}

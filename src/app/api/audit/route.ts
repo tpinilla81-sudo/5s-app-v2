@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
               itemDescription: itemResult.description || itemResult.itemId || 'Disfunción detectada en auditoría',
               hallazgo: itemResult.hallazgo || `Anomalía detectada en auditoría ${auditTypeValue}: ${itemResult.itemId || ''}`,
               mejora: itemResult.mejora || null,
-              responsable: null,
+              responsable: itemResult.responsable || null,
               prioridad: 'media',
               estado: 'abierta',
               source: `auditoria_${auditTypeValue}`,

@@ -31,6 +31,7 @@ import {
   X,
   Image as ImageIcon,
   Calendar,
+  UserCircle,
 } from 'lucide-react';
 import { use5SStore } from '@/lib/store';
 import {
@@ -39,6 +40,13 @@ import {
 } from '@/lib/5s-constants';
 import type { AuditSection, AuditItemResult } from '@/lib/5s-constants';
 import { useChecklistTemplate } from '@/lib/checklist-templates';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface AuditoriaModalProps {
   open: boolean;
@@ -69,6 +77,9 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
+  // Project members for responsable selector on NOK items
+  const [projectMembers, setProjectMembers] = useState<Array<{ id: string; userId: string; role: string; user: { id: string; name: string; email: string; role: string; active: boolean } }>>([]);
+
   // Scheduling for audit
   const [fechaProgramada, setFechaProgramada] = useState('');
   const [horaProgramada, setHoraProgramada] = useState('');
@@ -80,6 +91,18 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
   useEffect(() => {
     if (templateNotaMinima !== null) setNotaMinima(templateNotaMinima);
   }, [templateNotaMinima]);
+
+  // Load project members (for responsable selector on NOK items)
+  useEffect(() => {
+    if (open && currentProject?.id) {
+      fetch(`/api/projects/${currentProject.id}/members`)
+        .then(r => r.json())
+        .then(data => setProjectMembers(data?.members || []))
+        .catch(err => console.error('Error loading project members:', err));
+    } else {
+      setProjectMembers([]);
+    }
+  }, [open, currentProject?.id]);
 
   // Mejoras realizadas
   const [isFullscreen, setIsFullscreen] = useState(true);
@@ -189,7 +212,7 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
 
   // Check that all NOK items have hallazgo and mejora filled
   const nokItems = Object.values(results).filter(r => r.status === 'nok');
-  const allNokCompleted = nokItems.length === 0 || nokItems.every(r => (r.hallazgo || '').trim() !== '' && (r.mejora || '').trim() !== '');
+  const allNokCompleted = nokItems.length === 0 || nokItems.every(r => (r.hallazgo || '').trim() !== '' && (r.mejora || '').trim() !== '' && (r.responsable || '').trim() !== '');
   const canSubmitFinal = canSubmit && allNokCompleted;
 
   const toggleSection = (sectionId: string) => {
@@ -203,7 +226,7 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
     }));
   };
 
-  const setItemField = (itemId: string, field: 'hallazgo' | 'mejora' | 'otherText', value: string) => {
+  const setItemField = (itemId: string, field: 'hallazgo' | 'mejora' | 'otherText' | 'responsable', value: string) => {
     setResults(prev => ({
       ...prev,
       [itemId]: { ...prev[itemId], itemId, [field]: value },
@@ -280,7 +303,7 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
               itemDescription: `Disfunción detectada en auditoría: ${nok.itemId}`,
               hallazgo: nok.hallazgo || nok.itemId,
               mejora: nok.mejora || '',
-              responsable: null,
+              responsable: nok.responsable || null,
               prioridad: 'alta',
               estado: 'abierta',
               source: 'auditoria',
@@ -792,6 +815,39 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
                                   )}
                                 </div>
                                 <div>
+                                  <label className="text-xs font-medium text-blue-700 flex items-center gap-1">
+                                    <UserCircle className="h-3 w-3" />
+                                    Responsable de la acción *
+                                  </label>
+                                  <Select
+                                    value={result?.responsable || ''}
+                                    onValueChange={val => setItemField(item.id, 'responsable', val)}
+                                  >
+                                    <SelectTrigger className={`text-sm mt-1 ${!(result?.responsable || '').trim() ? 'border-blue-400 focus:border-blue-500' : ''}`}>
+                                      <SelectValue placeholder="Selecciona quien debe resolverlo..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {projectMembers.length === 0 ? (
+                                        <SelectItem value="__none__" disabled>No hay miembros en el proyecto</SelectItem>
+                                      ) : (
+                                        projectMembers
+                                          .filter(m => m.user?.active !== false)
+                                          .map(m => (
+                                            <SelectItem key={m.id} value={m.user.name}>
+                                              <div className="flex items-center gap-2">
+                                                <span>{m.user.name}</span>
+                                                <span className="text-[10px] text-muted-foreground">({m.role})</span>
+                                              </div>
+                                            </SelectItem>
+                                          ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                  {!(result?.responsable || '').trim() && (
+                                    <p className="text-[10px] text-blue-500 mt-0.5">Selecciona un responsable</p>
+                                  )}
+                                </div>
+                                <div>
                                   <Button variant="outline" size="sm" className="text-xs">
                                     <Camera className="h-3 w-3 mr-1" /> Añadir foto (biblioteca paso 2)
                                   </Button>
@@ -983,7 +1039,7 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
                 <p className="text-xs text-red-700">
-                  Debes completar los campos <strong>"Referencia del hallazgo"</strong> y <strong>"Punto a Mejorar"</strong> en todos los items NOK ({nokItems.filter(r => !(r.hallazgo || '').trim() || !(r.mejora || '').trim()).length} pendientes)
+                  Debes completar <strong>"Referencia del hallazgo"</strong>, <strong>"Punto a Mejorar"</strong> y <strong>"Responsable de la acción"</strong> en todos los items NOK ({nokItems.filter(r => !(r.hallazgo || '').trim() || !(r.mejora || '').trim() || !(r.responsable || '').trim()).length} pendientes)
                 </p>
               </div>
             )}

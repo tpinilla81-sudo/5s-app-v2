@@ -649,6 +649,7 @@ export interface AuditItemResult {
   mejora?: string;                 // Punto a Mejorar (sugerencia)
   photoRef?: string;               // Referencia a foto (biblioteca de fotos paso 2)
   otherText?: string;              // Texto libre para items "Otros"
+  responsable?: string;            // Nombre del responsable asignado al hallazgo NOK (para Plan de Acción)
 }
 
 /**
