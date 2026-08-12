@@ -308,37 +308,6 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
     }));
   };
 
-  // Marcar TODOS los items como OK de una sola vez.
-  // Respeta los items ya marcados como NOK/N/A (no los sobreescribe).
-  const markAllOk = () => {
-    setResults(prev => {
-      const next = { ...prev };
-      sections.forEach(s => s.items.forEach(item => {
-        const existing = next[item.id];
-        // Solo marcar como OK si no hay entrada o si ya es OK (no sobreescribe NOK/N/A del usuario)
-        if (!existing || existing.status === 'ok') {
-          next[item.id] = { ...existing, itemId: item.id, status: 'ok' };
-        }
-      }));
-      return next;
-    });
-  };
-
-  // Forzar TODOS los items como OK (sobreescribe incluso NOK/N/A). Con confirmación.
-  const forceAllOk = () => {
-    const nokCount = sections.reduce((acc, s) => acc + s.items.filter(i => results[i.id]?.status === 'nok').length, 0);
-    if (nokCount > 0) {
-      if (!confirm(`¿Sobreescribir ${nokCount} hallazgo(s) NOK y marcar TODO como OK?`)) return;
-    }
-    setResults(prev => {
-      const next = { ...prev };
-      sections.forEach(s => s.items.forEach(item => {
-        next[item.id] = { ...next[item.id], itemId: item.id, status: 'ok' };
-      }));
-      return next;
-    });
-  };
-
   const setItemField = (itemId: string, field: 'hallazgo' | 'mejora' | 'otherText' | 'responsable', value: string) => {
     setResults(prev => ({
       ...prev,
@@ -687,27 +656,7 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
         {!isCompleted && sections.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap px-6 py-2 flex-shrink-0 bg-green-50 border-b border-green-200">
             <CheckCheck className="h-4 w-4 text-green-700 shrink-0" />
-            <span className="text-xs text-green-800 font-medium">Acciones rápidas:</span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-100 bg-white"
-              onClick={markAllOk}
-              title="Marca como OK todos los items que aún no tienen estado (respeta los NOK/N/A ya marcados)"
-            >
-              Marcar todo OK
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100 bg-white"
-              onClick={forceAllOk}
-              title="Fuerza TODOS los items a OK (sobreescribe NOK existentes)"
-            >
-              Forzar TODO OK
-            </Button>
+            <span className="text-xs text-green-800 font-medium">Estado actual:</span>
             <span className="ml-auto text-[10px] text-muted-foreground font-mono">
               {scoring.okCount} OK · {scoring.nokCount} NOK · {scoring.scorePercent}%
             </span>
