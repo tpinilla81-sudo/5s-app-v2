@@ -395,9 +395,10 @@ export default function QuarterlyAuditModal({ open, onClose }: QuarterlyAuditMod
                           {expandedSections[section.id] && (
                             <CardContent className="px-3 pb-3 pt-0 space-y-2">
                               {section.items.map(item => {
-                                // DEFAULT 'ok': if no result, treat as 'ok' (bulletproof — no useEffect dependency)
+                                // BULLETPROOF DEFAULT 'ok': if no result entry exists, treat as 'ok'.
+                                const hasResult = !!results[item.id];
                                 const result = results[item.id];
-                                const status = result?.status ?? 'ok';
+                                const status = hasResult ? (result?.status ?? 'ok') : 'ok';
                                 const isNok = status === 'nok';
                                 return (
                                   <div key={item.id} className="border rounded-lg p-2.5 space-y-1.5">

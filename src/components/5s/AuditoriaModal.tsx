@@ -777,9 +777,11 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
                   {expandedSections[section.id] && (
                     <CardContent className="px-4 pb-4 pt-0 space-y-3">
                       {section.items.map(item => {
-                        // DEFAULT 'ok': if no result, treat as 'ok' (bulletproof — no useEffect dependency)
+                        // BULLETPROOF DEFAULT 'ok': if no result entry exists, treat as 'ok'.
+                        // This is the source of truth — does NOT depend on useEffect timing or MERGE.
+                        const hasResult = !!results[item.id];
                         const result = results[item.id];
-                        const status = result?.status ?? 'ok';
+                        const status = hasResult ? (result?.status ?? 'ok') : 'ok';
                         const isNok = status === 'nok';
 
                         return (
