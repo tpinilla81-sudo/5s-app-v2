@@ -49,6 +49,10 @@ import {
   CreditCard,
   User,
   Mail,
+  Eye,
+  EyeOff,
+  Key,
+  RefreshCw,
 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 
@@ -155,7 +159,20 @@ export default function ProjectSetup() {
     email: '',
     role: 'empleado',
     zoneIds: [], // Will be populated when zones are defined
+    password: '',
   })
+  const [showMemberPassword, setShowMemberPassword] = useState(false)
+
+  // Generate a readable random password (8 chars: letters + digits, no ambiguous 0/O/1/l)
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+    let pwd = ''
+    for (let i = 0; i < 8; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    setNewMember(prev => ({ ...prev, password: pwd }))
+    setShowMemberPassword(true)
+  }
 
   // Auto-select all zones when zones change (better to remove than to add)
   useEffect(() => {
@@ -349,10 +366,16 @@ export default function ProjectSetup() {
 
   const handleAddMember = () => {
     if (newMember.name.trim() && newMember.email.trim()) {
+      // Validate password if provided (min 6 chars). If empty, backend will use default '123456'.
+      if (newMember.password && newMember.password.length < 6) {
+        alert('La contraseña debe tener al menos 6 caracteres.')
+        return
+      }
       setMembers([...members, { ...newMember }])
       // Auto-select ALL zones for the next member (better to remove than to add)
       const allZoneIds = zones.map((_, i) => `zone-${i}`)
-      setNewMember({ name: '', email: '', role: 'empleado', zoneIds: allZoneIds })
+      setNewMember({ name: '', email: '', role: 'empleado', zoneIds: allZoneIds, password: '' })
+      setShowMemberPassword(false)
     }
   }
 
@@ -398,6 +421,7 @@ export default function ProjectSetup() {
               name: member.name,
               role: member.role,
               zoneIds: realZoneIds.length > 0 ? realZoneIds : undefined,
+              password: member.password || undefined,
             }),
           })
           const data = await res.json()
@@ -965,6 +989,46 @@ export default function ProjectSetup() {
                           </label>
                         ))}
                       </div>
+                    </div>
+                    {/* Contraseña de acceso */}
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label className="text-xs flex items-center gap-1">
+                        <Key className="h-3 w-3" />
+                        Contraseña de acceso
+                      </Label>
+                      <div className="flex gap-1.5">
+                        <div className="relative flex-1">
+                          <Input
+                            type={showMemberPassword ? 'text' : 'password'}
+                            placeholder="Dejar vacío para auto-generar (123456)"
+                            value={newMember.password || ''}
+                            onChange={(e) => setNewMember({ ...newMember, password: e.target.value })}
+                            className="pr-8 text-sm font-mono"
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowMemberPassword(!showMemberPassword)}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            tabIndex={-1}
+                          >
+                            {showMemberPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={generatePassword}
+                          title="Generar contraseña aleatoria"
+                          className="h-9 px-2"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Mínimo 6 caracteres. Si la dejas vacía, se asignará automáticamente <code className="font-mono bg-muted px-1 rounded">123456</code>.
+                      </p>
                     </div>
                   </div>
                   <Button variant="outline" onClick={handleAddMember}
