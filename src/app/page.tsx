@@ -307,9 +307,10 @@ export default function HomePage() {
 
   // Available tabs based on role
   // GESTOR (dueño de la app): ONLY sees "Gestión" tab (company management platform)
-  // ALL OTHER ROLES: Tablero (always) + Gestión proyecto (admin/gerente) + Admin (if admin) + Mejora Continua (when 5S complete)
+  // ADMIN: Tablero + Admin (gestiona empresas, usuarios, proyectos, plantillas, config tableros)
+  // OTROS: Tablero + Mejora Continua (cuando 5S completo)
   // Inventario (Jaula/Activos/P.Limpio) y Plan de Acción se acceden desde la toolbar superior
-  const availableTabs: { key: 'board' | 'gestionProyecto' | 'admin' | 'maintenance' | 'gestion'; label: string; icon: React.ReactNode }[] = [];
+  const availableTabs: { key: 'board' | 'admin' | 'maintenance' | 'gestion'; label: string; icon: React.ReactNode }[] = [];
 
   if (isGestor) {
     // Gestor ONLY sees the platform management tab
@@ -317,11 +318,7 @@ export default function HomePage() {
   } else {
     // Tablero 5S — fixed, always visible, the main tool for everyone
     availableTabs.push({ key: 'board', label: 'Tablero', icon: <LayoutDashboard className="h-3.5 w-3.5" /> });
-    // Gestión del proyecto (zonas, miembros, contraseñas) — visible para admin y gerente
-    if (isAdmin || canSeeGerentePanel) {
-      availableTabs.push({ key: 'gestionProyecto', label: 'Gestión', icon: <Settings className="h-3.5 w-3.5" /> });
-    }
-    // Admin — visible solo para admin de empresa
+    // Admin — visible solo para admin de empresa (gestiona empresas, usuarios, proyectos, plantillas, tableros)
     if (isAdmin) {
       availableTabs.push({ key: 'admin', label: 'Admin', icon: <Shield className="h-3.5 w-3.5" /> });
     }
@@ -633,22 +630,6 @@ export default function HomePage() {
                       </button>
                     )}
                     <div className="border-t my-1" />
-                    {/* ⚙️ Settings */}
-                    {canManageTeam && (
-                      <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-green-50 transition-colors text-left min-h-[44px]"
-                        onClick={() => { setMobileMenuOpen(false); setActiveTab('gestionProyecto'); }}>
-                        <Settings className="h-5 w-5 text-green-500 shrink-0" />
-                        <span className="text-sm font-medium text-green-600">Gestión Proyecto</span>
-                      </button>
-                    )}
-                    {/* 🛡️ Permisos — ONLY visible for gestor/admin */}
-                    {canSeePermissions && (
-                      <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-green-50 transition-colors text-left min-h-[44px]"
-                        onClick={() => { setMobileMenuOpen(false); setShowRolePermissions(true); }}>
-                        <Shield className="h-5 w-5 text-green-500 shrink-0" />
-                        <span className="text-sm font-medium text-green-600">Permisos</span>
-                      </button>
-                    )}
                     {/* 📅 Mi Calendario — acciones del Plan de Acción */}
                     {currentUser && (
                       <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-blue-50 transition-colors text-left min-h-[44px]"
@@ -846,14 +827,8 @@ export default function HomePage() {
                 {adminFreeNavigation ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
               </Button>
             )}
-            {canManageTeam && (
-              <Button variant="ghost" size="sm" onClick={() => setActiveTab('gestionProyecto')} className="text-green-600 hover:text-green-700 h-8 px-1.5" title="Gestión del Proyecto">
-                <Settings className="h-3.5 w-3.5" />
-              </Button>
-            )}
-            {/* 🛡️ Permisos — ONLY visible for gestor/admin (manage_permissions), NOT for empleados */}
-            {canSeePermissions && (
-              <Button variant="ghost" size="sm" onClick={() => setShowRolePermissions(true)} className="text-green-600 hover:text-green-700 h-8 px-1.5">
+            {canManageTeam && isAdmin && (
+              <Button variant="ghost" size="sm" onClick={() => setActiveTab('admin')} className="text-green-600 hover:text-green-700 h-8 px-1.5" title="Administración">
                 <Shield className="h-3.5 w-3.5" />
               </Button>
             )}
@@ -1462,13 +1437,6 @@ export default function HomePage() {
                     </div>
                   </div>
                   )}
-                </motion.div>
-              )}
-
-              {/* ═══ TAB: GESTIÓN DEL PROYECTO (zonas, miembros, contraseñas) ═══ */}
-              {activeTab === 'gestionProyecto' && (isAdmin || canSeeGerentePanel) && (
-                <motion.div key="gestionProyecto" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 min-h-0 overflow-hidden">
-                  <TeamManagement open={true} onClose={() => setActiveTab('board')} embedded />
                 </motion.div>
               )}
 

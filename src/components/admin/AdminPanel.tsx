@@ -55,15 +55,11 @@ import {
   Save,
   BookOpen,
   LayoutGrid,
-  Sparkles,
-  Database,
 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { S_STEPS } from '@/lib/5s-constants'
 import TemplateManager from './TemplateManager'
 import Tablero5S from './Tablero5S'
-import MejoraContinuaAdmin from './MejoraContinuaAdmin'
-import ResourceList from './ResourceList'
 
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -142,7 +138,7 @@ interface AdminPanelProps {
 
 export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
   const { setCurrentView, fetchProjects, fetchCompanies, projects, setCurrentProject, currentProject } = use5SStore()
-  const [activeTab, setActiveTab] = useState<'companies' | 'users' | 'projects' | 'plantillas' | 'tablero5s' | 'mejora' | 'recursos'>('companies')
+  const [activeTab, setActiveTab] = useState<'companies' | 'users' | 'projects' | 'plantillas' | 'tablero5s'>('companies')
 
   // ─── Projects state ──────────────────────────────────────────────────────
   const [allProjects, setAllProjects] = useState<ProjectData[]>([])
@@ -901,35 +897,11 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
             <LayoutGrid className="h-4 w-4" />
             Configuración de Tableros
           </button>
-
-          <button
-            onClick={() => { setActiveTab('mejora'); setSelectedProjectId(null) }}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'mejora'
-                ? 'border-amber-500 text-amber-600'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Sparkles className="h-4 w-4" />
-            Mejora Continua
-          </button>
-
-          <button
-            onClick={() => { setActiveTab('recursos'); setSelectedProjectId(null) }}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'recursos'
-                ? 'border-teal-500 text-teal-600'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Database className="h-4 w-4" />
-            Recursos
-          </button>
         </div>
       </div>
 
       {/* Content */}
-      <main className={`flex-1 min-h-0 overflow-auto w-full px-4 py-6 ${activeTab === 'tablero5s' || activeTab === 'mejora' ? 'max-w-7xl mx-auto' : embedded ? '' : 'max-w-5xl mx-auto'}`}>
+      <main className={`flex-1 min-h-0 overflow-auto w-full px-4 py-6 ${activeTab === 'tablero5s' ? 'max-w-7xl mx-auto' : embedded ? '' : 'max-w-5xl mx-auto'}`}>
         <AnimatePresence mode="wait">
           {/* ═══ PROJECTS TAB ═══ */}
           {activeTab === 'projects' && (
@@ -2230,20 +2202,6 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
           {activeTab === 'tablero5s' && (
             <motion.div key="tablero5s" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <Tablero5S />
-            </motion.div>
-          )}
-
-          {/* ═══ MEJORA CONTINUA TAB ═══ */}
-          {activeTab === 'mejora' && (
-            <motion.div key="mejora" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <MejoraContinuaAdmin />
-            </motion.div>
-          )}
-
-          {/* ═══ RECURSOS TAB ═══ */}
-          {activeTab === 'recursos' && (
-            <motion.div key="recursos" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <ResourceList showAllCompanies={false} dark={false} />
             </motion.div>
           )}
         </AnimatePresence>
