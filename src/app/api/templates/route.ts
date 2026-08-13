@@ -95,14 +95,17 @@ export async function POST(request: NextRequest) {
     const isSystem = !companyId || companyId === 'system' || companyId === 'library'
     const targetCompanyId = isSystem ? null : String(companyId)
 
-    // Permiso
+    // Permiso (pasamos el tipo para que el responsable se valide contra su lista)
     if (isSystem) {
       if (!canEditSystemTemplates(ctx)) {
         return NextResponse.json({ success: false, error: 'Solo el gestor puede crear plantillas del Sistema' }, { status: 403 })
       }
     } else {
-      if (!canEditCompanyTemplates(ctx, targetCompanyId)) {
-        return NextResponse.json({ success: false, error: 'No tienes permisos para crear plantillas en esta empresa' }, { status: 403 })
+      if (!canEditCompanyTemplates(ctx, targetCompanyId, type)) {
+        return NextResponse.json(
+          { success: false, error: 'Sin permisos para crear este tipo de plantilla en esta empresa' },
+          { status: 403 },
+        )
       }
     }
 
@@ -146,7 +149,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Cargar la plantilla existente para verificar permisos
-    const existing = await db.template.findUnique({ where: { id }, select: { companyId: true } })
+    const existing = await db.template.findUnique({ where: { id }, select: { companyId: true, type: true } })
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Plantilla no encontrada' }, { status: 404 })
     }
@@ -157,8 +160,17 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Solo el gestor puede editar plantillas del Sistema' }, { status: 403 })
       }
     } else {
-      if (!canEditCompanyTemplates(ctx, existing.companyId)) {
+      // Validamos contra el tipo EXISTENTE (no contra el nuevo, para que un
+      // responsable no pueda cambiar una autoevaluacion a formacion yeditarla)
+      if (!canEditCompanyTemplates(ctx, existing.companyId, existing.type)) {
         return NextResponse.json({ success: false, error: 'No tienes permisos para editar esta plantilla' }, { status: 403 })
+      }
+      // Si está intentando CAMBIAR el tipo, el responsable no puede
+      if (ctx.user.role === 'responsable' && type !== undefined && type !== existing.type) {
+        return NextResponse.json(
+          { success: false, error: 'El coordinador no puede cambiar el tipo de una plantilla' },
+          { status: 403 },
+        )
       }
     }
 
@@ -196,7 +208,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Cargar para verificar permisos
-    const existing = await db.template.findUnique({ where: { id }, select: { companyId: true } })
+    const existing = await db.template.findUnique({ where: { id }, select: { companyId: true, type: true } })
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Plantilla no encontrada' }, { status: 404 })
     }
@@ -206,7 +218,7 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Solo el gestor puede eliminar plantillas del Sistema' }, { status: 403 })
       }
     } else {
-      if (!canEditCompanyTemplates(ctx, existing.companyId)) {
+      if (!canEditCompanyTemplates(ctx, existing.companyId, existing.type)) {
         return NextResponse.json({ success: false, error: 'No tienes permisos para eliminar esta plantilla' }, { status: 403 })
       }
     }

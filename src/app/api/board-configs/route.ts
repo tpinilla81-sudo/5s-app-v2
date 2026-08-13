@@ -54,15 +54,18 @@ async function ensureDefaultSlotsPopulated(boardConfigId: string) {
         slotId = newSlot.id
       }
 
-      // Enlazar plantillas globales para los tipos de este miniStep
+      // Enlazar plantillas para los tipos de este miniStep.
+      // v2.30: priorizar plantillas del Sistema (companyId = null) para el
+      // auto-poblar — son las "compartidas" por defecto. Si una empresa
+      // quiere las suyas, el admin puede editar el tablero manualmente.
       const types = MINI_STEP_TEMPLATE_TYPES[miniStep] || []
       for (const type of types) {
-        // Buscar la primera plantilla global activa que coincida
+        // Buscar la primera plantilla del Sistema activa que coincida
         const tpl = await db.template.findFirst({
-          where: { type, sStep, miniStep, active: true },
+          where: { type, sStep, miniStep, active: true, companyId: null },
           orderBy: { createdAt: 'asc' },
         })
-        if (!tpl) continue // no hay plantilla para esta posición — skip silencioso
+        if (!tpl) continue // no hay plantilla del sistema para esta posición — skip silencioso
 
         // ¿Ya está enlazada?
         const existingLink = await db.boardSlotTemplate.findUnique({

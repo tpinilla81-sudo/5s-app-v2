@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { resolveAuthContext } from '@/lib/company-resolver'
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,8 +16,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'projectId is required. No project selected.' }, { status: 400 })
     }
 
+    // v2.30: resolver el contexto de empresa del usuario para priorizar
+    // plantillas de su empresa sobre las del Sistema en el fallback.
+    const ctx = await resolveAuthContext(request)
+    const userCompanyId = ctx?.companyId ?? null
+
     // Try to find the exam template: first from board config (if zone has one), then global
-    let template = null
+    let template: Awaited<ReturnType<typeof db.template.findFirst>> = null
 
     // Check if the zone has a board configuration with exam templates
     if (zoneId) {
@@ -37,11 +43,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Fallback to global template
+    // Fallback: preferir plantilla de la empresa del usuario; si no, sistema.
     if (!template) {
-      template = await db.template.findFirst({
-        where: { type: 'examen', sStep, active: true },
-      })
+      if (userCompanyId) {
+        template = await db.template.findFirst({
+          where: { type: 'examen', sStep, active: true, companyId: userCompanyId },
+          orderBy: { createdAt: 'asc' },
+        })
+      }
+      if (!template) {
+        template = await db.template.findFirst({
+          where: { type: 'examen', sStep, active: true, companyId: null },
+          orderBy: { createdAt: 'asc' },
+        })
+      }
     }
 
     if (!template) {

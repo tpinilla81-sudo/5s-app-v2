@@ -58,14 +58,39 @@ export async function resolveAuthContext(request: NextRequest): Promise<AuthCont
 }
 
 /**
+ * Tipos de plantilla que un responsable (coordinador) puede editar.
+ * Definido por el dueño de la app: solo autoevaluaciones y auditorías,
+ * porque son los checklists operativos que el coordinador ajusta en sus zonas.
+ */
+export const RESPONSABLE_EDITABLE_TYPES = ['autoevaluacion', 'auditoria'] as const
+
+/**
  * ¿Puede el usuario editar plantillas de una empresa concreta?
  * - gestor → siempre (es dueño)
- * - admin → solo su propia empresa
+ * - admin → solo su propia empresa, todos los tipos
+ * - responsable (coordinador) → solo su empresa + solo autoevaluacion/auditoria
  * - resto → nunca
+ *
+ * Pasar `templateType` para que el check respete la restricción por tipo del
+ * responsable. Si no se pasa, se asume que se pregunta a nivel genérico y el
+ * responsable se considera SIN permiso (false).
  */
-export function canEditCompanyTemplates(ctx: AuthContext, companyId: string | null): boolean {
+export function canEditCompanyTemplates(
+  ctx: AuthContext,
+  companyId: string | null,
+  templateType?: string,
+): boolean {
   if (ctx.user.role === 'gestor') return true
   if (ctx.user.role === 'admin' && companyId != null && ctx.companyId === companyId) return true
+  if (
+    ctx.user.role === 'responsable' &&
+    companyId != null &&
+    ctx.companyId === companyId &&
+    templateType != null &&
+    (RESPONSABLE_EDITABLE_TYPES as readonly string[]).includes(templateType)
+  ) {
+    return true
+  }
   return false
 }
 

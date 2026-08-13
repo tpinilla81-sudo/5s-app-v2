@@ -61,6 +61,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { S_STEPS } from '@/lib/5s-constants'
 import TemplateManager from './TemplateManager'
+import ProjectTemplatesSection from './ProjectTemplatesSection'
 
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -1949,6 +1950,17 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                         </Button>
                                       </div>
                                     </div>
+
+                                    {/* ─────────── PLANTILLAS DE LA EMPRESA (v2.30) ─────────── */}
+                                    {/* Sub-sección después de Usuarios/Zonas.
+                                        Muestra las plantillas de la empresa del proyecto actual +
+                                        la Biblioteca del Sistema (solo lectura para admin, editable para gestor).
+                                        El responsable solo puede editar autoevaluacion/auditoria. */}
+                                    <ProjectTemplatesSection
+                                      project={project}
+                                      currentCompanyId={project.companyId}
+                                      currentCompanyName={currentProjectCompany || project.company}
+                                    />
                                   </>
                                 )}
                               </div>

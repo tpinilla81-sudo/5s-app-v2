@@ -18,6 +18,7 @@ import {
   Eye, EyeOff, Code, GripVertical, Download, Upload, ClipboardList, Award,
   ClipboardPaste, ClipboardCopy, Check, ArrowRightLeft,
   Play, SearchCheck, Rocket, Target, Sparkles, LayoutGrid,
+  Crown, Building2, Lock,
 } from 'lucide-react'
 import { S_STEPS, AUDIT_CHECKLISTS, EXAM_PASS_THRESHOLD, SELF_EVAL_THRESHOLD, AUDIT_PASS_THRESHOLD, INVENTORY_CONFIGS, MC_STEP_CONFIG, MC_PASO_CONFIG, PDCA_STEPS } from '@/lib/5s-constants'
 
@@ -34,6 +35,7 @@ interface TemplateData {
   content: string
   notaMinima: number | null
   active: boolean
+  companyId: string | null // null = Biblioteca del Sistema (v2.30)
   createdAt: string
   updatedAt: string
 }
@@ -1723,8 +1725,8 @@ const PASO_CONFIG: { paso: number; label: string; icon: React.ComponentType<{ cl
 // ═══════════════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════════════
-export default function TemplateManager() {
-  const { currentProject } = use5SStore()
+export default function TemplateManager({ embedded = false }: { embedded?: boolean } = {}) {
+  const { currentProject, currentUser } = use5SStore()
   const [templates, setTemplates] = useState<TemplateData[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<TemplateData | null>(null)
@@ -1733,6 +1735,57 @@ export default function TemplateManager() {
   const [expandedS, setExpandedS] = useState<number | null>(null)
   const [expandedPaso, setExpandedPaso] = useState<string | null>(null) // 'S2-P3' format
   const [editorMode, setEditorMode] = useState<'visual' | 'json'>('visual')
+
+  // ─── Per-company templates (v2.30) ───────────────────────────────────────
+  // La empresa "activa" del usuario. Para admin/responsable es la empresa del
+  // proyecto actual; para gestor es null (es dueño, opera a nivel sistema).
+  const activeCompanyId: string | null =
+    currentUser?.role === 'gestor'
+      ? null
+      : (currentProject?.companyId ?? null)
+
+  const activeCompanyName: string =
+    currentUser?.role === 'gestor'
+      ? 'Biblioteca del Sistema'
+      : (currentProject?.companyName ?? currentProject?.company ?? 'tu empresa')
+
+  // Tipos que un responsable (coordinador) puede editar.
+  // Mantenemos este array en cliente para esconder/mostrar botones; el check
+  // de permisos real está en la API.
+  const RESPONSABLE_EDITABLE_TYPES = ['autoevaluacion', 'auditoria']
+
+  // ¿Puede el usuario editar/eliminar esta plantilla concreta?
+  const canEditTemplate = (tpl: TemplateData): boolean => {
+    if (!currentUser) return false
+    if (currentUser.role === 'gestor') return true
+    // Sistema (companyId null) → solo gestor
+    if (tpl.companyId == null) return false
+    // Plantilla de empresa → solo si es mi empresa y soy admin/responsable
+    if (tpl.companyId !== activeCompanyId) return false
+    if (currentUser.role === 'admin') return true
+    if (currentUser.role === 'responsable' && RESPONSABLE_EDITABLE_TYPES.includes(tpl.type)) return true
+    return false
+  }
+
+  // ¿Puede crear una plantilla nueva para este tipo?
+  const canCreateType = (type: string): boolean => {
+    if (!currentUser) return false
+    if (currentUser.role === 'gestor') return true
+    if (currentUser.role === 'admin' && activeCompanyId) return true
+    if (currentUser.role === 'responsable' && activeCompanyId && RESPONSABLE_EDITABLE_TYPES.includes(type)) return true
+    return false
+  }
+
+  // ¿Puede duplicar una plantilla del Sistema a su empresa? (admin/responsable con tipo permitido)
+  const canDuplicateToMyCompany = (tpl: TemplateData): boolean => {
+    if (!currentUser || currentUser.role === 'gestor') return false
+    if (!activeCompanyId) return false
+    // Solo duplicar plantillas que NO son de mi empresa (library u otra empresa)
+    if (tpl.companyId === activeCompanyId) return false
+    // Responsable solo puede duplicar autoevaluacion/auditoria
+    if (currentUser.role === 'responsable' && !RESPONSABLE_EDITABLE_TYPES.includes(tpl.type)) return false
+    return true
+  }
 
   // Form state
   const [formType, setFormType] = useState<string>('formacion')
@@ -1911,10 +1964,13 @@ export default function TemplateManager() {
         const data = await res.json()
         if (!data.success) { alert('Error: ' + data.error); return }
       } else {
+        // Crear nueva plantilla: el companyId se resuelve por contexto de usuario
+        // (gestor → sistema; admin/responsable → su empresa activa).
+        const createPayload = { ...payload, companyId: activeCompanyId }
         const res = await fetch('/api/templates', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(createPayload),
         })
         const data = await res.json()
         if (!data.success) { alert('Error: ' + data.error); return }
@@ -2050,24 +2106,41 @@ export default function TemplateManager() {
 
   const handleDuplicateTemplate = async (template: TemplateData) => {
     try {
-      const payload = {
-        type: template.type,
-        sStep: template.sStep,
-        miniStep: template.miniStep,
-        title: `${template.title} (copia)`,
-        description: template.description,
-        content: template.content,
-        notaMinima: template.notaMinima,
-        active: template.active,
+      // v2.30: si la plantilla NO es mía (library u otra empresa), usar el
+      // endpoint /duplicate que la copia a mi empresa activa. Si es mía o soy
+      // gestor, hacer una copia local del mismo scope.
+      let res: Response
+      if (template.companyId === activeCompanyId) {
+        // Mismo scope: duplicar dentro del mismo companyId
+        const payload = {
+          type: template.type,
+          sStep: template.sStep,
+          miniStep: template.miniStep,
+          title: `${template.title} (copia)`,
+          description: template.description,
+          content: template.content,
+          notaMinima: template.notaMinima,
+          active: template.active,
+          companyId: activeCompanyId,
+        }
+        res = await fetch('/api/templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      } else {
+        // Library u otra empresa → duplicar a mi empresa activa
+        res = await fetch('/api/templates/duplicate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sourceId: template.id }),
+        })
       }
-      const res = await fetch('/api/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
       const data = await res.json()
       if (!data.success) { alert('Error: ' + data.error); return }
       fetchTemplates()
+      setSaveMessage('Plantilla duplicada correctamente')
+      setTimeout(() => setSaveMessage(null), 3000)
     } catch {
       alert('Error al duplicar la plantilla')
     }
@@ -2129,9 +2202,34 @@ export default function TemplateManager() {
       <div className="flex items-center justify-between shrink-0 mb-3">
         <h2 className="text-lg font-bold flex items-center gap-2">
           <BookOpen className="h-5 w-5 text-green-600" />
-          Plantillas Genéricas
+          {embedded ? 'Plantillas' : 'Plantillas Genéricas'}
           <Badge variant="outline" className="text-xs ml-2">
             {templates.length} plantilla{templates.length !== 1 ? 's' : ''} en total
+          </Badge>
+          {/* v2.30: badge de contexto (empresa activa o sistema) */}
+          <Badge
+            className={`text-[10px] ml-1 ${
+              currentUser?.role === 'gestor'
+                ? 'bg-violet-100 text-violet-700 border-violet-200'
+                : 'bg-blue-100 text-blue-700 border-blue-200'
+            }`}
+            title={
+              currentUser?.role === 'gestor'
+                ? 'Estás editando la Biblioteca del Sistema (plantillas globales compartidas por todas las empresas)'
+                : `Estás viendo las plantillas de tu empresa (${activeCompanyName}) + la Biblioteca del Sistema (solo lectura)`
+            }
+          >
+            {currentUser?.role === 'gestor' ? (
+              <>
+                <Crown className="h-3 w-3 mr-1 inline" />
+                Biblioteca del Sistema
+              </>
+            ) : (
+              <>
+                <Building2 className="h-3 w-3 mr-1 inline" />
+                {activeCompanyName}
+              </>
+            )}
           </Badge>
         </h2>
         <div className="flex items-center gap-2">
@@ -2214,7 +2312,9 @@ export default function TemplateManager() {
                                 <div className="flex items-center gap-2">
                                   {/* Create buttons for this paso's types */}
                                   <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                                    {pasoConfig.types.map(type => (
+                                    {pasoConfig.types
+                                      .filter(type => canCreateType(type))
+                                      .map(type => (
                                       <Button key={type} variant="outline" size="sm"
                                         className="h-6 px-2 text-[10px] gap-0.5"
                                         style={{ borderColor: S_COLORS[s.id] + '40', color: S_COLORS[s.id] }}
@@ -2287,45 +2387,85 @@ export default function TemplateManager() {
                                                 {!tpl.active && (
                                                   <Badge variant="outline" className="shrink-0 text-xs text-red-500 border-red-200">Inactiva</Badge>
                                                 )}
+                                                {/* v2.30: badge de origen */}
+                                                {tpl.companyId == null ? (
+                                                  <Badge variant="outline" className="shrink-0 text-[10px] text-violet-700 border-violet-200 bg-violet-50" title="Plantilla del Sistema (compartida por todas las empresas)">
+                                                    <Crown className="h-2.5 w-2.5 mr-0.5 inline" />
+                                                    Sistema
+                                                  </Badge>
+                                                ) : tpl.companyId === activeCompanyId ? (
+                                                  <Badge variant="outline" className="shrink-0 text-[10px] text-blue-700 border-blue-200 bg-blue-50" title="Plantilla de tu empresa">
+                                                    <Building2 className="h-2.5 w-2.5 mr-0.5 inline" />
+                                                    {activeCompanyName}
+                                                  </Badge>
+                                                ) : (
+                                                  <Badge variant="outline" className="shrink-0 text-[10px] text-gray-500 border-gray-200 bg-gray-50" title="Plantilla de otra empresa">
+                                                    <Lock className="h-2.5 w-2.5 mr-0.5 inline" />
+                                                    Otra empresa
+                                                  </Badge>
+                                                )}
                                               </div>
                                               <div className="flex items-center gap-1 shrink-0 ml-2">
-                                                {/* Move to Paso dropdown */}
-                                                <div className="relative" onClick={(e) => e.stopPropagation()}>
-                                                  <select
-                                                    value={tpl.miniStep || 3}
-                                                    onChange={(e) => handleMovePaso(tpl.id, Number(e.target.value))}
-                                                    className="h-7 text-[10px] rounded border border-gray-200 bg-white px-1.5 pr-5 cursor-pointer hover:border-blue-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-200 appearance-none"
-                                                    style={{ color: S_COLORS[tpl.sStep] }}
-                                                    title="Mover a otro paso"
-                                                  >
-                                                    {[1, 2, 3, 4, 5].map(step => (
-                                                      <option key={step} value={step}>
-                                                        P{step}
-                                                      </option>
-                                                    ))}
-                                                  </select>
-                                                  <ArrowRightLeft className="absolute right-0.5 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-gray-400 pointer-events-none" />
-                                                </div>
+                                                {/* v2.30: Duplicar a mi empresa (solo si no es mía y tengo permisos) */}
+                                                {canDuplicateToMyCompany(tpl) && (
+                                                  <Button variant="ghost" size="sm" onClick={() => handleDuplicateTemplate(tpl)}
+                                                    className="h-7 px-2 text-[10px] gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border border-emerald-200"
+                                                    title="Traer una copia a mi empresa (podré editarla)">
+                                                    <ClipboardCopy className="h-3 w-3" />
+                                                    Traer a mi empresa
+                                                  </Button>
+                                                )}
+                                                {/* Move to Paso dropdown (solo si editable) */}
+                                                {canEditTemplate(tpl) && (
+                                                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                                                    <select
+                                                      value={tpl.miniStep || 3}
+                                                      onChange={(e) => handleMovePaso(tpl.id, Number(e.target.value))}
+                                                      className="h-7 text-[10px] rounded border border-gray-200 bg-white px-1.5 pr-5 cursor-pointer hover:border-blue-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-200 appearance-none"
+                                                      style={{ color: S_COLORS[tpl.sStep] }}
+                                                      title="Mover a otro paso"
+                                                    >
+                                                      {[1, 2, 3, 4, 5].map(step => (
+                                                        <option key={step} value={step}>
+                                                          P{step}
+                                                        </option>
+                                                      ))}
+                                                    </select>
+                                                    <ArrowRightLeft className="absolute right-0.5 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-gray-400 pointer-events-none" />
+                                                  </div>
+                                                )}
                                                 <Button variant="ghost" size="sm" onClick={() => handleCopyTemplate(tpl)}
                                                   className="h-7 w-7 p-0 text-purple-500 hover:text-purple-700 hover:bg-purple-50" title="Copiar al portapapeles">
                                                   {copiedId === tpl.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                                                 </Button>
-                                                <Button variant="ghost" size="sm" onClick={() => handleDuplicateTemplate(tpl)}
-                                                  className="h-7 w-7 p-0 text-amber-500 hover:text-amber-700 hover:bg-amber-50" title="Duplicar plantilla">
-                                                  <ClipboardCopy className="h-3.5 w-3.5" />
-                                                </Button>
+                                                {/* Duplicar (crear copia) — solo si editable o si tengo empresa activa */}
+                                                {canEditTemplate(tpl) && (
+                                                  <Button variant="ghost" size="sm" onClick={() => handleDuplicateTemplate(tpl)}
+                                                    className="h-7 w-7 p-0 text-amber-500 hover:text-amber-700 hover:bg-amber-50" title="Duplicar plantilla">
+                                                    <ClipboardCopy className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                )}
                                                 <Button variant="ghost" size="sm" onClick={() => handleDownload(tpl)}
                                                   className="h-7 w-7 p-0 text-gray-500 hover:text-gray-700" title="Descargar JSON">
                                                   <Download className="h-3.5 w-3.5" />
                                                 </Button>
-                                                <Button variant="ghost" size="sm" onClick={() => startEdit(tpl)}
-                                                  className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700">
-                                                  <Edit3 className="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button variant="ghost" size="sm" onClick={() => handleDelete(tpl.id)}
-                                                  className="h-7 w-7 p-0 text-red-500 hover:text-red-600">
-                                                  <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
+                                                {canEditTemplate(tpl) ? (
+                                                  <>
+                                                    <Button variant="ghost" size="sm" onClick={() => startEdit(tpl)}
+                                                      className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700" title="Editar">
+                                                      <Edit3 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm" onClick={() => handleDelete(tpl.id)}
+                                                      className="h-7 w-7 p-0 text-red-500 hover:text-red-600" title="Eliminar">
+                                                      <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                  </>
+                                                ) : (
+                                                  <span className="text-[10px] text-gray-400 italic px-2" title="No tienes permiso para editar esta plantilla. Usa 'Traer a mi empresa' para crear una copia editable.">
+                                                    <Lock className="h-3 w-3 inline mr-0.5" />
+                                                    Solo lectura
+                                                  </span>
+                                                )}
                                               </div>
                                             </div>
                                           </div>
@@ -2423,7 +2563,9 @@ export default function TemplateManager() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                                    {mcPaso.types.map(type => (
+                                    {mcPaso.types
+                                      .filter(type => canCreateType(type))
+                                      .map(type => (
                                       <Button key={type} variant="outline" size="sm"
                                         className="h-6 px-2 text-[10px] gap-0.5"
                                         style={{ borderColor: pasoColor + '40', color: pasoColor }}
@@ -2479,14 +2621,44 @@ export default function TemplateManager() {
                                                 )}
                                               </div>
                                               <div className="flex items-center gap-1">
-                                                <Button variant="ghost" size="sm" onClick={() => startEdit(tpl)}
-                                                  className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700">
-                                                  <Edit3 className="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button variant="ghost" size="sm" onClick={() => handleDelete(tpl.id)}
-                                                  className="h-7 w-7 p-0 text-red-500 hover:text-red-600">
-                                                  <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
+                                                {/* v2.30: badge de origen */}
+                                                {tpl.companyId == null ? (
+                                                  <Badge variant="outline" className="shrink-0 text-[10px] text-violet-700 border-violet-200 bg-violet-50">
+                                                    <Crown className="h-2.5 w-2.5 mr-0.5 inline" />Sistema
+                                                  </Badge>
+                                                ) : tpl.companyId === activeCompanyId ? (
+                                                  <Badge variant="outline" className="shrink-0 text-[10px] text-blue-700 border-blue-200 bg-blue-50">
+                                                    <Building2 className="h-2.5 w-2.5 mr-0.5 inline" />
+                                                    {activeCompanyName}
+                                                  </Badge>
+                                                ) : (
+                                                  <Badge variant="outline" className="shrink-0 text-[10px] text-gray-500 border-gray-200 bg-gray-50">
+                                                    <Lock className="h-2.5 w-2.5 mr-0.5 inline" />Otra
+                                                  </Badge>
+                                                )}
+                                                {canDuplicateToMyCompany(tpl) && (
+                                                  <Button variant="ghost" size="sm" onClick={() => handleDuplicateTemplate(tpl)}
+                                                    className="h-7 px-2 text-[10px] gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border border-emerald-200"
+                                                    title="Traer una copia a mi empresa">
+                                                    <ClipboardCopy className="h-3 w-3" />Traer
+                                                  </Button>
+                                                )}
+                                                {canEditTemplate(tpl) ? (
+                                                  <>
+                                                    <Button variant="ghost" size="sm" onClick={() => startEdit(tpl)}
+                                                      className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700">
+                                                      <Edit3 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm" onClick={() => handleDelete(tpl.id)}
+                                                      className="h-7 w-7 p-0 text-red-500 hover:text-red-600">
+                                                      <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                  </>
+                                                ) : (
+                                                  <span className="text-[10px] text-gray-400 italic px-2">
+                                                    <Lock className="h-3 w-3 inline mr-0.5" />Solo lectura
+                                                  </span>
+                                                )}
                                               </div>
                                             </div>
                                           </div>

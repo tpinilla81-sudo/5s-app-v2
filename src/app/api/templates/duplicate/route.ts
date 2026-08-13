@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { resolveAuthContext, canEditCompanyTemplates } from '@/lib/company-resolver'
+import { resolveAuthContext, canEditCompanyTemplates, canEditSystemTemplates } from '@/lib/company-resolver'
 
 // POST /api/templates/duplicate
 // Body: { sourceId: string, targetCompanyId?: string }
@@ -44,9 +44,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Permiso sobre empresa destino
-    if (destCompanyId && !canEditCompanyTemplates(ctx, destCompanyId)) {
-      return NextResponse.json({ success: false, error: 'Sin permisos sobre esa empresa' }, { status: 403 })
+    // Permiso sobre empresa destino (incluye check de tipo — responsable solo
+    // puede duplicar autoevaluacion/auditoria a su empresa)
+    if (destCompanyId == null) {
+      // Copiar a Sistema → solo gestor
+      if (!canEditSystemTemplates(ctx)) {
+        return NextResponse.json({ success: false, error: 'Solo el gestor puede crear plantillas del Sistema' }, { status: 403 })
+      }
+    } else {
+      if (!canEditCompanyTemplates(ctx, destCompanyId, source.type)) {
+        return NextResponse.json({ success: false, error: 'Sin permisos sobre esa empresa o tipo' }, { status: 403 })
+      }
     }
 
     // No tiene sentido duplicar dentro del mismo scope
