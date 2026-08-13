@@ -293,3 +293,43 @@ Stage Summary:
   vida de la sesión. Solo se extienden cookie maxAge y DB expiresAt.
 - Pendiente: `git push origin main` desde entorno con credenciales
   GitHub para deploy en Vercel.
+
+---
+Task ID: v2.26
+Agent: Main
+Task: Centralizar alta de usuarios en 'Datos Empresa'; en proyectos/zona solo adjudicar existentes
+
+Work Log:
+- Modelo nuevo definido por usuario:
+  * Datos Empresa → listado maestro + alta/edición/borrado
+  * Proyectos/Zona → solo adjudicar usuarios ya existentes
+- UI AdminPanel.tsx:
+  * Eliminado toggle "Crear nuevo / De esta empresa" dentro de cada zona
+  * Eliminado formulario de "Crear nuevo usuario" dentro de cada zona
+  * Eliminado toggle "Asignar existente / Crear nuevo" del modal Nuevo Proyecto
+  * Eliminado formulario de creación en el modal Nuevo Proyecto
+  * Añadida nueva sección "Usuarios de la Empresa" en pestaña Datos Empresa:
+    - Listado maestro filtrado por empresa del admin actual
+    - Formulario de alta (nombre/email/password/rol) con botón "Crear nuevo usuario"
+    - Tabla con columnas: Nombre, Email, Rol, Estado, Acciones
+    - Acciones por usuario: Activar/Desactivar, Reset pass, Eliminar
+    - Stats: total / activos / inactivos
+- Handlers nuevos:
+  * handleCreateCompanyUser (POST /api/users + POST /api/companies/{id}/members)
+  * handleToggleUserActive (PUT /api/users con active)
+  * handleResetUserPassword (PUT /api/users con password)
+  * handleDeleteCompanyUser (DELETE /api/users?id=)
+- Estados nuevos: showAddCompanyUser, newCompanyUserName/Email/Password/Role
+- API zona-members: añadido auto-link a empresa del proyecto
+  (CompanyMember.upsert idempotente) como salvaguarda
+- Build OK (21.6s). Bump v2.26 en middleware, LoginPage, page.tsx
+- Commit local: bb84044
+- Push a GitHub: FALLA — token PAT anterior fue revocado (correcto).
+  Usuario debe pasar nuevo token o hacer push manual.
+
+Stage Summary:
+- Flujo nuevo coherente con tarifa: alta en Datos Empresa → adjudicación
+  en proyectos/zonas → tarifa calculada sobre usuarios activos de la empresa
+- En cada zona solo aparece picker de existentes (con buscador + lista)
+- Empty state claro: "Crea nuevos usuarios en Datos Empresa → Usuarios"
+- API de zona-members mantiene auto-link a empresa como defensa
