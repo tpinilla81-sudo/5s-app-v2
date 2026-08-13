@@ -1725,7 +1725,16 @@ const PASO_CONFIG: { paso: number; label: string; icon: React.ComponentType<{ cl
 // ═══════════════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════════════
-export default function TemplateManager({ embedded = false }: { embedded?: boolean } = {}) {
+export default function TemplateManager({
+  embedded = false,
+  overrideCompanyId,
+  overrideCompanyName,
+}: {
+  embedded?: boolean
+  /** Override de empresa activa (cuando se embede desde el detalle de un proyecto). */
+  overrideCompanyId?: string | null
+  overrideCompanyName?: string
+} = {}) {
   const { currentProject, currentUser } = use5SStore()
   const [templates, setTemplates] = useState<TemplateData[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -1739,15 +1748,22 @@ export default function TemplateManager({ embedded = false }: { embedded?: boole
   // ─── Per-company templates (v2.30) ───────────────────────────────────────
   // La empresa "activa" del usuario. Para admin/responsable es la empresa del
   // proyecto actual; para gestor es null (es dueño, opera a nivel sistema).
+  // Si se pasa overrideCompanyId (embedido desde ProjectTemplatesSection),
+  // tiene prioridad sobre currentProject del store.
   const activeCompanyId: string | null =
     currentUser?.role === 'gestor'
       ? null
-      : (currentProject?.companyId ?? null)
+      : (overrideCompanyId !== undefined
+          ? overrideCompanyId
+          : (currentProject?.companyId ?? null))
 
   const activeCompanyName: string =
     currentUser?.role === 'gestor'
       ? 'Biblioteca del Sistema'
-      : (currentProject?.companyName ?? currentProject?.company ?? 'tu empresa')
+      : (overrideCompanyName
+          || currentProject?.companyName
+          || currentProject?.company
+          || 'tu empresa')
 
   // Tipos que un responsable (coordinador) puede editar.
   // Mantenemos este array en cliente para esconder/mostrar botones; el check

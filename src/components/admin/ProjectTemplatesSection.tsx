@@ -25,13 +25,17 @@ interface ProjectTemplatesSectionProps {
  * Muestra un resumen compacto y, al expandir, todo el TemplateManager con
  * el contexto de empresa del proyecto activo. El admin/responsable puede
  * gestionar aquí sus plantillas (los tipos permitidos según rol).
+ *
+ * v2.30.1: ya no toca el store — pasa companyId/companyName directamente
+ * al TemplateManager vía props override, evitando re-fetchs y efectos
+ * colaterales en el currentProject del store.
  */
 export default function ProjectTemplatesSection({
   project,
   currentCompanyId,
   currentCompanyName,
 }: ProjectTemplatesSectionProps) {
-  const { currentUser, setCurrentProject } = use5SStore()
+  const { currentUser } = use5SStore()
   const [expanded, setExpanded] = useState(false)
 
   // El admin/responsable debe ver sus plantillas; el gestor no debería
@@ -43,30 +47,12 @@ export default function ProjectTemplatesSection({
   // pueden gestionar plantillas por empresa hasta vincularlo.
   const hasCompany = !!currentCompanyId
 
-  // Cuando el usuario expande, hay que asegurar que currentProject del store
-  // apunte al proyecto correcto (TemplateManager usa currentProject.companyId).
-  const handleExpand = (next: boolean) => {
-    if (next && currentUser) {
-      // Solo set si el proyecto activo NO es este (evita re-fetch innecesario)
-      const store = use5SStore.getState()
-      if (store.currentProject?.id !== project.id) {
-        // Buscamos el proyecto completo en el store (allProjects o projects)
-        const fullProject = store.projects?.find(p => p.id === project.id) ||
-                            (store as any).allProjects?.find((p: any) => p.id === project.id)
-        if (fullProject) {
-          setCurrentProject(fullProject)
-        }
-      }
-    }
-    setExpanded(next)
-  }
-
   return (
     <div className="rounded-lg border border-green-200 bg-green-50/30 overflow-hidden">
       {/* Header — click to expand */}
       <button
         type="button"
-        onClick={() => handleExpand(!expanded)}
+        onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-3 py-2 hover:bg-green-50/60 transition-colors"
       >
         <div className="flex items-center gap-2">
@@ -119,9 +105,13 @@ export default function ProjectTemplatesSection({
                 </p>
               </div>
 
-              {/* Embed TemplateManager — usa el currentProject del store
-                  para saber qué empresa activa usar */}
-              <TemplateManager embedded />
+              {/* Embed TemplateManager — pasamos el contexto de empresa
+                  directamente vía props (no toca el store) */}
+              <TemplateManager
+                embedded
+                overrideCompanyId={currentCompanyId}
+                overrideCompanyName={currentCompanyName}
+              />
 
               {/* Footer actions */}
               <div className="mt-3 pt-2 border-t flex justify-end">

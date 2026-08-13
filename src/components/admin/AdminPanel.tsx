@@ -93,6 +93,7 @@ interface ProjectData {
   name: string
   description: string | null
   company: string
+  companyId: string | null
   startDate: string
   active: boolean
   zones: Array<{ id: string; name: string; description: string | null; color: string }>
