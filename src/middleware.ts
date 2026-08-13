@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const BUILD_VERSION = '20260813-110000-v2.18';
+const BUILD_VERSION = '20260813-120000-v2.19';
 
 export function middleware(request: NextRequest) {
   const url = request.nextUrl;

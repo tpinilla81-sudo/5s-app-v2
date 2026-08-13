@@ -190,6 +190,20 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
     { name: '', color: PRESET_COLORS[0] },
   ])
 
+  // New-project members (existing or new) — added at creation time
+  type NewProjectMember =
+    | { mode: 'existing'; userId: string; name: string; email: string; role: string; zoneIdxs: number[] }
+    | { mode: 'new'; name: string; email: string; password: string; role: string; zoneIdxs: number[] }
+  const [newProjectMembers, setNewProjectMembers] = useState<NewProjectMember[]>([])
+  // Form state for adding a member to the new-project form
+  const [npMemberMode, setNpMemberMode] = useState<'existing' | 'new'>('existing')
+  const [npMemberExistingId, setNpMemberExistingId] = useState('')
+  const [npMemberName, setNpMemberName] = useState('')
+  const [npMemberEmail, setNpMemberEmail] = useState('')
+  const [npMemberPassword, setNpMemberPassword] = useState('')
+  const [npMemberRole, setNpMemberRole] = useState('empleado')
+  const [npMemberZoneIdxs, setNpMemberZoneIdxs] = useState<number[]>([])
+
   // Project detail (zones + members)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [projectZones, setProjectZones] = useState<ZoneData[]>([])
@@ -462,6 +476,52 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
   }, [expandedCompanyId, loadCompanyDetail])
 
   // ─── Project actions ─────────────────────────────────────────────────────
+
+  // Add a member (existing or new) to the new-project pending list.
+  // Resolves existing user info from the `users` array; for new users,
+  // takes the form fields directly. Zone indices reference `newProjectZones`.
+  const handleAddNewProjectMember = () => {
+    if (npMemberMode === 'existing') {
+      const u = users.find(x => x.id === npMemberExistingId)
+      if (!u) return
+      setNewProjectMembers(prev => [
+        ...prev,
+        {
+          mode: 'existing' as const,
+          userId: u.id,
+          name: u.name,
+          email: u.email,
+          role: npMemberRole,
+          zoneIdxs: npMemberZoneIdxs.length > 0 ? [...npMemberZoneIdxs] : newProjectZones.map((_, i) => i),
+        },
+      ])
+    } else {
+      if (!npMemberName.trim() || !npMemberEmail.trim()) return
+      if (npMemberPassword && npMemberPassword.length < 6) {
+        alert('La contraseña debe tener al menos 6 caracteres.')
+        return
+      }
+      setNewProjectMembers(prev => [
+        ...prev,
+        {
+          mode: 'new' as const,
+          name: npMemberName.trim(),
+          email: npMemberEmail.trim(),
+          password: npMemberPassword,
+          role: npMemberRole,
+          zoneIdxs: npMemberZoneIdxs.length > 0 ? [...npMemberZoneIdxs] : newProjectZones.map((_, i) => i),
+        },
+      ])
+    }
+    // Reset form
+    setNpMemberExistingId('')
+    setNpMemberName('')
+    setNpMemberEmail('')
+    setNpMemberPassword('')
+    setNpMemberRole('empleado')
+    setNpMemberZoneIdxs([])
+  }
+
   const handleCreateProject = async () => {
     if (!newProjectName.trim() || !newProjectCompany.trim()) return
     const validZones = newProjectZones.filter(z => z.name.trim())
@@ -481,21 +541,65 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
       })
       if (res.ok) {
         const data = await res.json()
-        // Auto-add current user as admin
+        const projectId = data.project.id
+        // Real zone IDs returned by the backend, in the same order as validZones
+        const realZoneIds: string[] = (data.project.zones || []).map((z: any) => z.id)
+
+        // Auto-add current user as admin (always)
         const { currentUser } = use5SStore.getState()
         if (currentUser) {
-          await fetch(`/api/projects/${data.project.id}/members`, {
+          await fetch(`/api/projects/${projectId}/members`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: currentUser.email, name: currentUser.name, role: 'admin', zoneIds: data.project.zones?.map((z: any) => z.id) || [] }),
+            body: JSON.stringify({
+              email: currentUser.email,
+              name: currentUser.name,
+              role: 'admin',
+              zoneIds: realZoneIds,
+            }),
           })
         }
+
+        // Add each pending member (existing or new) to the newly created project
+        for (const member of newProjectMembers) {
+          // Resolve which zone IDs this member should be assigned to
+          const memberZoneIds = member.zoneIdxs
+            .map(i => realZoneIds[i])
+            .filter(Boolean) as string[]
+          const body: any = {
+            email: member.email,
+            name: member.name,
+            role: member.role,
+            zoneIds: memberZoneIds.length > 0 ? memberZoneIds : undefined,
+          }
+          if (member.mode === 'new' && member.password && member.password.length >= 6) {
+            body.password = member.password
+          }
+          try {
+            await fetch(`/api/projects/${projectId}/members`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            })
+          } catch (err) {
+            console.error('Error adding member to new project:', err)
+          }
+        }
+
         setShowNewProject(false)
         setNewProjectName('')
         setNewProjectCompany('')
         setIsNewCompanyCustom(false)
         setNewProjectDesc('')
         setNewProjectZones([{ name: '', color: PRESET_COLORS[0] }])
+        setNewProjectMembers([])
+        setNpMemberMode('existing')
+        setNpMemberExistingId('')
+        setNpMemberName('')
+        setNpMemberEmail('')
+        setNpMemberPassword('')
+        setNpMemberRole('empleado')
+        setNpMemberZoneIdxs([])
         await loadProjects()
         await fetchProjects()
       }
@@ -1114,8 +1218,8 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
           {/* ═══ PROJECTS TAB ═══ */}
           {activeTab === 'projects' && (
             <motion.div key="projects" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-              {/* ─────────── SECCIÓN 1: PROYECTOS ACTIVOS ─────────── */}
-              <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-3">
+              {/* ─────────── CAJA 1: PROYECTOS ACTIVOS (contiene la lista) ─────────── */}
+              <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-3 space-y-3">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-md bg-blue-500/15 flex items-center justify-center">
@@ -1130,166 +1234,8 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                       </p>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setShowNewProject(true)
-                      // Scroll al formulario de creación
-                      setTimeout(() => {
-                        document.getElementById('crear-nuevo-proyecto')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                      }, 50)
-                    }}
-                    className="border-purple-300 text-purple-700 hover:bg-purple-50"
-                  >
-                    <Plus className="h-4 w-4 mr-1" /> Nuevo Proyecto
-                  </Button>
                 </div>
-              </div>
-
-              {/* ─────────── SECCIÓN 2: CREAR NUEVO ─────────── */}
-              <div id="crear-nuevo-proyecto" className="rounded-lg border border-purple-200 bg-purple-50/30 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-md bg-purple-500/15 flex items-center justify-center">
-                      <Plus className="h-4 w-4 text-purple-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900">Crear Nuevo</h3>
-                      <p className="text-[11px] text-muted-foreground">
-                        Da de alta un proyecto nuevo con sus zonas. Se añadirá a la lista de arriba.
-                      </p>
-                    </div>
-                  </div>
-                  {showNewProject && (
-                    <Button variant="ghost" size="sm" onClick={() => setShowNewProject(false)} className="h-7 text-xs">
-                      <X className="h-3.5 w-3.5 mr-1" /> Cerrar formulario
-                    </Button>
-                  )}
-                </div>
-
-                {/* Toggle: si hay proyectos existentes, el formulario empieza colapsado */}
-                {!showNewProject && allProjects.length > 0 ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowNewProject(true)}
-                    className="w-full border-dashed border-purple-300 text-purple-700 hover:bg-purple-100 bg-white/60"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Abrir formulario de creación
-                  </Button>
-                ) : (
-                  <Card className="border-purple-200 bg-white/70">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <Plus className="h-4 w-4 text-purple-500" />
-                        Crear Nuevo Proyecto
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Nombre del Proyecto *</Label>
-                          <Input placeholder="Nombre" value={newProjectName} onChange={e => setNewProjectName(e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Empresa *</Label>
-                          {companies.length > 0 && !isNewCompanyCustom ? (
-                            <div className="space-y-1">
-                              <Select
-                                value={newProjectCompany ? (companies.find(c => c.name === newProjectCompany)?.id || '') : undefined}
-                                onValueChange={val => {
-                                  if (val === '__custom__') {
-                                    setNewProjectCompany('')
-                                    setIsNewCompanyCustom(true)
-                                  } else {
-                                    const comp = companies.find(c => c.id === val)
-                                    if (comp) setNewProjectCompany(comp.name)
-                                  }
-                                }}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Seleccionar empresa" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {companies.map(c => (
-                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                  ))}
-                                  <SelectItem value="__custom__">+ Otra empresa...</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          ) : (
-                            <div className="space-y-1">
-                              <Input placeholder="Nombre de la nueva empresa" value={newProjectCompany} onChange={e => setNewProjectCompany(e.target.value)} />
-                              {companies.length > 0 && (
-                                <Button variant="ghost" size="sm" onClick={() => { setIsNewCompanyCustom(false); setNewProjectCompany('') }} className="h-6 text-xs text-purple-600 p-0">
-                                  ← Seleccionar empresa existente
-                                </Button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Descripción</Label>
-                        <Input placeholder="Descripción del proyecto (opcional)" value={newProjectDesc} onChange={e => setNewProjectDesc(e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs">Zonas *</Label>
-                          <Button variant="ghost" size="sm" onClick={() => setNewProjectZones([...newProjectZones, { name: '', color: PRESET_COLORS[newProjectZones.length % PRESET_COLORS.length] }])} className="h-6 text-xs text-purple-600">
-                            <Plus className="h-3 w-3 mr-1" /> Agregar zona
-                          </Button>
-                        </div>
-                        {newProjectZones.map((zone, idx) => (
-                          <div key={idx} className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              className="w-6 h-6 rounded-full border-2 flex-shrink-0"
-                              style={{ backgroundColor: zone.color, borderColor: zone.color }}
-                              onClick={() => {
-                                const next = PRESET_COLORS[(PRESET_COLORS.indexOf(zone.color) + 1) % PRESET_COLORS.length]
-                                const updated = [...newProjectZones]
-                                updated[idx] = { ...updated[idx], color: next }
-                                setNewProjectZones(updated)
-                              }}
-                            />
-                            <Input
-                              placeholder="Nombre de la zona"
-                              value={zone.name}
-                              onChange={e => {
-                                const updated = [...newProjectZones]
-                                updated[idx] = { ...updated[idx], name: e.target.value }
-                                setNewProjectZones(updated)
-                              }}
-                              className="flex-1"
-                            />
-                            {newProjectZones.length > 1 && (
-                              <Button variant="ghost" size="sm" onClick={() => setNewProjectZones(newProjectZones.filter((_, i) => i !== idx))} className="h-8 w-8 p-0 text-red-400 hover:text-red-600">
-                                <X className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex gap-2 justify-end">
-                        <Button variant="outline" size="sm" onClick={() => setShowNewProject(false)}>Cancelar</Button>
-                        <Button
-                          size="sm"
-                          onClick={handleCreateProject}
-                          disabled={!newProjectName.trim() || !newProjectCompany.trim() || newProjectZones.filter(z => z.name.trim()).length === 0}
-                          className="bg-gradient-to-r from-purple-500 to-purple-600 text-white"
-                        >
-                          Crear Proyecto
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-
+              
               {/* ─────────── LISTA DE PROYECTOS ACTIVOS ─────────── */}
 
               {/* Projects list */}
@@ -1994,7 +1940,247 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                   ))}
                 </div>
               )}
-
+              </div>
+              
+              {/* ─────────── CAJA 2: ABRIR NUEVO PROYECTO ─────────── */}
+              <div id="crear-nuevo-proyecto" className="rounded-lg border border-purple-200 bg-purple-50/30 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-md bg-purple-500/15 flex items-center justify-center">
+                      <Plus className="h-4 w-4 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900">Abrir Nuevo Proyecto</h3>
+                      <p className="text-[11px] text-muted-foreground">
+                        Da de alta un proyecto nuevo con sus zonas y usuarios (existentes o nuevos).
+                      </p>
+                    </div>
+                  </div>
+                  {showNewProject && (
+                    <Button variant="ghost" size="sm" onClick={() => setShowNewProject(false)} className="h-7 text-xs">
+                      <X className="h-3.5 w-3.5 mr-1" /> Cerrar formulario
+                    </Button>
+                  )}
+                </div>
+              
+                {!showNewProject && allProjects.length > 0 ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowNewProject(true)}
+                    className="w-full border-dashed border-purple-300 text-purple-700 hover:bg-purple-100 bg-white/60"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Abrir formulario de creación
+                  </Button>
+                ) : (
+                  <Card className="border-purple-200 bg-white/70">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Plus className="h-4 w-4 text-purple-500" />
+                        Crear Nuevo Proyecto
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Nombre del Proyecto *</Label>
+                          <Input placeholder="Nombre" value={newProjectName} onChange={e => setNewProjectName(e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Empresa *</Label>
+                          {companies.length > 0 && !isNewCompanyCustom ? (
+                            <div className="space-y-1">
+                              <Select
+                                value={newProjectCompany ? (companies.find(c => c.name === newProjectCompany)?.id || '') : undefined}
+                                onValueChange={val => {
+                                  if (val === '__custom__') {
+                                    setNewProjectCompany('')
+                                    setIsNewCompanyCustom(true)
+                                  } else {
+                                    const comp = companies.find(c => c.id === val)
+                                    if (comp) setNewProjectCompany(comp.name)
+                                  }
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Seleccionar empresa" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {companies.map(c => (
+                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                  ))}
+                                  <SelectItem value="__custom__">+ Otra empresa...</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <Input placeholder="Nombre de la nueva empresa" value={newProjectCompany} onChange={e => setNewProjectCompany(e.target.value)} />
+                              {companies.length > 0 && (
+                                <Button variant="ghost" size="sm" onClick={() => { setIsNewCompanyCustom(false); setNewProjectCompany('') }} className="h-6 text-xs text-purple-600 p-0">
+                                  ← Seleccionar empresa existente
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Descripción</Label>
+                        <Input placeholder="Descripción del proyecto (opcional)" value={newProjectDesc} onChange={e => setNewProjectDesc(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">Zonas *</Label>
+                          <Button variant="ghost" size="sm" onClick={() => setNewProjectZones([...newProjectZones, { name: '', color: PRESET_COLORS[newProjectZones.length % PRESET_COLORS.length] }])} className="h-6 text-xs text-purple-600">
+                            <Plus className="h-3 w-3 mr-1" /> Agregar zona
+                          </Button>
+                        </div>
+                        {newProjectZones.map((zone, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="w-6 h-6 rounded-full border-2 flex-shrink-0"
+                              style={{ backgroundColor: zone.color, borderColor: zone.color }}
+                              onClick={() => {
+                                const next = PRESET_COLORS[(PRESET_COLORS.indexOf(zone.color) + 1) % PRESET_COLORS.length]
+                                const updated = [...newProjectZones]
+                                updated[idx] = { ...updated[idx], color: next }
+                                setNewProjectZones(updated)
+                              }}
+                            />
+                            <Input
+                              placeholder="Nombre de la zona"
+                              value={zone.name}
+                              onChange={e => {
+                                const updated = [...newProjectZones]
+                                updated[idx] = { ...updated[idx], name: e.target.value }
+                                setNewProjectZones(updated)
+                              }}
+                              className="flex-1"
+                            />
+                            {newProjectZones.length > 1 && (
+                              <Button variant="ghost" size="sm" onClick={() => setNewProjectZones(newProjectZones.filter((_, i) => i !== idx))} className="h-8 w-8 p-0 text-red-400 hover:text-red-600">
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {/* ─── USUARIOS (existentes o nuevos) ─── */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs flex items-center gap-1">
+                            <Users className="h-3 w-3" /> Usuarios del proyecto (opcional)
+                          </Label>
+                          <span className="text-[10px] text-muted-foreground">
+                            {newProjectMembers.length === 0 ? 'Aún no hay usuarios añadidos' : `${newProjectMembers.length} usuario(s) añadido(s)`}
+                          </span>
+                        </div>
+                        {newProjectMembers.length > 0 && (
+                          <div className="space-y-1.5">
+                            {newProjectMembers.map((m, idx) => (
+                              <div key={idx} className="flex items-center gap-2 rounded-md border border-purple-200 bg-purple-50/40 p-2 text-xs">
+                                {m.mode === 'existing' ? (
+                                  <Badge className="bg-blue-100 text-blue-700 border-0 text-[9px]">Existente</Badge>
+                                ) : (
+                                  <Badge className="bg-green-100 text-green-700 border-0 text-[9px]">Nuevo</Badge>
+                                )}
+                                <span className="font-medium">{m.name}</span>
+                                <span className="text-muted-foreground">({m.email})</span>
+                                <Badge className={`${ROLE_COLORS[m.role] || 'bg-gray-100 text-gray-700 border-0'} border-0 text-[9px]`}>{ROLE_LABELS[m.role] || m.role}</Badge>
+                                <span className="text-muted-foreground text-[10px] ml-auto">
+                                  {m.zoneIdxs.length === 0
+                                    ? 'sin zona'
+                                    : m.zoneIdxs.length === newProjectZones.length
+                                      ? 'todas las zonas'
+                                      : `${m.zoneIdxs.length} zona(s)`}
+                                </span>
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400 hover:text-red-600" onClick={() => setNewProjectMembers(newProjectMembers.filter((_, i) => i !== idx))} title="Quitar">
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <Card className="border-purple-200 bg-white/60">
+                          <CardContent className="p-3 space-y-2">
+                            <div className="flex gap-1 bg-gray-100 p-1 rounded-md">
+                              <button type="button" onClick={() => setNpMemberMode('existing')} className={`flex-1 h-7 text-xs font-medium rounded transition-colors ${npMemberMode === 'existing' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}>Asignar existente</button>
+                              <button type="button" onClick={() => setNpMemberMode('new')} className={`flex-1 h-7 text-xs font-medium rounded transition-colors ${npMemberMode === 'new' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}><UserPlus className="h-3 w-3 inline mr-1" />Crear nuevo</button>
+                            </div>
+                            {npMemberMode === 'existing' ? (
+                              <Select value={npMemberExistingId} onValueChange={setNpMemberExistingId}>
+                                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Seleccionar usuario existente..." /></SelectTrigger>
+                                <SelectContent>
+                                  {users.filter(u => u.active && !newProjectMembers.some(m => m.mode === 'existing' && m.userId === u.id)).map(u => (
+                                    <SelectItem key={u.id} value={u.id}>
+                                      <div className="flex items-center gap-2">
+                                        <span>{u.name}</span>
+                                        <span className="text-muted-foreground">({u.email})</span>
+                                        <Badge className={`${ROLE_COLORS[u.role] || ''} border text-[9px] py-0`}>{ROLE_LABELS[u.role] || u.role}</Badge>
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <div className="space-y-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input placeholder="Nombre completo *" value={npMemberName} onChange={e => setNpMemberName(e.target.value)} className="h-8 text-xs" />
+                                  <Input type="email" placeholder="Email *" value={npMemberEmail} onChange={e => setNpMemberEmail(e.target.value)} className="h-8 text-xs" />
+                                </div>
+                                <Input type="password" placeholder="Contraseña (mín. 6 car.; vacío = auto-generada)" value={npMemberPassword} onChange={e => setNpMemberPassword(e.target.value)} className="h-8 text-xs" />
+                              </div>
+                            )}
+                            <div className="grid grid-cols-2 gap-2">
+                              <Select value={npMemberRole} onValueChange={setNpMemberRole}>
+                                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="admin">Administrador</SelectItem>
+                                  <SelectItem value="gerente">Gerente</SelectItem>
+                                  <SelectItem value="responsable">Responsable</SelectItem>
+                                  <SelectItem value="empleado">Empleado</SelectItem>
+                                  <SelectItem value="auditor">Auditor</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <div className="space-y-1">
+                                <p className="text-[10px] text-muted-foreground font-medium">Zonas (todas por defecto)</p>
+                                <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                                  {newProjectZones.length === 0 ? (
+                                    <p className="text-[10px] text-muted-foreground italic">Crea al menos una zona arriba.</p>
+                                  ) : newProjectZones.map((z, zi) => (
+                                    <label key={zi} className="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
+                                      <Checkbox checked={npMemberZoneIdxs.includes(zi)} onCheckedChange={(checked) => { if (checked) setNpMemberZoneIdxs([...npMemberZoneIdxs, zi]); else setNpMemberZoneIdxs(npMemberZoneIdxs.filter(i => i !== zi)) }} className="h-3.5 w-3.5" />
+                                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: z.color }} />
+                                      <span>{z.name || `(zona ${zi+1})`}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                            <Button size="sm" variant="outline" className="w-full h-8 text-xs border-purple-300 text-purple-700 hover:bg-purple-50" onClick={handleAddNewProjectMember} disabled={npMemberMode === 'existing' ? !npMemberExistingId : !npMemberName.trim() || !npMemberEmail.trim()}>
+                              <UserPlus className="h-3 w-3 mr-1" /> Añadir a la lista
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <Button variant="outline" size="sm" onClick={() => setShowNewProject(false)}>Cancelar</Button>
+                        <Button
+                          size="sm"
+                          onClick={handleCreateProject}
+                          disabled={!newProjectName.trim() || !newProjectCompany.trim() || newProjectZones.filter(z => z.name.trim()).length === 0}
+                          className="bg-gradient-to-r from-purple-500 to-purple-600 text-white"
+                        >
+                          Crear Proyecto
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             </motion.div>
           )}
 

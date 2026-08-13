@@ -101,3 +101,47 @@ Stage Summary:
 - ⚠️ PENDING: Neon DB cleanup (user previously requested "deja la app limpia excepto gestor t_pinilla@outlook.com" but that was only done on local SQLite; Neon still has 19 demo users). Need user confirmation before deleting production data.
 - ⚠️ PENDING: Commit + push to GitHub so Vercel redeploys with the new calendar feature.
 - ⚠️ PENDING: User should revoke the GitHub PAT (ghp_...23HFz4) — it was shared in plaintext in the chat.
+
+---
+Task ID: v2.19
+Agent: Main
+Task: Reorganizar sección de Proyectos en dos cajas separadas (Activos | Abrir Nuevo)
+
+Work Log:
+- Localizado el componente AdminPanel.tsx (pestaña Proyectos) — v2.18 ya había
+  hecho una primera separación pero la lista de proyectos quedaba FUERA de la
+  caja "Proyectos Activos", lo que daba sensación de "mezclado todo".
+- Reescrito el cuerpo de la pestaña Proyectos con dos cajas claramente
+  separadas:
+  * CAJA 1 — "Proyectos Activos" (header azul): envuelve el banner + la
+    lista de proyectos existentes. Cada proyecto expandible muestra:
+    - info editable (nombre, descripción, empresa)
+    - zonas existentes con sus miembros (editable rol, retirar de zona)
+    - añadir zona nueva (renombrar/eliminar inline)
+    - añadir usuario EXISTENTE a cada zona (picker con dropdown de todos
+      los usuarios activos; los que ya están en la zona no aparecen)
+    - añadir usuario NUEVO al proyecto con zonas asignadas
+  * CAJA 2 — "Abrir Nuevo Proyecto" (header morado, debajo): formulario
+    de alta con nombre, empresa, descripción, zonas, Y NUEVO: sección
+    "Usuarios del proyecto" que permite añadir usuarios existentes o
+    crear nuevos, con rol y selección de zonas, ANTES de crear el
+    proyecto. Al crear, todos los usuarios pendientes se asignan al
+    proyecto+zonas recién creadas.
+- Añadido estado nuevo: newProjectMembers (lista de miembros pendientes),
+  npMemberMode/Name/Email/Password/Role/ZoneIdxs para el formulario.
+- Añadido handler handleAddNewProjectMember y actualizado
+  handleCreateProject para iterar sobre newProjectMembers y llamar a
+  POST /api/projects/{id}/members para cada uno.
+- Bump de versión: middleware BUILD_VERSION → 20260813-120000-v2.19,
+  badge en page.tsx y LoginPage.tsx → v2.19.
+- Verificado: TypeScript compila limpio (solo quedan 2 errores
+  preexistentes en AdminPanel no relacionados con este cambio); build
+  de Next.js OK ("Compiled successfully in 20.8s").
+
+Stage Summary:
+- Pestaña Proyectos reorganizada visualmente en dos cajas claras.
+- Caja 1 contiene la lista de proyectos activos con TODA la edición
+  (info, zonas, miembros por zona, añadir existente/nuevo).
+- Caja 2 permite crear un proyecto nuevo con zonas Y usuarios
+  (existentes o nuevos) en un solo flujo.
+- Listo para commit + push a Vercel.
