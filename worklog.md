@@ -176,3 +176,41 @@ Stage Summary:
 - Caja "Abrir Nuevo Proyecto" intacta (sigue permitiendo añadir
   usuarios existentes/nuevos al crear el proyecto).
 - Despliegue en curso en Vercel.
+
+---
+Task ID: v2.21
+Agent: Main
+Task: Permitir crear usuario NUEVO desde cada zona existente (no solo asignar existentes)
+
+Work Log:
+- Detectado problema reportado por usuario: al añadir zona a un proyecto
+  existente, solo aparece el picker de "Añadir existente" — no hay
+  formulario para crear un usuario NUEVO y asignarlo a esa zona.
+- Añadido estado por zona:
+  * zoneAddMode: 'existing' | 'new' (toggle por zona)
+  * zoneNewName, zoneNewEmail, zoneNewPassword (Record<zoneId, string>)
+- Añadido handler handleCreateNewUserInZone(zoneId):
+  1. POST /api/users → crea el User (sin empresa/proyecto)
+  2. POST /api/projects/{pid}/zones/{zid}/members → asigna el nuevo
+     userId a la zona (esto crea ProjectMember + MemberZone)
+  3. Actualiza projectMembers local, recarga users + projects
+  4. Limpia el formulario de esa zona
+  5. Muestra notificación verde con la contraseña
+- Sustituida la UI de "Añadir existente" por un toggle de 2 pestañas:
+  * "Asignar existente" (muestra count de disponibles)
+  * "Crear nuevo usuario" (formulario nombre/email/password/rol +
+    botón "Crear y asignar a esta zona")
+- Cuando no hay disponibles en modo existente, el mensaje ahora guía
+  al usuario a usar "Crear nuevo usuario".
+- Reubicada la notificación de contraseña generada (verde, con
+  copiar/cerrar) al inicio del panel de detalle del proyecto, justo
+  encima de "Zonas del Proyecto".
+- Build OK (21.1s). Bump v2.21. Push + deploy verificado en Vercel
+  (x-build-version: 20260813-140000-v2.21).
+
+Stage Summary:
+- Cada zona existente permite ahora AMBOS flujos: asignar existente
+  (dropdown) O crear nuevo usuario (formulario inline).
+- Validaciones: nombre + email obligatorios, contraseña ≥ 6 car.
+- Tras crear un usuario nuevo, recarga la lista de users (aparecerá
+  en "existentes" para otras zonas) y los proyectos (memberCount).
