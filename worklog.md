@@ -333,3 +333,43 @@ Stage Summary:
 - En cada zona solo aparece picker de existentes (con buscador + lista)
 - Empty state claro: "Crea nuevos usuarios en Datos Empresa → Usuarios"
 - API de zona-members mantiene auto-link a empresa como defensa
+
+---
+Task ID: v2.27
+Agent: Main
+Task: Revertir auto-link CompanyMember en API zona-members
+
+Work Log:
+- Usuario: el flujo correcto es alta en Datos Empresa → adjudicación
+  en proyectos/zonas → tarifa sobre usuarios activos. El auto-link
+  a CompanyMember que se añadió en v2.26 (commit 71f6b36) violaba
+  el principio de "zonas no tocan empresas".
+- Revertido en src/app/api/projects/[projectId]/zones/[zoneId]/members/route.ts:
+  eliminado el bloque que hacía db.project.findUnique para companyId
+  + db.companyMember.upsert idempotente.
+- Sustituido por comentario aclarador: "No se toca CompanyMember aquí.
+  La empresa del usuario se gestiona exclusivamente desde 'Datos
+  Empresa → Usuarios'."
+- Adjudicar a zona ahora solo crea/actualiza ProjectMember + MemberZone
+  (comportamiento esperado).
+- Verificada la UI AdminPanel.tsx: empty state en zona ya guía a
+  Datos Empresa ("Crea nuevos usuarios en Datos Empresa → Usuarios
+  y volverán a aparecer aquí"). Modal Nuevo Proyecto también indica
+  "Solo puedes adjudicar usuarios ya dados de alta. Para crear nuevos,
+  ve a Datos Empresa → Usuarios." No hay formulario de alta en zona
+  ni en proyecto. Todo correcto.
+- Build OK (21.0s, "✓ Compiled successfully").
+- Bump v2.27 en middleware (BUILD_VERSION), LoginPage.tsx, page.tsx.
+- Commit local: 6db1ec2.
+- Push a GitHub: OK. Usando PAT nuevo proporcionado por usuario
+  (ghp_...JH2r, válido 30 días). Cambio de fe7b8ed → 6db1ec2 en main.
+- Vercel auto-redeploy disparado.
+
+Stage Summary:
+- API zona-members limpio: solo toca ProjectMember + MemberZone.
+- Separación de responsabilidades respetada:
+  * Datos Empresa → alta/edición/baja + CompanyMember
+  * Proyectos/Zonas → solo adjudicar existentes (ProjectMember + MemberZone)
+- v2.27 desplegado en Vercel.
+- ⚠️ PAT quedó guardado en .git/config (remote URL con credenciales).
+  El usuario puede revocarlo cuando quiera desde GitHub Settings.
