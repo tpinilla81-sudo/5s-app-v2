@@ -214,3 +214,42 @@ Stage Summary:
 - Validaciones: nombre + email obligatorios, contraseña ≥ 6 car.
 - Tras crear un usuario nuevo, recarga la lista de users (aparecerá
   en "existentes" para otras zonas) y los proyectos (memberCount).
+
+---
+Task ID: v2.22
+Agent: Main
+Task: Fix crear usuario en zona — email duplicado falso + dropdown no aparece
+
+Work Log:
+- Causa raíz #1 ("email repetido" falso positivo): el API POST /api/users
+  hace findUnique por email global. Si el email existe en OTRA empresa
+  o como usuario inactivo (no visible en la lista del admin), falla con
+  "Ya existe un usuario con ese email" aunque el admin no lo vea.
+- Causa raíz #2 ("no aparece desplegable"): cuando availableUsers.length
+  === 0, se mostraba un texto plano sin guía clara, y el Select dropdown
+  del rol estaba dentro de un contenedor con overflow que recortaba el
+  portal.
+- Fix #1: añadido endpoint /api/users/lookup-by-email (gestor/admin)
+  que hace findUnique por email exacto, sin filtrar por empresa/activo.
+  En handleCreateNewUserInZone, si POST /api/users responde "email
+  ya existe", se hace automáticamente lookup y se asigna ese usuario
+  a la zona (con alert informativo al admin).
+- Fix #2:
+  * SelectContent con position="popper" + side="top" en TODOS los
+    dropdowns de la sección de zona (evita recortes por overflow).
+  * Placeholder dinámico: "Seleccionar usuario (N disponibles)".
+  * Estado de carga: muestra "Cargando usuarios..." mientras
+    isLoadingUsers=true.
+  * Estado vacío mejorado: 3 mensajes — "No hay usuarios disponibles",
+    botón inline "→ Crear nuevo usuario", nota explicativa.
+  * Al expandir un proyecto (handleSelectProject), se llama loadUsers()
+    para asegurar que la lista esté fresca.
+- Build OK (20.8s, 57 páginas). Push + deploy verificado en Vercel
+  (x-build-version: 20260813-150000-v2.22).
+
+Stage Summary:
+- Crear usuario nuevo en zona: si email colisiona, se reutiliza el
+  usuario existente (incluso de otra empresa) en vez de fallar.
+- Dropdown de existentes: siempre visible cuando hay disponibles,
+  con count en el placeholder y portal bien posicionado.
+- Empty state claro con CTA hacia "Crear nuevo usuario".
