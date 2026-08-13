@@ -311,8 +311,9 @@ export default function HomePage() {
   const availableTabs: { key: 'board' | 'admin' | 'maintenance' | 'gestion'; label: string; icon: React.ReactNode }[] = [];
 
   if (isGestor) {
-    // Gestor ONLY sees the platform management tab
+    // Gestor sees the platform management tab AND the admin tab (gestiona proyectos, zonas, miembros)
     availableTabs.push({ key: 'gestion', label: 'Gestión', icon: <Crown className="h-3.5 w-3.5" /> });
+    availableTabs.push({ key: 'admin', label: 'Admin', icon: <Shield className="h-3.5 w-3.5" /> });
   } else {
     // Tablero 5S — fixed, always visible, the main tool for everyone
     availableTabs.push({ key: 'board', label: 'Tablero', icon: <LayoutDashboard className="h-3.5 w-3.5" /> });
@@ -373,7 +374,7 @@ export default function HomePage() {
               <h1 className="text-sm font-black text-gray-900 leading-tight tracking-wide">5S</h1>
               <div className="flex items-center gap-1">
                 <span className="text-[10px] font-semibold text-green-600">by Método</span>
-                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.14</span>
+                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.15</span>
                 {isGestor && <span className="text-[10px] font-semibold text-red-500">· Gestor</span>}
                 {!isGestor && currentProject && <span className="text-[10px] text-muted-foreground">· {currentProject.name}</span>}
                 {!isGestor && currentZone && <span className="text-[10px] font-medium" style={{ color: currentZone.color || '#3B82F6' }}>· {currentZone.name}</span>}
@@ -1462,8 +1463,8 @@ export default function HomePage() {
                 </motion.div>
               )}
 
-              {/* ═══ TAB: ADMIN (Solo Admin de Empresa — accessed from header) ═══ */}
-              {activeTab === 'admin' && isAdmin && (
+              {/* ═══ TAB: ADMIN (Admin de Empresa o Gestor — accessed from header) ═══ */}
+              {activeTab === 'admin' && (isAdmin || isGestor) && (
                 <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 min-h-0 overflow-auto p-4">
                   <AdminPanel embedded />
                 </motion.div>
