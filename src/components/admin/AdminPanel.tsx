@@ -73,6 +73,11 @@ interface UserData {
   active: boolean
   plainPassword?: string | null
   createdAt: string
+  companies: Array<{
+    id: string
+    name: string
+    role: string
+  }>
   projects: Array<{
     projectId: string
     projectName: string
@@ -1503,12 +1508,24 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                         <div className="space-y-3">
                                           {projectZones.map(zone => {
                                             const zoneMembers = getMembersOfZone(zone.id)
+                                            // Empresa del proyecto actual (para filtrar "existentes en esta empresa")
+                                            const currentProjectCompany = allProjects.find(
+                                              p => p.id === selectedProjectId
+                                            )?.company
                                             // Usuarios disponibles para asignar a esta zona:
                                             // - activos
+                                            // - que pertenezcan a la MISMA EMPRESA que el proyecto
                                             // - que no estén ya en esta zona
-                                            const availableUsers = users.filter(
-                                              u => u.active && !zoneMembers.some(m => m.user.id === u.id)
-                                            )
+                                            const availableUsers = users.filter(u => {
+                                              if (!u.active) return false
+                                              if (zoneMembers.some(m => m.user.id === u.id)) return false
+                                              if (!currentProjectCompany) return true
+                                              // Debe pertenecer a la empresa del proyecto (vía companies[])
+                                              // o ya tener un proyecto en esa misma empresa
+                                              const inCompany = u.companies?.some(c => c.name === currentProjectCompany)
+                                              const inProjectCompany = u.projects.some(p => p.projectCompany === currentProjectCompany)
+                                              return inCompany || inProjectCompany
+                                            })
                                             return (
                                               <div key={zone.id} className="rounded-lg border bg-white overflow-hidden">
                                                 {/* Zona header */}
@@ -1620,40 +1637,99 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                                     </div>
                                                   )}
 
-                                                  {/* Añadir usuario EXISTENTE o NUEVO a esta zona */}
+                                                  {/* Añadir usuario a esta zona: NUEVO o de esta empresa */}
                                                   <div className="rounded-md border border-dashed border-purple-200 bg-purple-50/40 p-2 space-y-2">
-                                                    {/* Toggle modo */}
+                                                    {/* Toggle tipo de alta */}
                                                     <div className="flex gap-1 bg-gray-100 p-1 rounded-md">
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => setZoneAddMode(prev => ({ ...prev, [zone.id]: 'existing' }))}
-                                                        className={`flex-1 h-7 text-xs font-medium rounded transition-colors ${
-                                                          (zoneAddMode[zone.id] || 'existing') === 'existing'
-                                                            ? 'bg-white text-purple-700 shadow-sm'
-                                                            : 'text-gray-600 hover:text-gray-800'
-                                                        }`}
-                                                      >
-                                                        Asignar existente
-                                                        {availableUsers.length > 0 && (
-                                                          <span className="ml-1 text-[9px] text-muted-foreground">({availableUsers.length})</span>
-                                                        )}
-                                                      </button>
                                                       <button
                                                         type="button"
                                                         onClick={() => setZoneAddMode(prev => ({ ...prev, [zone.id]: 'new' }))}
                                                         className={`flex-1 h-7 text-xs font-medium rounded transition-colors ${
-                                                          zoneAddMode[zone.id] === 'new'
+                                                          (zoneAddMode[zone.id] || 'new') === 'new'
                                                             ? 'bg-white text-purple-700 shadow-sm'
                                                             : 'text-gray-600 hover:text-gray-800'
                                                         }`}
                                                       >
                                                         <UserPlus className="h-3 w-3 inline mr-1" />
-                                                        Crear nuevo usuario
+                                                        Crear nuevo
+                                                      </button>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => setZoneAddMode(prev => ({ ...prev, [zone.id]: 'existing' }))}
+                                                        className={`flex-1 h-7 text-xs font-medium rounded transition-colors ${
+                                                          zoneAddMode[zone.id] === 'existing'
+                                                            ? 'bg-white text-purple-700 shadow-sm'
+                                                            : 'text-gray-600 hover:text-gray-800'
+                                                        }`}
+                                                      >
+                                                        De esta empresa
+                                                        {availableUsers.length > 0 && (
+                                                          <span className="ml-1 text-[9px] text-muted-foreground">({availableUsers.length})</span>
+                                                        )}
                                                       </button>
                                                     </div>
 
-                                                    {/* Modo: asignar existente */}
-                                                    {(zoneAddMode[zone.id] || 'existing') === 'existing' ? (
+                                                    {/* Subtítulo de empresa */}
+                                                    {currentProjectCompany && (
+                                                      <p className="text-[10px] text-muted-foreground text-center -mt-1">
+                                                        Empresa: <strong>{currentProjectCompany}</strong>
+                                                      </p>
+                                                    )}
+
+                                                    {/* Modo: crear nuevo usuario */}
+                                                    {(zoneAddMode[zone.id] || 'new') === 'new' ? (
+                                                      <div className="space-y-2">
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                          <Input
+                                                            placeholder="Nombre completo *"
+                                                            value={zoneNewName[zone.id] || ''}
+                                                            onChange={e => setZoneNewName(prev => ({ ...prev, [zone.id]: e.target.value }))}
+                                                            className="h-7 text-xs"
+                                                          />
+                                                          <Input
+                                                            type="email"
+                                                            placeholder="Email *"
+                                                            value={zoneNewEmail[zone.id] || ''}
+                                                            onChange={e => setZoneNewEmail(prev => ({ ...prev, [zone.id]: e.target.value }))}
+                                                            className="h-7 text-xs"
+                                                          />
+                                                        </div>
+                                                        <div className="grid grid-cols-[1fr_120px] gap-2">
+                                                          <Input
+                                                            type="password"
+                                                            placeholder="Contraseña * (mín. 6 car.)"
+                                                            value={zoneNewPassword[zone.id] || ''}
+                                                            onChange={e => setZoneNewPassword(prev => ({ ...prev, [zone.id]: e.target.value }))}
+                                                            className="h-7 text-xs"
+                                                          />
+                                                          <Select
+                                                            value={zoneAddRole[zone.id] || 'empleado'}
+                                                            onValueChange={(val) => setZoneAddRole(prev => ({ ...prev, [zone.id]: val }))}
+                                                          >
+                                                            <SelectTrigger className="h-7 text-xs">
+                                                              <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent position="popper">
+                                                              <SelectItem value="admin">Administrador</SelectItem>
+                                                              <SelectItem value="gerente">Gerente</SelectItem>
+                                                              <SelectItem value="responsable">Responsable</SelectItem>
+                                                              <SelectItem value="empleado">Empleado</SelectItem>
+                                                              <SelectItem value="auditor">Auditor</SelectItem>
+                                                            </SelectContent>
+                                                          </Select>
+                                                        </div>
+                                                        <Button
+                                                          size="sm"
+                                                          className="w-full h-7 text-xs bg-purple-600 text-white"
+                                                          onClick={() => handleCreateNewUserInZone(zone.id)}
+                                                          disabled={!(zoneNewName[zone.id] || '').trim() || !(zoneNewEmail[zone.id] || '').trim() || (zoneNewPassword[zone.id] || '').length < 6}
+                                                        >
+                                                          <UserPlus className="h-3 w-3 mr-1" />
+                                                          Crear y asignar a esta zona
+                                                        </Button>
+                                                      </div>
+                                                    ) : (
+                                                      /* Modo: de esta empresa */
                                                       isLoadingUsers ? (
                                                         <p className="text-[11px] text-muted-foreground text-center py-1">
                                                           <Loader2 className="h-3 w-3 inline animate-spin mr-1" />
@@ -1662,7 +1738,8 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                                       ) : availableUsers.length === 0 ? (
                                                         <div className="space-y-1.5">
                                                           <p className="text-[11px] text-muted-foreground text-center py-1">
-                                                            No hay usuarios disponibles para asignar a esta zona.
+                                                            No hay usuarios de <strong>{currentProjectCompany || 'esta empresa'}</strong> disponibles
+                                                            para asignar a esta zona (todos los activos ya están, o no hay ninguno dado de alta).
                                                           </p>
                                                           <p className="text-[10px] text-center">
                                                             <button
@@ -1672,10 +1749,6 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                                             >
                                                               → Crear nuevo usuario
                                                             </button>
-                                                          </p>
-                                                          <p className="text-[9px] text-muted-foreground text-center">
-                                                            (Si esperabas ver usuarios, recarga la pestaña Proyectos —
-                                                            puede que estén en otra empresa o inactivos)
                                                           </p>
                                                         </div>
                                                       ) : (() => {
@@ -1811,63 +1884,11 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                                           </div>
                                                         )
                                                       })()
-                                                    ) : (
-                                                      /* Modo: crear nuevo usuario */
-                                                      <div className="space-y-2">
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                          <Input
-                                                            placeholder="Nombre completo *"
-                                                            value={zoneNewName[zone.id] || ''}
-                                                            onChange={e => setZoneNewName(prev => ({ ...prev, [zone.id]: e.target.value }))}
-                                                            className="h-7 text-xs"
-                                                          />
-                                                          <Input
-                                                            type="email"
-                                                            placeholder="Email *"
-                                                            value={zoneNewEmail[zone.id] || ''}
-                                                            onChange={e => setZoneNewEmail(prev => ({ ...prev, [zone.id]: e.target.value }))}
-                                                            className="h-7 text-xs"
-                                                          />
-                                                        </div>
-                                                        <div className="grid grid-cols-[1fr_120px] gap-2">
-                                                          <Input
-                                                            type="password"
-                                                            placeholder="Contraseña * (mín. 6 car.)"
-                                                            value={zoneNewPassword[zone.id] || ''}
-                                                            onChange={e => setZoneNewPassword(prev => ({ ...prev, [zone.id]: e.target.value }))}
-                                                            className="h-7 text-xs"
-                                                          />
-                                                          <Select
-                                                            value={zoneAddRole[zone.id] || 'empleado'}
-                                                            onValueChange={(val) => setZoneAddRole(prev => ({ ...prev, [zone.id]: val }))}
-                                                          >
-                                                            <SelectTrigger className="h-7 text-xs">
-                                                              <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent position="popper" side="top">
-                                                              <SelectItem value="admin">Administrador</SelectItem>
-                                                              <SelectItem value="gerente">Gerente</SelectItem>
-                                                              <SelectItem value="responsable">Responsable</SelectItem>
-                                                              <SelectItem value="empleado">Empleado</SelectItem>
-                                                              <SelectItem value="auditor">Auditor</SelectItem>
-                                                            </SelectContent>
-                                                          </Select>
-                                                        </div>
-                                                        <Button
-                                                          size="sm"
-                                                          className="w-full h-7 text-xs bg-purple-600 text-white"
-                                                          onClick={() => handleCreateNewUserInZone(zone.id)}
-                                                          disabled={!(zoneNewName[zone.id] || '').trim() || !(zoneNewEmail[zone.id] || '').trim() || (zoneNewPassword[zone.id] || '').length < 6}
-                                                        >
-                                                          <UserPlus className="h-3 w-3 mr-1" />
-                                                          Crear y asignar a esta zona
-                                                        </Button>
-                                                      </div>
                                                     )}
                                                   </div>
                                                   <p className="text-[10px] text-muted-foreground mt-1.5">
-                                                    Los usuarios pueden estar compartidos entre varias zonas.
-                                                    Si no ves un usuario en la lista, ya está asignado a esta zona.
+                                                    La lista "De esta empresa" muestra solo usuarios de <strong>{currentProjectCompany || 'la empresa del proyecto'}</strong>.
+                                                    Si necesitas uno de otra empresa, créalo como nuevo.
                                                   </p>
                                                 </div>
                                               </div>
