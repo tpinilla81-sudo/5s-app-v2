@@ -22,6 +22,7 @@ import PlanDeAccionView from '@/components/5s/PlanDeAccionView';
 import LoginPage from '@/components/auth/LoginPage';
 import LandingPage from '@/components/auth/LandingPage';
 import ProjectSetup from '@/components/auth/ProjectSetup';
+import { ProjectSelector } from '@/components/auth/ProjectSelector';
 import TeamManagement from '@/components/auth/TeamManagement';
 import RolePermissions from '@/components/auth/RolePermissions';
 import AdminPanel from '@/components/admin/AdminPanel';
@@ -111,6 +112,7 @@ export default function HomePage() {
     activeTab,
     setActiveTab,
     employeeProgress,
+    goToProjectSelector,
   } = use5SStore();
 
   const [isSeeding, setIsSeeding] = useState(false);
@@ -340,6 +342,7 @@ export default function HomePage() {
   if (authView === 'landing') return <LandingPage onLogin={() => setAuthView('login')} />;
   if (authView === 'login' || authView === 'register') return <LoginPage />;
   if (authView === 'setup') return <ProjectSetup />;
+  if (authView === 'project_selector') return <ProjectSelector onLogout={handleLogout} />;
   if (authView === 'no_projects') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-white to-emerald-50 p-4">
@@ -374,42 +377,21 @@ export default function HomePage() {
               <h1 className="text-sm font-black text-gray-900 leading-tight tracking-wide">5S</h1>
               <div className="flex items-center gap-1">
                 <span className="text-[10px] font-semibold text-green-600">by Método</span>
-                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.27</span>
+                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.28</span>
                 {isGestor && <span className="text-[10px] font-semibold text-red-500">· Gestor</span>}
                 {!isGestor && currentProject && <span className="text-[10px] text-muted-foreground">· {currentProject.name}</span>}
                 {!isGestor && currentZone && <span className="text-[10px] font-medium" style={{ color: currentZone.color || '#3B82F6' }}>· {currentZone.name}</span>}
               </div>
             </div>
-            {/* Zone selector — only for non-gestor users */}
-            {!isGestor && (() => {
-              const availableZones = getAvailableZones();
-              const isSingleZone = availableZones.length === 1;
-              const isZoneRestricted = currentUser && !hasPermission('manage_zones');
-              if (!currentProject || availableZones.length === 0) return null;
-              return (
-                <div className="flex items-center gap-1 ml-2">
-                  <MapPin className="h-3 w-3 text-muted-foreground" />
-                  {isSingleZone && isZoneRestricted ? (
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full border"
-                      style={{ color: availableZones[0].color, borderColor: availableZones[0].color, backgroundColor: `${availableZones[0].color}15` }}>
-                      {availableZones[0].name}
-                    </span>
-                  ) : (
-                    <select
-                      className="text-[10px] border rounded px-1 py-0.5 bg-background"
-                      value={currentZone?.id || ''}
-                      onChange={(e) => {
-                        const zone = availableZones.find(z => z.id === e.target.value) || null;
-                        setCurrentZone(zone);
-                      }}
-                    >
-                      <option value="">Sin zona</option>
-                      {availableZones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-                    </select>
-                  )}
-                </div>
-              );
-            })()}
+            {/* Botón 'Cambiar' — vuelve a la pantalla de selección de proyecto/zona */}
+            {currentProject && (
+              <Button variant="outline" size="sm" onClick={goToProjectSelector}
+                className="ml-2 h-7 px-2 gap-1 text-[10px] border-blue-300 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                title="Cambiar de proyecto o zona">
+                <RefreshCw className="h-3 w-3" />
+                <span className="hidden sm:inline">Cambiar</span>
+              </Button>
+            )}
           </div>
 
           {/* ── GESTOR HEADER: solo Avisos, Manual y Login ── */}

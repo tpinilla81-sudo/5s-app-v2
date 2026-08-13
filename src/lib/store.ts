@@ -111,7 +111,7 @@ interface FiveSState {
   // Auth & Project State
   currentUser: User | null
   currentProject: Project | null
-  authView: 'landing' | 'login' | 'register' | 'setup' | 'board' | 'no_projects'
+  authView: 'landing' | 'login' | 'register' | 'setup' | 'board' | 'no_projects' | 'project_selector'
   projects: Project[]
   companies: Company[]
   isAuthLoading: boolean       // Only for initial session check
@@ -159,6 +159,9 @@ interface FiveSState {
   setCurrentProject: (project: Project | null) => void
   setAuthView: (view: 'landing' | 'login' | 'register' | 'setup' | 'board') => void
   clearAuthError: () => void
+  // Selector de proyecto/zona tras login
+  selectProjectAndZone: (project: Project, zone: Zone) => void
+  goToProjectSelector: () => void
 }
 
 export const use5SStore = create<FiveSState>((set, get) => ({
@@ -760,8 +763,9 @@ export const use5SStore = create<FiveSState>((set, get) => ({
       const { projects } = get()
 
       if (projects.length > 0) {
-        set({ currentProject: projects[0], authView: 'board' })
-        // Fetch user's assigned zones after login
+        // No auto-selecciona: el usuario elige proyecto+zona en la pantalla de selección
+        set({ currentProject: null, currentZone: null, authView: 'project_selector' })
+        // Fetch user's assigned zones after login (para filtrar zonas accesibles)
         try {
           await get().fetchUserZones()
         } catch (e) {
@@ -811,7 +815,8 @@ export const use5SStore = create<FiveSState>((set, get) => ({
       const { projects } = get()
 
       if (projects.length > 0) {
-        set({ currentProject: projects[0], authView: 'board' })
+        // No auto-selecciona: el usuario elige proyecto+zona
+        set({ currentProject: null, currentZone: null, authView: 'project_selector' })
       } else {
         // Self-registered users are always 'empleado' — they need admin to assign a project
         set({ authView: 'no_projects' })
@@ -869,7 +874,8 @@ export const use5SStore = create<FiveSState>((set, get) => ({
         const { projects } = get()
 
         if (projects.length > 0) {
-          set({ currentProject: projects[0], authView: 'board' })
+          // No auto-selecciona: el usuario elige proyecto+zona en la pantalla de selección
+          set({ currentProject: null, currentZone: null, authView: 'project_selector' })
           // Fetch user's assigned zones after session restore
           await get().fetchUserZones()
         } else {
@@ -961,7 +967,19 @@ export const use5SStore = create<FiveSState>((set, get) => ({
     }
   },
 
-  setAuthView: (view) => set({ authView: view as 'landing' | 'login' | 'register' | 'setup' | 'board' | 'no_projects', authError: null }),
+  setAuthView: (view) => set({ authView: view as 'landing' | 'login' | 'register' | 'setup' | 'board' | 'no_projects' | 'project_selector', authError: null }),
 
   clearAuthError: () => set({ authError: null }),
+
+  // ── Selector de proyecto/zona tras login ──
+  selectProjectAndZone: (project, zone) => {
+    set({ currentProject: project, currentZone: zone, authView: 'board' })
+    // Dispara fetch de progreso para el nuevo contexto
+    try { get().fetchProgress() } catch (e) { console.error('fetchProgress after select:', e) }
+    try { get().fetchEmployeeProgress(project.id, zone.id) } catch (e) { console.error('fetchEmployeeProgress after select:', e) }
+  },
+
+  goToProjectSelector: () => {
+    set({ currentProject: null, currentZone: null, authView: 'project_selector' })
+  },
 }))
