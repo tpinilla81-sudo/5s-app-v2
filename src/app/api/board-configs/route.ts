@@ -58,14 +58,26 @@ async function ensureDefaultSlotsPopulated(boardConfigId: string) {
       // v2.30: priorizar plantillas del Sistema (companyId = null) para el
       // auto-poblar — son las "compartidas" por defecto. Si una empresa
       // quiere las suyas, el admin puede editar el tablero manualmente.
+      //
+      // RESILIENCIA: si la columna companyId no existe todavía en la BD
+      // (migración SQL pendiente), caer a la query sin filtro de companyId.
       const types = MINI_STEP_TEMPLATE_TYPES[miniStep] || []
       for (const type of types) {
-        // Buscar la primera plantilla del Sistema activa que coincida
-        const tpl = await db.template.findFirst({
-          where: { type, sStep, miniStep, active: true, companyId: null },
-          orderBy: { createdAt: 'asc' },
-        })
-        if (!tpl) continue // no hay plantilla del sistema para esta posición — skip silencioso
+        let tpl: Awaited<ReturnType<typeof db.template.findFirst>> = null
+        try {
+          // Intentar con filtro companyId = null (post-migración v2.30)
+          tpl = await db.template.findFirst({
+            where: { type, sStep, miniStep, active: true, companyId: null },
+            orderBy: { createdAt: 'asc' },
+          })
+        } catch {
+          // Pre-migración: la columna companyId no existe — buscar sin filtro
+          tpl = await db.template.findFirst({
+            where: { type, sStep, miniStep, active: true },
+            orderBy: { createdAt: 'asc' },
+          })
+        }
+        if (!tpl) continue
 
         // ¿Ya está enlazada?
         const existingLink = await db.boardSlotTemplate.findUnique({

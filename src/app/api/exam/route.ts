@@ -44,16 +44,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Fallback: preferir plantilla de la empresa del usuario; si no, sistema.
+    // Resiliente: si la columna companyId no existe, caer a query global.
     if (!template) {
-      if (userCompanyId) {
+      try {
+        if (userCompanyId) {
+          template = await db.template.findFirst({
+            where: { type: 'examen', sStep, active: true, companyId: userCompanyId },
+            orderBy: { createdAt: 'asc' },
+          })
+        }
+        if (!template) {
+          template = await db.template.findFirst({
+            where: { type: 'examen', sStep, active: true, companyId: null },
+            orderBy: { createdAt: 'asc' },
+          })
+        }
+      } catch {
+        // Pre-migración: companyId no existe — buscar sin filtro
         template = await db.template.findFirst({
-          where: { type: 'examen', sStep, active: true, companyId: userCompanyId },
-          orderBy: { createdAt: 'asc' },
-        })
-      }
-      if (!template) {
-        template = await db.template.findFirst({
-          where: { type: 'examen', sStep, active: true, companyId: null },
+          where: { type: 'examen', sStep, active: true },
           orderBy: { createdAt: 'asc' },
         })
       }

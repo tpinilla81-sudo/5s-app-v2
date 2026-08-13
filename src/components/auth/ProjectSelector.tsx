@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, MapPin, ChevronDown, Building2, Loader2 } from 'lucide-react'
+import { LogOut, MapPin, ChevronDown, Building2, Loader2, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { use5SStore } from '@/lib/store'
@@ -44,6 +44,7 @@ export function ProjectSelector({ onLogout }: ProjectSelectorProps) {
     selectProjectAndZone,
     fetchProjects,
     fetchUserZones,
+    goToAdminPanel,
   } = use5SStore()
 
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -99,6 +100,19 @@ export function ProjectSelector({ onLogout }: ProjectSelectorProps) {
                   <p className="text-[10px] text-muted-foreground leading-tight">{getRoleLabel(currentUser.role)}</p>
                 </div>
               </div>
+            )}
+            {/* v2.30.2: botón directo al Panel Admin (sin entrar en un proyecto) */}
+            {currentUser?.role === 'admin' && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={goToAdminPanel}
+                className="gap-1 bg-purple-600 hover:bg-purple-700 text-white border-purple-600"
+                title="Ir al Panel de Administración"
+              >
+                <Shield className="h-3.5 w-3.5" />
+                <span className="text-xs hidden sm:inline">Panel Admin</span>
+              </Button>
             )}
             <Button variant="outline" size="sm" onClick={onLogout} className="gap-1 text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200">
               <LogOut className="h-3.5 w-3.5" />

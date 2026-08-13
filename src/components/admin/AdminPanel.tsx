@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/dialog'
 import {
   ArrowLeft,
+  LogOut,
   Plus,
   Trash2,
   Edit3,
@@ -175,10 +176,11 @@ function Field({
 
 interface AdminPanelProps {
   embedded?: boolean;
+  onLogout?: () => void;
 }
 
-export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
-  const { setCurrentView, fetchProjects, fetchCompanies, projects, setCurrentProject, currentProject } = use5SStore()
+export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {}) {
+  const { setCurrentView, fetchProjects, fetchCompanies, projects, setCurrentProject, currentProject, goToProjectSelector } = use5SStore()
   const [activeTab, setActiveTab] = useState<'companies' | 'projects' | 'plantillas'>('companies')
 
   // ─── Projects state ──────────────────────────────────────────────────────
@@ -1410,14 +1412,10 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
         <header className="border-b bg-white/80 backdrop-blur-sm shrink-0 z-10">
           <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" onClick={() => {
-                if (!currentProject && allProjects.length > 0) {
-                  setCurrentProject(allProjects[0])
-                }
-                setCurrentView('board')
-              }} className="gap-1.5">
+              {/* v2.30.2: volver al selector de proyecto (no al board directamente) */}
+              <Button variant="ghost" size="sm" onClick={goToProjectSelector} className="gap-1.5">
                 <ArrowLeft className="h-4 w-4" />
-                Volver al Tablero
+                Volver
               </Button>
               <div className="w-px h-6 bg-gray-200" />
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
@@ -1425,6 +1423,12 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
               </div>
               <h1 className="text-lg font-bold text-gray-900">Panel de Admin de Empresa</h1>
             </div>
+            {onLogout && (
+              <Button variant="outline" size="sm" onClick={onLogout} className="gap-1 text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200">
+                <LogOut className="h-3.5 w-3.5" />
+                <span className="text-xs hidden sm:inline">Salir</span>
+              </Button>
+            )}
           </div>
         </header>
       )}

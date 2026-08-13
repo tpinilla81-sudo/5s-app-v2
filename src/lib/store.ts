@@ -111,7 +111,7 @@ interface FiveSState {
   // Auth & Project State
   currentUser: User | null
   currentProject: Project | null
-  authView: 'landing' | 'login' | 'register' | 'setup' | 'board' | 'no_projects' | 'project_selector'
+  authView: 'landing' | 'login' | 'register' | 'setup' | 'board' | 'no_projects' | 'project_selector' | 'admin_panel'
   projects: Project[]
   companies: Company[]
   isAuthLoading: boolean       // Only for initial session check
@@ -157,11 +157,12 @@ interface FiveSState {
   fetchCompanies: () => Promise<void>
   createProject: (data: { name: string; description?: string; company: string; companyId?: string; zones: { name: string; description?: string; color?: string }[] }) => Promise<void>
   setCurrentProject: (project: Project | null) => void
-  setAuthView: (view: 'landing' | 'login' | 'register' | 'setup' | 'board') => void
+  setAuthView: (view: 'landing' | 'login' | 'register' | 'setup' | 'board' | 'admin_panel') => void
   clearAuthError: () => void
   // Selector de proyecto/zona tras login
   selectProjectAndZone: (project: Project, zone: Zone) => void
   goToProjectSelector: () => void
+  goToAdminPanel: () => void
 }
 
 export const use5SStore = create<FiveSState>((set, get) => ({
@@ -967,7 +968,7 @@ export const use5SStore = create<FiveSState>((set, get) => ({
     }
   },
 
-  setAuthView: (view) => set({ authView: view as 'landing' | 'login' | 'register' | 'setup' | 'board' | 'no_projects' | 'project_selector', authError: null }),
+  setAuthView: (view) => set({ authView: view as 'landing' | 'login' | 'register' | 'setup' | 'board' | 'no_projects' | 'project_selector' | 'admin_panel', authError: null }),
 
   clearAuthError: () => set({ authError: null }),
 
@@ -981,5 +982,11 @@ export const use5SStore = create<FiveSState>((set, get) => ({
 
   goToProjectSelector: () => {
     set({ currentProject: null, currentZone: null, authView: 'project_selector' })
+  },
+
+  // ── Admin Panel directo (sin entrar en un proyecto) ──
+  // v2.30.2: el admin puede acceder a su panel desde el selector de proyecto
+  goToAdminPanel: () => {
+    set({ authView: 'admin_panel' })
   },
 }))

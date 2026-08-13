@@ -12,6 +12,10 @@ import { resolveAuthContext, canEditCompanyTemplates, canEditSystemTemplates } f
 // Permisos:
 //   - gestor → ve todas (company de cualquier empresa + library)
 //   - resto  → ve solo las de su empresa + library (read-only para no-gestores)
+//
+// RESILIENCIA: si la columna companyId no existe en la BD (migración SQL
+// pendiente), se devuelve todo sin filtro de companyId (comportamiento
+// pre-v2.30) para no romper la app.
 export async function GET(request: NextRequest) {
   try {
     const ctx = await resolveAuthContext(request)
@@ -29,12 +33,10 @@ export async function GET(request: NextRequest) {
     // Construir el filtro de companyId según scope + rol
     let companyIdFilter: unknown
     if (ctx.user.role === 'gestor') {
-      // Gestor ve todo
       if (scope === 'library') companyIdFilter = null
       else if (scope === 'company') companyIdFilter = { not: null }
       else companyIdFilter = undefined // all
     } else {
-      // No gestor: solo su empresa + library
       if (scope === 'company') {
         if (!ctx.companyId) {
           return NextResponse.json({ success: true, data: [] })
@@ -43,7 +45,6 @@ export async function GET(request: NextRequest) {
       } else if (scope === 'library') {
         companyIdFilter = null
       } else {
-        // all → su empresa + library
         companyIdFilter = ctx.companyId ? { in: [ctx.companyId, null] } : null
       }
     }
@@ -55,15 +56,31 @@ export async function GET(request: NextRequest) {
     if (miniStep) where.miniStep = parseInt(miniStep)
     if (companyIdFilter !== undefined) where.companyId = companyIdFilter
 
-    const templates = await db.template.findMany({
-      where,
-      orderBy: [
-        { companyId: 'asc' }, // library (null) primero
-        { sStep: 'asc' },
-        { miniStep: 'asc' },
-        { createdAt: 'desc' },
-      ],
-    })
+    let templates
+    try {
+      templates = await db.template.findMany({
+        where,
+        orderBy: [
+          { companyId: 'asc' },
+          { sStep: 'asc' },
+          { miniStep: 'asc' },
+          { createdAt: 'desc' },
+        ],
+      })
+    } catch (dbErr) {
+      // La columna companyId podría no existir si la migración SQL no se aplicó.
+      // Caer a query sin filtro de companyId.
+      console.warn('[templates] companyId column missing, falling back:', dbErr instanceof Error ? dbErr.message : dbErr)
+      const { companyId: _omit, ...whereNoCompany } = where
+      templates = await db.template.findMany({
+        where: whereNoCompany,
+        orderBy: [
+          { sStep: 'asc' },
+          { miniStep: 'asc' },
+          { createdAt: 'desc' },
+        ],
+      })
+    }
     return NextResponse.json({ success: true, data: templates })
   } catch (error) {
     console.error('Error fetching templates:', error)
