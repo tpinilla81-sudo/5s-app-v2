@@ -1,0 +1,402 @@
+  1314→                            </div>
+  1315→                            <div className="flex-1">
+  1316→                              {editingProject === project.id ? (
+  1317→                                <div className="space-y-2" onClick={e => e.stopPropagation()}>
+  1318→                                  <div className="grid grid-cols-2 gap-2">
+  1319→                                    <Input value={editProjectData.name} onChange={e => setEditProjectData(d => ({ ...d, name: e.target.value }))} className="text-sm" />
+  1320→                                    <Input value={editProjectData.company} onChange={e => setEditProjectData(d => ({ ...d, company: e.target.value }))} className="text-sm" />
+  1321→                                  </div>
+  1322→                                  <Input value={editProjectData.description} onChange={e => setEditProjectData(d => ({ ...d, description: e.target.value }))} className="text-sm" placeholder="Descripción" />
+  1323→                                  <div className="flex gap-2">
+  1324→                                    <Button size="sm" onClick={() => handleUpdateProject(project.id)} className="bg-purple-600 text-white h-7"><Check className="h-3 w-3 mr-1" />Guardar</Button>
+  1325→                                    <Button size="sm" variant="outline" onClick={() => setEditingProject(null)} className="h-7">Cancelar</Button>
+  1326→                                  </div>
+  1327→                                </div>
+  1328→                              ) : (
+  1329→                                <>
+  1330→                                  <h3 className="font-semibold text-sm">{project.name}</h3>
+  1331→                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+  1332→                                    <span>{project.company}</span>
+  1333→                                    <span>·</span>
+  1334→                                    <span>{project.zones.length} zonas</span>
+  1335→                                    <span>·</span>
+  1336→                                    <span>{project.memberCount} miembros</span>
+  1337→                                    {!project.active && <Badge className="bg-red-100 text-red-700 border border-red-200 ml-1">Inactivo</Badge>}
+  1338→                                  </div>
+  1339→                                </>
+  1340→                              )}
+  1341→                            </div>
+  1342→                          </div>
+  1343→                          {editingProject !== project.id && (
+  1344→                            <div className="flex items-center gap-1">
+  1345→                              <Button
+  1346→                                variant="ghost" size="sm" className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700"
+  1347→                                onClick={() => {
+  1348→                                  setEditingProject(project.id)
+  1349→                                  setEditProjectData({ name: project.name, description: project.description || '', company: project.company })
+  1350→                                }}
+  1351→                                title="Editar proyecto"
+  1352→                              >
+  1353→                                <Edit3 className="h-4 w-4" />
+  1354→                              </Button>
+  1355→                              <Button
+  1356→                                variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600"
+  1357→                                onClick={() => handleDeleteProject(project.id)}
+  1358→                                title="Eliminar proyecto"
+  1359→                              >
+  1360→                                <Trash2 className="h-4 w-4" />
+  1361→                              </Button>
+  1362→                            </div>
+  1363→                          )}
+  1364→                        </div>
+  1365→
+  1366→                        {/* Expanded project detail */}
+  1367→                        <AnimatePresence>
+  1368→                          {selectedProjectId === project.id && (
+  1369→                            <motion.div
+  1370→                              initial={{ height: 0, opacity: 0 }}
+  1371→                              animate={{ height: 'auto', opacity: 1 }}
+  1372→                              exit={{ height: 0, opacity: 0 }}
+  1373→                              transition={{ duration: 0.2 }}
+  1374→                              className="overflow-hidden"
+  1375→                            >
+  1376→                              <div className="mt-4 pt-4 border-t space-y-4">
+  1377→                                {isLoadingDetail ? (
+  1378→                                  <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 text-purple-500 animate-spin" /></div>
+  1379→                                ) : (
+  1380→                                  <>
+  1381→                                    {/* Zonas existentes — UNA TRAS OTRA CON SUS USUARIOS */}
+  1382→                                    <div>
+  1383→                                      <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1">
+  1384→                                        <MapPin className="h-3 w-3" /> Zonas del Proyecto
+  1385→                                        {projectZones.length > 0 && (
+  1386→                                          <Badge className="ml-1 text-[9px] py-0 px-1.5 bg-gray-100 text-gray-600 border-0">
+  1387→                                            {projectZones.length}
+  1388→                                          </Badge>
+  1389→                                        )}
+  1390→                                        <span className="ml-2 text-[10px] font-normal text-muted-foreground/70 normal-case">
+  1391→                                          · Cada zona se muestra con sus miembros (compartidos entre zonas)
+  1392→                                        </span>
+  1393→                                      </h4>
+  1394→                                      {projectZones.length === 0 ? (
+  1395→                                        <div className="p-4 rounded-lg border border-dashed bg-gray-50 text-center">
+  1396→                                          <MapPin className="h-6 w-6 mx-auto mb-1 text-gray-300" />
+  1397→                                          <p className="text-xs text-muted-foreground">Todavía no hay zonas en este proyecto.</p>
+  1398→                                          <p className="text-[10px] text-muted-foreground mt-0.5">Crea la primera zona más abajo.</p>
+  1399→                                        </div>
+  1400→                                      ) : (
+  1401→                                        <div className="space-y-3">
+  1402→                                          {projectZones.map(zone => {
+  1403→                                            const zoneMembers = getMembersOfZone(zone.id)
+  1404→                                            // Usuarios disponibles para asignar a esta zona:
+  1405→                                            // - activos
+  1406→                                            // - que no estén ya en esta zona
+  1407→                                            const availableUsers = users.filter(
+  1408→                                              u => u.active && !zoneMembers.some(m => m.user.id === u.id)
+  1409→                                            )
+  1410→                                            return (
+  1411→                                              <div key={zone.id} className="rounded-lg border bg-white overflow-hidden">
+  1412→                                                {/* Zona header */}
+  1413→                                                <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-gray-50 to-white border-b">
+  1414→                                                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
+  1415→                                                  {editingZoneId === zone.id ? (
+  1416→                                                    <>
+  1417→                                                      <Input
+  1418→                                                        value={editingZoneName}
+  1419→                                                        onChange={e => setEditingZoneName(e.target.value)}
+  1420→                                                        className="h-7 text-xs flex-1 max-w-[260px]"
+  1421→                                                        autoFocus
+  1422→                                                        onKeyDown={e => {
+  1423→                                                          if (e.key === 'Enter') handleSaveZoneName(zone.id)
+  1424→                                                          if (e.key === 'Escape') setEditingZoneId(null)
+  1425→                                                        }}
+  1426→                                                      />
+  1427→                                                      <Button size="sm" className="h-7 text-[10px] bg-purple-600 text-white" onClick={() => handleSaveZoneName(zone.id)}>
+  1428→                                                        <Check className="h-3 w-3 mr-1" /> Guardar
+  1429→                                                      </Button>
+  1430→                                                      <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => setEditingZoneId(null)}>
+  1431→                                                        Cancelar
+  1432→                                                      </Button>
+  1433→                                                    </>
+  1434→                                                  ) : (
+  1435→                                                    <>
+  1436→                                                      <span className="font-semibold text-sm flex-1">{zone.name}</span>
+  1437→                                                      <Badge className="text-[9px] px-1 py-0 bg-indigo-100 text-indigo-700 border-0" title="Esta zona usa el tablero predeterminado del sistema">
+  1438→                                                        <LayoutGrid className="h-2.5 w-2.5 mr-0.5 inline" />
+  1439→                                                        Tablero predeterminado
+  1440→                                                      </Badge>
+  1441→                                                      <Badge className="text-[9px] px-1 py-0 bg-gray-100 text-gray-600 border-0">
+  1442→                                                        <Users className="h-2.5 w-2.5 mr-0.5 inline" />
+  1443→                                                        {zoneMembers.length} {zoneMembers.length === 1 ? 'miembro' : 'miembros'}
+  1444→                                                      </Badge>
+  1445→                                                      <Button
+  1446→                                                        variant="ghost" size="sm"
+  1447→                                                        className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700"
+  1448→                                                        onClick={() => { setEditingZoneId(zone.id); setEditingZoneName(zone.name) }}
+  1449→                                                        title="Renombrar zona"
+  1450→                                                      >
+  1451→                                                        <Edit3 className="h-3.5 w-3.5" />
+  1452→                                                      </Button>
+  1453→                                                      <Button
+  1454→                                                        variant="ghost" size="sm"
+  1455→                                                        className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
+  1456→                                                        onClick={() => handleDeleteZone(zone.id, zone.name)}
+  1457→                                                        title="Eliminar zona"
+  1458→                                                      >
+  1459→                                                        <Trash2 className="h-3.5 w-3.5" />
+  1460→                                                      </Button>
+  1461→                                                    </>
+  1462→                                                  )}
+  1463→                                                </div>
+  1464→
+  1465→                                                {/* Miembros de esta zona — tabla editable */}
+  1466→                                                <div className="p-3">
+  1467→                                                  {zoneMembers.length === 0 ? (
+  1468→                                                    <p className="text-xs text-muted-foreground text-center py-3">
+  1469→                                                      No hay miembros en esta zona todavía.
+  1470→                                                    </p>
+  1471→                                                  ) : (
+  1472→                                                    <div className="rounded-md border overflow-x-auto mb-3">
+  1473→                                                      <Table>
+  1474→                                                        <TableHeader>
+  1475→                                                          <TableRow>
+  1476→                                                            <TableHead className="text-xs">Nombre</TableHead>
+  1477→                                                            <TableHead className="text-xs">Email</TableHead>
+  1478→                                                            <TableHead className="text-xs">Rol</TableHead>
+  1479→                                                            <TableHead className="text-xs text-center">Acciones</TableHead>
+  1480→                                                          </TableRow>
+  1481→                                                        </TableHeader>
+  1482→                                                        <TableBody>
+  1483→                                                          {zoneMembers.map(member => (
+  1484→                                                            <TableRow key={member.id}>
+  1485→                                                              <TableCell className="text-xs font-medium">{member.user.name}</TableCell>
+  1486→                                                              <TableCell className="text-xs">{member.user.email}</TableCell>
+  1487→                                                              <TableCell>
+  1488→                                                                <Select
+  1489→                                                                  value={member.role}
+  1490→                                                                  onValueChange={(newRole) => handleUpdateMemberRoleInZone(zone.id, member.id, newRole)}
+  1491→                                                                >
+  1492→                                                                  <SelectTrigger className="h-7 text-[10px] w-[120px]">
+  1493→                                                                    <SelectValue />
+  1494→                                                                  </SelectTrigger>
+  1495→                                                                  <SelectContent>
+  1496→                                                                    <SelectItem value="admin">Administrador</SelectItem>
+  1497→                                                                    <SelectItem value="gerente">Gerente</SelectItem>
+  1498→                                                                    <SelectItem value="responsable">Responsable</SelectItem>
+  1499→                                                                    <SelectItem value="empleado">Empleado</SelectItem>
+  1500→                                                                    <SelectItem value="auditor">Auditor</SelectItem>
+  1501→                                                                  </SelectContent>
+  1502→                                                                </Select>
+  1503→                                                              </TableCell>
+  1504→                                                              <TableCell className="text-center">
+  1505→                                                                <Button
+  1506→                                                                  variant="outline" size="sm"
+  1507→                                                                  className="h-7 text-[10px] text-red-500 border-red-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300 gap-1"
+  1508→                                                                  onClick={() => handleRemoveMemberFromZone(zone.id, member.id, member.user.name)}
+  1509→                                                                  title="Retirar de esta zona (sigue en el proyecto)"
+  1510→                                                                >
+  1511→                                                                  <Trash2 className="h-3 w-3" />
+  1512→                                                                </Button>
+  1513→                                                              </TableCell>
+  1514→                                                            </TableRow>
+  1515→                                                          ))}
+  1516→                                                        </TableBody>
+  1517→                                                      </Table>
+  1518→                                                    </div>
+  1519→                                                  )}
+  1520→
+  1521→                                                  {/* Añadir usuario EXISTENTE a esta zona */}
+  1522→                                                  <div className="rounded-md border border-dashed border-purple-200 bg-purple-50/40 p-2">
+  1523→                                                    {availableUsers.length === 0 ? (
+  1524→                                                      <p className="text-[11px] text-muted-foreground text-center py-1">
+  1525→                                                        Todos los usuarios activos ya están en esta zona.
+  1526→                                                      </p>
+  1527→                                                    ) : (
+  1528→                                                      <div className="flex items-center gap-2 flex-wrap">
+  1529→                                                        <span className="text-[10px] font-semibold text-purple-700 uppercase whitespace-nowrap">
+  1530→                                                          <UserPlus className="h-3 w-3 inline mr-1" />
+  1531→                                                          Añadir existente:
+  1532→                                                        </span>
+  1533→                                                        <Select
+  1534→                                                          value={zoneAddUserId[zone.id] || ''}
+  1535→                                                          onValueChange={(val) => setZoneAddUserId(prev => ({ ...prev, [zone.id]: val }))}
+  1536→                                                        >
+  1537→                                                          <SelectTrigger className="h-7 text-xs flex-1 min-w-[180px]">
+  1538→                                                            <SelectValue placeholder="Seleccionar usuario existente..." />
+  1539→                                                          </SelectTrigger>
+  1540→                                                          <SelectContent>
+  1541→                                                            {availableUsers.map(u => (
+  1542→                                                              <SelectItem key={u.id} value={u.id}>
+  1543→                                                                <div className="flex items-center gap-2">
+  1544→                                                                  <span>{u.name}</span>
+  1545→                                                                  <span className="text-muted-foreground">({u.email})</span>
+  1546→                                                                  <Badge className={`${ROLE_COLORS[u.role] || ''} border text-[9px] py-0`}>
+  1547→                                                                    {ROLE_LABELS[u.role] || u.role}
+  1548→                                                                  </Badge>
+  1549→                                                                </div>
+  1550→                                                              </SelectItem>
+  1551→                                                            ))}
+  1552→                                                          </SelectContent>
+  1553→                                                        </Select>
+  1554→                                                        <Select
+  1555→                                                          value={zoneAddRole[zone.id] || 'empleado'}
+  1556→                                                          onValueChange={(val) => setZoneAddRole(prev => ({ ...prev, [zone.id]: val }))}
+  1557→                                                        >
+  1558→                                                          <SelectTrigger className="h-7 text-xs w-[120px]">
+  1559→                                                            <SelectValue />
+  1560→                                                          </SelectTrigger>
+  1561→                                                          <SelectContent>
+  1562→                                                            <SelectItem value="admin">Administrador</SelectItem>
+  1563→                                                            <SelectItem value="gerente">Gerente</SelectItem>
+  1564→                                                            <SelectItem value="responsable">Responsable</SelectItem>
+  1565→                                                            <SelectItem value="empleado">Empleado</SelectItem>
+  1566→                                                            <SelectItem value="auditor">Auditor</SelectItem>
+  1567→                                                          </SelectContent>
+  1568→                                                        </Select>
+  1569→                                                        <Button
+  1570→                                                          size="sm"
+  1571→                                                          className="h-7 text-xs bg-purple-600 text-white"
+  1572→                                                          onClick={() => handleAddExistingUserToZone(zone.id)}
+  1573→                                                          disabled={!zoneAddUserId[zone.id]}
+  1574→                                                        >
+  1575→                                                          <UserPlus className="h-3 w-3 mr-1" />
+  1576→                                                          Añadir a esta zona
+  1577→                                                        </Button>
+  1578→                                                      </div>
+  1579→                                                    )}
+  1580→                                                  </div>
+  1581→                                                  <p className="text-[10px] text-muted-foreground mt-1.5">
+  1582→                                                    Los usuarios pueden estar compartidos entre varias zonas.
+  1583→                                                    Si no ves un usuario en la lista, ya está asignado a esta zona.
+  1584→                                                  </p>
+  1585→                                                </div>
+  1586→                                              </div>
+  1587→                                            )
+  1588→                                          })}
+  1589→                                        </div>
+  1590→                                      )}
+  1591→                                    </div>
+  1592→
+  1593→                                    {/* Crear nueva zona — separado del listado */}
+  1594→                                    <div className="rounded-lg border border-dashed border-purple-200 bg-purple-50/40 p-3">
+  1595→                                      <h4 className="text-xs font-semibold text-purple-700 uppercase mb-2 flex items-center gap-1">
+  1596→                                        <Plus className="h-3 w-3" /> Crear Nueva Zona
+  1597→                                      </h4>
+  1598→                                      <div className="flex items-center gap-2 flex-wrap">
+  1599→                                        <div className="flex items-center gap-1">
+  1600→                                          <span className="text-[10px] text-muted-foreground mr-1">Color:</span>
+  1601→                                          {PRESET_COLORS.map(c => (
+  1602→                                            <button key={c} type="button" className={`w-5 h-5 rounded-full border-2 ${newZoneColor === c ? 'border-gray-800' : 'border-transparent'}`} style={{ backgroundColor: c }} onClick={() => setNewZoneColor(c)} />
+  1603→                                          ))}
+  1604→                                        </div>
+  1605→                                        <Input placeholder="Nombre de la nueva zona" value={newZoneName} onChange={e => setNewZoneName(e.target.value)} className="h-8 text-xs flex-1 min-w-[180px] max-w-[260px]" />
+  1606→                                        <Button size="sm" onClick={handleAddZone} disabled={!newZoneName.trim()} className="h-8 text-xs bg-purple-600 text-white">
+  1607→                                          <Plus className="h-3 w-3 mr-1" /> Agregar zona
+  1608→                                        </Button>
+  1609→                                      </div>
+  1610→                                    </div>
+  1611→
+  1612→                                    {/* Members */}
+  1613→                                    <div>
+  1614→                                      <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1">
+  1615→                                        <Users className="h-3 w-3" /> Miembros del Proyecto
+  1616→                                      </h4>
+  1617→
+  1618→                                      {/* Alta de usuarios: modo "existente" o "nuevo" */}
+  1619→                                      <Card className="mb-3 border-gray-200">
+  1620→                                        <CardContent className="p-3 space-y-3">
+  1621→                                          {/* Toggle modo */}
+  1622→                                          <div className="flex gap-1 bg-gray-100 p-1 rounded-md">
+  1623→                                            <button
+  1624→                                              type="button"
+  1625→                                              onClick={() => setAddMemberMode('existing')}
+  1626→                                              className={`flex-1 h-7 text-xs font-medium rounded transition-colors ${
+  1627→                                                addMemberMode === 'existing'
+  1628→                                                  ? 'bg-white text-purple-700 shadow-sm'
+  1629→                                                  : 'text-gray-600 hover:text-gray-800'
+  1630→                                              }`}
+  1631→                                            >
+  1632→                                              Asignar existente
+  1633→                                            </button>
+  1634→                                            <button
+  1635→                                              type="button"
+  1636→                                              onClick={() => setAddMemberMode('new')}
+  1637→                                              className={`flex-1 h-7 text-xs font-medium rounded transition-colors ${
+  1638→                                                addMemberMode === 'new'
+  1639→                                                  ? 'bg-white text-purple-700 shadow-sm'
+  1640→                                                  : 'text-gray-600 hover:text-gray-800'
+  1641→                                              }`}
+  1642→                                            >
+  1643→                                              <UserPlus className="h-3 w-3 inline mr-1" />
+  1644→                                              Crear nuevo usuario
+  1645→                                            </button>
+  1646→                                          </div>
+  1647→
+  1648→                                          {/* Modo: asignar existente */}
+  1649→                                          {addMemberMode === 'existing' ? (
+  1650→                                            <Select value={selectedExistingUserId} onValueChange={setSelectedExistingUserId}>
+  1651→                                              <SelectTrigger className="h-8 text-xs">
+  1652→                                                <SelectValue placeholder="Seleccionar usuario existente..." />
+  1653→                                              </SelectTrigger>
+  1654→                                              <SelectContent>
+  1655→                                                {users
+  1656→                                                  .filter(u => u.active && !projectMembers.some(m => m.user.id === u.id))
+  1657→                                                  .map(u => (
+  1658→                                                    <SelectItem key={u.id} value={u.id}>
+  1659→                                                      <div className="flex items-center gap-2">
+  1660→                                                        <span>{u.name}</span>
+  1661→                                                        <span className="text-muted-foreground">({u.email})</span>
+  1662→                                                        <Badge className={`${ROLE_COLORS[u.role] || ''} border text-[9px] py-0`}>
+  1663→                                                          {ROLE_LABELS[u.role] || u.role}
+  1664→                                                        </Badge>
+  1665→                                                        {u.projects.length === 0 && (
+  1666→                                                          <Badge className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] py-0">
+  1667→                                                            Sin proyecto
+  1668→                                                          </Badge>
+  1669→                                                        )}
+  1670→                                                      </div>
+  1671→                                                    </SelectItem>
+  1672→                                                  ))}
+  1673→                                              </SelectContent>
+  1674→                                            </Select>
+  1675→                                          ) : (
+  1676→                                            /* Modo: crear nuevo usuario */
+  1677→                                            <div className="space-y-2">
+  1678→                                              <div className="grid grid-cols-2 gap-2">
+  1679→                                                <Input
+  1680→                                                  placeholder="Nombre completo *"
+  1681→                                                  value={newMemberName}
+  1682→                                                  onChange={e => setNewMemberName(e.target.value)}
+  1683→                                                  className="h-8 text-xs"
+  1684→                                                />
+  1685→                                                <Input
+  1686→                                                  type="email"
+  1687→                                                  placeholder="Email *"
+  1688→                                                  value={newMemberEmail}
+  1689→                                                  onChange={e => setNewMemberEmail(e.target.value)}
+  1690→                                                  className="h-8 text-xs"
+  1691→                                                />
+  1692→                                              </div>
+  1693→                                              <Input
+  1694→                                                type="password"
+  1695→                                                placeholder="Contraseña (mín. 6 car.; vacío = auto-generada)"
+  1696→                                                value={newMemberPassword}
+  1697→                                                onChange={e => setNewMemberPassword(e.target.value)}
+  1698→                                                className="h-8 text-xs"
+  1699→                                              />
+  1700→                                              {newMemberPassword && newMemberPassword.length < 6 && (
+  1701→                                                <p className="text-[10px] text-amber-600">La contraseña debe tener al menos 6 caracteres.</p>
+  1702→                                              )}
+  1703→                                              <p className="text-[10px] text-muted-foreground">
+  1704→                                                Si dejas la contraseña vacía, se generará una automáticamente y se mostrará una vez creada.
+  1705→                                              </p>
+  1706→                                            </div>
+  1707→                                          )}
+  1708→
+  1709→                                          {/* Rol + Zonas (compartido por ambos modos) */}
+  1710→                                          <div className="grid grid-cols-2 gap-2">
+  1711→                                            <Select value={newMemberRole} onValueChange={setNewMemberRole}>
+  1712→                                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+  1713→                                              <SelectContent>
+
+[showing lines 1314-1713 of 2556; use offset=1714 with limit to continue reading]

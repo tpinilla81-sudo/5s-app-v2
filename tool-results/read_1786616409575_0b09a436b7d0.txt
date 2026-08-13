@@ -1,0 +1,972 @@
+     1→                      </p>
+     2→                    </div>
+     3→                  </div>
+     4→                  <Button
+     5→                    variant="outline"
+     6→                    size="sm"
+     7→                    onClick={() => {
+     8→                      setShowNewProject(true)
+     9→                      // Scroll al formulario de creación
+    10→                      setTimeout(() => {
+    11→                        document.getElementById('crear-nuevo-proyecto')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    12→                      }, 50)
+    13→                    }}
+    14→                    className="border-purple-300 text-purple-700 hover:bg-purple-50"
+    15→                  >
+    16→                    <Plus className="h-4 w-4 mr-1" /> Nuevo Proyecto
+    17→                  </Button>
+    18→                </div>
+    19→              </div>
+    20→
+    21→              {/* ─────────── SECCIÓN 2: CREAR NUEVO ─────────── */}
+    22→              <div id="crear-nuevo-proyecto" className="rounded-lg border border-purple-200 bg-purple-50/30 p-3">
+    23→                <div className="flex items-center justify-between mb-2">
+    24→                  <div className="flex items-center gap-2">
+    25→                    <div className="w-7 h-7 rounded-md bg-purple-500/15 flex items-center justify-center">
+    26→                      <Plus className="h-4 w-4 text-purple-600" />
+    27→                    </div>
+    28→                    <div>
+    29→                      <h3 className="text-sm font-semibold text-gray-900">Crear Nuevo</h3>
+    30→                      <p className="text-[11px] text-muted-foreground">
+    31→                        Da de alta un proyecto nuevo con sus zonas. Se añadirá a la lista de arriba.
+    32→                      </p>
+    33→                    </div>
+    34→                  </div>
+    35→                  {showNewProject && (
+    36→                    <Button variant="ghost" size="sm" onClick={() => setShowNewProject(false)} className="h-7 text-xs">
+    37→                      <X className="h-3.5 w-3.5 mr-1" /> Cerrar formulario
+    38→                    </Button>
+    39→                  )}
+    40→                </div>
+    41→
+    42→                {/* Toggle: si hay proyectos existentes, el formulario empieza colapsado */}
+    43→                {!showNewProject && allProjects.length > 0 ? (
+    44→                  <Button
+    45→                    variant="outline"
+    46→                    size="sm"
+    47→                    onClick={() => setShowNewProject(true)}
+    48→                    className="w-full border-dashed border-purple-300 text-purple-700 hover:bg-purple-100 bg-white/60"
+    49→                  >
+    50→                    <Plus className="h-4 w-4 mr-2" />
+    51→                    Abrir formulario de creación
+    52→                  </Button>
+    53→                ) : (
+    54→                  <Card className="border-purple-200 bg-white/70">
+    55→                    <CardHeader className="pb-3">
+    56→                      <CardTitle className="text-sm flex items-center gap-2">
+    57→                        <Plus className="h-4 w-4 text-purple-500" />
+    58→                        Crear Nuevo Proyecto
+    59→                      </CardTitle>
+    60→                    </CardHeader>
+    61→                    <CardContent className="space-y-3">
+    62→                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    63→                        <div className="space-y-1">
+    64→                          <Label className="text-xs">Nombre del Proyecto *</Label>
+    65→                          <Input placeholder="Nombre" value={newProjectName} onChange={e => setNewProjectName(e.target.value)} />
+    66→                        </div>
+    67→                        <div className="space-y-1">
+    68→                          <Label className="text-xs">Empresa *</Label>
+    69→                          {companies.length > 0 && !isNewCompanyCustom ? (
+    70→                            <div className="space-y-1">
+    71→                              <Select
+    72→                                value={newProjectCompany ? (companies.find(c => c.name === newProjectCompany)?.id || '') : undefined}
+    73→                                onValueChange={val => {
+    74→                                  if (val === '__custom__') {
+    75→                                    setNewProjectCompany('')
+    76→                                    setIsNewCompanyCustom(true)
+    77→                                  } else {
+    78→                                    const comp = companies.find(c => c.id === val)
+    79→                                    if (comp) setNewProjectCompany(comp.name)
+    80→                                  }
+    81→                                }}
+    82→                              >
+    83→                                <SelectTrigger>
+    84→                                  <SelectValue placeholder="Seleccionar empresa" />
+    85→                                </SelectTrigger>
+    86→                                <SelectContent>
+    87→                                  {companies.map(c => (
+    88→                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+    89→                                  ))}
+    90→                                  <SelectItem value="__custom__">+ Otra empresa...</SelectItem>
+    91→                                </SelectContent>
+    92→                              </Select>
+    93→                            </div>
+    94→                          ) : (
+    95→                            <div className="space-y-1">
+    96→                              <Input placeholder="Nombre de la nueva empresa" value={newProjectCompany} onChange={e => setNewProjectCompany(e.target.value)} />
+    97→                              {companies.length > 0 && (
+    98→                                <Button variant="ghost" size="sm" onClick={() => { setIsNewCompanyCustom(false); setNewProjectCompany('') }} className="h-6 text-xs text-purple-600 p-0">
+    99→                                  ← Seleccionar empresa existente
+   100→                                </Button>
+   101→                              )}
+   102→                            </div>
+   103→                          )}
+   104→                        </div>
+   105→                      </div>
+   106→                      <div className="space-y-1">
+   107→                        <Label className="text-xs">Descripción</Label>
+   108→                        <Input placeholder="Descripción del proyecto (opcional)" value={newProjectDesc} onChange={e => setNewProjectDesc(e.target.value)} />
+   109→                      </div>
+   110→                      <div className="space-y-2">
+   111→                        <div className="flex items-center justify-between">
+   112→                          <Label className="text-xs">Zonas *</Label>
+   113→                          <Button variant="ghost" size="sm" onClick={() => setNewProjectZones([...newProjectZones, { name: '', color: PRESET_COLORS[newProjectZones.length % PRESET_COLORS.length] }])} className="h-6 text-xs text-purple-600">
+   114→                            <Plus className="h-3 w-3 mr-1" /> Agregar zona
+   115→                          </Button>
+   116→                        </div>
+   117→                        {newProjectZones.map((zone, idx) => (
+   118→                          <div key={idx} className="flex items-center gap-2">
+   119→                            <button
+   120→                              type="button"
+   121→                              className="w-6 h-6 rounded-full border-2 flex-shrink-0"
+   122→                              style={{ backgroundColor: zone.color, borderColor: zone.color }}
+   123→                              onClick={() => {
+   124→                                const next = PRESET_COLORS[(PRESET_COLORS.indexOf(zone.color) + 1) % PRESET_COLORS.length]
+   125→                                const updated = [...newProjectZones]
+   126→                                updated[idx] = { ...updated[idx], color: next }
+   127→                                setNewProjectZones(updated)
+   128→                              }}
+   129→                            />
+   130→                            <Input
+   131→                              placeholder="Nombre de la zona"
+   132→                              value={zone.name}
+   133→                              onChange={e => {
+   134→                                const updated = [...newProjectZones]
+   135→                                updated[idx] = { ...updated[idx], name: e.target.value }
+   136→                                setNewProjectZones(updated)
+   137→                              }}
+   138→                              className="flex-1"
+   139→                            />
+   140→                            {newProjectZones.length > 1 && (
+   141→                              <Button variant="ghost" size="sm" onClick={() => setNewProjectZones(newProjectZones.filter((_, i) => i !== idx))} className="h-8 w-8 p-0 text-red-400 hover:text-red-600">
+   142→                                <X className="h-4 w-4" />
+   143→                              </Button>
+   144→                            )}
+   145→                          </div>
+   146→                        ))}
+   147→                      </div>
+   148→                      <div className="flex gap-2 justify-end">
+   149→                        <Button variant="outline" size="sm" onClick={() => setShowNewProject(false)}>Cancelar</Button>
+   150→                        <Button
+   151→                          size="sm"
+   152→                          onClick={handleCreateProject}
+   153→                          disabled={!newProjectName.trim() || !newProjectCompany.trim() || newProjectZones.filter(z => z.name.trim()).length === 0}
+   154→                          className="bg-gradient-to-r from-purple-500 to-purple-600 text-white"
+   155→                        >
+   156→                          Crear Proyecto
+   157→                        </Button>
+   158→                      </div>
+   159→                    </CardContent>
+   160→                  </Card>
+   161→                )}
+   162→              </div>
+   163→
+   164→              {/* ─────────── LISTA DE PROYECTOS ACTIVOS ─────────── */}
+   165→
+   166→              {/* Projects list */}
+   167→              {isLoadingProjects ? (
+   168→                <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 text-purple-500 animate-spin" /></div>
+   169→              ) : allProjects.length === 0 ? (
+   170→                <div className="text-center py-12 text-muted-foreground">
+   171→                  <Building2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+   172→                  <p className="text-sm">No hay proyectos creados</p>
+   173→                  <p className="text-xs mt-1">Crea un proyecto para comenzar la implementación 5S</p>
+   174→                </div>
+   175→              ) : (
+   176→                <div className="space-y-3">
+   177→                  {allProjects.map(project => (
+   178→                    <Card key={project.id} className={`transition-all ${selectedProjectId === project.id ? 'border-purple-300 shadow-md' : 'hover:border-gray-300'}`}>
+   179→                      <CardContent className="p-4">
+   180→                        {/* Project header row */}
+   181→                        <div className="flex items-center justify-between">
+   182→                          <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => handleSelectProject(project.id)}>
+   183→                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center">
+   184→                              <Building2 className="h-5 w-5 text-purple-500" />
+   185→                            </div>
+   186→                            <div className="flex-1">
+   187→                              {editingProject === project.id ? (
+   188→                                <div className="space-y-2" onClick={e => e.stopPropagation()}>
+   189→                                  <div className="grid grid-cols-2 gap-2">
+   190→                                    <Input value={editProjectData.name} onChange={e => setEditProjectData(d => ({ ...d, name: e.target.value }))} className="text-sm" />
+   191→                                    <Input value={editProjectData.company} onChange={e => setEditProjectData(d => ({ ...d, company: e.target.value }))} className="text-sm" />
+   192→                                  </div>
+   193→                                  <Input value={editProjectData.description} onChange={e => setEditProjectData(d => ({ ...d, description: e.target.value }))} className="text-sm" placeholder="Descripción" />
+   194→                                  <div className="flex gap-2">
+   195→                                    <Button size="sm" onClick={() => handleUpdateProject(project.id)} className="bg-purple-600 text-white h-7"><Check className="h-3 w-3 mr-1" />Guardar</Button>
+   196→                                    <Button size="sm" variant="outline" onClick={() => setEditingProject(null)} className="h-7">Cancelar</Button>
+   197→                                  </div>
+   198→                                </div>
+   199→                              ) : (
+   200→                                <>
+   201→                                  <h3 className="font-semibold text-sm">{project.name}</h3>
+   202→                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+   203→                                    <span>{project.company}</span>
+   204→                                    <span>·</span>
+   205→                                    <span>{project.zones.length} zonas</span>
+   206→                                    <span>·</span>
+   207→                                    <span>{project.memberCount} miembros</span>
+   208→                                    {!project.active && <Badge className="bg-red-100 text-red-700 border border-red-200 ml-1">Inactivo</Badge>}
+   209→                                  </div>
+   210→                                </>
+   211→                              )}
+   212→                            </div>
+   213→                          </div>
+   214→                          {editingProject !== project.id && (
+   215→                            <div className="flex items-center gap-1">
+   216→                              <Button
+   217→                                variant="ghost" size="sm" className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700"
+   218→                                onClick={() => {
+   219→                                  setEditingProject(project.id)
+   220→                                  setEditProjectData({ name: project.name, description: project.description || '', company: project.company })
+   221→                                }}
+   222→                                title="Editar proyecto"
+   223→                              >
+   224→                                <Edit3 className="h-4 w-4" />
+   225→                              </Button>
+   226→                              <Button
+   227→                                variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600"
+   228→                                onClick={() => handleDeleteProject(project.id)}
+   229→                                title="Eliminar proyecto"
+   230→                              >
+   231→                                <Trash2 className="h-4 w-4" />
+   232→                              </Button>
+   233→                            </div>
+   234→                          )}
+   235→                        </div>
+   236→
+   237→                        {/* Expanded project detail */}
+   238→                        <AnimatePresence>
+   239→                          {selectedProjectId === project.id && (
+   240→                            <motion.div
+   241→                              initial={{ height: 0, opacity: 0 }}
+   242→                              animate={{ height: 'auto', opacity: 1 }}
+   243→                              exit={{ height: 0, opacity: 0 }}
+   244→                              transition={{ duration: 0.2 }}
+   245→                              className="overflow-hidden"
+   246→                            >
+   247→                              <div className="mt-4 pt-4 border-t space-y-4">
+   248→                                {isLoadingDetail ? (
+   249→                                  <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 text-purple-500 animate-spin" /></div>
+   250→                                ) : (
+   251→                                  <>
+   252→                                    {/* Zonas existentes — UNA TRAS OTRA CON SUS USUARIOS */}
+   253→                                    <div>
+   254→                                      <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1">
+   255→                                        <MapPin className="h-3 w-3" /> Zonas del Proyecto
+   256→                                        {projectZones.length > 0 && (
+   257→                                          <Badge className="ml-1 text-[9px] py-0 px-1.5 bg-gray-100 text-gray-600 border-0">
+   258→                                            {projectZones.length}
+   259→                                          </Badge>
+   260→                                        )}
+   261→                                        <span className="ml-2 text-[10px] font-normal text-muted-foreground/70 normal-case">
+   262→                                          · Cada zona se muestra con sus miembros (compartidos entre zonas)
+   263→                                        </span>
+   264→                                      </h4>
+   265→                                      {projectZones.length === 0 ? (
+   266→                                        <div className="p-4 rounded-lg border border-dashed bg-gray-50 text-center">
+   267→                                          <MapPin className="h-6 w-6 mx-auto mb-1 text-gray-300" />
+   268→                                          <p className="text-xs text-muted-foreground">Todavía no hay zonas en este proyecto.</p>
+   269→                                          <p className="text-[10px] text-muted-foreground mt-0.5">Crea la primera zona más abajo.</p>
+   270→                                        </div>
+   271→                                      ) : (
+   272→                                        <div className="space-y-3">
+   273→                                          {projectZones.map(zone => {
+   274→                                            const zoneMembers = getMembersOfZone(zone.id)
+   275→                                            // Usuarios disponibles para asignar a esta zona:
+   276→                                            // - activos
+   277→                                            // - que no estén ya en esta zona
+   278→                                            const availableUsers = users.filter(
+   279→                                              u => u.active && !zoneMembers.some(m => m.user.id === u.id)
+   280→                                            )
+   281→                                            return (
+   282→                                              <div key={zone.id} className="rounded-lg border bg-white overflow-hidden">
+   283→                                                {/* Zona header */}
+   284→                                                <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-gray-50 to-white border-b">
+   285→                                                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
+   286→                                                  {editingZoneId === zone.id ? (
+   287→                                                    <>
+   288→                                                      <Input
+   289→                                                        value={editingZoneName}
+   290→                                                        onChange={e => setEditingZoneName(e.target.value)}
+   291→                                                        className="h-7 text-xs flex-1 max-w-[260px]"
+   292→                                                        autoFocus
+   293→                                                        onKeyDown={e => {
+   294→                                                          if (e.key === 'Enter') handleSaveZoneName(zone.id)
+   295→                                                          if (e.key === 'Escape') setEditingZoneId(null)
+   296→                                                        }}
+   297→                                                      />
+   298→                                                      <Button size="sm" className="h-7 text-[10px] bg-purple-600 text-white" onClick={() => handleSaveZoneName(zone.id)}>
+   299→                                                        <Check className="h-3 w-3 mr-1" /> Guardar
+   300→                                                      </Button>
+   301→                                                      <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => setEditingZoneId(null)}>
+   302→                                                        Cancelar
+   303→                                                      </Button>
+   304→                                                    </>
+   305→                                                  ) : (
+   306→                                                    <>
+   307→                                                      <span className="font-semibold text-sm flex-1">{zone.name}</span>
+   308→                                                      <Badge className="text-[9px] px-1 py-0 bg-indigo-100 text-indigo-700 border-0" title="Esta zona usa el tablero predeterminado del sistema">
+   309→                                                        <LayoutGrid className="h-2.5 w-2.5 mr-0.5 inline" />
+   310→                                                        Tablero predeterminado
+   311→                                                      </Badge>
+   312→                                                      <Badge className="text-[9px] px-1 py-0 bg-gray-100 text-gray-600 border-0">
+   313→                                                        <Users className="h-2.5 w-2.5 mr-0.5 inline" />
+   314→                                                        {zoneMembers.length} {zoneMembers.length === 1 ? 'miembro' : 'miembros'}
+   315→                                                      </Badge>
+   316→                                                      <Button
+   317→                                                        variant="ghost" size="sm"
+   318→                                                        className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700"
+   319→                                                        onClick={() => { setEditingZoneId(zone.id); setEditingZoneName(zone.name) }}
+   320→                                                        title="Renombrar zona"
+   321→                                                      >
+   322→                                                        <Edit3 className="h-3.5 w-3.5" />
+   323→                                                      </Button>
+   324→                                                      <Button
+   325→                                                        variant="ghost" size="sm"
+   326→                                                        className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
+   327→                                                        onClick={() => handleDeleteZone(zone.id, zone.name)}
+   328→                                                        title="Eliminar zona"
+   329→                                                      >
+   330→                                                        <Trash2 className="h-3.5 w-3.5" />
+   331→                                                      </Button>
+   332→                                                    </>
+   333→                                                  )}
+   334→                                                </div>
+   335→
+   336→                                                {/* Miembros de esta zona — tabla editable */}
+   337→                                                <div className="p-3">
+   338→                                                  {zoneMembers.length === 0 ? (
+   339→                                                    <p className="text-xs text-muted-foreground text-center py-3">
+   340→                                                      No hay miembros en esta zona todavía.
+   341→                                                    </p>
+   342→                                                  ) : (
+   343→                                                    <div className="rounded-md border overflow-x-auto mb-3">
+   344→                                                      <Table>
+   345→                                                        <TableHeader>
+   346→                                                          <TableRow>
+   347→                                                            <TableHead className="text-xs">Nombre</TableHead>
+   348→                                                            <TableHead className="text-xs">Email</TableHead>
+   349→                                                            <TableHead className="text-xs">Rol</TableHead>
+   350→                                                            <TableHead className="text-xs text-center">Acciones</TableHead>
+   351→                                                          </TableRow>
+   352→                                                        </TableHeader>
+   353→                                                        <TableBody>
+   354→                                                          {zoneMembers.map(member => (
+   355→                                                            <TableRow key={member.id}>
+   356→                                                              <TableCell className="text-xs font-medium">{member.user.name}</TableCell>
+   357→                                                              <TableCell className="text-xs">{member.user.email}</TableCell>
+   358→                                                              <TableCell>
+   359→                                                                <Select
+   360→                                                                  value={member.role}
+   361→                                                                  onValueChange={(newRole) => handleUpdateMemberRoleInZone(zone.id, member.id, newRole)}
+   362→                                                                >
+   363→                                                                  <SelectTrigger className="h-7 text-[10px] w-[120px]">
+   364→                                                                    <SelectValue />
+   365→                                                                  </SelectTrigger>
+   366→                                                                  <SelectContent>
+   367→                                                                    <SelectItem value="admin">Administrador</SelectItem>
+   368→                                                                    <SelectItem value="gerente">Gerente</SelectItem>
+   369→                                                                    <SelectItem value="responsable">Responsable</SelectItem>
+   370→                                                                    <SelectItem value="empleado">Empleado</SelectItem>
+   371→                                                                    <SelectItem value="auditor">Auditor</SelectItem>
+   372→                                                                  </SelectContent>
+   373→                                                                </Select>
+   374→                                                              </TableCell>
+   375→                                                              <TableCell className="text-center">
+   376→                                                                <Button
+   377→                                                                  variant="outline" size="sm"
+   378→                                                                  className="h-7 text-[10px] text-red-500 border-red-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300 gap-1"
+   379→                                                                  onClick={() => handleRemoveMemberFromZone(zone.id, member.id, member.user.name)}
+   380→                                                                  title="Retirar de esta zona (sigue en el proyecto)"
+   381→                                                                >
+   382→                                                                  <Trash2 className="h-3 w-3" />
+   383→                                                                </Button>
+   384→                                                              </TableCell>
+   385→                                                            </TableRow>
+   386→                                                          ))}
+   387→                                                        </TableBody>
+   388→                                                      </Table>
+   389→                                                    </div>
+   390→                                                  )}
+   391→
+   392→                                                  {/* Añadir usuario EXISTENTE a esta zona */}
+   393→                                                  <div className="rounded-md border border-dashed border-purple-200 bg-purple-50/40 p-2">
+   394→                                                    {availableUsers.length === 0 ? (
+   395→                                                      <p className="text-[11px] text-muted-foreground text-center py-1">
+   396→                                                        Todos los usuarios activos ya están en esta zona.
+   397→                                                      </p>
+   398→                                                    ) : (
+   399→                                                      <div className="flex items-center gap-2 flex-wrap">
+   400→                                                        <span className="text-[10px] font-semibold text-purple-700 uppercase whitespace-nowrap">
+   401→                                                          <UserPlus className="h-3 w-3 inline mr-1" />
+   402→                                                          Añadir existente:
+   403→                                                        </span>
+   404→                                                        <Select
+   405→                                                          value={zoneAddUserId[zone.id] || ''}
+   406→                                                          onValueChange={(val) => setZoneAddUserId(prev => ({ ...prev, [zone.id]: val }))}
+   407→                                                        >
+   408→                                                          <SelectTrigger className="h-7 text-xs flex-1 min-w-[180px]">
+   409→                                                            <SelectValue placeholder="Seleccionar usuario existente..." />
+   410→                                                          </SelectTrigger>
+   411→                                                          <SelectContent>
+   412→                                                            {availableUsers.map(u => (
+   413→                                                              <SelectItem key={u.id} value={u.id}>
+   414→                                                                <div className="flex items-center gap-2">
+   415→                                                                  <span>{u.name}</span>
+   416→                                                                  <span className="text-muted-foreground">({u.email})</span>
+   417→                                                                  <Badge className={`${ROLE_COLORS[u.role] || ''} border text-[9px] py-0`}>
+   418→                                                                    {ROLE_LABELS[u.role] || u.role}
+   419→                                                                  </Badge>
+   420→                                                                </div>
+   421→                                                              </SelectItem>
+   422→                                                            ))}
+   423→                                                          </SelectContent>
+   424→                                                        </Select>
+   425→                                                        <Select
+   426→                                                          value={zoneAddRole[zone.id] || 'empleado'}
+   427→                                                          onValueChange={(val) => setZoneAddRole(prev => ({ ...prev, [zone.id]: val }))}
+   428→                                                        >
+   429→                                                          <SelectTrigger className="h-7 text-xs w-[120px]">
+   430→                                                            <SelectValue />
+   431→                                                          </SelectTrigger>
+   432→                                                          <SelectContent>
+   433→                                                            <SelectItem value="admin">Administrador</SelectItem>
+   434→                                                            <SelectItem value="gerente">Gerente</SelectItem>
+   435→                                                            <SelectItem value="responsable">Responsable</SelectItem>
+   436→                                                            <SelectItem value="empleado">Empleado</SelectItem>
+   437→                                                            <SelectItem value="auditor">Auditor</SelectItem>
+   438→                                                          </SelectContent>
+   439→                                                        </Select>
+   440→                                                        <Button
+   441→                                                          size="sm"
+   442→                                                          className="h-7 text-xs bg-purple-600 text-white"
+   443→                                                          onClick={() => handleAddExistingUserToZone(zone.id)}
+   444→                                                          disabled={!zoneAddUserId[zone.id]}
+   445→                                                        >
+   446→                                                          <UserPlus className="h-3 w-3 mr-1" />
+   447→                                                          Añadir a esta zona
+   448→                                                        </Button>
+   449→                                                      </div>
+   450→                                                    )}
+   451→                                                  </div>
+   452→                                                  <p className="text-[10px] text-muted-foreground mt-1.5">
+   453→                                                    Los usuarios pueden estar compartidos entre varias zonas.
+   454→                                                    Si no ves un usuario en la lista, ya está asignado a esta zona.
+   455→                                                  </p>
+   456→                                                </div>
+   457→                                              </div>
+   458→                                            )
+   459→                                          })}
+   460→                                        </div>
+   461→                                      )}
+   462→                                    </div>
+   463→
+   464→                                    {/* Crear nueva zona — separado del listado */}
+   465→                                    <div className="rounded-lg border border-dashed border-purple-200 bg-purple-50/40 p-3">
+   466→                                      <h4 className="text-xs font-semibold text-purple-700 uppercase mb-2 flex items-center gap-1">
+   467→                                        <Plus className="h-3 w-3" /> Crear Nueva Zona
+   468→                                      </h4>
+   469→                                      <div className="flex items-center gap-2 flex-wrap">
+   470→                                        <div className="flex items-center gap-1">
+   471→                                          <span className="text-[10px] text-muted-foreground mr-1">Color:</span>
+   472→                                          {PRESET_COLORS.map(c => (
+   473→                                            <button key={c} type="button" className={`w-5 h-5 rounded-full border-2 ${newZoneColor === c ? 'border-gray-800' : 'border-transparent'}`} style={{ backgroundColor: c }} onClick={() => setNewZoneColor(c)} />
+   474→                                          ))}
+   475→                                        </div>
+   476→                                        <Input placeholder="Nombre de la nueva zona" value={newZoneName} onChange={e => setNewZoneName(e.target.value)} className="h-8 text-xs flex-1 min-w-[180px] max-w-[260px]" />
+   477→                                        <Button size="sm" onClick={handleAddZone} disabled={!newZoneName.trim()} className="h-8 text-xs bg-purple-600 text-white">
+   478→                                          <Plus className="h-3 w-3 mr-1" /> Agregar zona
+   479→                                        </Button>
+   480→                                      </div>
+   481→                                    </div>
+   482→
+   483→                                    {/* Members */}
+   484→                                    <div>
+   485→                                      <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1">
+   486→                                        <Users className="h-3 w-3" /> Miembros del Proyecto
+   487→                                      </h4>
+   488→
+   489→                                      {/* Alta de usuarios: modo "existente" o "nuevo" */}
+   490→                                      <Card className="mb-3 border-gray-200">
+   491→                                        <CardContent className="p-3 space-y-3">
+   492→                                          {/* Toggle modo */}
+   493→                                          <div className="flex gap-1 bg-gray-100 p-1 rounded-md">
+   494→                                            <button
+   495→                                              type="button"
+   496→                                              onClick={() => setAddMemberMode('existing')}
+   497→                                              className={`flex-1 h-7 text-xs font-medium rounded transition-colors ${
+   498→                                                addMemberMode === 'existing'
+   499→                                                  ? 'bg-white text-purple-700 shadow-sm'
+   500→                                                  : 'text-gray-600 hover:text-gray-800'
+   501→                                              }`}
+   502→                                            >
+   503→                                              Asignar existente
+   504→                                            </button>
+   505→                                            <button
+   506→                                              type="button"
+   507→                                              onClick={() => setAddMemberMode('new')}
+   508→                                              className={`flex-1 h-7 text-xs font-medium rounded transition-colors ${
+   509→                                                addMemberMode === 'new'
+   510→                                                  ? 'bg-white text-purple-700 shadow-sm'
+   511→                                                  : 'text-gray-600 hover:text-gray-800'
+   512→                                              }`}
+   513→                                            >
+   514→                                              <UserPlus className="h-3 w-3 inline mr-1" />
+   515→                                              Crear nuevo usuario
+   516→                                            </button>
+   517→                                          </div>
+   518→
+   519→                                          {/* Modo: asignar existente */}
+   520→                                          {addMemberMode === 'existing' ? (
+   521→                                            <Select value={selectedExistingUserId} onValueChange={setSelectedExistingUserId}>
+   522→                                              <SelectTrigger className="h-8 text-xs">
+   523→                                                <SelectValue placeholder="Seleccionar usuario existente..." />
+   524→                                              </SelectTrigger>
+   525→                                              <SelectContent>
+   526→                                                {users
+   527→                                                  .filter(u => u.active && !projectMembers.some(m => m.user.id === u.id))
+   528→                                                  .map(u => (
+   529→                                                    <SelectItem key={u.id} value={u.id}>
+   530→                                                      <div className="flex items-center gap-2">
+   531→                                                        <span>{u.name}</span>
+   532→                                                        <span className="text-muted-foreground">({u.email})</span>
+   533→                                                        <Badge className={`${ROLE_COLORS[u.role] || ''} border text-[9px] py-0`}>
+   534→                                                          {ROLE_LABELS[u.role] || u.role}
+   535→                                                        </Badge>
+   536→                                                        {u.projects.length === 0 && (
+   537→                                                          <Badge className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] py-0">
+   538→                                                            Sin proyecto
+   539→                                                          </Badge>
+   540→                                                        )}
+   541→                                                      </div>
+   542→                                                    </SelectItem>
+   543→                                                  ))}
+   544→                                              </SelectContent>
+   545→                                            </Select>
+   546→                                          ) : (
+   547→                                            /* Modo: crear nuevo usuario */
+   548→                                            <div className="space-y-2">
+   549→                                              <div className="grid grid-cols-2 gap-2">
+   550→                                                <Input
+   551→                                                  placeholder="Nombre completo *"
+   552→                                                  value={newMemberName}
+   553→                                                  onChange={e => setNewMemberName(e.target.value)}
+   554→                                                  className="h-8 text-xs"
+   555→                                                />
+   556→                                                <Input
+   557→                                                  type="email"
+   558→                                                  placeholder="Email *"
+   559→                                                  value={newMemberEmail}
+   560→                                                  onChange={e => setNewMemberEmail(e.target.value)}
+   561→                                                  className="h-8 text-xs"
+   562→                                                />
+   563→                                              </div>
+   564→                                              <Input
+   565→                                                type="password"
+   566→                                                placeholder="Contraseña (mín. 6 car.; vacío = auto-generada)"
+   567→                                                value={newMemberPassword}
+   568→                                                onChange={e => setNewMemberPassword(e.target.value)}
+   569→                                                className="h-8 text-xs"
+   570→                                              />
+   571→                                              {newMemberPassword && newMemberPassword.length < 6 && (
+   572→                                                <p className="text-[10px] text-amber-600">La contraseña debe tener al menos 6 caracteres.</p>
+   573→                                              )}
+   574→                                              <p className="text-[10px] text-muted-foreground">
+   575→                                                Si dejas la contraseña vacía, se generará una automáticamente y se mostrará una vez creada.
+   576→                                              </p>
+   577→                                            </div>
+   578→                                          )}
+   579→
+   580→                                          {/* Rol + Zonas (compartido por ambos modos) */}
+   581→                                          <div className="grid grid-cols-2 gap-2">
+   582→                                            <Select value={newMemberRole} onValueChange={setNewMemberRole}>
+   583→                                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+   584→                                              <SelectContent>
+   585→                                                <SelectItem value="admin">Administrador</SelectItem>
+   586→                                                <SelectItem value="gerente">Gerente</SelectItem>
+   587→                                                <SelectItem value="responsable">Responsable</SelectItem>
+   588→                                                <SelectItem value="empleado">Empleado</SelectItem>
+   589→                                                <SelectItem value="auditor">Auditor</SelectItem>
+   590→                                              </SelectContent>
+   591→                                            </Select>
+   592→                                            <div className="space-y-1">
+   593→                                              <p className="text-[10px] text-muted-foreground font-medium">Zonas (todas por defecto)</p>
+   594→                                              <div className="space-y-0.5 max-h-32 overflow-y-auto">
+   595→                                                {projectZones.map(z => (
+   596→                                                  <label key={z.id} className="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
+   597→                                                    <Checkbox
+   598→                                                      checked={newMemberZones.includes(z.id)}
+   599→                                                      onCheckedChange={(checked) => {
+   600→                                                        if (checked) {
+   601→                                                          setNewMemberZones([...newMemberZones, z.id])
+   602→                                                        } else {
+   603→                                                          setNewMemberZones(newMemberZones.filter(id => id !== z.id))
+   604→                                                        }
+   605→                                                      }}
+   606→                                                      className="h-3.5 w-3.5"
+   607→                                                    />
+   608→                                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: z.color }} />
+   609→                                                    <span>{z.name}</span>
+   610→                                                  </label>
+   611→                                                ))}
+   612→                                              </div>
+   613→                                            </div>
+   614→                                          </div>
+   615→
+   616→                                          {/* Botón: cambia según modo */}
+   617→                                          <Button
+   618→                                            size="sm"
+   619→                                            onClick={handleAddMember}
+   620→                                            disabled={
+   621→                                              addMemberMode === 'existing'
+   622→                                                ? !selectedExistingUserId
+   623→                                                : !newMemberName.trim() || !newMemberEmail.trim()
+   624→                                            }
+   625→                                            className="w-full h-8 text-xs bg-purple-600 text-white"
+   626→                                          >
+   627→                                            <UserPlus className="h-3 w-3 mr-1" />
+   628→                                            {addMemberMode === 'existing' ? 'Asignar al Proyecto' : 'Crear y Asignar al Proyecto'}
+   629→                                          </Button>
+   630→                                        </CardContent>
+   631→                                      </Card>
+   632→
+   633→                                      {/* Generated password notification */}
+   634→                                      {generatedPassword && (
+   635→                                        <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+   636→                                          <ShieldCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+   637→                                          <div className="flex-1 min-w-0">
+   638→                                            <p className="text-xs font-semibold text-green-800">Contraseña generada para {generatedMemberName}</p>
+   639→                                            <div className="flex items-center gap-2 mt-1">
+   640→                                              <code className="text-sm font-mono bg-green-100 px-2 py-0.5 rounded text-green-900 select-all">{generatedPassword}</code>
+   641→                                              <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1" onClick={() => { navigator.clipboard.writeText(generatedPassword) }}>
+   642→                                                <Save className="h-3 w-3" /> Copiar
+   643→                                              </Button>
+   644→                                            </div>
+   645→                                            <p className="text-[10px] text-green-700 mt-1">Guarda esta contraseña. No se volverá a mostrar.</p>
+   646→                                          </div>
+   647→                                          <button onClick={() => { setGeneratedPassword(null); setGeneratedMemberName(null) }} className="text-green-400 hover:text-green-600">
+   648→                                            <X className="h-4 w-4" />
+   649→                                          </button>
+   650→                                        </div>
+   651→                                      )}
+   652→
+   653→                                      {/* Members table — complete, editable, with passwords */}
+   654→                                      {projectMembers.length === 0 ? (
+   655→                                        <p className="text-xs text-muted-foreground text-center py-4">No hay miembros en este proyecto</p>
+   656→                                      ) : (
+   657→                                        <div className="space-y-2">
+   658→                                          {/* Excel download button */}
+   659→                                          <div className="flex justify-end">
+   660→                                            <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1 text-green-600 border-green-200 hover:bg-green-50" onClick={() => {
+   661→                                              // Build CSV for Excel download
+   662→                                              const headers = ['Nombre', 'Email', 'Contraseña', 'Rol', 'Zonas', 'Estado']
+   663→                                              const rows = projectMembers.map(m => [
+   664→                                                m.user.name,
+   665→                                                m.user.email,
+   666→                                                m.user.plainPassword || '••••••',
+   667→                                                ROLE_LABELS[m.role] || m.role,
+   668→                                                m.zones.map(z => z.name).join('; '),
+   669→                                                m.user.active ? 'Activo' : 'Inactivo',
+   670→                                              ])
+   671→                                              const csvContent = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n')
+   672→                                              const BOM = '\uFEFF'
+   673→                                              const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+   674→                                              const link = document.createElement('a')
+   675→                                              link.href = URL.createObjectURL(blob)
+   676→                                              link.download = `recursos_proyecto_${selectedProjectId}.csv`
+   677→                                              link.click()
+   678→                                            }}>
+   679→                                              <Save className="h-3 w-3" /> Descargar Excel (CSV)
+   680→                                            </Button>
+   681→                                          </div>
+   682→                                          <div className="rounded-lg border overflow-x-auto">
+   683→                                            <Table>
+   684→                                              <TableHeader>
+   685→                                                <TableRow>
+   686→                                                  <TableHead className="text-xs">Nombre</TableHead>
+   687→                                                  <TableHead className="text-xs">Email</TableHead>
+   688→                                                  <TableHead className="text-xs">Contraseña</TableHead>
+   689→                                                  <TableHead className="text-xs">Rol</TableHead>
+   690→                                                  <TableHead className="text-xs">Zonas</TableHead>
+   691→                                                  <TableHead className="text-xs text-center">Acciones</TableHead>
+   692→                                                </TableRow>
+   693→                                              </TableHeader>
+   694→                                              <TableBody>
+   695→                                                {projectMembers.map(member => (
+   696→                                                  <TableRow key={member.id}>
+   697→                                                    <TableCell className="text-xs font-medium">
+   698→                                                      <Input
+   699→                                                        className="h-7 text-xs border-transparent hover:border-gray-300 focus:border-purple-400 px-1 py-0 min-w-[80px]"
+   700→                                                        value={member.user.name}
+   701→                                                        onChange={async (e) => {
+   702→                                                          const newName = e.target.value
+   703→                                                          setProjectMembers(prev => prev.map(m => m.id === member.id ? { ...m, user: { ...m.user, name: newName } } : m))
+   704→                                                          await fetch('/api/users', {
+   705→                                                            method: 'PUT',
+   706→                                                            headers: { 'Content-Type': 'application/json' },
+   707→                                                            body: JSON.stringify({ id: member.user.id, name: newName }),
+   708→                                                          })
+   709→                                                        }}
+   710→                                                      />
+   711→                                                    </TableCell>
+   712→                                                    <TableCell className="text-xs">
+   713→                                                      <Input
+   714→                                                        className="h-7 text-xs border-transparent hover:border-gray-300 focus:border-purple-400 px-1 py-0 min-w-[120px]"
+   715→                                                        value={member.user.email}
+   716→                                                        onChange={async (e) => {
+   717→                                                          const newEmail = e.target.value
+   718→                                                          setProjectMembers(prev => prev.map(m => m.id === member.id ? { ...m, user: { ...m.user, email: newEmail } } : m))
+   719→                                                        }}
+   720→                                                        onBlur={async (e) => {
+   721→                                                          const newEmail = e.target.value.trim().toLowerCase()
+   722→                                                          if (newEmail && newEmail !== member.user.email) {
+   723→                                                            await fetch('/api/users', {
+   724→                                                              method: 'PUT',
+   725→                                                              headers: { 'Content-Type': 'application/json' },
+   726→                                                              body: JSON.stringify({ id: member.user.id, email: newEmail }),
+   727→                                                            })
+   728→                                                          }
+   729→                                                        }}
+   730→                                                      />
+   731→                                                    </TableCell>
+   732→                                                    <TableCell className="text-xs">
+   733→                                                      <div className="flex items-center gap-1">
+   734→                                                        <Input
+   735→                                                          className="h-7 text-xs border-transparent hover:border-gray-300 focus:border-purple-400 px-1 py-0 min-w-[90px] font-mono"
+   736→                                                          value={member.user.plainPassword || '••••••'}
+   737→                                                          onChange={async (e) => {
+   738→                                                            const newPwd = e.target.value
+   739→                                                            setProjectMembers(prev => prev.map(m => m.id === member.id ? { ...m, user: { ...m.user, plainPassword: newPwd } } : m))
+   740→                                                          }}
+   741→                                                          onBlur={async (e) => {
+   742→                                                            const newPwd = e.target.value
+   743→                                                            if (newPwd && newPwd.length >= 6 && newPwd !== '••••••') {
+   744→                                                              await fetch('/api/users', {
+   745→                                                                method: 'PUT',
+   746→                                                                headers: { 'Content-Type': 'application/json' },
+   747→                                                                body: JSON.stringify({ id: member.user.id, password: newPwd }),
+   748→                                                              })
+   749→                                                            }
+   750→                                                          }}
+   751→                                                        />
+   752→                                                        <button
+   753→                                                          className="text-gray-400 hover:text-purple-600 shrink-0"
+   754→                                                          title="Restablecer contraseña"
+   755→                                                          onClick={async () => {
+   756→                                                            const newPwd = prompt(`Nueva contraseña para ${member.user.name}:`, '123456')
+   757→                                                            if (!newPwd || newPwd.length < 6) {
+   758→                                                              if (newPwd !== null) alert('La contraseña debe tener al menos 6 caracteres')
+   759→                                                              return
+   760→                                                            }
+   761→                                                            await fetch('/api/users', {
+   762→                                                              method: 'PUT',
+   763→                                                              headers: { 'Content-Type': 'application/json' },
+   764→                                                              body: JSON.stringify({ id: member.user.id, password: newPwd }),
+   765→                                                            })
+   766→                                                            setProjectMembers(prev => prev.map(m => m.id === member.id ? { ...m, user: { ...m.user, plainPassword: newPwd } } : m))
+   767→                                                            alert(`Contraseña actualizada a: ${newPwd}`)
+   768→                                                          }}
+   769→                                                        >
+   770→                                                          <Key className="h-3.5 w-3.5" />
+   771→                                                        </button>
+   772→                                                      </div>
+   773→                                                    </TableCell>
+   774→                                                    <TableCell>
+   775→                                                      <Select value={member.role} onValueChange={async (newRole) => {
+   776→                                                        setProjectMembers(prev => prev.map(m => m.id === member.id ? { ...m, role: newRole } : m))
+   777→                                                        // Update member role via API
+   778→                                                        try {
+   779→                                                          await fetch(`/api/projects/${selectedProjectId}/members`, {
+   780→                                                            method: 'PATCH',
+   781→                                                            headers: { 'Content-Type': 'application/json' },
+   782→                                                            body: JSON.stringify({ memberId: member.id, role: newRole }),
+   783→                                                          })
+   784→                                                        } catch (err) {
+   785→                                                          console.error('Error updating role:', err)
+   786→                                                        }
+   787→                                                      }}>
+   788→                                                        <SelectTrigger className="h-7 text-[10px] w-[110px]">
+   789→                                                          <SelectValue />
+   790→                                                        </SelectTrigger>
+   791→                                                        <SelectContent>
+   792→                                                          <SelectItem value="admin">Administrador</SelectItem>
+   793→                                                          <SelectItem value="gerente">Gerente</SelectItem>
+   794→                                                          <SelectItem value="responsable">Responsable</SelectItem>
+   795→                                                          <SelectItem value="empleado">Empleado</SelectItem>
+   796→                                                          <SelectItem value="auditor">Auditor</SelectItem>
+   797→                                                        </SelectContent>
+   798→                                                      </Select>
+   799→                                                    </TableCell>
+   800→                                                    <TableCell className="text-xs">
+   801→                                                      {member.zones.length > 0 ? (
+   802→                                                        <div className="flex flex-wrap gap-1">
+   803→                                                          {member.zones.map(z => (
+   804→                                                            <span key={z.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gray-50 border text-[10px]">
+   805→                                                              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: z.color }} />
+   806→                                                              {z.name}
+   807→                                                            </span>
+   808→                                                          ))}
+   809→                                                        </div>
+   810→                                                      ) : <span className="text-muted-foreground">-</span>}
+   811→                                                    </TableCell>
+   812→                                                    <TableCell className="text-center">
+   813→                                                      <div className="flex items-center justify-center gap-1">
+   814→                                                        <Button variant="outline" size="sm" className="h-7 text-[10px] text-blue-500 border-blue-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 gap-1" onClick={async () => {
+   815→                                                          const pwd = member.user.plainPassword || prompt(`Contraseña para enviar a ${member.user.name}:`, '123456')
+   816→                                                          if (!pwd) return
+   817→                                                          const finalPwd = pwd.length >= 6 ? pwd : '123456'
+   818→                                                          setSendingCredentials(member.id)
+   819→                                                          try {
+   820→                                                            const res = await fetch(`/api/projects/${selectedProjectId}/send-credentials`, {
+   821→                                                              method: 'POST',
+   822→                                                              headers: { 'Content-Type': 'application/json' },
+   823→                                                              body: JSON.stringify({ memberId: member.id, password: finalPwd }),
+   824→                                                            })
+   825→                                                            const data = await res.json()
+   826→                                                            if (data.success) {
+   827→                                                              if (data.testingMode) {
+   828→                                                                alert(`Email enviado en modo de prueba a: ${data.redirectedTo}\n(El email real iría a: ${member.user.email})`)
+   829→                                                              } else {
+   830→                                                                alert(`Email de bienvenida enviado a: ${member.user.email}`)
+   831→                                                              }
+   832→                                                            } else {
+   833→                                                              alert(`Error al enviar email: ${data.error}`)
+   834→                                                            }
+   835→                                                          } catch (err) {
+   836→                                                            alert('Error de conexión al enviar credenciales')
+   837→                                                          } finally {
+   838→                                                            setSendingCredentials(null)
+   839→                                                          }
+   840→                                                        }} title="Enviar credenciales por email" disabled={sendingCredentials === member.id}>
+   841→                                                          {sendingCredentials === member.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
+   842→                                                          Enviar
+   843→                                                        </Button>
+   844→                                                        <Button variant="outline" size="sm" className="h-7 text-[10px] text-red-500 border-red-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300 gap-1" onClick={() => handleRemoveMember(member.id, member.user.name)} title="Eliminar miembro del proyecto">
+   845→                                                          <Trash2 className="h-3 w-3" />
+   846→                                                        </Button>
+   847→                                                      </div>
+   848→                                                    </TableCell>
+   849→                                                  </TableRow>
+   850→                                                ))}
+   851→                                              </TableBody>
+   852→                                            </Table>
+   853→                                          </div>
+   854→                                        </div>
+   855→                                      )}
+   856→                                    </div>
+   857→                                  </>
+   858→                                )}
+   859→                              </div>
+   860→                            </motion.div>
+   861→                          )}
+   862→                        </AnimatePresence>
+   863→                      </CardContent>
+   864→                    </Card>
+   865→                  ))}
+   866→                </div>
+   867→              )}
+   868→
+   869→            </motion.div>
+   870→          )}
+   871→
+   872→          {/* ═══ DATOS EMPRESA TAB ═══ */}
+   873→          {activeTab === 'companies' && (
+   874→            <motion.div key="companies" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+   875→              <div className="flex justify-between items-center">
+   876→                <p className="text-sm text-muted-foreground">
+   877→                  Datos fiscales y de facturación de tu empresa
+   878→                </p>
+   879→                {myCompany && (
+   880→                  <Button
+   881→                    variant={isEditingMyCompany ? 'outline' : 'default'}
+   882→                    size="sm"
+   883→                    onClick={() => setIsEditingMyCompany(!isEditingMyCompany)}
+   884→                    className={isEditingMyCompany ? '' : 'bg-gradient-to-r from-purple-500 to-purple-600 text-white'}
+   885→                  >
+   886→                    {isEditingMyCompany ? (
+   887→                      <><X className="h-4 w-4 mr-1" /> Cancelar edición</>
+   888→                    ) : (
+   889→                      <><Edit3 className="h-4 w-4 mr-1" /> Editar datos</>
+   890→                    )}
+   891→                  </Button>
+   892→                )}
+   893→              </div>
+   894→
+   895→              {isLoadingMyCompany ? (
+   896→                <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 text-purple-500 animate-spin" /></div>
+   897→              ) : !myCompany ? (
+   898→                <div className="text-center py-12 text-muted-foreground">
+   899→                  <Building2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+   900→                  <p className="text-sm">No tienes empresa asignada</p>
+   901→                  <p className="text-xs mt-1">Contacta con el gestor de la plataforma para darte de alta en una empresa.</p>
+   902→                </div>
+   903→              ) : (
+   904→                <>
+   905→                  {/* ───── DATOS FISCALES DE LA EMPRESA ───── */}
+   906→                  <Card>
+   907→                    <CardHeader className="pb-3">
+   908→                      <CardTitle className="text-sm flex items-center gap-2">
+   909→                        <Building2 className="h-4 w-4 text-purple-500" />
+   910→                        Datos Fiscales de la Empresa
+   911→                      </CardTitle>
+   912→                    </CardHeader>
+   913→                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   914→                      <Field label="Nombre / Razón Social" k="name" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.name} />
+   915→                      <Field label="NIF / CIF" k="nif" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.nif} />
+   916→                      <Field label="Sector / Industria" k="sector" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.sector} />
+   917→                      <Field label="Teléfono" k="phone" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.phone} />
+   918→                      <Field label="Dirección" k="address" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.address} />
+   919→                      <Field label="Sitio Web" k="website" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.website} />
+   920→                      <Field label="Código Postal" k="postalCode" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.postalCode} />
+   921→                      <Field label="Ciudad" k="city" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.city} />
+   922→                      <Field label="Provincia" k="province" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.province} />
+   923→                      <Field label="País" k="country" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.country} />
+   924→                    </CardContent>
+   925→                  </Card>
+   926→
+   927→                  {/* ───── DATOS DE FACTURACIÓN ───── */}
+   928→                  <Card className="border-amber-200">
+   929→                    <CardHeader className="pb-3">
+   930→                      <CardTitle className="text-sm flex items-center gap-2">
+   931→                        <FileText className="h-4 w-4 text-amber-500" />
+   932→                        Datos de Facturación
+   933→                      </CardTitle>
+   934→                    </CardHeader>
+   935→                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   936→                      <Field label="Razón Social (facturación)" k="billingName" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.billingName} />
+   937→                      <Field label="NIF de Facturación" k="billingNif" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.billingNif} />
+   938→                      <Field label="Email de Facturación" k="billingEmail" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.billingEmail} />
+   939→                      <Field label="IBAN (domiciliación)" k="iban" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.iban} />
+   940→                      <Field label="Dirección de Facturación" k="billingAddress" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.billingAddress} />
+   941→                      <Field label="Ciudad de Facturación" k="billingCity" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.billingCity} />
+   942→                      <Field label="CP de Facturación" k="billingPostalCode" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.billingPostalCode} />
+   943→                    </CardContent>
+   944→                  </Card>
+   945→
+   946→                  {/* ───── PERSONA DE CONTACTO ───── */}
+   947→                  <Card className="border-blue-200">
+   948→                    <CardHeader className="pb-3">
+   949→                      <CardTitle className="text-sm flex items-center gap-2">
+   950→                        <UserCircle className="h-4 w-4 text-blue-500" />
+   951→                        Persona de Contacto
+   952→                      </CardTitle>
+   953→                    </CardHeader>
+   954→                    <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+   955→                      <Field label="Nombre de contacto" k="contactName" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.contactName} />
+   956→                      <Field label="Email de contacto" k="contactEmail" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.contactEmail} />
+   957→                      <Field label="Teléfono de contacto" k="contactPhone" edit={myCompanyEdit} setEdit={setMyCompanyEdit} editing={isEditingMyCompany} value={myCompany.contactPhone} />
+   958→                    </CardContent>
+   959→                  </Card>
+   960→
+   961→                  {/* ───── ACCIONES DE EDICIÓN ───── */}
+   962→                  {isEditingMyCompany && (
+   963→                    <div className="flex justify-end gap-2 sticky bottom-2 z-10 bg-white/90 backdrop-blur border rounded-lg p-2 shadow-md">
+   964→                      <Button variant="outline" size="sm" onClick={() => {
+   965→                        setIsEditingMyCompany(false)
+   966→                        // Revertir cambios: recargar del estado original
+   967→                        const edit: Record<string, string> = {}
+   968→                        for (const [k, v] of Object.entries(myCompany)) {
+   969→                          if (typeof v === 'string' || v === null) edit[k] = (v as string) ?? ''
+   970→                        }
+   971→                        setMyCompanyEdit(edit)
+   972→

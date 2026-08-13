@@ -1,0 +1,588 @@
+     1→                            </div>
+     2→                            <div className="flex-1">
+     3→                              {editingProject === project.id ? (
+     4→                                <div className="space-y-2" onClick={e => e.stopPropagation()}>
+     5→                                  <div className="grid grid-cols-2 gap-2">
+     6→                                    <Input value={editProjectData.name} onChange={e => setEditProjectData(d => ({ ...d, name: e.target.value }))} className="text-sm" />
+     7→                                    <Input value={editProjectData.company} onChange={e => setEditProjectData(d => ({ ...d, company: e.target.value }))} className="text-sm" />
+     8→                                  </div>
+     9→                                  <Input value={editProjectData.description} onChange={e => setEditProjectData(d => ({ ...d, description: e.target.value }))} className="text-sm" placeholder="Descripción" />
+    10→                                  <div className="flex gap-2">
+    11→                                    <Button size="sm" onClick={() => handleUpdateProject(project.id)} className="bg-purple-600 text-white h-7"><Check className="h-3 w-3 mr-1" />Guardar</Button>
+    12→                                    <Button size="sm" variant="outline" onClick={() => setEditingProject(null)} className="h-7">Cancelar</Button>
+    13→                                  </div>
+    14→                                </div>
+    15→                              ) : (
+    16→                                <>
+    17→                                  <h3 className="font-semibold text-sm">{project.name}</h3>
+    18→                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    19→                                    <span>{project.company}</span>
+    20→                                    <span>·</span>
+    21→                                    <span>{project.zones.length} zonas</span>
+    22→                                    <span>·</span>
+    23→                                    <span>{project.memberCount} miembros</span>
+    24→                                    {!project.active && <Badge className="bg-red-100 text-red-700 border border-red-200 ml-1">Inactivo</Badge>}
+    25→                                  </div>
+    26→                                </>
+    27→                              )}
+    28→                            </div>
+    29→                          </div>
+    30→                          {editingProject !== project.id && (
+    31→                            <div className="flex items-center gap-1">
+    32→                              <Button
+    33→                                variant="ghost" size="sm" className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700"
+    34→                                onClick={() => {
+    35→                                  setEditingProject(project.id)
+    36→                                  setEditProjectData({ name: project.name, description: project.description || '', company: project.company })
+    37→                                }}
+    38→                                title="Editar proyecto"
+    39→                              >
+    40→                                <Edit3 className="h-4 w-4" />
+    41→                              </Button>
+    42→                              <Button
+    43→                                variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600"
+    44→                                onClick={() => handleDeleteProject(project.id)}
+    45→                                title="Eliminar proyecto"
+    46→                              >
+    47→                                <Trash2 className="h-4 w-4" />
+    48→                              </Button>
+    49→                            </div>
+    50→                          )}
+    51→                        </div>
+    52→
+    53→                        {/* Expanded project detail */}
+    54→                        <AnimatePresence>
+    55→                          {selectedProjectId === project.id && (
+    56→                            <motion.div
+    57→                              initial={{ height: 0, opacity: 0 }}
+    58→                              animate={{ height: 'auto', opacity: 1 }}
+    59→                              exit={{ height: 0, opacity: 0 }}
+    60→                              transition={{ duration: 0.2 }}
+    61→                              className="overflow-hidden"
+    62→                            >
+    63→                              <div className="mt-4 pt-4 border-t space-y-4">
+    64→                                {isLoadingDetail ? (
+    65→                                  <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 text-purple-500 animate-spin" /></div>
+    66→                                ) : (
+    67→                                  <>
+    68→                                    {/* Zonas existentes — UNA TRAS OTRA CON SUS USUARIOS */}
+    69→                                    <div>
+    70→                                      <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1">
+    71→                                        <MapPin className="h-3 w-3" /> Zonas del Proyecto
+    72→                                        {projectZones.length > 0 && (
+    73→                                          <Badge className="ml-1 text-[9px] py-0 px-1.5 bg-gray-100 text-gray-600 border-0">
+    74→                                            {projectZones.length}
+    75→                                          </Badge>
+    76→                                        )}
+    77→                                        <span className="ml-2 text-[10px] font-normal text-muted-foreground/70 normal-case">
+    78→                                          · Cada zona se muestra con sus miembros (compartidos entre zonas)
+    79→                                        </span>
+    80→                                      </h4>
+    81→                                      {projectZones.length === 0 ? (
+    82→                                        <div className="p-4 rounded-lg border border-dashed bg-gray-50 text-center">
+    83→                                          <MapPin className="h-6 w-6 mx-auto mb-1 text-gray-300" />
+    84→                                          <p className="text-xs text-muted-foreground">Todavía no hay zonas en este proyecto.</p>
+    85→                                          <p className="text-[10px] text-muted-foreground mt-0.5">Crea la primera zona más abajo.</p>
+    86→                                        </div>
+    87→                                      ) : (
+    88→                                        <div className="space-y-3">
+    89→                                          {projectZones.map(zone => {
+    90→                                            const zoneMembers = getMembersOfZone(zone.id)
+    91→                                            // Usuarios disponibles para asignar a esta zona:
+    92→                                            // - activos
+    93→                                            // - que no estén ya en esta zona
+    94→                                            const availableUsers = users.filter(
+    95→                                              u => u.active && !zoneMembers.some(m => m.user.id === u.id)
+    96→                                            )
+    97→                                            return (
+    98→                                              <div key={zone.id} className="rounded-lg border bg-white overflow-hidden">
+    99→                                                {/* Zona header */}
+   100→                                                <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-gray-50 to-white border-b">
+   101→                                                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
+   102→                                                  {editingZoneId === zone.id ? (
+   103→                                                    <>
+   104→                                                      <Input
+   105→                                                        value={editingZoneName}
+   106→                                                        onChange={e => setEditingZoneName(e.target.value)}
+   107→                                                        className="h-7 text-xs flex-1 max-w-[260px]"
+   108→                                                        autoFocus
+   109→                                                        onKeyDown={e => {
+   110→                                                          if (e.key === 'Enter') handleSaveZoneName(zone.id)
+   111→                                                          if (e.key === 'Escape') setEditingZoneId(null)
+   112→                                                        }}
+   113→                                                      />
+   114→                                                      <Button size="sm" className="h-7 text-[10px] bg-purple-600 text-white" onClick={() => handleSaveZoneName(zone.id)}>
+   115→                                                        <Check className="h-3 w-3 mr-1" /> Guardar
+   116→                                                      </Button>
+   117→                                                      <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => setEditingZoneId(null)}>
+   118→                                                        Cancelar
+   119→                                                      </Button>
+   120→                                                    </>
+   121→                                                  ) : (
+   122→                                                    <>
+   123→                                                      <span className="font-semibold text-sm flex-1">{zone.name}</span>
+   124→                                                      <Badge className="text-[9px] px-1 py-0 bg-indigo-100 text-indigo-700 border-0" title="Esta zona usa el tablero predeterminado del sistema">
+   125→                                                        <LayoutGrid className="h-2.5 w-2.5 mr-0.5 inline" />
+   126→                                                        Tablero predeterminado
+   127→                                                      </Badge>
+   128→                                                      <Badge className="text-[9px] px-1 py-0 bg-gray-100 text-gray-600 border-0">
+   129→                                                        <Users className="h-2.5 w-2.5 mr-0.5 inline" />
+   130→                                                        {zoneMembers.length} {zoneMembers.length === 1 ? 'miembro' : 'miembros'}
+   131→                                                      </Badge>
+   132→                                                      <Button
+   133→                                                        variant="ghost" size="sm"
+   134→                                                        className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700"
+   135→                                                        onClick={() => { setEditingZoneId(zone.id); setEditingZoneName(zone.name) }}
+   136→                                                        title="Renombrar zona"
+   137→                                                      >
+   138→                                                        <Edit3 className="h-3.5 w-3.5" />
+   139→                                                      </Button>
+   140→                                                      <Button
+   141→                                                        variant="ghost" size="sm"
+   142→                                                        className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
+   143→                                                        onClick={() => handleDeleteZone(zone.id, zone.name)}
+   144→                                                        title="Eliminar zona"
+   145→                                                      >
+   146→                                                        <Trash2 className="h-3.5 w-3.5" />
+   147→                                                      </Button>
+   148→                                                    </>
+   149→                                                  )}
+   150→                                                </div>
+   151→
+   152→                                                {/* Miembros de esta zona — tabla editable */}
+   153→                                                <div className="p-3">
+   154→                                                  {zoneMembers.length === 0 ? (
+   155→                                                    <p className="text-xs text-muted-foreground text-center py-3">
+   156→                                                      No hay miembros en esta zona todavía.
+   157→                                                    </p>
+   158→                                                  ) : (
+   159→                                                    <div className="rounded-md border overflow-x-auto mb-3">
+   160→                                                      <Table>
+   161→                                                        <TableHeader>
+   162→                                                          <TableRow>
+   163→                                                            <TableHead className="text-xs">Nombre</TableHead>
+   164→                                                            <TableHead className="text-xs">Email</TableHead>
+   165→                                                            <TableHead className="text-xs">Rol</TableHead>
+   166→                                                            <TableHead className="text-xs text-center">Acciones</TableHead>
+   167→                                                          </TableRow>
+   168→                                                        </TableHeader>
+   169→                                                        <TableBody>
+   170→                                                          {zoneMembers.map(member => (
+   171→                                                            <TableRow key={member.id}>
+   172→                                                              <TableCell className="text-xs font-medium">{member.user.name}</TableCell>
+   173→                                                              <TableCell className="text-xs">{member.user.email}</TableCell>
+   174→                                                              <TableCell>
+   175→                                                                <Select
+   176→                                                                  value={member.role}
+   177→                                                                  onValueChange={(newRole) => handleUpdateMemberRoleInZone(zone.id, member.id, newRole)}
+   178→                                                                >
+   179→                                                                  <SelectTrigger className="h-7 text-[10px] w-[120px]">
+   180→                                                                    <SelectValue />
+   181→                                                                  </SelectTrigger>
+   182→                                                                  <SelectContent>
+   183→                                                                    <SelectItem value="admin">Administrador</SelectItem>
+   184→                                                                    <SelectItem value="gerente">Gerente</SelectItem>
+   185→                                                                    <SelectItem value="responsable">Responsable</SelectItem>
+   186→                                                                    <SelectItem value="empleado">Empleado</SelectItem>
+   187→                                                                    <SelectItem value="auditor">Auditor</SelectItem>
+   188→                                                                  </SelectContent>
+   189→                                                                </Select>
+   190→                                                              </TableCell>
+   191→                                                              <TableCell className="text-center">
+   192→                                                                <Button
+   193→                                                                  variant="outline" size="sm"
+   194→                                                                  className="h-7 text-[10px] text-red-500 border-red-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300 gap-1"
+   195→                                                                  onClick={() => handleRemoveMemberFromZone(zone.id, member.id, member.user.name)}
+   196→                                                                  title="Retirar de esta zona (sigue en el proyecto)"
+   197→                                                                >
+   198→                                                                  <Trash2 className="h-3 w-3" />
+   199→                                                                </Button>
+   200→                                                              </TableCell>
+   201→                                                            </TableRow>
+   202→                                                          ))}
+   203→                                                        </TableBody>
+   204→                                                      </Table>
+   205→                                                    </div>
+   206→                                                  )}
+   207→
+   208→                                                  {/* Añadir usuario EXISTENTE a esta zona */}
+   209→                                                  <div className="rounded-md border border-dashed border-purple-200 bg-purple-50/40 p-2">
+   210→                                                    {availableUsers.length === 0 ? (
+   211→                                                      <p className="text-[11px] text-muted-foreground text-center py-1">
+   212→                                                        Todos los usuarios activos ya están en esta zona.
+   213→                                                      </p>
+   214→                                                    ) : (
+   215→                                                      <div className="flex items-center gap-2 flex-wrap">
+   216→                                                        <span className="text-[10px] font-semibold text-purple-700 uppercase whitespace-nowrap">
+   217→                                                          <UserPlus className="h-3 w-3 inline mr-1" />
+   218→                                                          Añadir existente:
+   219→                                                        </span>
+   220→                                                        <Select
+   221→                                                          value={zoneAddUserId[zone.id] || ''}
+   222→                                                          onValueChange={(val) => setZoneAddUserId(prev => ({ ...prev, [zone.id]: val }))}
+   223→                                                        >
+   224→                                                          <SelectTrigger className="h-7 text-xs flex-1 min-w-[180px]">
+   225→                                                            <SelectValue placeholder="Seleccionar usuario existente..." />
+   226→                                                          </SelectTrigger>
+   227→                                                          <SelectContent>
+   228→                                                            {availableUsers.map(u => (
+   229→                                                              <SelectItem key={u.id} value={u.id}>
+   230→                                                                <div className="flex items-center gap-2">
+   231→                                                                  <span>{u.name}</span>
+   232→                                                                  <span className="text-muted-foreground">({u.email})</span>
+   233→                                                                  <Badge className={`${ROLE_COLORS[u.role] || ''} border text-[9px] py-0`}>
+   234→                                                                    {ROLE_LABELS[u.role] || u.role}
+   235→                                                                  </Badge>
+   236→                                                                </div>
+   237→                                                              </SelectItem>
+   238→                                                            ))}
+   239→                                                          </SelectContent>
+   240→                                                        </Select>
+   241→                                                        <Select
+   242→                                                          value={zoneAddRole[zone.id] || 'empleado'}
+   243→                                                          onValueChange={(val) => setZoneAddRole(prev => ({ ...prev, [zone.id]: val }))}
+   244→                                                        >
+   245→                                                          <SelectTrigger className="h-7 text-xs w-[120px]">
+   246→                                                            <SelectValue />
+   247→                                                          </SelectTrigger>
+   248→                                                          <SelectContent>
+   249→                                                            <SelectItem value="admin">Administrador</SelectItem>
+   250→                                                            <SelectItem value="gerente">Gerente</SelectItem>
+   251→                                                            <SelectItem value="responsable">Responsable</SelectItem>
+   252→                                                            <SelectItem value="empleado">Empleado</SelectItem>
+   253→                                                            <SelectItem value="auditor">Auditor</SelectItem>
+   254→                                                          </SelectContent>
+   255→                                                        </Select>
+   256→                                                        <Button
+   257→                                                          size="sm"
+   258→                                                          className="h-7 text-xs bg-purple-600 text-white"
+   259→                                                          onClick={() => handleAddExistingUserToZone(zone.id)}
+   260→                                                          disabled={!zoneAddUserId[zone.id]}
+   261→                                                        >
+   262→                                                          <UserPlus className="h-3 w-3 mr-1" />
+   263→                                                          Añadir a esta zona
+   264→                                                        </Button>
+   265→                                                      </div>
+   266→                                                    )}
+   267→                                                  </div>
+   268→                                                  <p className="text-[10px] text-muted-foreground mt-1.5">
+   269→                                                    Los usuarios pueden estar compartidos entre varias zonas.
+   270→                                                    Si no ves un usuario en la lista, ya está asignado a esta zona.
+   271→                                                  </p>
+   272→                                                </div>
+   273→                                              </div>
+   274→                                            )
+   275→                                          })}
+   276→                                        </div>
+   277→                                      )}
+   278→                                    </div>
+   279→
+   280→                                    {/* Crear nueva zona — separado del listado */}
+   281→                                    <div className="rounded-lg border border-dashed border-purple-200 bg-purple-50/40 p-3">
+   282→                                      <h4 className="text-xs font-semibold text-purple-700 uppercase mb-2 flex items-center gap-1">
+   283→                                        <Plus className="h-3 w-3" /> Crear Nueva Zona
+   284→                                      </h4>
+   285→                                      <div className="flex items-center gap-2 flex-wrap">
+   286→                                        <div className="flex items-center gap-1">
+   287→                                          <span className="text-[10px] text-muted-foreground mr-1">Color:</span>
+   288→                                          {PRESET_COLORS.map(c => (
+   289→                                            <button key={c} type="button" className={`w-5 h-5 rounded-full border-2 ${newZoneColor === c ? 'border-gray-800' : 'border-transparent'}`} style={{ backgroundColor: c }} onClick={() => setNewZoneColor(c)} />
+   290→                                          ))}
+   291→                                        </div>
+   292→                                        <Input placeholder="Nombre de la nueva zona" value={newZoneName} onChange={e => setNewZoneName(e.target.value)} className="h-8 text-xs flex-1 min-w-[180px] max-w-[260px]" />
+   293→                                        <Button size="sm" onClick={handleAddZone} disabled={!newZoneName.trim()} className="h-8 text-xs bg-purple-600 text-white">
+   294→                                          <Plus className="h-3 w-3 mr-1" /> Agregar zona
+   295→                                        </Button>
+   296→                                      </div>
+   297→                                    </div>
+   298→
+   299→                                    {/* Members */}
+   300→                                    <div>
+   301→                                      <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1">
+   302→                                        <Users className="h-3 w-3" /> Miembros del Proyecto
+   303→                                      </h4>
+   304→
+   305→                                      {/* Alta de usuarios: modo "existente" o "nuevo" */}
+   306→                                      <Card className="mb-3 border-gray-200">
+   307→                                        <CardContent className="p-3 space-y-3">
+   308→                                          {/* Toggle modo */}
+   309→                                          <div className="flex gap-1 bg-gray-100 p-1 rounded-md">
+   310→                                            <button
+   311→                                              type="button"
+   312→                                              onClick={() => setAddMemberMode('existing')}
+   313→                                              className={`flex-1 h-7 text-xs font-medium rounded transition-colors ${
+   314→                                                addMemberMode === 'existing'
+   315→                                                  ? 'bg-white text-purple-700 shadow-sm'
+   316→                                                  : 'text-gray-600 hover:text-gray-800'
+   317→                                              }`}
+   318→                                            >
+   319→                                              Asignar existente
+   320→                                            </button>
+   321→                                            <button
+   322→                                              type="button"
+   323→                                              onClick={() => setAddMemberMode('new')}
+   324→                                              className={`flex-1 h-7 text-xs font-medium rounded transition-colors ${
+   325→                                                addMemberMode === 'new'
+   326→                                                  ? 'bg-white text-purple-700 shadow-sm'
+   327→                                                  : 'text-gray-600 hover:text-gray-800'
+   328→                                              }`}
+   329→                                            >
+   330→                                              <UserPlus className="h-3 w-3 inline mr-1" />
+   331→                                              Crear nuevo usuario
+   332→                                            </button>
+   333→                                          </div>
+   334→
+   335→                                          {/* Modo: asignar existente */}
+   336→                                          {addMemberMode === 'existing' ? (
+   337→                                            <Select value={selectedExistingUserId} onValueChange={setSelectedExistingUserId}>
+   338→                                              <SelectTrigger className="h-8 text-xs">
+   339→                                                <SelectValue placeholder="Seleccionar usuario existente..." />
+   340→                                              </SelectTrigger>
+   341→                                              <SelectContent>
+   342→                                                {users
+   343→                                                  .filter(u => u.active && !projectMembers.some(m => m.user.id === u.id))
+   344→                                                  .map(u => (
+   345→                                                    <SelectItem key={u.id} value={u.id}>
+   346→                                                      <div className="flex items-center gap-2">
+   347→                                                        <span>{u.name}</span>
+   348→                                                        <span className="text-muted-foreground">({u.email})</span>
+   349→                                                        <Badge className={`${ROLE_COLORS[u.role] || ''} border text-[9px] py-0`}>
+   350→                                                          {ROLE_LABELS[u.role] || u.role}
+   351→                                                        </Badge>
+   352→                                                        {u.projects.length === 0 && (
+   353→                                                          <Badge className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] py-0">
+   354→                                                            Sin proyecto
+   355→                                                          </Badge>
+   356→                                                        )}
+   357→                                                      </div>
+   358→                                                    </SelectItem>
+   359→                                                  ))}
+   360→                                              </SelectContent>
+   361→                                            </Select>
+   362→                                          ) : (
+   363→                                            /* Modo: crear nuevo usuario */
+   364→                                            <div className="space-y-2">
+   365→                                              <div className="grid grid-cols-2 gap-2">
+   366→                                                <Input
+   367→                                                  placeholder="Nombre completo *"
+   368→                                                  value={newMemberName}
+   369→                                                  onChange={e => setNewMemberName(e.target.value)}
+   370→                                                  className="h-8 text-xs"
+   371→                                                />
+   372→                                                <Input
+   373→                                                  type="email"
+   374→                                                  placeholder="Email *"
+   375→                                                  value={newMemberEmail}
+   376→                                                  onChange={e => setNewMemberEmail(e.target.value)}
+   377→                                                  className="h-8 text-xs"
+   378→                                                />
+   379→                                              </div>
+   380→                                              <Input
+   381→                                                type="password"
+   382→                                                placeholder="Contraseña (mín. 6 car.; vacío = auto-generada)"
+   383→                                                value={newMemberPassword}
+   384→                                                onChange={e => setNewMemberPassword(e.target.value)}
+   385→                                                className="h-8 text-xs"
+   386→                                              />
+   387→                                              {newMemberPassword && newMemberPassword.length < 6 && (
+   388→                                                <p className="text-[10px] text-amber-600">La contraseña debe tener al menos 6 caracteres.</p>
+   389→                                              )}
+   390→                                              <p className="text-[10px] text-muted-foreground">
+   391→                                                Si dejas la contraseña vacía, se generará una automáticamente y se mostrará una vez creada.
+   392→                                              </p>
+   393→                                            </div>
+   394→                                          )}
+   395→
+   396→                                          {/* Rol + Zonas (compartido por ambos modos) */}
+   397→                                          <div className="grid grid-cols-2 gap-2">
+   398→                                            <Select value={newMemberRole} onValueChange={setNewMemberRole}>
+   399→                                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+   400→                                              <SelectContent>
+   401→                                                <SelectItem value="admin">Administrador</SelectItem>
+   402→                                                <SelectItem value="gerente">Gerente</SelectItem>
+   403→                                                <SelectItem value="responsable">Responsable</SelectItem>
+   404→                                                <SelectItem value="empleado">Empleado</SelectItem>
+   405→                                                <SelectItem value="auditor">Auditor</SelectItem>
+   406→                                              </SelectContent>
+   407→                                            </Select>
+   408→                                            <div className="space-y-1">
+   409→                                              <p className="text-[10px] text-muted-foreground font-medium">Zonas (todas por defecto)</p>
+   410→                                              <div className="space-y-0.5 max-h-32 overflow-y-auto">
+   411→                                                {projectZones.map(z => (
+   412→                                                  <label key={z.id} className="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
+   413→                                                    <Checkbox
+   414→                                                      checked={newMemberZones.includes(z.id)}
+   415→                                                      onCheckedChange={(checked) => {
+   416→                                                        if (checked) {
+   417→                                                          setNewMemberZones([...newMemberZones, z.id])
+   418→                                                        } else {
+   419→                                                          setNewMemberZones(newMemberZones.filter(id => id !== z.id))
+   420→                                                        }
+   421→                                                      }}
+   422→                                                      className="h-3.5 w-3.5"
+   423→                                                    />
+   424→                                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: z.color }} />
+   425→                                                    <span>{z.name}</span>
+   426→                                                  </label>
+   427→                                                ))}
+   428→                                              </div>
+   429→                                            </div>
+   430→                                          </div>
+   431→
+   432→                                          {/* Botón: cambia según modo */}
+   433→                                          <Button
+   434→                                            size="sm"
+   435→                                            onClick={handleAddMember}
+   436→                                            disabled={
+   437→                                              addMemberMode === 'existing'
+   438→                                                ? !selectedExistingUserId
+   439→                                                : !newMemberName.trim() || !newMemberEmail.trim()
+   440→                                            }
+   441→                                            className="w-full h-8 text-xs bg-purple-600 text-white"
+   442→                                          >
+   443→                                            <UserPlus className="h-3 w-3 mr-1" />
+   444→                                            {addMemberMode === 'existing' ? 'Asignar al Proyecto' : 'Crear y Asignar al Proyecto'}
+   445→                                          </Button>
+   446→                                        </CardContent>
+   447→                                      </Card>
+   448→
+   449→                                      {/* Generated password notification */}
+   450→                                      {generatedPassword && (
+   451→                                        <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+   452→                                          <ShieldCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+   453→                                          <div className="flex-1 min-w-0">
+   454→                                            <p className="text-xs font-semibold text-green-800">Contraseña generada para {generatedMemberName}</p>
+   455→                                            <div className="flex items-center gap-2 mt-1">
+   456→                                              <code className="text-sm font-mono bg-green-100 px-2 py-0.5 rounded text-green-900 select-all">{generatedPassword}</code>
+   457→                                              <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1" onClick={() => { navigator.clipboard.writeText(generatedPassword) }}>
+   458→                                                <Save className="h-3 w-3" /> Copiar
+   459→                                              </Button>
+   460→                                            </div>
+   461→                                            <p className="text-[10px] text-green-700 mt-1">Guarda esta contraseña. No se volverá a mostrar.</p>
+   462→                                          </div>
+   463→                                          <button onClick={() => { setGeneratedPassword(null); setGeneratedMemberName(null) }} className="text-green-400 hover:text-green-600">
+   464→                                            <X className="h-4 w-4" />
+   465→                                          </button>
+   466→                                        </div>
+   467→                                      )}
+   468→
+   469→                                      {/* Members table — complete, editable, with passwords */}
+   470→                                      {projectMembers.length === 0 ? (
+   471→                                        <p className="text-xs text-muted-foreground text-center py-4">No hay miembros en este proyecto</p>
+   472→                                      ) : (
+   473→                                        <div className="space-y-2">
+   474→                                          {/* Excel download button */}
+   475→                                          <div className="flex justify-end">
+   476→                                            <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1 text-green-600 border-green-200 hover:bg-green-50" onClick={() => {
+   477→                                              // Build CSV for Excel download
+   478→                                              const headers = ['Nombre', 'Email', 'Contraseña', 'Rol', 'Zonas', 'Estado']
+   479→                                              const rows = projectMembers.map(m => [
+   480→                                                m.user.name,
+   481→                                                m.user.email,
+   482→                                                m.user.plainPassword || '••••••',
+   483→                                                ROLE_LABELS[m.role] || m.role,
+   484→                                                m.zones.map(z => z.name).join('; '),
+   485→                                                m.user.active ? 'Activo' : 'Inactivo',
+   486→                                              ])
+   487→                                              const csvContent = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n')
+   488→                                              const BOM = '\uFEFF'
+   489→                                              const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+   490→                                              const link = document.createElement('a')
+   491→                                              link.href = URL.createObjectURL(blob)
+   492→                                              link.download = `recursos_proyecto_${selectedProjectId}.csv`
+   493→                                              link.click()
+   494→                                            }}>
+   495→                                              <Save className="h-3 w-3" /> Descargar Excel (CSV)
+   496→                                            </Button>
+   497→                                          </div>
+   498→                                          <div className="rounded-lg border overflow-x-auto">
+   499→                                            <Table>
+   500→                                              <TableHeader>
+   501→                                                <TableRow>
+   502→                                                  <TableHead className="text-xs">Nombre</TableHead>
+   503→                                                  <TableHead className="text-xs">Email</TableHead>
+   504→                                                  <TableHead className="text-xs">Contraseña</TableHead>
+   505→                                                  <TableHead className="text-xs">Rol</TableHead>
+   506→                                                  <TableHead className="text-xs">Zonas</TableHead>
+   507→                                                  <TableHead className="text-xs text-center">Acciones</TableHead>
+   508→                                                </TableRow>
+   509→                                              </TableHeader>
+   510→                                              <TableBody>
+   511→                                                {projectMembers.map(member => (
+   512→                                                  <TableRow key={member.id}>
+   513→                                                    <TableCell className="text-xs font-medium">
+   514→                                                      <Input
+   515→                                                        className="h-7 text-xs border-transparent hover:border-gray-300 focus:border-purple-400 px-1 py-0 min-w-[80px]"
+   516→                                                        value={member.user.name}
+   517→                                                        onChange={async (e) => {
+   518→                                                          const newName = e.target.value
+   519→                                                          setProjectMembers(prev => prev.map(m => m.id === member.id ? { ...m, user: { ...m.user, name: newName } } : m))
+   520→                                                          await fetch('/api/users', {
+   521→                                                            method: 'PUT',
+   522→                                                            headers: { 'Content-Type': 'application/json' },
+   523→                                                            body: JSON.stringify({ id: member.user.id, name: newName }),
+   524→                                                          })
+   525→                                                        }}
+   526→                                                      />
+   527→                                                    </TableCell>
+   528→                                                    <TableCell className="text-xs">
+   529→                                                      <Input
+   530→                                                        className="h-7 text-xs border-transparent hover:border-gray-300 focus:border-purple-400 px-1 py-0 min-w-[120px]"
+   531→                                                        value={member.user.email}
+   532→                                                        onChange={async (e) => {
+   533→                                                          const newEmail = e.target.value
+   534→                                                          setProjectMembers(prev => prev.map(m => m.id === member.id ? { ...m, user: { ...m.user, email: newEmail } } : m))
+   535→                                                        }}
+   536→                                                        onBlur={async (e) => {
+   537→                                                          const newEmail = e.target.value.trim().toLowerCase()
+   538→                                                          if (newEmail && newEmail !== member.user.email) {
+   539→                                                            await fetch('/api/users', {
+   540→                                                              method: 'PUT',
+   541→                                                              headers: { 'Content-Type': 'application/json' },
+   542→                                                              body: JSON.stringify({ id: member.user.id, email: newEmail }),
+   543→                                                            })
+   544→                                                          }
+   545→                                                        }}
+   546→                                                      />
+   547→                                                    </TableCell>
+   548→                                                    <TableCell className="text-xs">
+   549→                                                      <div className="flex items-center gap-1">
+   550→                                                        <Input
+   551→                                                          className="h-7 text-xs border-transparent hover:border-gray-300 focus:border-purple-400 px-1 py-0 min-w-[90px] font-mono"
+   552→                                                          value={member.user.plainPassword || '••••••'}
+   553→                                                          onChange={async (e) => {
+   554→                                                            const newPwd = e.target.value
+   555→                                                            setProjectMembers(prev => prev.map(m => m.id === member.id ? { ...m, user: { ...m.user, plainPassword: newPwd } } : m))
+   556→                                                          }}
+   557→                                                          onBlur={async (e) => {
+   558→                                                            const newPwd = e.target.value
+   559→                                                            if (newPwd && newPwd.length >= 6 && newPwd !== '••••••') {
+   560→                                                              await fetch('/api/users', {
+   561→                                                                method: 'PUT',
+   562→                                                                headers: { 'Content-Type': 'application/json' },
+   563→                                                                body: JSON.stringify({ id: member.user.id, password: newPwd }),
+   564→                                                              })
+   565→                                                            }
+   566→                                                          }}
+   567→                                                        />
+   568→                                                        <button
+   569→                                                          className="text-gray-400 hover:text-purple-600 shrink-0"
+   570→                                                          title="Restablecer contraseña"
+   571→                                                          onClick={async () => {
+   572→                                                            const newPwd = prompt(`Nueva contraseña para ${member.user.name}:`, '123456')
+   573→                                                            if (!newPwd || newPwd.length < 6) {
+   574→                                                              if (newPwd !== null) alert('La contraseña debe tener al menos 6 caracteres')
+   575→                                                              return
+   576→                                                            }
+   577→                                                            await fetch('/api/users', {
+   578→                                                              method: 'PUT',
+   579→                                                              headers: { 'Content-Type': 'application/json' },
+   580→                                                              body: JSON.stringify({ id: member.user.id, password: newPwd }),
+   581→                                                            })
+   582→                                                            setProjectMembers(prev => prev.map(m => m.id === member.id ? { ...m, user: { ...m.user, plainPassword: newPwd } } : m))
+   583→                                                            alert(`Contraseña actualizada a: ${newPwd}`)
+   584→                                                          }}
+   585→                                                        >
+   586→                                                          <Key className="h-3.5 w-3.5" />
+   587→                                                        </button>
+   588→

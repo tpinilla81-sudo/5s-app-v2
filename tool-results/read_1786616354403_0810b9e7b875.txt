@@ -1,0 +1,1225 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState, useEffect } from 'react'
+     4→     4→import { use5SStore } from '@/lib/store'
+     5→     5→import { Button } from '@/components/ui/button'
+     6→     6→import { Input } from '@/components/ui/input'
+     7→     7→import { Label } from '@/components/ui/label'
+     8→     8→import { Textarea } from '@/components/ui/textarea'
+     9→     9→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+    10→    10→import {
+    11→    11→  Select,
+    12→    12→  SelectContent,
+    13→    13→  SelectItem,
+    14→    14→  SelectTrigger,
+    15→    15→  SelectValue,
+    16→    16→} from '@/components/ui/select'
+    17→    17→import { Badge } from '@/components/ui/badge'
+    18→    18→import {
+    19→    19→  Table,
+    20→    20→  TableBody,
+    21→    21→  TableCell,
+    22→    22→  TableHead,
+    23→    23→  TableHeader,
+    24→    24→  TableRow,
+    25→    25→} from '@/components/ui/table'
+    26→    26→import {
+    27→    27→  DropdownMenu,
+    28→    28→  DropdownMenuContent,
+    29→    29→  DropdownMenuItem,
+    30→    30→  DropdownMenuSeparator,
+    31→    31→  DropdownMenuTrigger,
+    32→    32→} from '@/components/ui/dropdown-menu'
+    33→    33→import {
+    34→    34→  Loader2,
+    35→    35→  Plus,
+    36→    36→  Trash2,
+    37→    37→  ChevronRight,
+    38→    38→  ChevronLeft,
+    39→    39→  Check,
+    40→    40→  Building2,
+    41→    41→  MapPin,
+    42→    42→  Users,
+    43→    43→  ClipboardCheck,
+    44→    44→  LogOut,
+    45→    45→  ChevronDown,
+    46→    46→  Bell,
+    47→    47→  BellRing,
+    48→    48→  FileText,
+    49→    49→  CreditCard,
+    50→    50→  User,
+    51→    51→  Mail,
+    52→    52→  Eye,
+    53→    53→  EyeOff,
+    54→    54→  Key,
+    55→    55→  RefreshCw,
+    56→    56→} from 'lucide-react'
+    57→    57→import { Checkbox } from '@/components/ui/checkbox'
+    58→    58→
+    59→    59→const PRESET_COLORS = [
+    60→    60→  '#8B5CF6', '#EAB308', '#3B82F6', '#F43F5E',
+    61→    61→  '#F97316', '#22C55E', '#06B6D4', '#EC4899',
+    62→    62→]
+    63→    63→
+    64→    64→const SECTORS = [
+    65→    65→  'Manufactura', 'Automoción', 'Alimentación', 'Farmacéutica', 'Construcción',
+    66→    66→  'Energía', 'Telecomunicaciones', 'Transporte', 'Logística', 'Sanidad',
+    67→    67→  'Educación', 'Servicios', 'Comercio', 'Hostelería', 'Agricultura',
+    68→    68→  'Minería', 'Químico', 'Textil', 'Otros',
+    69→    69→]
+    70→    70→
+    71→    71→interface ZoneInput {
+    72→    72→  name: string
+    73→    73→  description: string
+    74→    74→  color: string
+    75→    75→}
+    76→    76→
+    77→    77→interface MemberInput {
+    78→    78→  name: string
+    79→    79→  email: string
+    80→    80→  role: string
+    81→    81→  zoneIds: string[]
+    82→    82→  password?: string // Generated password shown after creation
+    83→    83→  emailSent?: boolean // Track if welcome email was sent
+    84→    84→}
+    85→    85→
+    86→    86→interface CompanyData {
+    87→    87→  id: string
+    88→    88→  name: string
+    89→    89→  description?: string | null
+    90→    90→  nif?: string | null
+    91→    91→  sector?: string | null
+    92→    92→  address?: string | null
+    93→    93→  city?: string | null
+    94→    94→  province?: string | null
+    95→    95→  postalCode?: string | null
+    96→    96→  country?: string | null
+    97→    97→  phone?: string | null
+    98→    98→  website?: string | null
+    99→    99→  billingEmail?: string | null
+   100→   100→  billingName?: string | null
+   101→   101→  billingNif?: string | null
+   102→   102→  billingAddress?: string | null
+   103→   103→  billingCity?: string | null
+   104→   104→  billingPostalCode?: string | null
+   105→   105→  iban?: string | null
+   106→   106→  contactName?: string | null
+   107→   107→  contactEmail?: string | null
+   108→   108→  contactPhone?: string | null
+   109→   109→}
+   110→   110→
+   111→   111→export default function ProjectSetup() {
+   112→   112→  const { createProject, currentUser, logout } = use5SStore()
+   113→   113→  const [step, setStep] = useState(1)
+   114→   114→  const [isCreating, setIsCreating] = useState(false)
+   115→   115→  const [myCompany, setMyCompany] = useState<CompanyData | null>(null)
+   116→   116→  const [isLoadingCompany, setIsLoadingCompany] = useState(true)
+   117→   117→  const [unreadNotifs, setUnreadNotifs] = useState(0)
+   118→   118→  const [showNotifs, setShowNotifs] = useState(false)
+   119→   119→  const [notifs, setNotifs] = useState<any[]>([])
+   120→   120→  const [isSavingCompany, setIsSavingCompany] = useState(false)
+   121→   121→
+   122→   122→  // Step 1: Project Info
+   123→   123→  const [projectName, setProjectName] = useState('')
+   124→   124→  const [projectDescription, setProjectDescription] = useState('')
+   125→   125→
+   126→   126→  // Step 2: Company data (pre-filled from gestor, editable by admin)
+   127→   127→  const [companyName, setCompanyName] = useState('')
+   128→   128→  const [companyNif, setCompanyNif] = useState('')
+   129→   129→  const [companySector, setCompanySector] = useState('')
+   130→   130→  const [companyAddress, setCompanyAddress] = useState('')
+   131→   131→  const [companyCity, setCompanyCity] = useState('')
+   132→   132→  const [companyProvince, setCompanyProvince] = useState('')
+   133→   133→  const [companyPostalCode, setCompanyPostalCode] = useState('')
+   134→   134→  const [companyCountry, setCompanyCountry] = useState('España')
+   135→   135→  const [companyPhone, setCompanyPhone] = useState('')
+   136→   136→  const [companyWebsite, setCompanyWebsite] = useState('')
+   137→   137→  // Billing
+   138→   138→  const [billingName, setBillingName] = useState('')
+   139→   139→  const [billingNif, setBillingNif] = useState('')
+   140→   140→  const [billingEmail, setBillingEmail] = useState('')
+   141→   141→  const [billingAddress, setBillingAddress] = useState('')
+   142→   142→  const [billingCity, setBillingCity] = useState('')
+   143→   143→  const [billingPostalCode, setBillingPostalCode] = useState('')
+   144→   144→  const [iban, setIban] = useState('')
+   145→   145→  // Contact
+   146→   146→  const [contactName, setContactName] = useState('')
+   147→   147→  const [contactEmail, setContactEmail] = useState('')
+   148→   148→  const [contactPhone, setContactPhone] = useState('')
+   149→   149→
+   150→   150→  // Step 3: Zones
+   151→   151→  const [zones, setZones] = useState<ZoneInput[]>([
+   152→   152→    { name: '', description: '', color: PRESET_COLORS[0] },
+   153→   153→  ])
+   154→   154→
+   155→   155→  // Step 4: Team Members
+   156→   156→  const [members, setMembers] = useState<MemberInput[]>([])
+   157→   157→  const [newMember, setNewMember] = useState<MemberInput>({
+   158→   158→    name: '',
+   159→   159→    email: '',
+   160→   160→    role: 'empleado',
+   161→   161→    zoneIds: [], // Will be populated when zones are defined
+   162→   162→    password: '',
+   163→   163→  })
+   164→   164→  const [showMemberPassword, setShowMemberPassword] = useState(false)
+   165→   165→
+   166→   166→  // Generate a readable random password (8 chars: letters + digits, no ambiguous 0/O/1/l)
+   167→   167→  const generatePassword = () => {
+   168→   168→    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+   169→   169→    let pwd = ''
+   170→   170→    for (let i = 0; i < 8; i++) {
+   171→   171→      pwd += chars.charAt(Math.floor(Math.random() * chars.length))
+   172→   172→    }
+   173→   173→    setNewMember(prev => ({ ...prev, password: pwd }))
+   174→   174→    setShowMemberPassword(true)
+   175→   175→  }
+   176→   176→
+   177→   177→  // Auto-select all zones when zones change (better to remove than to add)
+   178→   178→  useEffect(() => {
+   179→   179→    const allZoneIds = zones.map((_, i) => `zone-${i}`)
+   180→   180→    setNewMember(prev => ({ ...prev, zoneIds: allZoneIds }))
+   181→   181→  }, [zones.length])
+   182→   182→
+   183→   183→  // Fetch the admin's company data on mount
+   184→   184→  useEffect(() => {
+   185→   185→    const fetchMyCompany = async () => {
+   186→   186→      setIsLoadingCompany(true)
+   187→   187→      try {
+   188→   188→        const res = await fetch('/api/my-company')
+   189→   189→        const data = await res.json()
+   190→   190→        if (data.success && data.company) {
+   191→   191→          const c = data.company
+   192→   192→          setMyCompany(c)
+   193→   193→          // Pre-fill ALL company data
+   194→   194→          setCompanyName(c.name || '')
+   195→   195→          setCompanyNif(c.nif || '')
+   196→   196→          setCompanySector(c.sector || '')
+   197→   197→          setCompanyAddress(c.address || '')
+   198→   198→          setCompanyCity(c.city || '')
+   199→   199→          setCompanyProvince(c.province || '')
+   200→   200→          setCompanyPostalCode(c.postalCode || '')
+   201→   201→          setCompanyCountry(c.country || 'España')
+   202→   202→          setCompanyPhone(c.phone || '')
+   203→   203→          setCompanyWebsite(c.website || '')
+   204→   204→          // Billing
+   205→   205→          setBillingName(c.billingName || '')
+   206→   206→          setBillingNif(c.billingNif || '')
+   207→   207→          setBillingEmail(c.billingEmail || '')
+   208→   208→          setBillingAddress(c.billingAddress || '')
+   209→   209→          setBillingCity(c.billingCity || '')
+   210→   210→          setBillingPostalCode(c.billingPostalCode || '')
+   211→   211→          setIban(c.iban || '')
+   212→   212→          // Contact
+   213→   213→          setContactName(c.contactName || '')
+   214→   214→          setContactEmail(c.contactEmail || '')
+   215→   215→          setContactPhone(c.contactPhone || '')
+   216→   216→        }
+   217→   217→      } catch (err) {
+   218→   218→        console.error('Error fetching my company:', err)
+   219→   219→      } finally {
+   220→   220→        setIsLoadingCompany(false)
+   221→   221→      }
+   222→   222→    }
+   223→   223→    fetchMyCompany()
+   224→   224→  }, [])
+   225→   225→
+   226→   226→  // Fetch notifications
+   227→   227→  useEffect(() => {
+   228→   228→    if (currentUser?.id) {
+   229→   229→      const fetchNotifs = async () => {
+   230→   230→        try {
+   231→   231→          const res = await fetch(`/api/notifications?userId=${currentUser.id}&unread=true`)
+   232→   232→          const data = await res.json()
+   233→   233→          if (data.success) {
+   234→   234→            setUnreadNotifs(data.data?.length || 0)
+   235→   235→          }
+   236→   236→        } catch (e) { console.error('Error fetching notifications:', e) }
+   237→   237→      }
+   238→   238→      fetchNotifs()
+   239→   239→      const interval = setInterval(fetchNotifs, 30000)
+   240→   240→      return () => clearInterval(interval)
+   241→   241→    }
+   242→   242→  }, [currentUser?.id])
+   243→   243→
+   244→   244→  // Save company data to DB
+   245→   245→  const saveCompanyData = async () => {
+   246→   246→    setIsSavingCompany(true)
+   247→   247→    try {
+   248→   248→      await fetch('/api/my-company', {
+   249→   249→        method: 'PUT',
+   250→   250→        headers: { 'Content-Type': 'application/json' },
+   251→   251→        body: JSON.stringify({
+   252→   252→          nif: companyNif,
+   253→   253→          sector: companySector,
+   254→   254→          address: companyAddress,
+   255→   255→          city: companyCity,
+   256→   256→          province: companyProvince,
+   257→   257→          postalCode: companyPostalCode,
+   258→   258→          country: companyCountry,
+   259→   259→          phone: companyPhone,
+   260→   260→          website: companyWebsite,
+   261→   261→          billingName,
+   262→   262→          billingNif,
+   263→   263→          billingEmail,
+   264→   264→          billingAddress,
+   265→   265→          billingCity,
+   266→   266→          billingPostalCode,
+   267→   267→          iban,
+   268→   268→          contactName,
+   269→   269→          contactEmail,
+   270→   270→          contactPhone,
+   271→   271→        }),
+   272→   272→      })
+   273→   273→    } catch (err) {
+   274→   274→      console.error('Error saving company data:', err)
+   275→   275→    } finally {
+   276→   276→      setIsSavingCompany(false)
+   277→   277→    }
+   278→   278→  }
+   279→   279→
+   280→   280→  const handleLogout = async () => {
+   281→   281→    await logout()
+   282→   282→  }
+   283→   283→
+   284→   284→  const canGoNext = () => {
+   285→   285→    switch (step) {
+   286→   286→      case 1:
+   287→   287→        return projectName.trim() !== ''
+   288→   288→      case 2:
+   289→   289→        return true // Company name is pre-filled by gestor; all other fields optional
+   290→   290→      case 3:
+   291→   291→        return zones.length > 0 && zones.every((z) => z.name.trim() !== '')
+   292→   292→      case 4:
+   293→   293→        return true
+   294→   294→      case 5:
+   295→   295→        return true
+   296→   296→      default:
+   297→   297→        return false
+   298→   298→    }
+   299→   299→  }
+   300→   300→
+   301→   301→  // ─── Postal code autocomplete (Spain) ─────────────────────────────
+   302→   302→  const [cpLoading, setCpLoading] = useState(false)
+   303→   303→  const handlePostalCodeChange = async (cp: string) => {
+   304→   304→    setCompanyPostalCode(cp)
+   305→   305→    // Only search when 5 digits (Spanish CP format)
+   306→   306→    if (cp.length === 5 && /^\d{5}$/.test(cp)) {
+   307→   307→      setCpLoading(true)
+   308→   308→      try {
+   309→   309→        const res = await fetch(`https://zip-api.eu/api/v1/info/ES-${cp}`)
+   310→   310→        if (res.ok) {
+   311→   311→          const data = await res.json()
+   312→   312→          if (data.place) setCompanyCity(data.place)
+   313→   313→          if (data.admin_name) setCompanyProvince(data.admin_name)
+   314→   314→        }
+   315→   315→      } catch {
+   316→   316→        // Silently ignore — API may be unavailable
+   317→   317→      } finally {
+   318→   318→        setCpLoading(false)
+   319→   319→      }
+   320→   320→    }
+   321→   321→  }
+   322→   322→
+   323→   323→  const [billingCpLoading, setBillingCpLoading] = useState(false)
+   324→   324→  const handleBillingPostalCodeChange = async (cp: string) => {
+   325→   325→    setBillingPostalCode(cp)
+   326→   326→    if (cp.length === 5 && /^\d{5}$/.test(cp)) {
+   327→   327→      setBillingCpLoading(true)
+   328→   328→      try {
+   329→   329→        const res = await fetch(`https://zip-api.eu/api/v1/info/ES-${cp}`)
+   330→   330→        if (res.ok) {
+   331→   331→          const data = await res.json()
+   332→   332→          if (data.place) setBillingCity(data.place)
+   333→   333→        }
+   334→   334→      } catch {
+   335→   335→        // Silently ignore
+   336→   336→      } finally {
+   337→   337→        setBillingCpLoading(false)
+   338→   338→      }
+   339→   339→    }
+   340→   340→  }
+   341→   341→
+   342→   342→  const handleNext = async () => {
+   343→   343→    // When moving from Step 2 (Company), save company data (non-blocking)
+   344→   344→    if (step === 2) {
+   345→   345→      saveCompanyData() // Fire and forget — don't block navigation
+   346→   346→    }
+   347→   347→    setStep(step + 1)
+   348→   348→  }
+   349→   349→
+   350→   350→  const handleAddZone = () => {
+   351→   351→    const nextColor = PRESET_COLORS[zones.length % PRESET_COLORS.length]
+   352→   352→    setZones([...zones, { name: '', description: '', color: nextColor }])
+   353→   353→  }
+   354→   354→
+   355→   355→  const handleRemoveZone = (index: number) => {
+   356→   356→    if (zones.length > 1) {
+   357→   357→      setZones(zones.filter((_, i) => i !== index))
+   358→   358→    }
+   359→   359→  }
+   360→   360→
+   361→   361→  const handleZoneChange = (index: number, field: keyof ZoneInput, value: string) => {
+   362→   362→    const updated = [...zones]
+   363→   363→    updated[index] = { ...updated[index], [field]: value }
+   364→   364→    setZones(updated)
+   365→   365→  }
+   366→   366→
+   367→   367→  const handleAddMember = () => {
+   368→   368→    if (newMember.name.trim() && newMember.email.trim()) {
+   369→   369→      // Validate password if provided (min 6 chars). If empty, backend will use default '123456'.
+   370→   370→      if (newMember.password && newMember.password.length < 6) {
+   371→   371→        alert('La contraseña debe tener al menos 6 caracteres.')
+   372→   372→        return
+   373→   373→      }
+   374→   374→      setMembers([...members, { ...newMember }])
+   375→   375→      // Auto-select ALL zones for the next member (better to remove than to add)
+   376→   376→      const allZoneIds = zones.map((_, i) => `zone-${i}`)
+   377→   377→      setNewMember({ name: '', email: '', role: 'empleado', zoneIds: allZoneIds, password: '' })
+   378→   378→      setShowMemberPassword(false)
+   379→   379→    }
+   380→   380→  }
+   381→   381→
+   382→   382→  const handleRemoveMember = (index: number) => {
+   383→   383→    setMembers(members.filter((_, i) => i !== index))
+   384→   384→  }
+   385→   385→
+   386→   386→  const handleCreate = async () => {
+   387→   387→    setIsCreating(true)
+   388→   388→    try {
+   389→   389→      await createProject({
+   390→   390→        name: projectName,
+   391→   391→        description: projectDescription || undefined,
+   392→   392→        company: companyName,
+   393→   393→        companyId: myCompany?.id || undefined,
+   394→   394→        zones: zones.map((z) => ({
+   395→   395→          name: z.name,
+   396→   396→          description: z.description || undefined,
+   397→   397→          color: z.color,
+   398→   398→        })),
+   399→   399→      })
+   400→   400→
+   401→   401→      // Add additional members (admin is auto-added in createProject)
+   402→   402→      const { currentProject } = use5SStore.getState()
+   403→   403→      if (currentProject) {
+   404→   404→        const updatedMembers = [...members]
+   405→   405→        for (let i = 0; i < members.length; i++) {
+   406→   406→          const member = members[i]
+   407→   407→          const realZoneIds: string[] = []
+   408→   408→          for (const zId of member.zoneIds) {
+   409→   409→            if (zId && zId.startsWith('zone-')) {
+   410→   410→              const zoneIndex = parseInt(zId.replace('zone-', ''), 10)
+   411→   411→              const realZoneId = currentProject.zones[zoneIndex]?.id
+   412→   412→              if (realZoneId) realZoneIds.push(realZoneId)
+   413→   413→            }
+   414→   414→          }
+   415→   415→
+   416→   416→          const res = await fetch(`/api/projects/${currentProject.id}/members`, {
+   417→   417→            method: 'POST',
+   418→   418→            headers: { 'Content-Type': 'application/json' },
+   419→   419→            body: JSON.stringify({
+   420→   420→              email: member.email,
+   421→   421→              name: member.name,
+   422→   422→              role: member.role,
+   423→   423→              zoneIds: realZoneIds.length > 0 ? realZoneIds : undefined,
+   424→   424→              password: member.password || undefined,
+   425→   425→            }),
+   426→   426→          })
+   427→   427→          const data = await res.json()
+   428→   428→          if (data.member?.generatedPassword) {
+   429→   429→            updatedMembers[i] = { ...updatedMembers[i], password: data.member.generatedPassword }
+   430→   430→          }
+   431→   431→        }
+   432→   432→        setMembers(updatedMembers)
+   433→   433→      }
+   434→   434→    } catch (error) {
+   435→   435→      console.error('Error creating project:', error)
+   436→   436→    } finally {
+   437→   437→      setIsCreating(false)
+   438→   438→    }
+   439→   439→  }
+   440→   440→
+   441→   441→  // Send welcome email to a member
+   442→   442→  const [sendingEmailTo, setSendingEmailTo] = useState<string | null>(null)
+   443→   443→  const handleSendWelcomeEmail = async (member: MemberInput) => {
+   444→   444→    setSendingEmailTo(member.email)
+   445→   445→    try {
+   446→   446→      const res = await fetch('/api/email', {
+   447→   447→        method: 'POST',
+   448→   448→        headers: { 'Content-Type': 'application/json' },
+   449→   449→        body: JSON.stringify({
+   450→   450→          type: 'admin_welcome',
+   451→   451→          adminName: member.name,
+   452→   452→          adminEmail: member.email,
+   453→   453→          adminPassword: member.password || '',
+   454→   454→          companyName: companyName,
+   455→   455→          gestorEmail: currentUser?.email || undefined,
+   456→   456→        }),
+   457→   457→      })
+   458→   458→      const data = await res.json()
+   459→   459→      if (data.success) {
+   460→   460→        setMembers(members.map(m => m.email === member.email ? { ...m, emailSent: true } : m))
+   461→   461→        if (data.testingMode) {
+   462→   462→          alert(`Email enviado en modo prueba.\nEn producción iría a: ${member.email}\nContenido: contraseña = ${member.password || '123456'}`)
+   463→   463→        }
+   464→   464→      } else {
+   465→   465→        alert('Error al enviar email: ' + (data.error || 'Desconocido'))
+   466→   466→      }
+   467→   467→    } catch (err) {
+   468→   468→      console.error('Error sending welcome email:', err)
+   469→   469→    } finally {
+   470→   470→      setSendingEmailTo(null)
+   471→   471→    }
+   472→   472→  }
+   473→   473→
+   474→   474→  const getRoleLabel = (role: string) => {
+   475→   475→    const map: Record<string, string> = {
+   476→   476→      admin: 'Administrador',
+   477→   477→      gerente: 'Gerente',
+   478→   478→      responsable: 'Responsable',
+   479→   479→      empleado: 'Empleado',
+   480→   480→      auditor: 'Auditor',
+   481→   481→    }
+   482→   482→    return map[role] || role
+   483→   483→  }
+   484→   484→
+   485→   485→  const getRoleBadgeColor = (role: string) => {
+   486→   486→    const map: Record<string, string> = {
+   487→   487→      admin: 'bg-purple-100 text-purple-700 border-purple-200',
+   488→   488→      gerente: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+   489→   489→      responsable: 'bg-blue-100 text-blue-700 border-blue-200',
+   490→   490→      empleado: 'bg-green-100 text-green-700 border-green-200',
+   491→   491→      auditor: 'bg-orange-100 text-orange-700 border-orange-200',
+   492→   492→    }
+   493→   493→    return map[role] || 'bg-gray-100 text-gray-700 border-gray-200'
+   494→   494→  }
+   495→   495→
+   496→   496→  // 5 steps: Proyecto → Empresa → Zonas → Equipo → Confirmar
+   497→   497→  const stepIcons = [Building2, CreditCard, MapPin, Users, ClipboardCheck]
+   498→   498→  const stepLabels = ['Proyecto', 'Empresa', 'Zonas', 'Equipo', 'Confirmar']
+   499→   499→  const totalSteps = 5
+   500→   500→
+   501→   501→  return (
+   502→   502→    <div className="min-h-screen flex flex-col bg-gradient-to-br from-green-50 via-white to-emerald-50">
+   503→   503→      {/* ── Top Navigation Bar ── */}
+   504→   504→      <header className="border-b bg-white/90 backdrop-blur-sm sticky top-0 z-20">
+   505→   505→        <div className="px-4 py-2 flex items-center justify-between">
+   506→   506→          <div className="flex items-center gap-2">
+   507→   507→            <div className="w-8 h-8">
+   508→   508→              <img src="/5s-logo.png" alt="5S" className="w-full h-full object-contain" />
+   509→   509→            </div>
+   510→   510→            <div>
+   511→   511→              <h1 className="text-sm font-black text-gray-900 leading-tight tracking-wide">5S</h1>
+   512→   512→              <span className="text-[10px] font-semibold text-green-600">Configurar Proyecto</span>
+   513→   513→            </div>
+   514→   514→          </div>
+   515→   515→
+   516→   516→          <div className="flex items-center gap-1.5">
+   517→   517→            {/* Notifications */}
+   518→   518→            <Button variant={unreadNotifs > 0 ? 'default' : 'outline'} size="sm"
+   519→   519→              className={`relative gap-1 text-[10px] h-7 ${unreadNotifs > 0 ? 'bg-orange-500 hover:bg-orange-600 text-white border-orange-500' : 'border-orange-300 text-orange-600 hover:bg-orange-50'}`}
+   520→   520→              onClick={async () => {
+   521→   521→                if (currentUser?.id) {
+   522→   522→                  try {
+   523→   523→                    const res = await fetch(`/api/notifications?userId=${currentUser.id}&unread=true`)
+   524→   524→                    const data = await res.json()
+   525→   525→                    if (data.success) setNotifs(data.data || [])
+   526→   526→                  } catch (e) { console.error(e) }
+   527→   527→                }
+   528→   528→                setShowNotifs(!showNotifs)
+   529→   529→              }}>
+   530→   530→              {unreadNotifs > 0 ? <BellRing className="h-3.5 w-3.5" /> : <Bell className="h-3 w-3" />}
+   531→   531→              <span className="hidden sm:inline">{unreadNotifs > 0 ? `${unreadNotifs} avisos` : 'Avisos'}</span>
+   532→   532→              {unreadNotifs > 0 && (
+   533→   533→                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center animate-pulse">{unreadNotifs > 9 ? '9+' : unreadNotifs}</span>
+   534→   534→              )}
+   535→   535→            </Button>
+   536→   536→            {/* Manual */}
+   537→   537→            <Button variant="ghost" size="sm" onClick={async () => {
+   538→   538→              try {
+   539→   539→                const res = await fetch('/api/manual')
+   540→   540→                if (!res.ok) throw new Error('Download failed')
+   541→   541→                const blob = await res.blob()
+   542→   542→                const url = window.URL.createObjectURL(blob)
+   543→   543→                const link = document.createElement('a')
+   544→   544→                link.href = url; link.download = 'Manual_Usuario_5S.pdf'
+   545→   545→                document.body.appendChild(link); link.click()
+   546→   546→                document.body.removeChild(link)
+   547→   547→                window.URL.revokeObjectURL(url)
+   548→   548→              } catch { window.open('/Manual_Usuario_5S.pdf', '_blank') }
+   549→   549→            }} className="text-purple-600 hover:text-purple-700 h-7 px-1.5">
+   550→   550→              <FileText className="h-3.5 w-3.5" />
+   551→   551→              <span className="text-[10px] hidden sm:inline">Manual</span>
+   552→   552→            </Button>
+   553→   553→            {/* User menu */}
+   554→   554→            {currentUser && (
+   555→   555→              <DropdownMenu>
+   556→   556→                <DropdownMenuTrigger asChild>
+   557→   557→                  <Button variant="outline" size="sm" className="gap-1 h-7 px-2">
+   558→   558→                    <div className="w-5 h-5 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 text-[9px] font-bold">
+   559→   559→                      {currentUser.name.charAt(0).toUpperCase()}
+   560→   560→                    </div>
+   561→   561→                    <span className="text-[10px] font-medium max-w-[60px] truncate hidden sm:inline">{currentUser.name}</span>
+   562→   562→                    <ChevronDown className="h-2.5 w-2.5 text-muted-foreground" />
+   563→   563→                  </Button>
+   564→   564→                </DropdownMenuTrigger>
+   565→   565→                <DropdownMenuContent align="end" className="w-48">
+   566→   566→                  <div className="px-2 py-1.5">
+   567→   567→                    <p className="text-xs font-medium">{currentUser.name}</p>
+   568→   568→                    <p className="text-[10px] text-muted-foreground">{currentUser.email}</p>
+   569→   569→                    <Badge className={`${getRoleBadgeColor('admin')} border mt-1 text-[10px]`}>
+   570→   570→                      Administrador
+   571→   571→                    </Badge>
+   572→   572→                    {myCompany && (
+   573→   573→                      <p className="text-[10px] text-muted-foreground mt-1">{myCompany.name}</p>
+   574→   574→                    )}
+   575→   575→                  </div>
+   576→   576→                  <DropdownMenuSeparator />
+   577→   577→                  <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer text-xs">
+   578→   578→                    <LogOut className="h-3 w-3 mr-1" /> Cerrar Sesión
+   579→   579→                  </DropdownMenuItem>
+   580→   580→                </DropdownMenuContent>
+   581→   581→              </DropdownMenu>
+   582→   582→            )}
+   583→   583→          </div>
+   584→   584→        </div>
+   585→   585→      </header>
+   586→   586→
+   587→   587→      {/* Notification dropdown */}
+   588→   588→      {showNotifs && (
+   589→   589→        <div className="fixed top-12 right-16 z-50 w-80 bg-white border rounded-lg shadow-xl max-h-96 overflow-y-auto">
+   590→   590→          <div className="p-3 border-b flex items-center justify-between">
+   591→   591→            <span className="text-sm font-semibold">Notificaciones</span>
+   592→   592→            {notifs.length > 0 && (
+   593→   593→              <button className="text-[10px] text-blue-600 hover:underline" onClick={async () => {
+   594→   594→                if (currentUser?.id) {
+   595→   595→                  await fetch('/api/notifications', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ markAllRead: true, userId: currentUser.id }) })
+   596→   596→                  setUnreadNotifs(0)
+   597→   597→                  setNotifs(notifs.map(n => ({ ...n, read: true })))
+   598→   598→                }
+   599→   599→              }}>Marcar todo como leído</button>
+   600→   600→            )}
+   601→   601→          </div>
+   602→   602→          {notifs.length === 0 ? (
+   603→   603→            <div className="p-4 text-center text-sm text-muted-foreground">No hay notificaciones</div>
+   604→   604→          ) : (
+   605→   605→            <div className="divide-y">
+   606→   606→              {notifs.map((n: any) => (
+   607→   607→                <div key={n.id} className={`p-3 text-xs ${!n.read ? 'bg-blue-50' : ''}`}>
+   608→   608→                  <p className="font-medium">{n.title || n.type}</p>
+   609→   609→                  <p className="text-muted-foreground mt-0.5">{n.message}</p>
+   610→   610→                </div>
+   611→   611→              ))}
+   612→   612→            </div>
+   613→   613→          )}
+   614→   614→        </div>
+   615→   615→      )}
+   616→   616→
+   617→   617→      {/* Step Indicator */}
+   618→   618→      <div className="max-w-3xl mx-auto w-full px-4 pt-6">
+   619→   619→        <div className="flex items-center justify-between mb-8">
+   620→   620→          {stepLabels.map((label, i) => {
+   621→   621→            const Icon = stepIcons[i]
+   622→   622→            const stepNum = i + 1
+   623→   623→            const isActive = step === stepNum
+   624→   624→            const isCompleted = step > stepNum
+   625→   625→            return (
+   626→   626→              <div key={i} className="flex flex-col items-center flex-1">
+   627→   627→                <div className="flex items-center w-full">
+   628→   628→                  <div
+   629→   629→                    className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
+   630→   630→                      isCompleted
+   631→   631→                        ? 'bg-green-500 text-white shadow-md shadow-green-200'
+   632→   632→                        : isActive
+   633→   633→                        ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-md shadow-green-200'
+   634→   634→                        : 'bg-gray-100 text-gray-400'
+   635→   635→                    }`}
+   636→   636→                  >
+   637→   637→                    {isCompleted ? <Check className="h-5 w-5" /> : <Icon className="h-4 w-4" />}
+   638→   638→                  </div>
+   639→   639→                  {i < totalSteps - 1 && (
+   640→   640→                    <div
+   641→   641→                      className={`flex-1 h-0.5 mx-2 transition-all duration-300 ${
+   642→   642→                        isCompleted ? 'bg-green-500' : 'bg-gray-200'
+   643→   643→                      }`}
+   644→   644→                    />
+   645→   645→                  )}
+   646→   646→                </div>
+   647→   647→                <span
+   648→   648→                  className={`text-xs mt-2 font-medium ${
+   649→   649→                    isActive ? 'text-green-600' : isCompleted ? 'text-green-500' : 'text-gray-400'
+   650→   650→                  }`}
+   651→   651→                >
+   652→   652→                  {label}
+   653→   653→                </span>
+   654→   654→              </div>
+   655→   655→            )
+   656→   656→          })}
+   657→   657→        </div>
+   658→   658→      </div>
+   659→   659→
+   660→   660→      {/* Main content */}
+   661→   661→      <main className="flex-1 max-w-3xl mx-auto w-full px-4 pb-8">
+   662→   662→
+   663→   663→          {/* ── Step 1: Project Info ── */}
+   664→   664→          {step === 1 && (
+   665→   665→            <Card className="border-0 shadow-lg shadow-green-100/50">
+   666→   666→              <CardHeader>
+   667→   667→                <CardTitle className="flex items-center gap-2">
+   668→   668→                  <Building2 className="h-5 w-5 text-green-500" />
+   669→   669→                  Información del Proyecto
+   670→   670→                </CardTitle>
+   671→   671→                <CardDescription>
+   672→   672→                  Ingresa los datos básicos de tu proyecto 5S
+   673→   673→                </CardDescription>
+   674→   674→              </CardHeader>
+   675→   675→              <CardContent className="space-y-4">
+   676→   676→                {/* Company info banner */}
+   677→   677→                {isLoadingCompany ? (
+   678→   678→                  <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200">
+   679→   679→                    <Loader2 className="h-4 w-4 text-green-500 animate-spin" />
+   680→   680→                    <span className="text-sm text-green-700">Cargando datos de tu empresa...</span>
+   681→   681→                  </div>
+   682→   682→                ) : myCompany ? (
+   683→   683→                  <div className="p-3 rounded-lg bg-green-50 border border-green-200">
+   684→   684→                    <div className="flex items-center gap-2 mb-1">
+   685→   685→                      <Building2 className="h-4 w-4 text-green-600" />
+   686→   686→                      <span className="text-sm font-semibold text-green-800">Tu empresa: {myCompany.name}</span>
+   687→   687→                    </div>
+   688→   688→                    {myCompany.nif && <p className="text-xs text-green-600 ml-6">NIF: {myCompany.nif}</p>}
+   689→   689→                    {myCompany.sector && <p className="text-xs text-green-600 ml-6">Sector: {myCompany.sector}</p>}
+   690→   690→                  </div>
+   691→   691→                ) : null}
+   692→   692→
+   693→   693→                <div className="space-y-2">
+   694→   694→                  <Label htmlFor="project-name">Nombre del Proyecto *</Label>
+   695→   695→                  <Input
+   696→   696→                    id="project-name"
+   697→   697→                    placeholder="Ej: Implementación 5S - Planta Principal"
+   698→   698→                    value={projectName}
+   699→   699→                    onChange={(e) => setProjectName(e.target.value)}
+   700→   700→                  />
+   701→   701→                  <p className="text-xs text-muted-foreground">El nombre identifica este proyecto dentro de tu empresa</p>
+   702→   702→                </div>
+   703→   703→                <div className="space-y-2">
+   704→   704→                  <Label htmlFor="project-desc">Descripción (opcional)</Label>
+   705→   705→                  <Textarea
+   706→   706→                    id="project-desc"
+   707→   707→                    placeholder="Describe brevemente el objetivo del proyecto..."
+   708→   708→                    value={projectDescription}
+   709→   709→                    onChange={(e) => setProjectDescription(e.target.value)}
+   710→   710→                    rows={3}
+   711→   711→                  />
+   712→   712→                </div>
+   713→   713→              </CardContent>
+   714→   714→            </Card>
+   715→   715→          )}
+   716→   716→
+   717→   717→          {/* ── Step 2: Company Data ── */}
+   718→   718→          {step === 2 && (
+   719→   719→            <div className="space-y-4">
+   720→   720→              <Card className="border-0 shadow-lg shadow-green-100/50">
+   721→   721→                <CardHeader>
+   722→   722→                  <CardTitle className="flex items-center gap-2">
+   723→   723→                    <Building2 className="h-5 w-5 text-green-500" />
+   724→   724→                    Datos de la Empresa
+   725→   725→                  </CardTitle>
+   726→   726→                  <CardDescription>
+   727→   727→                    Todos los campos son opcionales. Puedes completarlos más tarde. El nombre ya viene rellenado por el gestor.
+   728→   728→                  </CardDescription>
+   729→   729→                </CardHeader>
+   730→   730→                <CardContent className="space-y-4">
+   731→   731→                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   732→   732→                    <div className="space-y-1 sm:col-span-2">
+   733→   733→                      <Label className="text-xs">Nombre de la Empresa</Label>
+   734→   734→                      <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} readOnly={!!myCompany} className={myCompany ? 'bg-gray-50 cursor-not-allowed' : ''} />
+   735→   735→                      {myCompany && <p className="text-[10px] text-muted-foreground">Asignada por el gestor</p>}
+   736→   736→                    </div>
+   737→   737→                    <div className="space-y-1">
+   738→   738→                      <Label className="text-xs">NIF / CIF</Label>
+   739→   739→                      <Input placeholder="Ej: B12345678" value={companyNif} onChange={(e) => setCompanyNif(e.target.value)} />
+   740→   740→                    </div>
+   741→   741→                    <div className="space-y-1">
+   742→   742→                      <Label className="text-xs">Sector</Label>
+   743→   743→                      <Select value={companySector} onValueChange={setCompanySector}>
+   744→   744→                        <SelectTrigger><SelectValue placeholder="Selecciona sector" /></SelectTrigger>
+   745→   745→                        <SelectContent>
+   746→   746→                          {SECTORS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+   747→   747→                        </SelectContent>
+   748→   748→                      </Select>
+   749→   749→                    </div>
+   750→   750→                    <div className="space-y-1 sm:col-span-2">
+   751→   751→                      <Label className="text-xs">Dirección</Label>
+   752→   752→                      <Input placeholder="Calle, número, piso..." value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} />
+   753→   753→                    </div>
+   754→   754→                    <div className="space-y-1">
+   755→   755→                      <Label className="text-xs">Código Postal</Label>
+   756→   756→                      <div className="relative">
+   757→   757→                        <Input placeholder="Ej: 28001" value={companyPostalCode} onChange={(e) => handlePostalCodeChange(e.target.value)} maxLength={5} />
+   758→   758→                        {cpLoading && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500 animate-spin" />}
+   759→   759→                      </div>
+   760→   760→                      <p className="text-[10px] text-muted-foreground">Al escribir 5 dígitos se autocompletará ciudad y provincia</p>
+   761→   761→                    </div>
+   762→   762→                    <div className="space-y-1">
+   763→   763→                      <Label className="text-xs">Ciudad</Label>
+   764→   764→                      <Input placeholder="Ej: Madrid" value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} />
+   765→   765→                    </div>
+   766→   766→                    <div className="space-y-1">
+   767→   767→                      <Label className="text-xs">Provincia</Label>
+   768→   768→                      <Input placeholder="Ej: Madrid" value={companyProvince} onChange={(e) => setCompanyProvince(e.target.value)} />
+   769→   769→                    </div>
+   770→   770→                    <div className="space-y-1">
+   771→   771→                      <Label className="text-xs">País</Label>
+   772→   772→                      <Input value={companyCountry} onChange={(e) => setCompanyCountry(e.target.value)} />
+   773→   773→                    </div>
+   774→   774→                    <div className="space-y-1">
+   775→   775→                      <Label className="text-xs">Teléfono</Label>
+   776→   776→                      <Input placeholder="Ej: +34 91 123 4567" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} />
+   777→   777→                    </div>
+   778→   778→                    <div className="space-y-1">
+   779→   779→                      <Label className="text-xs">Sitio Web</Label>
+   780→   780→                      <Input placeholder="Ej: www.empresa.com" value={companyWebsite} onChange={(e) => setCompanyWebsite(e.target.value)} />
+   781→   781→                    </div>
+   782→   782→                  </div>
+   783→   783→                </CardContent>
+   784→   784→              </Card>
+   785→   785→
+   786→   786→              <Card className="border-0 shadow-lg shadow-blue-100/50">
+   787→   787→                <CardHeader>
+   788→   788→                  <CardTitle className="flex items-center gap-2">
+   789→   789→                    <CreditCard className="h-5 w-5 text-blue-500" />
+   790→   790→                    Datos de Facturación
+   791→   791→                  </CardTitle>
+   792→   792→                  <CardDescription>
+   793→   793→                    Opcional — Puedes completarlos más tarde desde la configuración
+   794→   794→                  </CardDescription>
+   795→   795→                </CardHeader>
+   796→   796→                <CardContent className="space-y-4">
+   797→   797→                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   798→   798→                    <div className="space-y-1">
+   799→   799→                      <Label className="text-xs">Razón Social (Facturación)</Label>
+   800→   800→                      <Input placeholder="Nombre legal de la empresa" value={billingName} onChange={(e) => setBillingName(e.target.value)} />
+   801→   801→                    </div>
+   802→   802→                    <div className="space-y-1">
+   803→   803→                      <Label className="text-xs">NIF de Facturación</Label>
+   804→   804→                      <Input placeholder="NIF para facturación" value={billingNif} onChange={(e) => setBillingNif(e.target.value)} />
+   805→   805→                    </div>
+   806→   806→                    <div className="space-y-1">
+   807→   807→                      <Label className="text-xs">Email de Facturación</Label>
+   808→   808→                      <Input type="email" placeholder="facturacion@empresa.com" value={billingEmail} onChange={(e) => setBillingEmail(e.target.value)} />
+   809→   809→                    </div>
+   810→   810→                    <div className="space-y-1">
+   811→   811→                      <Label className="text-xs">IBAN (Domiciliación)</Label>
+   812→   812→                      <Input placeholder="ES12 3456 7890 1234 5678 9012" value={iban} onChange={(e) => setIban(e.target.value)} />
+   813→   813→                    </div>
+   814→   814→                    <div className="space-y-1 sm:col-span-2">
+   815→   815→                      <Label className="text-xs">Dirección de Facturación</Label>
+   816→   816→                      <Input placeholder="Dirección de facturación" value={billingAddress} onChange={(e) => setBillingAddress(e.target.value)} />
+   817→   817→                    </div>
+   818→   818→                    <div className="space-y-1">
+   819→   819→                      <Label className="text-xs">Ciudad (Facturación)</Label>
+   820→   820→                      <Input placeholder="Ciudad" value={billingCity} onChange={(e) => setBillingCity(e.target.value)} />
+   821→   821→                    </div>
+   822→   822→                    <div className="space-y-1">
+   823→   823→                      <Label className="text-xs">Código Postal (Facturación)</Label>
+   824→   824→                      <div className="relative">
+   825→   825→                        <Input placeholder="CP" value={billingPostalCode} onChange={(e) => handleBillingPostalCodeChange(e.target.value)} maxLength={5} />
+   826→   826→                        {billingCpLoading && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-500 animate-spin" />}
+   827→   827→                      </div>
+   828→   828→                    </div>
+   829→   829→                  </div>
+   830→   830→                </CardContent>
+   831→   831→              </Card>
+   832→   832→
+   833→   833→              <Card className="border-0 shadow-lg shadow-purple-100/50">
+   834→   834→                <CardHeader>
+   835→   835→                  <CardTitle className="flex items-center gap-2">
+   836→   836→                    <User className="h-5 w-5 text-purple-500" />
+   837→   837→                    Persona de Contacto
+   838→   838→                  </CardTitle>
+   839→   839→                  <CardDescription>
+   840→   840→                    Opcional — Puedes completarlos más tarde
+   841→   841→                  </CardDescription>
+   842→   842→                </CardHeader>
+   843→   843→                <CardContent>
+   844→   844→                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+   845→   845→                    <div className="space-y-1">
+   846→   846→                      <Label className="text-xs">Nombre</Label>
+   847→   847→                      <Input placeholder="Nombre completo" value={contactName} onChange={(e) => setContactName(e.target.value)} />
+   848→   848→                    </div>
+   849→   849→                    <div className="space-y-1">
+   850→   850→                      <Label className="text-xs">Email</Label>
+   851→   851→                      <Input type="email" placeholder="contacto@empresa.com" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
+   852→   852→                    </div>
+   853→   853→                    <div className="space-y-1">
+   854→   854→                      <Label className="text-xs">Teléfono</Label>
+   855→   855→                      <Input placeholder="+34 600 123 456" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
+   856→   856→                    </div>
+   857→   857→                  </div>
+   858→   858→                </CardContent>
+   859→   859→              </Card>
+   860→   860→            </div>
+   861→   861→          )}
+   862→   862→
+   863→   863→          {/* ── Step 3: Zones ── */}
+   864→   864→          {step === 3 && (
+   865→   865→            <Card className="border-0 shadow-lg shadow-green-100/50">
+   866→   866→              <CardHeader>
+   867→   867→                <CardTitle className="flex items-center gap-2">
+   868→   868→                  <MapPin className="h-5 w-5 text-green-500" />
+   869→   869→                  Zonas de Trabajo
+   870→   870→                </CardTitle>
+   871→   871→                <CardDescription>
+   872→   872→                  Define las zonas donde se implementará la metodología 5S
+   873→   873→                </CardDescription>
+   874→   874→              </CardHeader>
+   875→   875→              <CardContent className="space-y-4">
+   876→   876→                {zones.map((zone, index) => (
+   877→   877→                  <div key={index} className="p-4 rounded-lg border bg-white space-y-3">
+   878→   878→                    <div className="flex items-center justify-between">
+   879→   879→                      <div className="flex items-center gap-2">
+   880→   880→                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: zone.color }} />
+   881→   881→                        <span className="text-sm font-medium">Zona {index + 1}</span>
+   882→   882→                      </div>
+   883→   883→                      {zones.length > 1 && (
+   884→   884→                        <Button variant="ghost" size="sm" onClick={() => handleRemoveZone(index)}
+   885→   885→                          className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0">
+   886→   886→                          <Trash2 className="h-4 w-4" />
+   887→   887→                        </Button>
+   888→   888→                      )}
+   889→   889→                    </div>
+   890→   890→                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   891→   891→                      <div className="space-y-1">
+   892→   892→                        <Label className="text-xs">Nombre *</Label>
+   893→   893→                        <Input placeholder="Ej: Línea de ensamblaje" value={zone.name} onChange={(e) => handleZoneChange(index, 'name', e.target.value)} />
+   894→   894→                      </div>
+   895→   895→                      <div className="space-y-1">
+   896→   896→                        <Label className="text-xs">Descripción</Label>
+   897→   897→                        <Input placeholder="Ej: Área principal de producción" value={zone.description} onChange={(e) => handleZoneChange(index, 'description', e.target.value)} />
+   898→   898→                      </div>
+   899→   899→                    </div>
+   900→   900→                    <div className="space-y-1">
+   901→   901→                      <Label className="text-xs">Color</Label>
+   902→   902→                      <div className="flex gap-2 flex-wrap">
+   903→   903→                        {PRESET_COLORS.map((color) => (
+   904→   904→                          <button key={color} type="button" onClick={() => handleZoneChange(index, 'color', color)}
+   905→   905→                            className={`w-7 h-7 rounded-full border-2 transition-all ${zone.color === color ? 'border-gray-800 scale-110 shadow-md' : 'border-transparent hover:scale-105'}`}
+   906→   906→                            style={{ backgroundColor: color }} />
+   907→   907→                        ))}
+   908→   908→                      </div>
+   909→   909→                    </div>
+   910→   910→                  </div>
+   911→   911→                ))}
+   912→   912→                <Button variant="outline" onClick={handleAddZone}
+   913→   913→                  className="w-full border-dashed border-green-300 text-green-600 hover:bg-green-50 hover:text-green-700">
+   914→   914→                  <Plus className="h-4 w-4 mr-2" /> Agregar Zona
+   915→   915→                </Button>
+   916→   916→              </CardContent>
+   917→   917→            </Card>
+   918→   918→          )}
+   919→   919→
+   920→   920→          {/* ── Step 4: Team Members ── */}
+   921→   921→          {step === 4 && (
+   922→   922→            <Card className="border-0 shadow-lg shadow-green-100/50">
+   923→   923→              <CardHeader>
+   924→   924→                <CardTitle className="flex items-center gap-2">
+   925→   925→                  <Users className="h-5 w-5 text-green-500" />
+   926→   926→                  Equipo de Trabajo
+   927→   927→                </CardTitle>
+   928→   928→                <CardDescription>
+   929→   929→                  Agrega miembros al proyecto. Tú eres el administrador por defecto.
+   930→   930→                </CardDescription>
+   931→   931→              </CardHeader>
+   932→   932→              <CardContent className="space-y-4">
+   933→   933→                {currentUser && (
+   934→   934→                  <div className="p-3 rounded-lg bg-green-50 border border-green-200">
+   935→   935→                    <div className="flex items-center gap-3">
+   936→   936→                      <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white text-xs font-bold">
+   937→   937→                        {currentUser.name.charAt(0).toUpperCase()}
+   938→   938→                      </div>
+   939→   939→                      <div className="flex-1">
+   940→   940→                        <p className="text-sm font-medium text-green-900">{currentUser.name} (Tú)</p>
+   941→   941→                        <p className="text-xs text-green-600">{currentUser.email}</p>
+   942→   942→                      </div>
+   943→   943→                      <Badge className={`${getRoleBadgeColor('admin')} border`}>Administrador</Badge>
+   944→   944→                    </div>
+   945→   945→                  </div>
+   946→   946→                )}
+   947→   947→
+   948→   948→                <div className="p-4 rounded-lg border bg-white space-y-3">
+   949→   949→                  <p className="text-sm font-medium">Agregar miembro</p>
+   950→   950→                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   951→   951→                    <div className="space-y-1">
+   952→   952→                      <Label className="text-xs">Nombre</Label>
+   953→   953→                      <Input placeholder="Nombre del miembro" value={newMember.name}
+   954→   954→                        onChange={(e) => setNewMember({ ...newMember, name: e.target.value })} />
+   955→   955→                    </div>
+   956→   956→                    <div className="space-y-1">
+   957→   957→                      <Label className="text-xs">Email</Label>
+   958→   958→                      <Input type="email" placeholder="email@ejemplo.com" value={newMember.email}
+   959→   959→                        onChange={(e) => setNewMember({ ...newMember, email: e.target.value })} />
+   960→   960→                    </div>
+   961→   961→                    <div className="space-y-1">
+   962→   962→                      <Label className="text-xs">Rol</Label>
+   963→   963→                      <Select value={newMember.role} onValueChange={(value) => setNewMember({ ...newMember, role: value })}>
+   964→   964→                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+   965→   965→                        <SelectContent>
+   966→   966→                          <SelectItem value="gerente">Gerente</SelectItem>
+   967→   967→                          <SelectItem value="responsable">Responsable</SelectItem>
+   968→   968→                          <SelectItem value="empleado">Empleado</SelectItem>
+   969→   969→                          <SelectItem value="auditor">Auditor</SelectItem>
+   970→   970→                        </SelectContent>
+   971→   971→                      </Select>
+   972→   972→                    </div>
+   973→   973→                    <div className="space-y-1">
+   974→   974→                      <Label className="text-xs">Zonas (todas por defecto)</Label>
+   975→   975→                      <div className="space-y-0.5 max-h-32 overflow-y-auto border rounded-md p-2">
+   976→   976→                        {zones.filter((z) => z.name.trim()).map((zone, i) => (
+   977→   977→                          <label key={i} className="flex items-center gap-1.5 text-sm cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
+   978→   978→                            <Checkbox checked={newMember.zoneIds.includes(`zone-${i}`)}
+   979→   979→                              onCheckedChange={(checked) => {
+   980→   980→                                const zId = `zone-${i}`
+   981→   981→                                if (checked) {
+   982→   982→                                  setNewMember({ ...newMember, zoneIds: [...newMember.zoneIds, zId] })
+   983→   983→                                } else {
+   984→   984→                                  setNewMember({ ...newMember, zoneIds: newMember.zoneIds.filter(id => id !== zId) })
+   985→   985→                                }
+   986→   986→                              }} className="h-4 w-4" />
+   987→   987→                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: zone.color }} />
+   988→   988→                            <span>{zone.name}</span>
+   989→   989→                          </label>
+   990→   990→                        ))}
+   991→   991→                      </div>
+   992→   992→                    </div>
+   993→   993→                    {/* Contraseña de acceso */}
+   994→   994→                    <div className="space-y-1 sm:col-span-2">
+   995→   995→                      <Label className="text-xs flex items-center gap-1">
+   996→   996→                        <Key className="h-3 w-3" />
+   997→   997→                        Contraseña de acceso
+   998→   998→                      </Label>
+   999→   999→                      <div className="flex gap-1.5">
+  1000→  1000→                        <div className="relative flex-1">
+  1001→  1001→                          <Input
+  1002→  1002→                            type={showMemberPassword ? 'text' : 'password'}
+  1003→  1003→                            placeholder="Dejar vacío para auto-generar (123456)"
+  1004→  1004→                            value={newMember.password || ''}
+  1005→  1005→                            onChange={(e) => setNewMember({ ...newMember, password: e.target.value })}
+  1006→  1006→                            className="pr-8 text-sm font-mono"
+  1007→  1007→                            autoComplete="new-password"
+  1008→  1008→                          />
+  1009→  1009→                          <button
+  1010→  1010→                            type="button"
+  1011→  1011→                            onClick={() => setShowMemberPassword(!showMemberPassword)}
+  1012→  1012→                            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+  1013→  1013→                            tabIndex={-1}
+  1014→  1014→                          >
+  1015→  1015→                            {showMemberPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+  1016→  1016→                          </button>
+  1017→  1017→                        </div>
+  1018→  1018→                        <Button
+  1019→  1019→                          type="button"
+  1020→  1020→                          variant="outline"
+  1021→  1021→                          size="sm"
+  1022→  1022→                          onClick={generatePassword}
+  1023→  1023→                          title="Generar contraseña aleatoria"
+  1024→  1024→                          className="h-9 px-2"
+  1025→  1025→                        >
+  1026→  1026→                          <RefreshCw className="h-3.5 w-3.5" />
+  1027→  1027→                        </Button>
+  1028→  1028→                      </div>
+  1029→  1029→                      <p className="text-[10px] text-muted-foreground">
+  1030→  1030→                        Mínimo 6 caracteres. Si la dejas vacía, se asignará automáticamente <code className="font-mono bg-muted px-1 rounded">123456</code>.
+  1031→  1031→                      </p>
+  1032→  1032→                    </div>
+  1033→  1033→                  </div>
+  1034→  1034→                  <Button variant="outline" onClick={handleAddMember}
+  1035→  1035→                    disabled={!newMember.name.trim() || !newMember.email.trim()}
+  1036→  1036→                    className="w-full border-green-300 text-green-600 hover:bg-green-50">
+  1037→  1037→                    <Plus className="h-4 w-4 mr-2" /> Agregar Miembro
+  1038→  1038→                  </Button>
+  1039→  1039→                </div>
+  1040→  1040→
+  1041→  1041→                {members.length > 0 && (
+  1042→  1042→                  <div className="rounded-lg border overflow-hidden">
+  1043→  1043→                    <Table>
+  1044→  1044→                      <TableHeader>
+  1045→  1045→                        <TableRow>
+  1046→  1046→                          <TableHead>Nombre</TableHead>
+  1047→  1047→                          <TableHead>Email</TableHead>
+  1048→  1048→                          <TableHead>Rol</TableHead>
+  1049→  1049→                          <TableHead>Zona</TableHead>
+  1050→  1050→                          <TableHead>Contraseña</TableHead>
+  1051→  1051→                          <TableHead>Email</TableHead>
+  1052→  1052→                          <TableHead className="w-10" />
+  1053→  1053→                        </TableRow>
+  1054→  1054→                      </TableHeader>
+  1055→  1055→                      <TableBody>
+  1056→  1056→                        {members.map((member, index) => (
+  1057→  1057→                          <TableRow key={index}>
+  1058→  1058→                            <TableCell className="font-medium text-sm">{member.name}</TableCell>
+  1059→  1059→                            <TableCell className="text-sm text-muted-foreground">{member.email}</TableCell>
+  1060→  1060→                            <TableCell><Badge className={`${getRoleBadgeColor(member.role)} border`}>{getRoleLabel(member.role)}</Badge></TableCell>
+  1061→  1061→                            <TableCell className="text-sm">
+  1062→  1062→                              {member.zoneIds.length > 0
+  1063→  1063→                                ? member.zoneIds.map(zId => { const idx = parseInt(zId.replace('zone-', ''), 10); return zones[idx]?.name }).filter(Boolean).join(', ')
+  1064→  1064→                                : '-'}
+  1065→  1065→                            </TableCell>
+  1066→  1066→                            <TableCell className="text-sm">
+  1067→  1067→                              {member.password ? (
+  1068→  1068→                                <span className="font-mono text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+  1069→  1069→                                  {member.password}
+  1070→  1070→                                </span>
+  1071→  1071→                              ) : (
+  1072→  1072→                                <span className="text-xs text-muted-foreground">—</span>
+  1073→  1073→                              )}
+  1074→  1074→                            </TableCell>
+  1075→  1075→                            <TableCell>
+  1076→  1076→                              {member.password && !member.emailSent ? (
+  1077→  1077→                                <Button variant="ghost" size="sm"
+  1078→  1078→                                  onClick={() => handleSendWelcomeEmail(member)}
+  1079→  1079→                                  disabled={sendingEmailTo === member.email}
+  1080→  1080→                                  className="text-green-600 hover:text-green-700 hover:bg-green-50 h-8 px-2"
+  1081→  1081→                                  title="Enviar email de bienvenida">
+  1082→  1082→                                  {sendingEmailTo === member.email ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+  1083→  1083→                                </Button>
+  1084→  1084→                              ) : member.emailSent ? (
+  1085→  1085→                                <Badge className="bg-green-100 text-green-700 border-green-200 border text-[10px]">Enviado</Badge>
+  1086→  1086→                              ) : null}
+  1087→  1087→                            </TableCell>
+  1088→  1088→                            <TableCell>
+  1089→  1089→                              <Button variant="ghost" size="sm" onClick={() => handleRemoveMember(index)}
+  1090→  1090→                                className="text-red-500 hover:text-red-700 h-8 w-8 p-0">
+  1091→  1091→                                <Trash2 className="h-4 w-4" />
+  1092→  1092→                              </Button>
+  1093→  1093→                            </TableCell>
+  1094→  1094→                          </TableRow>
+  1095→  1095→                        ))}
+  1096→  1096→                      </TableBody>
+  1097→  1097→                    </Table>
+  1098→  1098→                  </div>
+  1099→  1099→                )}
+  1100→  1100→
+  1101→  1101→                {members.length === 0 && (
+  1102→  1102→                  <p className="text-sm text-muted-foreground text-center py-4">
+  1103→  1103→                    Puedes agregar miembros más tarde desde la gestión del proyecto
+  1104→  1104→                  </p>
+  1105→  1105→                )}
+  1106→  1106→              </CardContent>
+  1107→  1107→            </Card>
+  1108→  1108→          )}
+  1109→  1109→
+  1110→  1110→          {/* ── Step 5: Confirmation ── */}
+  1111→  1111→          {step === 5 && (
+  1112→  1112→            <Card className="border-0 shadow-lg shadow-green-100/50">
+  1113→  1113→              <CardHeader>
+  1114→  1114→                <CardTitle className="flex items-center gap-2">
+  1115→  1115→                  <ClipboardCheck className="h-5 w-5 text-green-500" />
+  1116→  1116→                  Confirmar Proyecto
+  1117→  1117→                </CardTitle>
+  1118→  1118→                <CardDescription>Revisa la información antes de crear el proyecto</CardDescription>
+  1119→  1119→              </CardHeader>
+  1120→  1120→              <CardContent className="space-y-6">
+  1121→  1121→                {/* Project */}
+  1122→  1122→                <div className="p-4 rounded-lg bg-gray-50 border">
+  1123→  1123→                  <h3 className="font-semibold text-sm mb-3 text-gray-700 flex items-center gap-2">
+  1124→  1124→                    <Building2 className="h-4 w-4" /> Proyecto
+  1125→  1125→                  </h3>
+  1126→  1126→                  <div className="space-y-1.5 text-sm">
+  1127→  1127→                    <div className="flex justify-between"><span className="text-muted-foreground">Nombre:</span><span className="font-medium">{projectName}</span></div>
+  1128→  1128→                    <div className="flex justify-between"><span className="text-muted-foreground">Empresa:</span><span className="font-medium">{companyName}</span></div>
+  1129→  1129→                    {companyNif && <div className="flex justify-between"><span className="text-muted-foreground">NIF:</span><span className="font-medium">{companyNif}</span></div>}
+  1130→  1130→                    {projectDescription && <div className="flex justify-between"><span className="text-muted-foreground">Descripción:</span><span className="font-medium text-right max-w-[60%]">{projectDescription}</span></div>}
+  1131→  1131→                  </div>
+  1132→  1132→                </div>
+  1133→  1133→
+  1134→  1134→                {/* Billing summary */}
+  1135→  1135→                {(billingName || billingEmail || iban) && (
+  1136→  1136→                  <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+  1137→  1137→                    <h3 className="font-semibold text-sm mb-3 text-blue-700 flex items-center gap-2">
+  1138→  1138→                      <CreditCard className="h-4 w-4" /> Facturación
+  1139→  1139→                    </h3>
+  1140→  1140→                    <div className="space-y-1.5 text-sm">
+  1141→  1141→                      {billingName && <div className="flex justify-between"><span className="text-blue-600">Razón Social:</span><span className="font-medium">{billingName}</span></div>}
+  1142→  1142→                      {billingNif && <div className="flex justify-between"><span className="text-blue-600">NIF:</span><span className="font-medium">{billingNif}</span></div>}
+  1143→  1143→                      {billingEmail && <div className="flex justify-between"><span className="text-blue-600">Email:</span><span className="font-medium">{billingEmail}</span></div>}
+  1144→  1144→                      {iban && <div className="flex justify-between"><span className="text-blue-600">IBAN:</span><span className="font-medium">{iban}</span></div>}
+  1145→  1145→                    </div>
+  1146→  1146→                  </div>
+  1147→  1147→                )}
+  1148→  1148→
+  1149→  1149→                {/* Zones */}
+  1150→  1150→                <div className="p-4 rounded-lg bg-gray-50 border">
+  1151→  1151→                  <h3 className="font-semibold text-sm mb-3 text-gray-700 flex items-center gap-2">
+  1152→  1152→                    <MapPin className="h-4 w-4" /> Zonas ({zones.filter((z) => z.name.trim()).length})
+  1153→  1153→                  </h3>
+  1154→  1154→                  <div className="flex flex-wrap gap-2">
+  1155→  1155→                    {zones.filter((z) => z.name.trim()).map((zone, i) => (
+  1156→  1156→                      <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-white text-sm">
+  1157→  1157→                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: zone.color }} />
+  1158→  1158→                        <span>{zone.name}</span>
+  1159→  1159→                      </div>
+  1160→  1160→                    ))}
+  1161→  1161→                  </div>
+  1162→  1162→                </div>
+  1163→  1163→
+  1164→  1164→                {/* Team */}
+  1165→  1165→                <div className="p-4 rounded-lg bg-gray-50 border">
+  1166→  1166→                  <h3 className="font-semibold text-sm mb-3 text-gray-700 flex items-center gap-2">
+  1167→  1167→                    <Users className="h-4 w-4" /> Equipo ({members.length + 1} miembros)
+  1168→  1168→                  </h3>
+  1169→  1169→                  <div className="space-y-2">
+  1170→  1170→                    {currentUser && (
+  1171→  1171→                      <div className="flex items-center justify-between text-sm">
+  1172→  1172→                        <span>{currentUser.name} <span className="text-muted-foreground">(Tú)</span></span>
+  1173→  1173→                        <Badge className={`${getRoleBadgeColor('admin')} border`}>Administrador</Badge>
+  1174→  1174→                      </div>
+  1175→  1175→                    )}
+  1176→  1176→                    {members.map((member, i) => (
+  1177→  1177→                      <div key={i} className="flex items-center justify-between text-sm">
+  1178→  1178→                        <span>{member.name}</span>
+  1179→  1179→                        <Badge className={`${getRoleBadgeColor(member.role)} border`}>{getRoleLabel(member.role)}</Badge>
+  1180→  1180→                      </div>
+  1181→  1181→                    ))}
+  1182→  1182→                  </div>
+  1183→  1183→                </div>
+  1184→  1184→
+  1185→  1185→                <Button onClick={handleCreate}
+  1186→  1186→                  className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-lg h-12 text-base"
+  1187→  1187→                  disabled={isCreating}>
+  1188→  1188→                  {isCreating ? (
+  1189→  1189→                    <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Creando Proyecto...</>
+  1190→  1190→                  ) : (
+  1191→  1191→                    <><Check className="h-5 w-5 mr-2" /> Crear Proyecto</>
+  1192→  1192→                  )}
+  1193→  1193→                </Button>
+  1194→  1194→              </CardContent>
+  1195→  1195→            </Card>
+  1196→  1196→          )}
+  1197→  1197→
+  1198→  1198→        {/* Navigation buttons */}
+  1199→  1199→        <div className="flex justify-between mt-6">
+  1200→  1200→          {step > 1 ? (
+  1201→  1201→            <Button variant="outline" onClick={() => setStep(step - 1)} disabled={isCreating} className="gap-1">
+  1202→  1202→              <ChevronLeft className="h-4 w-4" /> Anterior
+  1203→  1203→            </Button>
+  1204→  1204→          ) : (
+  1205→  1205→            <Button variant="ghost" onClick={handleLogout} className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50">
+  1206→  1206→              <LogOut className="h-4 w-4" /> Salir
+  1207→  1207→            </Button>
+  1208→  1208→          )}
+  1209→  1209→
+  1210→  1210→          {step < totalSteps && (
+  1211→  1211→            <Button onClick={handleNext} disabled={!canGoNext() || isSavingCompany}
+  1212→  1212→              className="gap-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white">
+  1213→  1213→              {isSavingCompany ? (
+  1214→  1214→                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Guardando...</>
+  1215→  1215→              ) : (
+  1216→  1216→                <>Siguiente <ChevronRight className="h-4 w-4" /></>
+  1217→  1217→              )}
+  1218→  1218→            </Button>
+  1219→  1219→          )}
+  1220→  1220→        </div>
+  1221→  1221→      </main>
+  1222→  1222→    </div>
+  1223→  1223→  )
+  1224→  1224→}
+  1225→  1225→
