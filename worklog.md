@@ -424,3 +424,61 @@ Stage Summary:
 - Usuario cambia de proyecto/zona con botón 'Cambiar' del header
 - Gestor se salta el selector (va directo a gestión)
 - Dropdown del header eliminado
+
+---
+Task ID: v2.29
+Agent: Main
+Task: Fix formación S1 no aparece en zonas con boardConfigId sin slots
+
+Work Log:
+- Diagnóstico (ver informe agente-ba54e0a5):
+  * Templates son GLOBALES (sin projectId/zoneId).
+  * Zona nueva recibe automáticamente el boardConfigId default.
+  * Board config default se crea VACÍO (sin slots).
+  * FormacionModal era el ÚNICO modal que no caía al fallback global
+    cuando board config no tenía slot para esa posición → "Sin formación
+    configurada" en vez de mostrar la plantilla global.
+  * Los demás modales (Inventario, Autoevaluación, Auditoría, Examen)
+    SÍ caían al fallback global.
+
+- Fix A — FormacionModal fallback global:
+  (src/components/5s/FormacionModal.tsx)
+  * Reescrita loadTemplate() con dos fases:
+    1. Intentar leer del board config del zone (slot templates).
+    2. Para CADA tipo (formacion/examen) por separado, si no se cargó
+       en la fase 1, caer al fallback global /api/templates?type=...
+  * Variables formacionLoaded/examLoaded marcan si la fase 1 tuvo éxito.
+  * Mismo patrón que InventarioModal/Autoevaluacion/Auditoría.
+  * NO rompe la configuración manual del admin: si el board config tiene
+    slots con plantillas, esas siguen teniendo prioridad.
+
+- Fix B — Auto-poblar slots del board config default:
+  (src/app/api/board-configs/route.ts)
+  * Nueva función ensureDefaultSlotsPopulated(boardConfigId):
+    - Recorre los 25 slots (5S × 5 mini-steps).
+    - Para cada slot sin plantillas enlazadas, busca la plantilla global
+      correspondiente por (sStep, miniStep, type) y la enlaza.
+    - Idempotente: respeta slots ya configurados manualmente.
+    - Skip silencioso si no existe plantilla global para esa posición.
+  * Invocada automáticamente desde GET /api/board-configs.
+  * Mapeo mini-step → tipos:
+    1 → formacion + examen
+    2 → fotos
+    3 → inventario
+    4 → autoevaluacion + planaccion
+    5 → auditoria
+
+- Bump v2.29 en middleware, LoginPage.tsx, page.tsx.
+- Build Next.js: "✓ Compiled successfully in 20.2s".
+- Commit local: c7ceb4b.
+- Push a GitHub: OK (b6a9c29..c7ceb4b). Vercel auto-redeploy.
+
+Stage Summary:
+- Cualquier zona (z1, z2, z3...) con boardConfigId asignado pero sin
+  slots configurados ahora:
+  1. En el FormacionModal, cae al fallback global (Fix A inmediato).
+  2. Al visitar el panel admin de board-configs, se auto-pueblan los 25
+     slots con las plantillas globales disponibles (Fix B definitivo).
+- Las plantillas son globales → editar una se propaga a todas las
+  zonas/proyectos que la referencian (no hay copias por zona).
+- Gestor sigue yendo directo a su panel (no pasa por selector).
