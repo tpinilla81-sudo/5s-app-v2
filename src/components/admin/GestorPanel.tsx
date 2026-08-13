@@ -35,8 +35,10 @@ import {
   Mail,
   Database,
   Trash2,
+  BookOpen,
 } from 'lucide-react'
 import ResourceList from './ResourceList'
+import TemplateManager from './TemplateManager'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -122,7 +124,7 @@ const ROLE_COLORS: Record<string, string> = {
   auditor: 'bg-orange-100 text-orange-700 border-orange-200',
 }
 
-type GestorTab = 'dashboard' | 'empresas' | 'admins' | 'recursos'
+type GestorTab = 'dashboard' | 'empresas' | 'admins' | 'recursos' | 'plantillas'
 
 export default function GestorPanel() {
   const { setCurrentView, fetchProjects, fetchCompanies, projects, setCurrentProject, currentProject } = use5SStore()
@@ -416,6 +418,7 @@ export default function GestorPanel() {
     { key: 'dashboard', label: 'KPIs', icon: <Activity className="h-4 w-4" /> },
     { key: 'empresas', label: 'Empresas', icon: <Building2 className="h-4 w-4" /> },
     { key: 'admins', label: 'Administradores', icon: <Shield className="h-4 w-4" /> },
+    { key: 'plantillas', label: 'Plantillas', icon: <BookOpen className="h-4 w-4" /> },
     { key: 'recursos', label: 'Recursos', icon: <Database className="h-4 w-4" /> },
   ]
 
@@ -971,6 +974,30 @@ export default function GestorPanel() {
           {activeTab === 'recursos' && (
             <motion.div key="recursos" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <ResourceList showAllCompanies={true} dark={true} />
+            </motion.div>
+          )}
+
+          {/* ═══ PLANTILLAS GENÉRICAS TAB (v2.31) ═══ */}
+          {/* El gestor es el único que puede editar la Biblioteca del Sistema
+              (plantillas globales compartidas por todas las empresas).
+              Desde aquí puede crear, editar, duplicar y eliminar cualquier
+              plantilla genérica. Las empresas ven estas plantillas pero no
+              pueden modificarlas (solo duplicarlas a su propia biblioteca). */}
+          {activeTab === 'plantillas' && (
+            <motion.div key="plantillas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <div className="rounded-xl bg-white text-gray-900 shadow-lg p-5">
+                <div className="mb-3 flex items-center gap-2 text-violet-700">
+                  <Crown className="h-4 w-4" />
+                  <span className="text-xs font-semibold">
+                    Modo Gestor — Editando la Biblioteca del Sistema
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Las plantillas que edites aquí se propagan a todas las zonas
+                    de todas las empresas que las usen.
+                  </span>
+                </div>
+                <TemplateManager />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

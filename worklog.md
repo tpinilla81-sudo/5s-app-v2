@@ -482,3 +482,56 @@ Stage Summary:
 - Las plantillas son globales → editar una se propaga a todas las
   zonas/proyectos que la referencian (no hay copias por zona).
 - Gestor sigue yendo directo a su panel (no pasa por selector).
+
+---
+Task ID: v2.31
+Agent: Main
+Task: Plantillas se eligen por zona (antes que usuarios) + gestor edita genéricas en su panel
+
+Work Log:
+- Usuario: "las plantillas ya no tiene sentido que estén en la parte plantillas.
+  tienen que estar elegidas en cada zona antes de los usuarios elegidos y desde
+  ahí poder entrar a la edición. El gestor, en su panel, será el que tenga el
+  poder de editar todas las plantillas genéricas."
+- Eliminada la pestaña "Plantillas" del AdminPanel.tsx:
+  * activeTab type: 'companies' | 'projects' | 'plantillas' → 'companies' | 'projects'
+  * Eliminado el botón de tab "Plantillas" (líneas 1462-1472 originales)
+  * Eliminado el bloque de contenido del tab Plantillas (líneas 2791-2796 originales)
+  * Eliminado el import de TemplateManager y ProjectTemplatesSection
+- Eliminado el <ProjectTemplatesSection> embebido dentro de cada proyecto
+  (sub-sección redundante ahora que las plantillas viven por zona).
+- Creado componente nuevo src/components/admin/ZoneTemplatesSection.tsx:
+  * Se renderiza DENTRO de cada zona, ANTES de la tabla de miembros.
+  * Muestra las 25 celdas (5S × 5 Pasos) con la plantilla asignada a cada una.
+  * Cada celda tiene 2 botones:
+    - Editar (lápiz) → abre Sheet con <TemplateManager embedded /> completo
+    - Cambiar (refresh) → abre dropdown con todas las plantillas disponibles
+      para esa (sStep, miniStep, type); al seleccionar, POST /api/board-slots
+      con el nuevo templateIds (preserva las otras types del slot).
+  * Indica si la zona usa tablero predeterminado (compartido) → aviso amber.
+  * Contador "N asignadas" + badge con nombre del tablero.
+- Actualizada la zona header del AdminPanel: el badge ya NO es hardcoded
+  "Tablero predeterminado" — ahora muestra zone.boardConfig.name real
+  (o "Sin tablero") con color indicativo (índigo=default, violeta=propio).
+- Actualizada interfaz ZoneData: boardConfig ahora incluye isDefault?: boolean.
+- Añadida pestaña "Plantillas" al GestorPanel.tsx:
+  * GestorTab type: ... | 'plantillas'
+  * tabs array: entrada nueva con icono BookOpen
+  * Render: <TemplateManager /> dentro de contenedor blanco (para no chocar
+    con el tema dark slate/violet del GestorPanel).
+  * Banner "Modo Gestor — Editando la Biblioteca del Sistema".
+  * Como gestor, TemplateManager auto-detecta el rol y edita plantillas
+    globales (companyId=null) → cambios se propagan a todas las zonas/empresas.
+- Bump v2.31 en middleware.ts (BUILD_VERSION), page.tsx (badge), LoginPage.tsx.
+- TypeScript check: no new errors introduced (pre-existing errors unchanged).
+- Next.js build: "✓ Compiled successfully in 22.5s".
+
+Stage Summary:
+- Flujo nuevo: AdminPanel → Proyectos → expandir proyecto → ver zonas →
+  cada zona muestra PRIMERO sus plantillas (editar/cambiar por celda S×Paso),
+  DESPUÉS sus miembros.
+- Eliminada la pestaña "Plantillas" del AdminPanel (ya no tiene sentido ahí).
+- Eliminado ProjectTemplatesSection (era sub-sección por proyecto, redundante).
+- GestorPanel: nueva pestaña "Plantillas" para editar TODAS las plantillas
+  genéricas (Biblioteca del Sistema) — power exclusive del gestor.
+- Pendiente: commit + push a GitHub para deploy en Vercel.

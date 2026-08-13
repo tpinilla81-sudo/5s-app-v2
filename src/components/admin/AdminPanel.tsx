@@ -55,14 +55,12 @@ import {
   CheckSquare,
   ShieldCheck,
   Save,
-  BookOpen,
   LayoutGrid,
   FileText,
 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { S_STEPS } from '@/lib/5s-constants'
-import TemplateManager from './TemplateManager'
-import ProjectTemplatesSection from './ProjectTemplatesSection'
+import ZoneTemplatesSection from './ZoneTemplatesSection'
 
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -107,7 +105,7 @@ interface ZoneData {
   description: string | null
   color: string
   boardConfigId: string | null
-  boardConfig?: { id: string; name: string } | null
+  boardConfig?: { id: string; name: string; isDefault?: boolean } | null
 }
 
 interface MemberData {
@@ -181,7 +179,7 @@ interface AdminPanelProps {
 
 export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {}) {
   const { setCurrentView, fetchProjects, fetchCompanies, projects, setCurrentProject, currentProject, goToProjectSelector } = use5SStore()
-  const [activeTab, setActiveTab] = useState<'companies' | 'projects' | 'plantillas'>('companies')
+  const [activeTab, setActiveTab] = useState<'companies' | 'projects'>('companies')
 
   // ─── Projects state ──────────────────────────────────────────────────────
   const [allProjects, setAllProjects] = useState<ProjectData[]>([])
@@ -1433,7 +1431,7 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
         </header>
       )}
 
-      {/* Tabs — Order: Empresas / Proyectos / Plantillas / Configuración de Tableros */}
+      {/* Tabs — Order: Empresas / Proyectos (las plantillas se gestionan por zona y desde el panel del gestor) */}
       <div className="border-b bg-white shrink-0">
         <div className={`flex gap-1 ${embedded ? '' : 'max-w-5xl mx-auto px-4'}`}>
           <button
@@ -1457,18 +1455,6 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
           >
             <Building2 className="h-4 w-4" />
             Proyectos
-          </button>
-
-          <button
-            onClick={() => { setActiveTab('plantillas'); setSelectedProjectId(null) }}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'plantillas'
-                ? 'border-green-500 text-green-600'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <BookOpen className="h-4 w-4" />
-            Plantillas
           </button>
         </div>
       </div>
@@ -1673,9 +1659,22 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
                                                   ) : (
                                                     <>
                                                       <span className="font-semibold text-sm flex-1">{zone.name}</span>
-                                                      <Badge className="text-[9px] px-1 py-0 bg-indigo-100 text-indigo-700 border-0" title="Esta zona usa el tablero predeterminado del sistema">
+                                                      <Badge
+                                                        className={`text-[9px] px-1 py-0 border-0 ${
+                                                          zone.boardConfig?.isDefault
+                                                            ? 'bg-indigo-100 text-indigo-700'
+                                                            : zone.boardConfig
+                                                              ? 'bg-violet-100 text-violet-700'
+                                                              : 'bg-gray-100 text-gray-500'
+                                                        }`}
+                                                        title={
+                                                          zone.boardConfig
+                                                            ? `Tablero: ${zone.boardConfig.name}${zone.boardConfig.isDefault ? ' (predeterminado del sistema, compartido por otras zonas)' : ''}`
+                                                            : 'Esta zona no tiene tablero asignado'
+                                                        }
+                                                      >
                                                         <LayoutGrid className="h-2.5 w-2.5 mr-0.5 inline" />
-                                                        Tablero predeterminado
+                                                        {zone.boardConfig?.name || 'Sin tablero'}
                                                       </Badge>
                                                       <Badge className="text-[9px] px-1 py-0 bg-gray-100 text-gray-600 border-0">
                                                         <Users className="h-2.5 w-2.5 mr-0.5 inline" />
@@ -1699,6 +1698,24 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
                                                       </Button>
                                                     </>
                                                   )}
+                                                </div>
+
+                                                {/* ─────────── PLANTILLAS DE ESTA ZONA (v2.31) ─────────── */}
+                                                {/* Se muestra ANTES que los miembros: el flujo es
+                                                    1) crear zona → 2) elegir/plantear plantillas → 3) adjudicar usuarios.
+                                                    Desde aquí se puede editar el contenido de cualquier plantilla
+                                                    (abre el TemplateManager en un Sheet) y cambiar la asignación
+                                                    por celda S×Paso. */}
+                                                <div className="p-3 border-b bg-gradient-to-b from-emerald-50/30 to-white">
+                                                  <ZoneTemplatesSection
+                                                    zoneId={zone.id}
+                                                    zoneName={zone.name}
+                                                    boardConfigId={zone.boardConfigId}
+                                                    boardConfigName={zone.boardConfig?.name}
+                                                    boardConfigIsDefault={zone.boardConfig?.isDefault}
+                                                    companyId={allProjects.find(p => p.id === selectedProjectId)?.companyId ?? null}
+                                                    companyName={currentProjectCompany || allProjects.find(p => p.id === selectedProjectId)?.company || ''}
+                                                  />
                                                 </div>
 
                                                 {/* Miembros de esta zona — tabla editable */}
@@ -1956,16 +1973,9 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
                                       </div>
                                     </div>
 
-                                    {/* ─────────── PLANTILLAS DE LA EMPRESA (v2.30) ─────────── */}
-                                    {/* Sub-sección después de Usuarios/Zonas.
-                                        Muestra las plantillas de la empresa del proyecto actual +
-                                        la Biblioteca del Sistema (solo lectura para admin, editable para gestor).
-                                        El responsable solo puede editar autoevaluacion/auditoria. */}
-                                    <ProjectTemplatesSection
-                                      project={project}
-                                      currentCompanyId={project.companyId}
-                                      currentCompanyName={currentProjectCompany || project.company}
-                                    />
+                                    {/* Las plantillas se gestionan ahora por zona (v2.31):
+                                        dentro de cada zona, ANTES de los miembros.
+                                        El gestor las edita globalmente desde su panel. */}
                                   </>
                                 )}
                               </div>
@@ -2786,12 +2796,6 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
                   })}
                 </div>
               )}
-            </motion.div>
-          )}
-          {/* ═══ PLANTILLAS TAB ═══ */}
-          {activeTab === 'plantillas' && (
-            <motion.div key="plantillas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <TemplateManager />
             </motion.div>
           )}
 
