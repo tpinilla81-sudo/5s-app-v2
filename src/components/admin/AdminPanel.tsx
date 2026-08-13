@@ -210,6 +210,15 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
   const [generatedMemberName, setGeneratedMemberName] = useState<string | null>(null)
   const [sendingCredentials, setSendingCredentials] = useState<string | null>(null)
 
+  // ─── Per-zone "add existing user" state ─────────────────────────────────
+  // Map: zoneId → selected userId in the per-zone picker
+  const [zoneAddUserId, setZoneAddUserId] = useState<Record<string, string>>({})
+  // Map: zoneId → role for the new assignment
+  const [zoneAddRole, setZoneAddRole] = useState<Record<string, string>>({})
+  // Zone currently being edited (inline rename)
+  const [editingZoneId, setEditingZoneId] = useState<string | null>(null)
+  const [editingZoneName, setEditingZoneName] = useState('')
+
   // ─── Users state ─────────────────────────────────────────────────────────
   const [users, setUsers] = useState<UserData[]>([])
   const [isLoadingUsers, setIsLoadingUsers] = useState(false)
@@ -685,6 +694,132 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
     } catch (error) {
       console.error('Error removing member:', error)
     }
+  }
+
+  // ─── Per-zone member actions ─────────────────────────────────────────────
+  // Devuelve los miembros asignados a una zona concreta (deriva del estado de
+  // projectMembers, que ya incluye el array `zones` de cada miembro).
+  const getMembersOfZone = (zoneId: string): MemberData[] => {
+    return projectMembers.filter(m => m.zones.some(z => z.id === zoneId))
+  }
+
+  // Asigna un usuario existente a una zona concreta. Si no es ProjectMember
+  // todavía, lo crea con el rol indicado (por defecto 'empleado') y le asigna
+  // esta zona. Si ya es ProjectMember, solo crea el MemberZone.
+  const handleAddExistingUserToZone = async (zoneId: string) => {
+    if (!selectedProjectId) return
+    const userId = zoneAddUserId[zoneId]
+    if (!userId) {
+      alert('Selecciona un usuario de la lista desplegable.')
+      return
+    }
+    const role = zoneAddRole[zoneId] || 'empleado'
+    try {
+      const res = await fetch(
+        `/api/projects/${selectedProjectId}/zones/${zoneId}/members`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, role }),
+        }
+      )
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error || 'Error al asignar usuario a la zona')
+        return
+      }
+      // Update local state
+      setProjectMembers(prev => {
+        const existingIdx = prev.findIndex(m => m.id === data.member.id)
+        if (existingIdx >= 0) {
+          // Replace with the updated member (zones array updated)
+          const next = [...prev]
+          next[existingIdx] = data.member
+          return next
+        }
+        // New project member
+        return [...prev, data.member]
+      })
+      // Clear picker for this zone
+      setZoneAddUserId(prev => { const n = { ...prev }; delete n[zoneId]; return n })
+      setZoneAddRole(prev => { const n = { ...prev }; delete n[zoneId]; return n })
+      await loadProjects()
+    } catch (error) {
+      console.error('Error adding user to zone:', error)
+      alert('Error de conexión al asignar usuario a la zona')
+    }
+  }
+
+  // Retira a un miembro SOLO de esta zona (mantiene el ProjectMember y el User).
+  const handleRemoveMemberFromZone = async (zoneId: string, memberId: string, memberName: string) => {
+    if (!selectedProjectId) return
+    if (!confirm(`¿Retirar a "${memberName}" de esta zona? Seguirá siendo miembro del proyecto.`)) return
+    try {
+      const res = await fetch(
+        `/api/projects/${selectedProjectId}/zones/${zoneId}/members?memberId=${memberId}`,
+        { method: 'DELETE' }
+      )
+      if (res.ok) {
+        // Update local state: remove the zone from the member's zones array
+        setProjectMembers(prev =>
+          prev.map(m =>
+            m.id === memberId
+              ? { ...m, zones: m.zones.filter(z => z.id !== zoneId) }
+              : m
+          )
+        )
+        await loadProjects()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Error al retirar miembro de la zona')
+      }
+    } catch (error) {
+      console.error('Error removing member from zone:', error)
+    }
+  }
+
+  // Cambia el rol de un miembro (a nivel de proyecto, ya que el rol es por
+  // ProjectMember en este esquema).
+  const handleUpdateMemberRoleInZone = async (zoneId: string, memberId: string, newRole: string) => {
+    if (!selectedProjectId) return
+    setProjectMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m))
+    try {
+      await fetch(
+        `/api/projects/${selectedProjectId}/zones/${zoneId}/members`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ memberId, role: newRole }),
+        }
+      )
+    } catch (error) {
+      console.error('Error updating member role:', error)
+    }
+  }
+
+  // Renombra una zona inline
+  const handleSaveZoneName = async (zoneId: string) => {
+    if (!selectedProjectId) return
+    if (!editingZoneName.trim()) {
+      setEditingZoneId(null)
+      return
+    }
+    try {
+      const res = await fetch(`/api/projects/${selectedProjectId}/zones`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zoneId, name: editingZoneName.trim() }),
+      })
+      if (res.ok) {
+        setProjectZones(prev => prev.map(z => z.id === zoneId ? { ...z, name: editingZoneName.trim() } : z))
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Error al renombrar la zona')
+      }
+    } catch (error) {
+      console.error('Error renaming zone:', error)
+    }
+    setEditingZoneId(null)
   }
 
   // ─── Company actions ────────────────────────────────────────────────────
@@ -1190,7 +1325,7 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                   <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 text-purple-500 animate-spin" /></div>
                                 ) : (
                                   <>
-                                    {/* Zonas existentes */}
+                                    {/* Zonas existentes — UNA TRAS OTRA CON SUS USUARIOS */}
                                     <div>
                                       <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1">
                                         <MapPin className="h-3 w-3" /> Zonas del Proyecto
@@ -1199,6 +1334,9 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                             {projectZones.length}
                                           </Badge>
                                         )}
+                                        <span className="ml-2 text-[10px] font-normal text-muted-foreground/70 normal-case">
+                                          · Cada zona se muestra con sus miembros (compartidos entre zonas)
+                                        </span>
                                       </h4>
                                       {projectZones.length === 0 ? (
                                         <div className="p-4 rounded-lg border border-dashed bg-gray-50 text-center">
@@ -1207,19 +1345,194 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                           <p className="text-[10px] text-muted-foreground mt-0.5">Crea la primera zona más abajo.</p>
                                         </div>
                                       ) : (
-                                        <div className="flex flex-wrap gap-2">
-                                          {projectZones.map(zone => (
-                                            <div key={zone.id} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border bg-white text-xs">
-                                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
-                                              <span className="font-medium">{zone.name}</span>
-                                              {/* Tablero fijo: siempre el predeterminado, no editable */}
-                                              <Badge className="text-[9px] px-1 py-0 bg-indigo-100 text-indigo-700 border-0 ml-1" title="Esta zona usa el tablero predeterminado del sistema">
-                                                <LayoutGrid className="h-2.5 w-2.5 mr-0.5 inline" />
-                                                Tablero predeterminado
-                                              </Badge>
-                                              <button onClick={() => handleDeleteZone(zone.id, zone.name)} className="text-red-400 hover:text-red-600 ml-1" title="Eliminar zona"><Trash2 className="h-3 w-3" /></button>
-                                            </div>
-                                          ))}
+                                        <div className="space-y-3">
+                                          {projectZones.map(zone => {
+                                            const zoneMembers = getMembersOfZone(zone.id)
+                                            // Usuarios disponibles para asignar a esta zona:
+                                            // - activos
+                                            // - que no estén ya en esta zona
+                                            const availableUsers = users.filter(
+                                              u => u.active && !zoneMembers.some(m => m.user.id === u.id)
+                                            )
+                                            return (
+                                              <div key={zone.id} className="rounded-lg border bg-white overflow-hidden">
+                                                {/* Zona header */}
+                                                <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-gray-50 to-white border-b">
+                                                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
+                                                  {editingZoneId === zone.id ? (
+                                                    <>
+                                                      <Input
+                                                        value={editingZoneName}
+                                                        onChange={e => setEditingZoneName(e.target.value)}
+                                                        className="h-7 text-xs flex-1 max-w-[260px]"
+                                                        autoFocus
+                                                        onKeyDown={e => {
+                                                          if (e.key === 'Enter') handleSaveZoneName(zone.id)
+                                                          if (e.key === 'Escape') setEditingZoneId(null)
+                                                        }}
+                                                      />
+                                                      <Button size="sm" className="h-7 text-[10px] bg-purple-600 text-white" onClick={() => handleSaveZoneName(zone.id)}>
+                                                        <Check className="h-3 w-3 mr-1" /> Guardar
+                                                      </Button>
+                                                      <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => setEditingZoneId(null)}>
+                                                        Cancelar
+                                                      </Button>
+                                                    </>
+                                                  ) : (
+                                                    <>
+                                                      <span className="font-semibold text-sm flex-1">{zone.name}</span>
+                                                      <Badge className="text-[9px] px-1 py-0 bg-indigo-100 text-indigo-700 border-0" title="Esta zona usa el tablero predeterminado del sistema">
+                                                        <LayoutGrid className="h-2.5 w-2.5 mr-0.5 inline" />
+                                                        Tablero predeterminado
+                                                      </Badge>
+                                                      <Badge className="text-[9px] px-1 py-0 bg-gray-100 text-gray-600 border-0">
+                                                        <Users className="h-2.5 w-2.5 mr-0.5 inline" />
+                                                        {zoneMembers.length} {zoneMembers.length === 1 ? 'miembro' : 'miembros'}
+                                                      </Badge>
+                                                      <Button
+                                                        variant="ghost" size="sm"
+                                                        className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700"
+                                                        onClick={() => { setEditingZoneId(zone.id); setEditingZoneName(zone.name) }}
+                                                        title="Renombrar zona"
+                                                      >
+                                                        <Edit3 className="h-3.5 w-3.5" />
+                                                      </Button>
+                                                      <Button
+                                                        variant="ghost" size="sm"
+                                                        className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
+                                                        onClick={() => handleDeleteZone(zone.id, zone.name)}
+                                                        title="Eliminar zona"
+                                                      >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                      </Button>
+                                                    </>
+                                                  )}
+                                                </div>
+
+                                                {/* Miembros de esta zona — tabla editable */}
+                                                <div className="p-3">
+                                                  {zoneMembers.length === 0 ? (
+                                                    <p className="text-xs text-muted-foreground text-center py-3">
+                                                      No hay miembros en esta zona todavía.
+                                                    </p>
+                                                  ) : (
+                                                    <div className="rounded-md border overflow-x-auto mb-3">
+                                                      <Table>
+                                                        <TableHeader>
+                                                          <TableRow>
+                                                            <TableHead className="text-xs">Nombre</TableHead>
+                                                            <TableHead className="text-xs">Email</TableHead>
+                                                            <TableHead className="text-xs">Rol</TableHead>
+                                                            <TableHead className="text-xs text-center">Acciones</TableHead>
+                                                          </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                          {zoneMembers.map(member => (
+                                                            <TableRow key={member.id}>
+                                                              <TableCell className="text-xs font-medium">{member.user.name}</TableCell>
+                                                              <TableCell className="text-xs">{member.user.email}</TableCell>
+                                                              <TableCell>
+                                                                <Select
+                                                                  value={member.role}
+                                                                  onValueChange={(newRole) => handleUpdateMemberRoleInZone(zone.id, member.id, newRole)}
+                                                                >
+                                                                  <SelectTrigger className="h-7 text-[10px] w-[120px]">
+                                                                    <SelectValue />
+                                                                  </SelectTrigger>
+                                                                  <SelectContent>
+                                                                    <SelectItem value="admin">Administrador</SelectItem>
+                                                                    <SelectItem value="gerente">Gerente</SelectItem>
+                                                                    <SelectItem value="responsable">Responsable</SelectItem>
+                                                                    <SelectItem value="empleado">Empleado</SelectItem>
+                                                                    <SelectItem value="auditor">Auditor</SelectItem>
+                                                                  </SelectContent>
+                                                                </Select>
+                                                              </TableCell>
+                                                              <TableCell className="text-center">
+                                                                <Button
+                                                                  variant="outline" size="sm"
+                                                                  className="h-7 text-[10px] text-red-500 border-red-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300 gap-1"
+                                                                  onClick={() => handleRemoveMemberFromZone(zone.id, member.id, member.user.name)}
+                                                                  title="Retirar de esta zona (sigue en el proyecto)"
+                                                                >
+                                                                  <Trash2 className="h-3 w-3" />
+                                                                </Button>
+                                                              </TableCell>
+                                                            </TableRow>
+                                                          ))}
+                                                        </TableBody>
+                                                      </Table>
+                                                    </div>
+                                                  )}
+
+                                                  {/* Añadir usuario EXISTENTE a esta zona */}
+                                                  <div className="rounded-md border border-dashed border-purple-200 bg-purple-50/40 p-2">
+                                                    {availableUsers.length === 0 ? (
+                                                      <p className="text-[11px] text-muted-foreground text-center py-1">
+                                                        Todos los usuarios activos ya están en esta zona.
+                                                      </p>
+                                                    ) : (
+                                                      <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="text-[10px] font-semibold text-purple-700 uppercase whitespace-nowrap">
+                                                          <UserPlus className="h-3 w-3 inline mr-1" />
+                                                          Añadir existente:
+                                                        </span>
+                                                        <Select
+                                                          value={zoneAddUserId[zone.id] || ''}
+                                                          onValueChange={(val) => setZoneAddUserId(prev => ({ ...prev, [zone.id]: val }))}
+                                                        >
+                                                          <SelectTrigger className="h-7 text-xs flex-1 min-w-[180px]">
+                                                            <SelectValue placeholder="Seleccionar usuario existente..." />
+                                                          </SelectTrigger>
+                                                          <SelectContent>
+                                                            {availableUsers.map(u => (
+                                                              <SelectItem key={u.id} value={u.id}>
+                                                                <div className="flex items-center gap-2">
+                                                                  <span>{u.name}</span>
+                                                                  <span className="text-muted-foreground">({u.email})</span>
+                                                                  <Badge className={`${ROLE_COLORS[u.role] || ''} border text-[9px] py-0`}>
+                                                                    {ROLE_LABELS[u.role] || u.role}
+                                                                  </Badge>
+                                                                </div>
+                                                              </SelectItem>
+                                                            ))}
+                                                          </SelectContent>
+                                                        </Select>
+                                                        <Select
+                                                          value={zoneAddRole[zone.id] || 'empleado'}
+                                                          onValueChange={(val) => setZoneAddRole(prev => ({ ...prev, [zone.id]: val }))}
+                                                        >
+                                                          <SelectTrigger className="h-7 text-xs w-[120px]">
+                                                            <SelectValue />
+                                                          </SelectTrigger>
+                                                          <SelectContent>
+                                                            <SelectItem value="admin">Administrador</SelectItem>
+                                                            <SelectItem value="gerente">Gerente</SelectItem>
+                                                            <SelectItem value="responsable">Responsable</SelectItem>
+                                                            <SelectItem value="empleado">Empleado</SelectItem>
+                                                            <SelectItem value="auditor">Auditor</SelectItem>
+                                                          </SelectContent>
+                                                        </Select>
+                                                        <Button
+                                                          size="sm"
+                                                          className="h-7 text-xs bg-purple-600 text-white"
+                                                          onClick={() => handleAddExistingUserToZone(zone.id)}
+                                                          disabled={!zoneAddUserId[zone.id]}
+                                                        >
+                                                          <UserPlus className="h-3 w-3 mr-1" />
+                                                          Añadir a esta zona
+                                                        </Button>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                  <p className="text-[10px] text-muted-foreground mt-1.5">
+                                                    Los usuarios pueden estar compartidos entre varias zonas.
+                                                    Si no ves un usuario en la lista, ya está asignado a esta zona.
+                                                  </p>
+                                                </div>
+                                              </div>
+                                            )
+                                          })}
                                         </div>
                                       )}
                                     </div>
