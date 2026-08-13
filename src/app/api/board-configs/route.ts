@@ -1,8 +1,89 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Auto-poblar los 25 slots (5 S × 5 mini-steps) de una BoardConfiguration
+// con las plantillas globales correspondientes por (sStep, miniStep, type).
+//
+// Esto soluciona el bug por el que una zona con boardConfigId asignado PERO
+// sin slots configurados veía "Sin formación configurada" en el FormacionModal.
+//
+// Es idempotente: solo crea slots/templates que NO existan; no toca los que el
+// admin ya haya configurado manualmente.
+//
+// Mapeo de mini-step → tipo de plantilla a enlazar:
+//   miniStep=1 → 'formacion' + 'examen'
+//   miniStep=2 → 'fotos'
+//   miniStep=3 → 'inventario' + 'estandar' (estándares se enlazan aparte)
+//   miniStep=4 → 'autoevaluacion' (checklist) + 'planaccion'
+//   miniStep=5 → 'auditoria'
+// ─────────────────────────────────────────────────────────────────────────────
+async function ensureDefaultSlotsPopulated(boardConfigId: string) {
+  // Mapeo: (miniStep) → array de tipos de plantilla a enlazar
+  const MINI_STEP_TEMPLATE_TYPES: Record<number, string[]> = {
+    1: ['formacion', 'examen'],
+    2: ['fotos'],
+    3: ['inventario'],
+    4: ['autoevaluacion', 'planaccion'],
+    5: ['auditoria'],
+  }
+
+  let created = 0
+
+  for (let sStep = 1; sStep <= 5; sStep++) {
+    for (let miniStep = 1; miniStep <= 5; miniStep++) {
+      // ¿Existe ya el slot?
+      const existingSlot = await db.boardSlot.findUnique({
+        where: {
+          boardConfigId_sStep_miniStep: { boardConfigId, sStep, miniStep },
+        },
+        include: { _count: { select: { templates: true } } },
+      })
+
+      // Si el slot ya existe y tiene plantillas enlazadas, respetar la config manual
+      if (existingSlot && existingSlot._count.templates > 0) continue
+
+      // Si no existe el slot, crearlo
+      let slotId: string
+      if (existingSlot) {
+        slotId = existingSlot.id
+      } else {
+        const newSlot = await db.boardSlot.create({
+          data: { boardConfigId, sStep, miniStep },
+        })
+        slotId = newSlot.id
+      }
+
+      // Enlazar plantillas globales para los tipos de este miniStep
+      const types = MINI_STEP_TEMPLATE_TYPES[miniStep] || []
+      for (const type of types) {
+        // Buscar la primera plantilla global activa que coincida
+        const tpl = await db.template.findFirst({
+          where: { type, sStep, miniStep, active: true },
+          orderBy: { createdAt: 'asc' },
+        })
+        if (!tpl) continue // no hay plantilla para esta posición — skip silencioso
+
+        // ¿Ya está enlazada?
+        const existingLink = await db.boardSlotTemplate.findUnique({
+          where: { slotId_templateId: { slotId, templateId: tpl.id } },
+        })
+        if (existingLink) continue
+
+        await db.boardSlotTemplate.create({
+          data: { slotId, templateId: tpl.id, sortOrder: 0 },
+        })
+        created++
+      }
+    }
+  }
+
+  return created
+}
+
 // GET /api/board-configs — List all board configurations with slot counts
 // Auto-creates a default config named "Tablero 5S" if none exists.
+// También auto-puebla los 25 slots del default si están vacíos.
 export async function GET() {
   try {
     let configs = await db.boardConfiguration.findMany({
@@ -14,6 +95,7 @@ export async function GET() {
 
     // Auto-create default if none exists — the board config is the "soul" of the app
     // and should always be present.
+    let defaultConfig = configs.find(c => c.isDefault)
     if (configs.length === 0) {
       const created = await db.boardConfiguration.create({
         data: {
@@ -24,6 +106,24 @@ export async function GET() {
         include: { _count: { select: { slots: true, zones: true } } },
       })
       configs = [created]
+      defaultConfig = created
+    }
+
+    // Auto-poblar slots del default si están vacíos (Fix B)
+    if (defaultConfig) {
+      try {
+        const populated = await ensureDefaultSlotsPopulated(defaultConfig.id)
+        if (populated > 0) {
+          // Refrescar configs para reflejar los nuevos _count.slots
+          configs = await db.boardConfiguration.findMany({
+            include: { _count: { select: { slots: true, zones: true } } },
+            orderBy: { isDefault: 'desc' },
+          })
+        }
+      } catch (populateErr) {
+        // Non-fatal: si falla el populate, devolver configs igualmente
+        console.error('[board-configs] Auto-populate failed:', populateErr)
+      }
     }
 
     return NextResponse.json({ success: true, data: configs })

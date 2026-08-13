@@ -77,8 +77,10 @@ export default function FormacionModal({ open, onClose, sStep, miniStep }: Forma
   const loadTemplate = async () => {
     setIsLoading(true);
     try {
+      let formacionLoaded = false;
+      let examLoaded = false;
+
       // If the zone has a board config, fetch templates from that config
-      // Otherwise fall back to global templates
       if (currentZone?.boardConfigId) {
         // Fetch board slots for this sStep + miniStep from the zone's board config
         const slotsRes = await fetch(`/api/board-slots?boardConfigId=${currentZone.boardConfigId}&sStep=${sStep}&miniStep=${miniStep}`);
@@ -93,8 +95,7 @@ export default function FormacionModal({ open, onClose, sStep, miniStep }: Forma
           if (formacionTemplates.length > 0) {
             const content = JSON.parse(formacionTemplates[0].template.content);
             setFormationContent(content.sections || []);
-          } else {
-            setFormationContent([]);
+            formacionLoaded = true;
           }
 
           // Load exam templates from board config
@@ -107,31 +108,46 @@ export default function FormacionModal({ open, onClose, sStep, miniStep }: Forma
             if (examTemplates[0].template.notaMinima != null) {
               setExamNotaMinima(examTemplates[0].template.notaMinima);
             }
+            examLoaded = true;
+          }
+        }
+      }
+
+      // Fallback global: si el board config no tenía slot, o el slot no tenía
+      // plantilla de formación/examen para esta posición, caer a las plantillas
+      // globales (mismo comportamiento que InventarioModal/Autoevaluacion/Auditoría).
+      // Esto garantiza que cualquier zona con boardConfigId asignado pero sin
+      // slots configurados siga viendo el contenido por defecto.
+      if (!formacionLoaded) {
+        try {
+          const formRes = await fetch(`/api/templates?type=formacion&sStep=${sStep}`);
+          const formJson = await formRes.json();
+          if (formJson.success && formJson.data.length > 0) {
+            const content = JSON.parse(formJson.data[0].content);
+            setFormationContent(content.sections || []);
+          } else {
+            setFormationContent([]);
+          }
+        } catch {
+          setFormationContent([]);
+        }
+      }
+
+      if (!examLoaded) {
+        try {
+          const examRes = await fetch(`/api/templates?type=examen&sStep=${sStep}`);
+          const examJson = await examRes.json();
+          if (examJson.success && examJson.data.length > 0) {
+            const content = JSON.parse(examJson.data[0].content);
+            setExamQuestions(content.questions || []);
+            if (examJson.data[0].notaMinima != null) {
+              setExamNotaMinima(examJson.data[0].notaMinima);
+            }
           } else {
             setExamQuestions([]);
           }
-        } else {
-          // No slot configured for this step — show empty
-          setFormationContent([]);
+        } catch {
           setExamQuestions([]);
-        }
-      } else {
-        // Fallback: load global templates (no board config assigned)
-        const formRes = await fetch(`/api/templates?type=formacion&sStep=${sStep}`);
-        const formJson = await formRes.json();
-        if (formJson.success && formJson.data.length > 0) {
-          const content = JSON.parse(formJson.data[0].content);
-          setFormationContent(content.sections || []);
-        }
-
-        const examRes = await fetch(`/api/templates?type=examen&sStep=${sStep}`);
-        const examJson = await examRes.json();
-        if (examJson.success && examJson.data.length > 0) {
-          const content = JSON.parse(examJson.data[0].content);
-          setExamQuestions(content.questions || []);
-          if (examJson.data[0].notaMinima != null) {
-            setExamNotaMinima(examJson.data[0].notaMinima);
-          }
         }
       }
     } catch (error) {
