@@ -411,126 +411,141 @@ export async function POST() {
       })
     }
 
-    // Templates are essential for the app to function — recreate them
+    // Templates are essential for the app to function — recreate them.
+    // v2.30: envolver TODO en try/catch. Si la migración SQL de companyId
+    // no se ha aplicado, db.template.create fallará — no queremos que eso
+    // rompa el alta del gestor ni el flujo de entrada al proyecto.
+    let templates: any[] = []
     try {
-      await db.template.deleteMany({})
-    } catch {
-      // Ignore delete errors
-    }
-
-    for (let s = 1; s <= 5; s++) {
-      // Training templates
-      await db.template.create({
-        data: {
-          type: 'formacion',
-          sStep: s,
-          title: `Formación ${S_NAMES[s - 1]} - 5S`,
-          description: `Contenido formativo sobre la ${s}ª S: ${S_NAMES[s - 1]} (${S_JAPANESE[s - 1]})`,
-          content: JSON.stringify(TRAINING_CONTENT[s]),
-        },
-      })
-
-      // Exam templates
-      await db.template.create({
-        data: {
-          type: 'examen',
-          sStep: s,
-          title: `Examen ${S_NAMES[s - 1]} - 5S`,
-          description: `Examen de evaluación sobre ${S_NAMES[s - 1]}`,
-          content: JSON.stringify(EXAM_QUESTIONS[s]),
-        },
-      })
-
-      // Inventory templates
-      await db.template.create({
-        data: {
-          type: 'inventario',
-          sStep: s,
-          title: `Plantilla Inventario ${S_NAMES[s - 1]}`,
-          description: `Plantilla de inventario para ${S_NAMES[s - 1]}`,
-          content: JSON.stringify(INVENTORY_TEMPLATES[s]),
-        },
-      })
-
-      // Self-evaluation templates
-      await db.template.create({
-        data: {
-          type: 'autoevaluacion',
-          sStep: s,
-          title: `Autoevaluación ${S_NAMES[s - 1]}`,
-          description: `Checklist de autoevaluación para ${S_NAMES[s - 1]}`,
-          content: JSON.stringify(AUTOEVAL_CHECKLISTS[s]),
-        },
-      })
-
-      // Audit templates
-      await db.template.create({
-        data: {
-          type: 'auditoria',
-          sStep: s,
-          title: `Auditoría ${S_NAMES[s - 1]}`,
-          description: `Criterios de auditoría para ${S_NAMES[s - 1]}`,
-          content: JSON.stringify(AUDIT_TEMPLATES[s]),
-        },
-      })
-
-      // Standard template (formato de mejora)
-      await db.template.create({
-        data: {
-          type: 'estandar',
-          sStep: s,
-          title: `Formato Estándar de Mejora - ${S_NAMES[s - 1]}`,
-          description: `Plantilla de formato estándar para registrar mejoras en ${S_NAMES[s - 1]} (${S_JAPANESE[s - 1]})`,
-          content: JSON.stringify({
-            fields: [
-              { key: 'beforePhotoUrl', label: 'Foto Antes', type: 'photo', required: true },
-              { key: 'afterPhotoUrl', label: 'Foto Después', type: 'photo', required: true },
-              { key: 'responsable', label: 'Quién lo ha hecho', type: 'text', required: true },
-              { key: 'contacto', label: 'Contacto', type: 'text', required: true },
-              { key: 'mejoraTipo', label: 'Tipo de Mejora', type: 'select', options: ['seguridad', 'calidad', 'proceso', 'logistica'], required: true },
-            ],
-          }),
-        },
-      })
-
-      // Fotos template (Paso 2 — Fotografías Antes/Después)
-      const fotosDescriptions: Record<number, string> = {
-        1: 'Fotografía la zona para ver qué elementos innecesarios hay antes de clasificar',
-        2: 'Fotografía la zona para ver cómo está organizada antes de reordenar',
-        3: 'Fotografía la zona para documentar los puntos de suciedad antes de limpiar',
-        4: 'Fotografía la zona para documentar el estado actual antes de estandarizar',
-        5: 'Fotografía la zona para documentar el nivel de cumplimiento de los estándares',
+      try {
+        await db.template.deleteMany({})
+      } catch {
+        // Ignore delete errors
       }
-      await db.template.create({
-        data: {
-          type: 'fotos',
-          sStep: s,
-          miniStep: 2,
-          title: `Fotos S${s} - ${S_JAPANESE[s - 1]}`,
-          description: `Plantilla de fotografías para ${S_NAMES[s - 1]} (${S_JAPANESE[s - 1]})`,
-          content: JSON.stringify({
-            sections: [
-              {
-                title: 'Fotografías Antes',
-                description: fotosDescriptions[s] || 'Documenta el estado actual con fotografías',
-                minPhotos: 3,
-                photoTypes: ['antes'],
-                instructions: 'Toma un mínimo de 3 fotografías del estado actual de la zona. Incluye vistas generales y detalles de los problemas detectados.',
-              },
-              {
-                title: 'Fotografías Después',
-                description: 'Fotografía el resultado tras aplicar las mejoras',
-                minPhotos: 3,
-                photoTypes: ['despues'],
-                instructions: 'Toma fotografías desde los mismos ángulos que las fotos "antes" para poder comparar el antes y el después.',
-              },
-            ],
-          }),
-        },
-      })
-    }
 
-    const templates = await db.template.findMany()
+      for (let s = 1; s <= 5; s++) {
+        // Training templates
+        await db.template.create({
+          data: {
+            type: 'formacion',
+            sStep: s,
+            title: `Formación ${S_NAMES[s - 1]} - 5S`,
+            description: `Contenido formativo sobre la ${s}ª S: ${S_NAMES[s - 1]} (${S_JAPANESE[s - 1]})`,
+            content: JSON.stringify(TRAINING_CONTENT[s]),
+          },
+        })
+
+        // Exam templates
+        await db.template.create({
+          data: {
+            type: 'examen',
+            sStep: s,
+            title: `Examen ${S_NAMES[s - 1]} - 5S`,
+            description: `Examen de evaluación sobre ${S_NAMES[s - 1]}`,
+            content: JSON.stringify(EXAM_QUESTIONS[s]),
+          },
+        })
+
+        // Inventory templates
+        await db.template.create({
+          data: {
+            type: 'inventario',
+            sStep: s,
+            title: `Plantilla Inventario ${S_NAMES[s - 1]}`,
+            description: `Plantilla de inventario para ${S_NAMES[s - 1]}`,
+            content: JSON.stringify(INVENTORY_TEMPLATES[s]),
+          },
+        })
+
+        // Self-evaluation templates
+        await db.template.create({
+          data: {
+            type: 'autoevaluacion',
+            sStep: s,
+            title: `Autoevaluación ${S_NAMES[s - 1]}`,
+            description: `Checklist de autoevaluación para ${S_NAMES[s - 1]}`,
+            content: JSON.stringify(AUTOEVAL_CHECKLISTS[s]),
+          },
+        })
+
+        // Audit templates
+        await db.template.create({
+          data: {
+            type: 'auditoria',
+            sStep: s,
+            title: `Auditoría ${S_NAMES[s - 1]}`,
+            description: `Criterios de auditoría para ${S_NAMES[s - 1]}`,
+            content: JSON.stringify(AUDIT_TEMPLATES[s]),
+          },
+        })
+
+        // Standard template (formato de mejora)
+        await db.template.create({
+          data: {
+            type: 'estandar',
+            sStep: s,
+            title: `Formato Estándar de Mejora - ${S_NAMES[s - 1]}`,
+            description: `Plantilla de formato estándar para registrar mejoras en ${S_NAMES[s - 1]} (${S_JAPANESE[s - 1]})`,
+            content: JSON.stringify({
+              fields: [
+                { key: 'beforePhotoUrl', label: 'Foto Antes', type: 'photo', required: true },
+                { key: 'afterPhotoUrl', label: 'Foto Después', type: 'photo', required: true },
+                { key: 'responsable', label: 'Quién lo ha hecho', type: 'text', required: true },
+                { key: 'contacto', label: 'Contacto', type: 'text', required: true },
+                { key: 'mejoraTipo', label: 'Tipo de Mejora', type: 'select', options: ['seguridad', 'calidad', 'proceso', 'logistica'], required: true },
+              ],
+            }),
+          },
+        })
+
+        // Fotos template (Paso 2 — Fotografías Antes/Después)
+        const fotosDescriptions: Record<number, string> = {
+          1: 'Fotografía la zona para ver qué elementos innecesarios hay antes de clasificar',
+          2: 'Fotografía la zona para ver cómo está organizada antes de reordenar',
+          3: 'Fotografía la zona para documentar los puntos de suciedad antes de limpiar',
+          4: 'Fotografía la zona para documentar el estado actual antes de estandarizar',
+          5: 'Fotografía la zona para documentar el nivel de cumplimiento de los estándares',
+        }
+        await db.template.create({
+          data: {
+            type: 'fotos',
+            sStep: s,
+            miniStep: 2,
+            title: `Fotos S${s} - ${S_JAPANESE[s - 1]}`,
+            description: `Plantilla de fotografías para ${S_NAMES[s - 1]} (${S_JAPANESE[s - 1]})`,
+            content: JSON.stringify({
+              sections: [
+                {
+                  title: 'Fotografías Antes',
+                  description: fotosDescriptions[s] || 'Documenta el estado actual con fotografías',
+                  minPhotos: 3,
+                  photoTypes: ['antes'],
+                  instructions: 'Toma un mínimo de 3 fotografías del estado actual de la zona. Incluye vistas generales y detalles de los problemas detectados.',
+                },
+                {
+                  title: 'Fotografías Después',
+                  description: 'Fotografía el resultado tras aplicar las mejoras',
+                  minPhotos: 3,
+                  photoTypes: ['despues'],
+                  instructions: 'Toma fotografías desde los mismos ángulos que las fotos "antes" para poder comparar el antes y el después.',
+                },
+              ],
+            }),
+          },
+        })
+      }
+
+      templates = await db.template.findMany()
+    } catch (templateErr) {
+      // v2.30: si falla (migración companyId pendiente), registrar y continuar
+      console.error('[seed] Error creando templates (¿migración SQL pendiente?):', templateErr instanceof Error ? templateErr.message : templateErr)
+      // Intentar obtener las plantillas existentes (si las hay)
+      try {
+        templates = await db.template.findMany()
+      } catch {
+        templates = []
+      }
+    }
     const userCount = await db.user.count()
     const projectCount = await db.project.count()
     return NextResponse.json({

@@ -23,7 +23,6 @@ export async function GET(request: NextRequest) {
       activeUsers,
       totalProjects,
       activeProjects,
-      totalTemplates,
       totalAuditResults,
       totalActions,
       openActions,
@@ -34,11 +33,19 @@ export async function GET(request: NextRequest) {
       db.user.count({ where: { active: true } }),
       db.project.count(),
       db.project.count({ where: { active: true } }),
-      db.template.count({ where: { active: true } }),
       db.auditResult.count(),
       db.actionItem.count(),
       db.actionItem.count({ where: { estado: 'abierta' } }),
     ])
+
+    // v2.30: si la columna companyId no existe (migración SQL pendiente),
+    // db.template.count fallará — capturar y devolver 0
+    let totalTemplates = 0
+    try {
+      totalTemplates = await db.template.count({ where: { active: true } })
+    } catch {
+      totalTemplates = 0
+    }
 
     // Users by role
     const usersByRole = await db.user.groupBy({

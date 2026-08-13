@@ -17,6 +17,25 @@ export async function POST(request: NextRequest) {
     const url = new URL(request.url)
     const forceSeed = url.searchParams.get('force') === 'true'
 
+    // v2.30: si la columna companyId no existe (migración SQL pendiente),
+    // todas las consultas a db.template fallarán. Devolver success sin hacer
+    // nada para no romper el flujo. El seed principal (/api/seed) se encarga
+    // de manera resiliente.
+    let columnCheckOk = true
+    try {
+      await db.template.count({ where: { companyId: null } })
+    } catch {
+      columnCheckOk = false
+      console.warn('[seed/templates] Columna companyId no existe — saltando seed. Aplica la migración SQL v2.30.')
+    }
+    if (!columnCheckOk) {
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        message: 'Migración SQL v2.30 pendiente — seed de plantillas omitido',
+      })
+    }
+
     // Always run seed to fix miniStep values and create missing templates.
     // The seed is non-destructive — it only creates templates that don't exist
     // and fixes incorrect miniStep values. Skipping it caused missing templates.

@@ -28,24 +28,47 @@ export async function GET(request: NextRequest) {
     if (sStepParam != null) where.sStep = Number(sStepParam)
     if (miniStepParam != null) where.miniStep = Number(miniStepParam)
 
-    const slots = await db.boardSlot.findMany({
-      where,
-      include: {
-        templates: {
-          include: {
-            template: { select: { id: true, type: true, title: true, sStep: true, miniStep: true, content: true, notaMinima: true } },
+    // v2.30: si la columna companyId no existe en Template (migración SQL
+    // pendiente), el include de template fallará. Caer a un include sin
+    // template (solo slot + standards) para no romper la app.
+    let slots
+    try {
+      slots = await db.boardSlot.findMany({
+        where,
+        include: {
+          templates: {
+            include: {
+              template: { select: { id: true, type: true, title: true, sStep: true, miniStep: true, content: true, notaMinima: true } },
+            },
+            orderBy: { sortOrder: 'asc' },
           },
-          orderBy: { sortOrder: 'asc' },
-        },
-        standards: {
-          include: {
-            standard: { select: { id: true, title: true, sStep: true, category: true, content: true } },
+          standards: {
+            include: {
+              standard: { select: { id: true, title: true, sStep: true, category: true, content: true } },
+            },
+            orderBy: { sortOrder: 'asc' },
           },
-          orderBy: { sortOrder: 'asc' },
         },
-      },
-      orderBy: [{ sStep: 'asc' }, { miniStep: 'asc' }],
-    })
+        orderBy: [{ sStep: 'asc' }, { miniStep: 'asc' }],
+      })
+    } catch (dbErr) {
+      console.warn('[board-slots] Template.companyId no existe, fallback sin include de template:', dbErr instanceof Error ? dbErr.message : dbErr)
+      slots = await db.boardSlot.findMany({
+        where,
+        include: {
+          templates: false as any,
+          standards: {
+            include: {
+              standard: { select: { id: true, title: true, sStep: true, category: true, content: true } },
+            },
+            orderBy: { sortOrder: 'asc' },
+          },
+        },
+        orderBy: [{ sStep: 'asc' }, { miniStep: 'asc' }],
+      })
+      // Añadir templates: [] a cada slot para que el cliente no rompa
+      slots = (slots as any[]).map(s => ({ ...s, templates: [] }))
+    }
 
     return NextResponse.json({ success: true, data: slots })
   } catch (error) {

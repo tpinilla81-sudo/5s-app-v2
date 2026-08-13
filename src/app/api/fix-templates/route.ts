@@ -10,6 +10,17 @@ export async function POST() {
   try {
     await ensureSystemConfigTable()
 
+    // v2.30: skip si la columna companyId no existe (migración SQL pendiente)
+    try {
+      await db.template.count({ where: { companyId: null } })
+    } catch {
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        message: 'Migración SQL v2.30 pendiente — fix-templates omitido',
+      })
+    }
+
     const CORRECT_MINI_STEP: Record<string, number> = {
       formacion: 1,
       examen: 1,
