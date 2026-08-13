@@ -1,0 +1,565 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useRef } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import { Button } from '@/components/ui/button'
+     6→import {
+     7→  Search, ArrowRight, Sparkles, BarChart3, ShieldCheck,
+     8→  ClipboardList, Camera, CheckSquare, GraduationCap,
+     9→  TrendingUp, Users, Target, Award, ArrowDown, ArrowDownRight,
+    10→  RotateCcw, Eye, LayoutDashboard, Zap, Clock, Layers,
+    11→  ChevronRight, Play, CheckCircle2, Circle, AlertCircle,
+    12→  Lightbulb, Wrench, FileText, MapPin
+    13→} from 'lucide-react'
+    14→
+    15→interface LandingPageProps {
+    16→  onLogin: () => void
+    17→}
+    18→
+    19→const fadeUp = {
+    20→  initial: { opacity: 0, y: 30 },
+    21→  animate: { opacity: 1, y: 0 },
+    22→  transition: { duration: 0.6 }
+    23→}
+    24→
+    25→// ── Animated counter hook ──
+    26→function useCounter(end: number, duration = 2000, startOnView = true) {
+    27→  const [count, setCount] = useState(0)
+    28→  const ref = useRef<HTMLDivElement>(null)
+    29→  const started = useRef(false)
+    30→
+    31→  useEffect(() => {
+    32→    if (!startOnView) return
+    33→    const el = ref.current
+    34→    if (!el) return
+    35→    const obs = new IntersectionObserver(([entry]) => {
+    36→      if (entry.isIntersecting && !started.current) {
+    37→        started.current = true
+    38→        const startTime = performance.now()
+    39→        const step = () => {
+    40→          const progress = Math.min((performance.now() - startTime) / duration, 1)
+    41→          const eased = 1 - Math.pow(1 - progress, 3) // easeOutCubic
+    42→          setCount(Math.round(eased * end))
+    43→          if (progress < 1) requestAnimationFrame(step)
+    44→        }
+    45→        requestAnimationFrame(step)
+    46→      }
+    47→    }, { threshold: 0.3 })
+    48→    obs.observe(el)
+    49→    return () => obs.disconnect()
+    50→  }, [end, duration, startOnView])
+    51→
+    52→  return { count, ref }
+    53→}
+    54→
+    55→// ── 5S Cycle data ──
+    56→const S_CYCLE = [
+    57→  { num: 1, name: 'SEIRI', label: 'Revisar', color: '#ef4444', angle: 270,
+    58→    desc: 'Identificar y separar lo necesario de lo innecesario. Eliminar lo que no aporta valor.',
+    59→    result: 'Espacio liberado, desperdicios eliminados' },
+    60→  { num: 2, name: 'SEITON', label: 'Ordenar', color: '#f97316', angle: 342,
+    61→    desc: 'Un lugar para cada cosa. Etiquetar, señalar y ordenar para acceso inmediato.',
+    62→    result: 'Tiempo de búsqueda reducido a 0' },
+    63→  { num: 3, name: 'SEISO', label: 'Limpiar', color: '#eab308', angle: 54,
+    64→    desc: 'Limpiar es inspeccionar. Detectar fugas, desgastes y anomalías durante la limpieza.',
+    65→    result: 'Anomalías detectadas al instante' },
+    66→  { num: 4, name: 'SEIKETSU', label: 'Estandarizar', color: '#22c55e', angle: 126,
+    67→    desc: 'Crear estándares visuales y procedimientos que mantengan los tres pasos anteriores.',
+    68→    result: 'Consistencia: siempre igual, siempre bien' },
+    69→  { num: 5, name: 'SHITSUKE', label: 'Mantener', color: '#3b82f6', angle: 198,
+    70→    desc: 'Disciplina y mejora continua. Convertir las buenas prácticas en hábito permanente.',
+    71→    result: 'Cultura de mejora continua arraigada' },
+    72→]
+    73→
+    74→// ── Stats ──
+    75→const STATS = [
+    76→  { value: 60, suffix: '%', label: 'Reducción de accidentes', icon: ShieldCheck },
+    77→  { value: 40, suffix: '%', label: 'Aumento de productividad', icon: TrendingUp },
+    78→  { value: 85, suffix: '%', label: 'Reducción tiempos búsqueda', icon: Clock },
+    79→  { value: 3, suffix: 'x', label: 'Retorno de la inversión', icon: BarChart3 },
+    80→]
+    81→
+    82→// ── Flow: How the app connects everything ──
+    83→const FLOW_STEPS = [
+    84→  { icon: GraduationCap, title: 'Formación', desc: 'El equipo aprende cada S con contenido interactivo y exámenes', color: '#ef4444' },
+    85→  { icon: Camera, title: 'Evidencia', desc: 'Fotos antes/después con geolocalización y trazabilidad', color: '#f97316' },
+    86→  { icon: ClipboardList, title: 'Inventario', desc: 'Listados digitales de innecesarios, necesarios, suciedad y estándares', color: '#eab308' },
+    87→  { icon: CheckSquare, title: 'Autoevaluación', desc: 'Checklists con puntuación automática y detección de hallazgos', color: '#22c55e' },
+    88→  { icon: ShieldCheck, title: 'Auditoría', desc: 'Auditorías trimestrales con informes, seguimiento y planes de acción', color: '#3b82f6' },
+    89→]
+    90→
+    91→// ── App Preview: simulated board ──
+    92→const PREVIEW_ZONES = [
+    93→  { name: 'Almacén', s1: 92, s2: 85, s3: 78, s4: 65, s5: 50 },
+    94→  { name: 'Producción', s1: 88, s2: 90, s3: 82, s4: 70, s5: 55 },
+    95→  { name: 'Oficinas', s1: 95, s2: 88, s3: 90, s4: 75, s5: 60 },
+    96→]
+    97→
+    98→// ── Interaction connections ──
+    99→const CONNECTIONS = [
+   100→  { from: 'Gestor', to: 'Empresa', desc: 'Crea y gestiona empresas desde el panel central' },
+   101→  { from: 'Admin', to: 'Proyecto', desc: 'Configura zonas, tableros y asigna responsables' },
+   102→  { from: 'Responsable', to: 'Zona', desc: 'Dirige la autoevaluación y seguimiento de su zona' },
+   103→  { from: 'Empleado', to: 'Pasos 5S', desc: 'Completa formación, fotos e inventario' },
+   104→  { from: 'Auditor', to: 'Auditoría', desc: 'Realiza auditorías trimestrales y genera informes' },
+   105→  { from: 'Gerente', to: 'Dashboard', desc: 'Supervisa progreso, KPIs y planes de acción' },
+   106→]
+   107→
+   108→export default function LandingPage({ onLogin }: LandingPageProps) {
+   109→  const [activeS, setActiveS] = useState(0)
+   110→  const [activeFlow, setActiveFlow] = useState(0)
+   111→  const stat1 = useCounter(60)
+   112→  const stat2 = useCounter(40)
+   113→  const stat3 = useCounter(85)
+   114→  const stat4 = useCounter(3)
+   115→  const statRefs = [stat1, stat2, stat3, stat4]
+   116→
+   117→  // Auto-cycle 5S
+   118→  useEffect(() => {
+   119→    const interval = setInterval(() => setActiveS(prev => (prev + 1) % 5), 3000)
+   120→    return () => clearInterval(interval)
+   121→  }, [])
+   122→
+   123→  // Auto-cycle flow
+   124→  useEffect(() => {
+   125→    const interval = setInterval(() => setActiveFlow(prev => (prev + 1) % FLOW_STEPS.length), 2500)
+   126→    return () => clearInterval(interval)
+   127→  }, [])
+   128→
+   129→  return (
+   130→    <div className="min-h-screen bg-white overflow-x-hidden">
+   131→
+   132→      {/* ═══ HERO ═══ */}
+   133→      <section className="relative overflow-hidden bg-gradient-to-br from-green-600 via-emerald-600 to-teal-700 text-white">
+   134→        <div className="absolute inset-0 opacity-10">
+   135→          <div className="absolute top-20 left-10 w-72 h-72 bg-white rounded-full blur-3xl" />
+   136→          <div className="absolute bottom-10 right-10 w-96 h-96 bg-white rounded-full blur-3xl" />
+   137→        </div>
+   138→        <div className="relative max-w-6xl mx-auto px-6 py-16 md:py-24">
+   139→          <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12">
+   140→            <motion.div className="flex-1 text-center md:text-left" {...fadeUp}>
+   141→              <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-1.5 text-sm mb-6">
+   142→                <Sparkles className="h-4 w-4" />
+   143→                Plataforma digital de gestión 5S
+   144→              </div>
+   145→              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-4">
+   146→                Transforma tu empresa con el{' '}
+   147→                <span className="text-yellow-300">Método 5S</span>
+   148→              </h1>
+   149→              <p className="text-lg md:text-xl text-green-100 mb-8 max-w-xl">
+   150→                La herramienta digital que convierte la metodología 5S en resultados tangibles:
+   151→                más orden, más limpieza, más eficiencia, más competitividad.
+   152→              </p>
+   153→              <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
+   154→                <Button size="lg" onClick={onLogin}
+   155→                  className="bg-white text-green-700 hover:bg-green-50 text-lg px-8 py-6 shadow-xl shadow-green-900/20 font-semibold">
+   156→                  Iniciar Sesión
+   157→                </Button>
+   158→                <Button size="lg" variant="outline"
+   159→                  onClick={() => document.getElementById('ciclo')?.scrollIntoView({ behavior: 'smooth' })}
+   160→                  className="border-white/40 text-white hover:bg-white/10 text-lg px-8 py-6">
+   161→                  Ver cómo funciona
+   162→                  <ArrowDown className="h-5 w-5 ml-2" />
+   163→                </Button>
+   164→              </div>
+   165→            </motion.div>
+   166→            <motion.div className="flex-shrink-0 w-48 h-48 md:w-64 md:h-64"
+   167→              initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}
+   168→              transition={{ type: 'spring', stiffness: 100, delay: 0.3 }}>
+   169→              <img src="/5s-logo.png" alt="5S Logo" className="w-full h-full object-contain drop-shadow-2xl" />
+   170→            </motion.div>
+   171→          </div>
+   172→        </div>
+   173→      </section>
+   174→
+   175→      {/* ═══ STATS COUNTER ═══ */}
+   176→      <section className="py-12 md:py-16 bg-white border-b border-gray-100">
+   177→        <div className="max-w-6xl mx-auto px-6">
+   178→          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
+   179→            {STATS.map((stat, i) => (
+   180→              <div key={i} ref={statRefs[i].ref} className="text-center">
+   181→                <div className="flex items-center justify-center mb-2">
+   182→                  <stat.icon className="h-5 w-5 text-green-500 mr-2" />
+   183→                  <span className="text-3xl md:text-4xl font-bold text-gray-900">
+   184→                    {statRefs[i].count}{stat.suffix}
+   185→                  </span>
+   186→                </div>
+   187→                <p className="text-sm text-gray-500">{stat.label}</p>
+   188→              </div>
+   189→            ))}
+   190→          </div>
+   191→        </div>
+   192→      </section>
+   193→
+   194→      {/* ═══ 5S CYCLE INTERACTIVE ═══ */}
+   195→      <section id="ciclo" className="py-16 md:py-24 bg-gradient-to-b from-white to-green-50/30">
+   196→        <div className="max-w-6xl mx-auto px-6">
+   197→          <motion.div className="text-center mb-12" {...fadeUp}>
+   198→            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+   199→              El ciclo 5S: 5 pasos, 1 transformación
+   200→            </h2>
+   201→            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+   202→              Cada S alimenta la siguiente. Es un ciclo virtuoso que se refuerza a sí mismo.
+   203→              Haz clic en cada paso para ver cómo se conectan.
+   204→            </p>
+   205→          </motion.div>
+   206→
+   207→          <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
+   208→            {/* Pentagon visual */}
+   209→            <div className="flex-shrink-0 w-[280px] h-[280px] md:w-[340px] md:h-[340px] relative">
+   210→              <svg viewBox="0 0 200 200" className="w-full h-full">
+   211→                {/* Center circle */}
+   212→                <circle cx="100" cy="100" r="28" fill="#059669" opacity="0.1" />
+   213→                <text x="100" y="96" textAnchor="middle" className="text-[9px] font-bold" fill="#059669">CICLO</text>
+   214→                <text x="100" y="108" textAnchor="middle" className="text-[8px]" fill="#059669">5S</text>
+   215→
+   216→                {/* Connecting lines */}
+   217→                {S_CYCLE.map((s, i) => {
+   218→                  const next = S_CYCLE[(i + 1) % 5]
+   219→                  const r = 75
+   220→                  const x1 = 100 + r * Math.cos((s.angle - 90) * Math.PI / 180)
+   221→                  const y1 = 100 + r * Math.sin((s.angle - 90) * Math.PI / 180)
+   222→                  const x2 = 100 + r * Math.cos((next.angle - 90) * Math.PI / 180)
+   223→                  const y2 = 100 + r * Math.sin((next.angle - 90) * Math.PI / 180)
+   224→                  return (
+   225→                    <line key={`line-${i}`} x1={x1} y1={y1} x2={x2} y2={y2}
+   226→                      stroke={i === activeS ? s.color : '#d1d5db'} strokeWidth={i === activeS ? 2.5 : 1}
+   227→                      strokeDasharray={i === activeS ? 'none' : '4 3'} opacity={i === activeS ? 1 : 0.4} />
+   228→                  )
+   229→                })}
+   230→
+   231→                {/* Nodes */}
+   232→                {S_CYCLE.map((s, i) => {
+   233→                  const r = 75
+   234→                  const x = 100 + r * Math.cos((s.angle - 90) * Math.PI / 180)
+   235→                  const y = 100 + r * Math.sin((s.angle - 90) * Math.PI / 180)
+   236→                  const isActive = i === activeS
+   237→                  return (
+   238→                    <g key={`node-${i}`} onClick={() => setActiveS(i)} className="cursor-pointer">
+   239→                      <circle cx={x} cy={y} r={isActive ? 20 : 15}
+   240→                        fill={isActive ? s.color : 'white'} stroke={s.color}
+   241→                        strokeWidth={isActive ? 3 : 2}
+   242→                        style={{ transition: 'all 0.3s' }} />
+   243→                      <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="middle"
+   244→                        className="text-[10px] font-bold" fill={isActive ? 'white' : s.color}>
+   245→                        S{s.num}
+   246→                      </text>
+   247→                    </g>
+   248→                  )
+   249→                })}
+   250→              </svg>
+   251→            </div>
+   252→
+   253→            {/* Active step detail */}
+   254→            <div className="flex-1 min-w-0">
+   255→              <AnimatePresence mode="wait">
+   256→                <motion.div
+   257→                  key={activeS}
+   258→                  initial={{ opacity: 0, x: 30 }}
+   259→                  animate={{ opacity: 1, x: 0 }}
+   260→                  exit={{ opacity: 0, x: -30 }}
+   261→                  transition={{ duration: 0.3 }}
+   262→                  className="bg-white rounded-2xl p-6 md:p-8 shadow-xl border border-gray-100"
+   263→                >
+   264→                  <div className="flex items-center gap-4 mb-4">
+   265→                    <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg"
+   266→                      style={{ backgroundColor: S_CYCLE[activeS].color }}>
+   267→                      S{S_CYCLE[activeS].num}
+   268→                    </div>
+   269→                    <div>
+   270→                      <h3 className="text-2xl font-bold text-gray-900">{S_CYCLE[activeS].label}</h3>
+   271→                      <span className="text-sm font-medium text-gray-400 italic">{S_CYCLE[activeS].name}</span>
+   272→                    </div>
+   273→                  </div>
+   274→                  <p className="text-gray-600 leading-relaxed mb-4">{S_CYCLE[activeS].desc}</p>
+   275→                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+   276→                    <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+   277→                    <span className="text-sm font-medium text-green-800">{S_CYCLE[activeS].result}</span>
+   278→                  </div>
+   279→                  {/* Progress dots */}
+   280→                  <div className="flex gap-2 mt-6">
+   281→                    {S_CYCLE.map((s, i) => (
+   282→                      <button key={i} onClick={() => setActiveS(i)}
+   283→                        className={`h-2 rounded-full transition-all ${i === activeS ? 'w-8' : 'w-2'}`}
+   284→                        style={{ backgroundColor: i === activeS ? s.color : '#d1d5db' }} />
+   285→                    ))}
+   286→                  </div>
+   287→                </motion.div>
+   288→              </AnimatePresence>
+   289→            </div>
+   290→          </div>
+   291→        </div>
+   292→      </section>
+   293→
+   294→      {/* ═══ APP FLOW: How it all connects ═══ */}
+   295→      <section className="py-16 md:py-24 bg-gray-50">
+   296→        <div className="max-w-6xl mx-auto px-6">
+   297→          <motion.div className="text-center mb-12" {...fadeUp}>
+   298→            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+   299→              Cómo funciona la plataforma
+   300→            </h2>
+   301→            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+   302→              Cada paso del método 5S se despliega en 5 mini-pasos interconectados.
+   303→              Todo fluye, nada se pierde.
+   304→            </p>
+   305→          </motion.div>
+   306→
+   307→          {/* Flow visualization */}
+   308→          <div className="relative">
+   309→            <div className="flex flex-col md:flex-row items-stretch gap-3 md:gap-0">
+   310→              {FLOW_STEPS.map((step, i) => (
+   311→                <motion.div
+   312→                  key={i}
+   313→                  initial={{ opacity: 0, y: 20 }}
+   314→                  whileInView={{ opacity: 1, y: 0 }}
+   315→                  viewport={{ once: true }}
+   316→                  transition={{ duration: 0.4, delay: i * 0.15 }}
+   317→                  className={`flex-1 relative ${i === activeFlow ? 'z-10' : 'z-0'}`}
+   318→                  onClick={() => setActiveFlow(i)}
+   319→                >
+   320→                  <div className={`mx-1 md:mx-2 rounded-xl p-4 md:p-5 border-2 transition-all cursor-pointer ${
+   321→                    i === activeFlow
+   322→                      ? 'bg-white shadow-lg border-green-500 scale-105'
+   323→                      : 'bg-white/60 border-gray-200 hover:border-gray-300'
+   324→                  }`}>
+   325→                    <div className="flex items-center gap-2 mb-2">
+   326→                      <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+   327→                        style={{ backgroundColor: step.color + '15' }}>
+   328→                        <step.icon className="h-4 w-4" style={{ color: step.color }} />
+   329→                      </div>
+   330→                      <span className={`font-semibold text-sm ${i === activeFlow ? 'text-gray-900' : 'text-gray-500'}`}>
+   331→                        {step.title}
+   332→                      </span>
+   333→                    </div>
+   334→                    <AnimatePresence mode="wait">
+   335→                      {i === activeFlow && (
+   336→                        <motion.p
+   337→                          initial={{ opacity: 0, height: 0 }}
+   338→                          animate={{ opacity: 1, height: 'auto' }}
+   339→                          exit={{ opacity: 0, height: 0 }}
+   340→                          className="text-xs text-gray-600 leading-relaxed"
+   341→                        >
+   342→                          {step.desc}
+   343→                        </motion.p>
+   344→                      )}
+   345→                    </AnimatePresence>
+   346→                  </div>
+   347→                  {/* Arrow connector */}
+   348→                  {i < FLOW_STEPS.length - 1 && (
+   349→                    <div className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-20">
+   350→                      <ChevronRight className="h-4 w-4 text-gray-300" />
+   351→                    </div>
+   352→                  )}
+   353→                </motion.div>
+   354→              ))}
+   355→            </div>
+   356→          </div>
+   357→
+   358→          {/* Connection line */}
+   359→          <div className="mt-3 flex justify-center gap-1">
+   360→            {FLOW_STEPS.map((_, i) => (
+   361→              <button key={i} onClick={() => setActiveFlow(i)}
+   362→                className={`h-1.5 rounded-full transition-all ${i === activeFlow ? 'w-6 bg-green-500' : 'w-1.5 bg-gray-300'}`} />
+   363→            ))}
+   364→          </div>
+   365→        </div>
+   366→      </section>
+   367→
+   368→      {/* ═══ APP PREVIEW: Simulated Board ═══ */}
+   369→      <section className="py-16 md:py-24 bg-gradient-to-b from-gray-900 to-gray-800 text-white">
+   370→        <div className="max-w-6xl mx-auto px-6">
+   371→          <motion.div className="text-center mb-12" {...fadeUp}>
+   372→            <div className="inline-flex items-center gap-2 bg-green-500/10 rounded-full px-4 py-1.5 text-sm mb-4 text-green-400">
+   373→              <Eye className="h-4 w-4" />
+   374→              Vista previa de la plataforma
+   375→            </div>
+   376→            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+   377→              Así se ve el tablero 5S
+   378→            </h2>
+   379→            <p className="text-lg text-gray-400 max-w-2xl mx-auto">
+   380→              Cada zona muestra su progreso en los 5 pasos. Verde = completado, amarillo = en progreso, gris = pendiente.
+   381→            </p>
+   382→          </motion.div>
+   383→
+   384→          {/* Mock board */}
+   385→          <div className="bg-gray-800/50 rounded-2xl p-6 md:p-8 border border-gray-700/50">
+   386→            <div className="flex items-center gap-3 mb-6">
+   387→              <LayoutDashboard className="h-5 w-5 text-green-400" />
+   388→              <span className="font-semibold">Tablero 5S — Proyecto Roncal</span>
+   389→              <span className="ml-auto text-xs text-gray-500">3 zonas</span>
+   390→            </div>
+   391→
+   392→            <div className="overflow-x-auto">
+   393→              <table className="w-full">
+   394→                <thead>
+   395→                  <tr className="border-b border-gray-700">
+   396→                    <th className="text-left py-3 px-2 text-sm text-gray-400 font-medium">Zona</th>
+   397→                    <th className="text-center py-3 px-2 text-sm text-gray-400">S1</th>
+   398→                    <th className="text-center py-3 px-2 text-sm text-gray-400">S2</th>
+   399→                    <th className="text-center py-3 px-2 text-sm text-gray-400">S3</th>
+   400→                    <th className="text-center py-3 px-2 text-sm text-gray-400">S4</th>
+   401→                    <th className="text-center py-3 px-2 text-sm text-gray-400">S5</th>
+   402→                  </tr>
+   403→                </thead>
+   404→                <tbody>
+   405→                  {PREVIEW_ZONES.map((zone, i) => (
+   406→                    <motion.tr key={i}
+   407→                      initial={{ opacity: 0, x: -20 }}
+   408→                      whileInView={{ opacity: 1, x: 0 }}
+   409→                      viewport={{ once: true }}
+   410→                      transition={{ delay: i * 0.15 }}
+   411→                      className="border-b border-gray-700/50">
+   412→                      <td className="py-3 px-2 font-medium text-sm">{zone.name}</td>
+   413→                      {[zone.s1, zone.s2, zone.s3, zone.s4, zone.s5].map((score, j) => {
+   414→                        const S_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']
+   415→                        const isComplete = score >= 80
+   416→                        const isProgress = score >= 50 && score < 80
+   417→                        return (
+   418→                          <td key={j} className="text-center py-3 px-2">
+   419→                            <motion.div
+   420→                              initial={{ scale: 0 }}
+   421→                              whileInView={{ scale: 1 }}
+   422→                              viewport={{ once: true }}
+   423→                              transition={{ delay: i * 0.15 + j * 0.08, type: 'spring', stiffness: 200 }}
+   424→                              className="inline-flex flex-col items-center gap-1"
+   425→                            >
+   426→                              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold relative overflow-hidden"
+   427→                                style={{ backgroundColor: isComplete ? S_COLORS[j] + '20' : isProgress ? '#fef3c7' : '#f3f4f6' }}>
+   428→                                <span style={{ color: isComplete ? S_COLORS[j] : isProgress ? '#d97706' : '#9ca3af' }}>{score}%</span>
+   429→                              </div>
+   430→                              {isComplete && <CheckCircle2 className="h-3 w-3" style={{ color: S_COLORS[j] }} />}
+   431→                              {!isComplete && isProgress && <AlertCircle className="h-3 w-3 text-amber-500" />}
+   432→                              {!isComplete && !isProgress && <Circle className="h-3 w-3 text-gray-400" />}
+   433→                            </motion.div>
+   434→                          </td>
+   435→                        )
+   436→                      })}
+   437→                    </motion.tr>
+   438→                  ))}
+   439→                </tbody>
+   440→              </table>
+   441→            </div>
+   442→
+   443→            <div className="flex items-center gap-6 mt-6 text-xs text-gray-400">
+   444→              <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-green-500" /> Completado (≥80%)</span>
+   445→              <span className="flex items-center gap-1"><AlertCircle className="h-3 w-3 text-amber-500" /> En progreso</span>
+   446→              <span className="flex items-center gap-1"><Circle className="h-3 w-3 text-gray-500" /> Pendiente</span>
+   447→            </div>
+   448→          </div>
+   449→        </div>
+   450→      </section>
+   451→
+   452→      {/* ═══ ROLES & CONNECTIONS ═══ */}
+   453→      <section className="py-16 md:py-24 bg-white">
+   454→        <div className="max-w-6xl mx-auto px-6">
+   455→          <motion.div className="text-center mb-12" {...fadeUp}>
+   456→            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+   457→              Cada rol, su conexión
+   458→            </h2>
+   459→            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+   460→              La plataforma conecta a cada persona con su responsabilidad.
+   461→              Todos participan, nada queda huérfano.
+   462→            </p>
+   463→          </motion.div>
+   464→
+   465→          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+   466→            {CONNECTIONS.map((c, i) => (
+   467→              <motion.div key={i}
+   468→                initial={{ opacity: 0, y: 15 }}
+   469→                whileInView={{ opacity: 1, y: 0 }}
+   470→                viewport={{ once: true }}
+   471→                transition={{ duration: 0.4, delay: i * 0.1 }}
+   472→                className="bg-gray-50 rounded-xl p-5 border border-gray-100 hover:border-green-200 hover:bg-green-50/30 transition-all"
+   473→              >
+   474→                <div className="flex items-center gap-2 mb-3">
+   475→                  <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+   476→                    {c.from}
+   477→                  </span>
+   478→                  <ArrowRight className="h-3.5 w-3.5 text-gray-300" />
+   479→                  <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
+   480→                    {c.to}
+   481→                  </span>
+   482→                </div>
+   483→                <p className="text-sm text-gray-600 leading-relaxed">{c.desc}</p>
+   484→              </motion.div>
+   485→            ))}
+   486→          </div>
+   487→        </div>
+   488→      </section>
+   489→
+   490→      {/* ═══ BENEFITS ═══ */}
+   491→      <section className="py-16 md:py-24 bg-gradient-to-b from-green-50/30 to-white">
+   492→        <div className="max-w-6xl mx-auto px-6">
+   493→          <motion.div className="text-center mb-12" {...fadeUp}>
+   494→            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+   495→              El poder de 5S digitalizado
+   496→            </h2>
+   497→            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+   498→              El papel se pierde, el Excel se desactualiza. La plataforma 5S mantiene todo vivo,
+   499→              conectado y en tiempo real.
+   500→            </p>
+   501→          </motion.div>
+   502→
+   503→          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+   504→            {[
+   505→              { icon: Zap, title: 'Detección inmediata', desc: 'Las anomalías se detectan cuando aparecen, no cuando causan un paro. El control visual digital permite reaccionar antes de que el problema crezca, reduciendo costes de no calidad hasta un 40%.', color: '#f59e0b' },
+   506→              { icon: Layers, title: 'Trazabilidad total', desc: 'Cada foto, cada hallazgo, cada acción queda registrado con fecha, autor y zona. Nada se pierde. Puedes reconstruir la historia completa de mejora de cualquier área con un clic.', color: '#8b5cf6' },
+   507→              { icon: RotateCcw, title: 'Ciclo PDCA integrado', desc: 'Planificar, hacer, verificar, actuar. Cada hallazgo genera un plan de acción, cada acción se verifica, cada verificación cierra el ciclo. La mejora no se para nunca.', color: '#06b6d4' },
+   508→              { icon: Lightbulb, title: 'Inteligencia de datos', desc: 'La plataforma no solo registra: analiza. Tendencias de puntuación, zonas críticas, evolución temporal. Datos que se convierten en decisiones informadas, no en intuiciones.', color: '#ec4899' },
+   509→            ].map((b, i) => (
+   510→              <motion.div key={i}
+   511→                initial={{ opacity: 0, y: 20 }}
+   512→                whileInView={{ opacity: 1, y: 0 }}
+   513→                viewport={{ once: true }}
+   514→                transition={{ duration: 0.4, delay: i * 0.1 }}
+   515→                className="flex gap-5 bg-white rounded-2xl p-6 md:p-8 shadow-lg border border-gray-100 hover:border-green-200 transition-all"
+   516→              >
+   517→                <div className="flex-shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center"
+   518→                  style={{ backgroundColor: b.color + '12' }}>
+   519→                  <b.icon className="h-7 w-7" style={{ color: b.color }} />
+   520→                </div>
+   521→                <div>
+   522→                  <h3 className="text-lg font-bold text-gray-900 mb-2">{b.title}</h3>
+   523→                  <p className="text-gray-600 text-sm leading-relaxed">{b.desc}</p>
+   524→                </div>
+   525→              </motion.div>
+   526→            ))}
+   527→          </div>
+   528→        </div>
+   529→      </section>
+   530→
+   531→      {/* ═══ CTA ═══ */}
+   532→      <section className="py-16 md:py-24 bg-gradient-to-r from-green-600 to-emerald-600 text-white">
+   533→        <div className="max-w-4xl mx-auto px-6 text-center">
+   534→          <motion.div {...fadeUp}>
+   535→            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+   536→              ¿Listo para transformar tu organización?
+   537→            </h2>
+   538→            <p className="text-lg text-green-100 mb-8 max-w-xl mx-auto">
+   539→              El orden no es un lujo, es una ventaja competitiva.
+   540→              Empieza hoy con la plataforma 5S digital.
+   541→            </p>
+   542→            <Button size="lg" onClick={onLogin}
+   543→              className="bg-white text-green-700 hover:bg-green-50 text-lg px-10 py-6 shadow-xl font-semibold">
+   544→              Acceder a la plataforma
+   545→            </Button>
+   546→          </motion.div>
+   547→        </div>
+   548→      </section>
+   549→
+   550→      {/* ═══ FOOTER ═══ */}
+   551→      <footer className="py-8 bg-gray-50 border-t border-gray-200">
+   552→        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+   553→          <div className="flex items-center gap-3">
+   554→            <img src="/5s-logo.png" alt="5S" className="w-8 h-8 object-contain" />
+   555→            <span className="text-sm text-gray-500">Método 5S — Plataforma digital</span>
+   556→          </div>
+   557→          <p className="text-xs text-gray-400">
+   558→            © {new Date().getFullYear()} Cincos. Metodología Lean Manufacturing.
+   559→          </p>
+   560→        </div>
+   561→      </footer>
+   562→    </div>
+   563→  )
+   564→}
+   565→

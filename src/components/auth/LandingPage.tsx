@@ -7,10 +7,11 @@ import {
   Search, ArrowRight, Sparkles, BarChart3, ShieldCheck,
   ClipboardList, Camera, CheckSquare, GraduationCap,
   TrendingUp, Users, Target, Award, ArrowDown, ArrowDownRight,
-  RotateCcw, Eye, LayoutDashboard, Zap, Clock, Layers,
-  ChevronRight, Play, CheckCircle2, Circle, AlertCircle,
+  RotateCcw, Zap, Clock, Layers,
+  ChevronRight, Play, CheckCircle2,
   Lightbulb, Wrench, FileText, MapPin
 } from 'lucide-react'
+import SolicitarInfoDialog from './SolicitarInfoDialog'
 
 interface LandingPageProps {
   onLogin: () => void
@@ -88,13 +89,6 @@ const FLOW_STEPS = [
   { icon: ShieldCheck, title: 'Auditoría', desc: 'Auditorías trimestrales con informes, seguimiento y planes de acción', color: '#3b82f6' },
 ]
 
-// ── App Preview: simulated board ──
-const PREVIEW_ZONES = [
-  { name: 'Almacén', s1: 92, s2: 85, s3: 78, s4: 65, s5: 50 },
-  { name: 'Producción', s1: 88, s2: 90, s3: 82, s4: 70, s5: 55 },
-  { name: 'Oficinas', s1: 95, s2: 88, s3: 90, s4: 75, s5: 60 },
-]
-
 // ── Interaction connections ──
 const CONNECTIONS = [
   { from: 'Gestor', to: 'Empresa', desc: 'Crea y gestiona empresas desde el panel central' },
@@ -161,6 +155,13 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
                   Ver cómo funciona
                   <ArrowDown className="h-5 w-5 ml-2" />
                 </Button>
+                {/* Access button — opens the contact dialog in the background */}
+                <SolicitarInfoDialog
+                  label="Solicitar Información"
+                  variant="outline"
+                  size="lg"
+                  className="border-yellow-300/60 text-yellow-200 hover:bg-yellow-300/10 text-lg px-8 py-6"
+                />
               </div>
             </motion.div>
             <motion.div className="flex-shrink-0 w-48 h-48 md:w-64 md:h-64"
@@ -365,90 +366,6 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
         </div>
       </section>
 
-      {/* ═══ APP PREVIEW: Simulated Board ═══ */}
-      <section className="py-16 md:py-24 bg-gradient-to-b from-gray-900 to-gray-800 text-white">
-        <div className="max-w-6xl mx-auto px-6">
-          <motion.div className="text-center mb-12" {...fadeUp}>
-            <div className="inline-flex items-center gap-2 bg-green-500/10 rounded-full px-4 py-1.5 text-sm mb-4 text-green-400">
-              <Eye className="h-4 w-4" />
-              Vista previa de la plataforma
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Así se ve el tablero 5S
-            </h2>
-            <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-              Cada zona muestra su progreso en los 5 pasos. Verde = completado, amarillo = en progreso, gris = pendiente.
-            </p>
-          </motion.div>
-
-          {/* Mock board */}
-          <div className="bg-gray-800/50 rounded-2xl p-6 md:p-8 border border-gray-700/50">
-            <div className="flex items-center gap-3 mb-6">
-              <LayoutDashboard className="h-5 w-5 text-green-400" />
-              <span className="font-semibold">Tablero 5S — Proyecto Roncal</span>
-              <span className="ml-auto text-xs text-gray-500">3 zonas</span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-700">
-                    <th className="text-left py-3 px-2 text-sm text-gray-400 font-medium">Zona</th>
-                    <th className="text-center py-3 px-2 text-sm text-gray-400">S1</th>
-                    <th className="text-center py-3 px-2 text-sm text-gray-400">S2</th>
-                    <th className="text-center py-3 px-2 text-sm text-gray-400">S3</th>
-                    <th className="text-center py-3 px-2 text-sm text-gray-400">S4</th>
-                    <th className="text-center py-3 px-2 text-sm text-gray-400">S5</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {PREVIEW_ZONES.map((zone, i) => (
-                    <motion.tr key={i}
-                      initial={{ opacity: 0, x: -20 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: i * 0.15 }}
-                      className="border-b border-gray-700/50">
-                      <td className="py-3 px-2 font-medium text-sm">{zone.name}</td>
-                      {[zone.s1, zone.s2, zone.s3, zone.s4, zone.s5].map((score, j) => {
-                        const S_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']
-                        const isComplete = score >= 80
-                        const isProgress = score >= 50 && score < 80
-                        return (
-                          <td key={j} className="text-center py-3 px-2">
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              whileInView={{ scale: 1 }}
-                              viewport={{ once: true }}
-                              transition={{ delay: i * 0.15 + j * 0.08, type: 'spring', stiffness: 200 }}
-                              className="inline-flex flex-col items-center gap-1"
-                            >
-                              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold relative overflow-hidden"
-                                style={{ backgroundColor: isComplete ? S_COLORS[j] + '20' : isProgress ? '#fef3c7' : '#f3f4f6' }}>
-                                <span style={{ color: isComplete ? S_COLORS[j] : isProgress ? '#d97706' : '#9ca3af' }}>{score}%</span>
-                              </div>
-                              {isComplete && <CheckCircle2 className="h-3 w-3" style={{ color: S_COLORS[j] }} />}
-                              {!isComplete && isProgress && <AlertCircle className="h-3 w-3 text-amber-500" />}
-                              {!isComplete && !isProgress && <Circle className="h-3 w-3 text-gray-400" />}
-                            </motion.div>
-                          </td>
-                        )
-                      })}
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex items-center gap-6 mt-6 text-xs text-gray-400">
-              <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-green-500" /> Completado (≥80%)</span>
-              <span className="flex items-center gap-1"><AlertCircle className="h-3 w-3 text-amber-500" /> En progreso</span>
-              <span className="flex items-center gap-1"><Circle className="h-3 w-3 text-gray-500" /> Pendiente</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ═══ ROLES & CONNECTIONS ═══ */}
       <section className="py-16 md:py-24 bg-white">
         <div className="max-w-6xl mx-auto px-6">
@@ -539,10 +456,18 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
               El orden no es un lujo, es una ventaja competitiva.
               Empieza hoy con la plataforma 5S digital.
             </p>
-            <Button size="lg" onClick={onLogin}
-              className="bg-white text-green-700 hover:bg-green-50 text-lg px-10 py-6 shadow-xl font-semibold">
-              Acceder a la plataforma
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button size="lg" onClick={onLogin}
+                className="bg-white text-green-700 hover:bg-green-50 text-lg px-10 py-6 shadow-xl font-semibold">
+                Acceder a la plataforma
+              </Button>
+              <SolicitarInfoDialog
+                label="Solicitar Información"
+                variant="outline"
+                size="lg"
+                className="border-white/40 text-white hover:bg-white/10 text-lg px-10 py-6"
+              />
+            </div>
           </motion.div>
         </div>
       </section>
