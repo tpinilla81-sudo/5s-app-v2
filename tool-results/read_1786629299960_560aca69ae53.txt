@@ -1,0 +1,2002 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import { use5SStore } from '@/lib/store'
+     6→import { Button } from '@/components/ui/button'
+     7→import { Input } from '@/components/ui/input'
+     8→import { Label } from '@/components/ui/label'
+     9→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+    10→import {
+    11→  Select,
+    12→  SelectContent,
+    13→  SelectItem,
+    14→  SelectTrigger,
+    15→  SelectValue,
+    16→} from '@/components/ui/select'
+    17→import { Badge } from '@/components/ui/badge'
+    18→import {
+    19→  Table,
+    20→  TableBody,
+    21→  TableCell,
+    22→  TableHead,
+    23→  TableHeader,
+    24→  TableRow,
+    25→} from '@/components/ui/table'
+    26→import {
+    27→  Dialog,
+    28→  DialogContent,
+    29→  DialogHeader,
+    30→  DialogTitle,
+    31→  DialogDescription,
+    32→} from '@/components/ui/dialog'
+    33→import {
+    34→  ArrowLeft,
+    35→  Plus,
+    36→  Trash2,
+    37→  Edit3,
+    38→  Check,
+    39→  X,
+    40→  Building2,
+    41→  Users,
+    42→  Key,
+    43→  Mail,
+    44→  Lock,
+    45→  User,
+    46→  UserCircle,
+    47→  Shield,
+    48→  MapPin,
+    49→  UserPlus,
+    50→  Loader2,
+    51→  AlertTriangle,
+    52→  Eye,
+    53→  EyeOff,
+    54→  CheckSquare,
+    55→  ShieldCheck,
+    56→  Save,
+    57→  BookOpen,
+    58→  LayoutGrid,
+    59→  FileText,
+    60→} from 'lucide-react'
+    61→import { Checkbox } from '@/components/ui/checkbox'
+    62→import { S_STEPS } from '@/lib/5s-constants'
+    63→import TemplateManager from './TemplateManager'
+    64→
+    65→
+    66→// ─── Types ───────────────────────────────────────────────────────────────────
+    67→
+    68→interface UserData {
+    69→  id: string
+    70→  email: string
+    71→  name: string
+    72→  role: string
+    73→  active: boolean
+    74→  plainPassword?: string | null
+    75→  createdAt: string
+    76→  companies: Array<{
+    77→    id: string
+    78→    name: string
+    79→    role: string
+    80→  }>
+    81→  projects: Array<{
+    82→    projectId: string
+    83→    projectName: string
+    84→    projectCompany: string
+    85→    role: string
+    86→    zones: Array<{ id: string; name: string; color: string }>
+    87→  }>
+    88→}
+    89→
+    90→interface ProjectData {
+    91→  id: string
+    92→  name: string
+    93→  description: string | null
+    94→  company: string
+    95→  startDate: string
+    96→  active: boolean
+    97→  zones: Array<{ id: string; name: string; description: string | null; color: string }>
+    98→  memberCount: number
+    99→}
+   100→
+   101→interface ZoneData {
+   102→  id: string
+   103→  name: string
+   104→  description: string | null
+   105→  color: string
+   106→  boardConfigId: string | null
+   107→  boardConfig?: { id: string; name: string } | null
+   108→}
+   109→
+   110→interface MemberData {
+   111→  id: string
+   112→  role: string
+   113→  user: { id: string; email: string; name: string; role: string; active: boolean; plainPassword?: string | null }
+   114→  zones: Array<{ id: string; name: string; color: string }>
+   115→}
+   116→
+   117→// ─── Helpers ─────────────────────────────────────────────────────────────────
+   118→
+   119→const ROLE_LABELS: Record<string, string> = {
+   120→  gestor: 'Gestor (Dueño)',
+   121→  admin: 'Admin de Empresa',
+   122→  gerente: 'Gerente',
+   123→  responsable: 'Responsable',
+   124→  empleado: 'Empleado',
+   125→  auditor: 'Auditor',
+   126→}
+   127→
+   128→const ROLE_COLORS: Record<string, string> = {
+   129→  gestor: 'bg-red-100 text-red-700 border-red-200',
+   130→  admin: 'bg-purple-100 text-purple-700 border-purple-200',
+   131→  gerente: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+   132→  responsable: 'bg-blue-100 text-blue-700 border-blue-200',
+   133→  empleado: 'bg-green-100 text-green-700 border-green-200',
+   134→  auditor: 'bg-orange-100 text-orange-700 border-orange-200',
+   135→}
+   136→
+   137→const PRESET_COLORS = ['#8B5CF6', '#EAB308', '#3B82F6', '#F43F5E', '#F97316', '#22C55E', '#06B6D4', '#EC4899']
+   138→
+   139→// ─── Field helper for Datos Empresa ─────────────────────────────────────────
+   140→// Muestra el valor en modo lectura o un Input editable según `editing`.
+   141→function Field({
+   142→  label, k, value, edit, setEdit, editing,
+   143→}: {
+   144→  label: string
+   145→  k: string
+   146→  value: string | null | undefined
+   147→  edit: Record<string, string>
+   148→  setEdit: React.Dispatch<React.SetStateAction<Record<string, string>>>
+   149→  editing: boolean
+   150→}) {
+   151→  return (
+   152→    <div className="space-y-1">
+   153→      <Label className="text-xs text-muted-foreground">{label}</Label>
+   154→      {editing ? (
+   155→        <Input
+   156→          value={edit[k] ?? ''}
+   157→          onChange={e => setEdit(prev => ({ ...prev, [k]: e.target.value }))}
+   158→          className="h-8 text-sm"
+   159→          placeholder={label}
+   160→        />
+   161→      ) : (
+   162→        <div className={`h-8 px-2 flex items-center text-sm rounded-md border border-transparent bg-gray-50 ${
+   163→          (value ?? '').trim() === '' ? 'text-muted-foreground italic' : 'text-gray-900'
+   164→        }`}>
+   165→          {(value ?? '').trim() === '' ? '— sin rellenar —' : value}
+   166→        </div>
+   167→      )}
+   168→    </div>
+   169→  )
+   170→}
+   171→
+   172→// ─── Component ───────────────────────────────────────────────────────────────
+   173→
+   174→interface AdminPanelProps {
+   175→  embedded?: boolean;
+   176→}
+   177→
+   178→export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
+   179→  const { setCurrentView, fetchProjects, fetchCompanies, projects, setCurrentProject, currentProject } = use5SStore()
+   180→  const [activeTab, setActiveTab] = useState<'companies' | 'projects' | 'plantillas'>('companies')
+   181→
+   182→  // ─── Projects state ──────────────────────────────────────────────────────
+   183→  const [allProjects, setAllProjects] = useState<ProjectData[]>([])
+   184→  const [isLoadingProjects, setIsLoadingProjects] = useState(false)
+   185→  const [editingProject, setEditingProject] = useState<string | null>(null)
+   186→  const [editProjectData, setEditProjectData] = useState({ name: '', description: '', company: '' })
+   187→
+   188→  // New project form
+   189→  const [showNewProject, setShowNewProject] = useState(false)
+   190→  const [newProjectName, setNewProjectName] = useState('')
+   191→  const [newProjectCompany, setNewProjectCompany] = useState('')
+   192→  const [isNewCompanyCustom, setIsNewCompanyCustom] = useState(false)
+   193→  const [newProjectDesc, setNewProjectDesc] = useState('')
+   194→  const [newProjectZones, setNewProjectZones] = useState<Array<{ name: string; color: string }>>([
+   195→    { name: '', color: PRESET_COLORS[0] },
+   196→  ])
+   197→
+   198→  // New-project members (existing or new) — added at creation time
+   199→  type NewProjectMember =
+   200→    | { mode: 'existing'; userId: string; name: string; email: string; role: string; zoneIdxs: number[] }
+   201→    | { mode: 'new'; name: string; email: string; password: string; role: string; zoneIdxs: number[] }
+   202→  const [newProjectMembers, setNewProjectMembers] = useState<NewProjectMember[]>([])
+   203→  // Form state for adding a member to the new-project form
+   204→  const [npMemberMode, setNpMemberMode] = useState<'existing' | 'new'>('existing')
+   205→  const [npMemberExistingId, setNpMemberExistingId] = useState('')
+   206→  const [npMemberName, setNpMemberName] = useState('')
+   207→  const [npMemberEmail, setNpMemberEmail] = useState('')
+   208→  const [npMemberPassword, setNpMemberPassword] = useState('')
+   209→  const [npMemberRole, setNpMemberRole] = useState('empleado')
+   210→  const [npMemberZoneIdxs, setNpMemberZoneIdxs] = useState<number[]>([])
+   211→
+   212→  // Project detail (zones + members)
+   213→  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+   214→  const [projectZones, setProjectZones] = useState<ZoneData[]>([])
+   215→  const [projectMembers, setProjectMembers] = useState<MemberData[]>([])
+   216→  const [isLoadingDetail, setIsLoadingDetail] = useState(false)
+   217→  const [newZoneName, setNewZoneName] = useState('')
+   218→  const [newZoneColor, setNewZoneColor] = useState(PRESET_COLORS[0])
+   219→  const [boardConfigs, setBoardConfigs] = useState<Array<{ id: string; name: string; isDefault: boolean }>>([])
+   220→  const [defaultBoardConfigId, setDefaultBoardConfigId] = useState<string | null>(null)
+   221→  const [newMemberName, setNewMemberName] = useState('')
+   222→  const [newMemberEmail, setNewMemberEmail] = useState('')
+   223→  const [newMemberRole, setNewMemberRole] = useState('empleado')
+   224→  const [newMemberZones, setNewMemberZones] = useState<string[]>([])
+   225→  const [newMemberPassword, setNewMemberPassword] = useState('')
+   226→  const [addMemberMode, setAddMemberMode] = useState<'existing' | 'new'>('existing')
+   227→  const [selectedExistingUserId, setSelectedExistingUserId] = useState('')
+   228→  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
+   229→  const [generatedMemberName, setGeneratedMemberName] = useState<string | null>(null)
+   230→  const [sendingCredentials, setSendingCredentials] = useState<string | null>(null)
+   231→
+   232→  // ─── Per-zone "add existing user" state ─────────────────────────────────
+   233→  // Map: zoneId → selected userId in the per-zone picker
+   234→  const [zoneAddUserId, setZoneAddUserId] = useState<Record<string, string>>({})
+   235→  // Map: zoneId → role for the new assignment
+   236→  const [zoneAddRole, setZoneAddRole] = useState<Record<string, string>>({})
+   237→  // Per-zone "create new user" form state
+   238→  const [zoneAddMode, setZoneAddMode] = useState<Record<string, 'existing' | 'new'>>({})
+   239→  const [zoneNewName, setZoneNewName] = useState<Record<string, string>>({})
+   240→  const [zoneNewEmail, setZoneNewEmail] = useState<Record<string, string>>({})
+   241→  const [zoneNewPassword, setZoneNewPassword] = useState<Record<string, string>>({})
+   242→  // Per-zone inline search query for "existing user" picker
+   243→  const [zoneSearch, setZoneSearch] = useState<Record<string, string>>({})
+   244→  // Per-zone list expanded (true = show list; false = collapsed)
+   245→  const [zoneShowList, setZoneShowList] = useState<Record<string, boolean>>({})
+   246→  // Zone currently being edited (inline rename)
+   247→  const [editingZoneId, setEditingZoneId] = useState<string | null>(null)
+   248→  const [editingZoneName, setEditingZoneName] = useState('')
+   249→
+   250→  // ─── Users state ─────────────────────────────────────────────────────────
+   251→  const [users, setUsers] = useState<UserData[]>([])
+   252→  const [isLoadingUsers, setIsLoadingUsers] = useState(false)
+   253→  const [editingUser, setEditingUser] = useState<string | null>(null)
+   254→  const [editUserData, setEditUserData] = useState({ name: '', email: '', role: '', active: true })
+   255→  const [resetPasswordUserId, setResetPasswordUserId] = useState<string | null>(null)
+   256→  const [newPassword, setNewPassword] = useState('')
+   257→  const [showPassword, setShowPassword] = useState(false)
+   258→
+   259→  // New user form
+   260→  const [showNewUser, setShowNewUser] = useState(false)
+   261→  const [newUserName, setNewUserName] = useState('')
+   262→  const [newUserEmail, setNewUserEmail] = useState('')
+   263→  const [newUserPassword, setNewUserPassword] = useState('')
+   264→  const [newUserRole, setNewUserRole] = useState('empleado')
+   265→
+   266→  // ─── Companies state ────────────────────────────────────────────────────
+   267→  const [companies, setCompanies] = useState<Array<{ id: string; name: string; description: string | null; active: boolean; projectCount: number; memberCount: number }>>([])
+   268→  const [isLoadingCompanies, setIsLoadingCompanies] = useState(false)
+   269→  const [showNewCompany, setShowNewCompany] = useState(false)
+   270→  const [newCompanyName, setNewCompanyName] = useState('')
+   271→  const [newCompanyDesc, setNewCompanyDesc] = useState('')
+   272→  const [editingCompany, setEditingCompany] = useState<string | null>(null)
+   273→  const [editCompanyData, setEditCompanyData] = useState({ name: '', description: '' })
+   274→  const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null)
+   275→  const [companyMembers, setCompanyMembers] = useState<Array<{ id: string; userId: string; companyId: string; role: string; user: { id: string; name: string; email: string; role: string; active: boolean } }>>([])
+   276→  const [addGerenteUserId, setAddGerenteUserId] = useState('')
+   277→  const [isLoadingCompanyDetail, setIsLoadingCompanyDetail] = useState(false)
+   278→  const [deleteCompanyDialog, setDeleteCompanyDialog] = useState<{ open: boolean; companyId: string; companyName: string; projectCount: number }>({ open: false, companyId: '', companyName: '', projectCount: 0 })
+   279→
+   280→  // ─── My Company (Datos Empresa) state ───────────────────────────────────
+   281→  const [myCompany, setMyCompany] = useState<{
+   282→    id: string; name: string; description: string | null; nif: string | null; sector: string | null;
+   283→    address: string | null; city: string | null; province: string | null; postalCode: string | null; country: string | null;
+   284→    phone: string | null; website: string | null;
+   285→    billingEmail: string | null; billingName: string | null; billingNif: string | null;
+   286→    billingAddress: string | null; billingCity: string | null; billingPostalCode: string | null; iban: string | null;
+   287→    contactName: string | null; contactEmail: string | null; contactPhone: string | null;
+   288→  } | null>(null)
+   289→  const [isLoadingMyCompany, setIsLoadingMyCompany] = useState(false)
+   290→  const [isSavingMyCompany, setIsSavingMyCompany] = useState(false)
+   291→  const [myCompanyEdit, setMyCompanyEdit] = useState<Record<string, string>>({})
+   292→  const [isEditingMyCompany, setIsEditingMyCompany] = useState(false)
+   293→
+   294→  // ─── Company Users management (Datos Empresa → Usuarios) ────────────────
+   295→  const [showAddCompanyUser, setShowAddCompanyUser] = useState(false)
+   296→  const [newCompanyUserName, setNewCompanyUserName] = useState('')
+   297→  const [newCompanyUserEmail, setNewCompanyUserEmail] = useState('')
+   298→  const [newCompanyUserPassword, setNewCompanyUserPassword] = useState('')
+   299→  const [newCompanyUserRole, setNewCompanyUserRole] = useState('empleado')
+   300→
+   301→  // ─── 5S Steps state ────────────────────────────────────────────────────
+   302→  const [progress5S, setProgress5S] = useState<Array<{ id: string; sStep: number; miniStep: number; completed: boolean; score: number | null; notes: string | null; zoneId: string | null; zoneName?: string }>>([])
+   303→  const [isLoading5S, setIsLoading5S] = useState(false)
+   304→  const [editingScore, setEditingScore] = useState<string | null>(null) // progress record id
+   305→  const [editScoreValue, setEditScoreValue] = useState('')
+   306→  const [editNotesValue, setEditNotesValue] = useState('')
+   307→  const [selected5SProjectId, setSelected5SProjectId] = useState<string | null>(null)
+   308→  const [selected5SZoneId, setSelected5SZoneId] = useState<string | null>(null)
+   309→
+   310→  // ─── Data loading ────────────────────────────────────────────────────────
+   311→  const loadProjects = useCallback(async () => {
+   312→    setIsLoadingProjects(true)
+   313→    try {
+   314→      const res = await fetch('/api/projects')
+   315→      const data = await res.json()
+   316→      setAllProjects(data.projects || [])
+   317→    } catch (error) {
+   318→      console.error('Error loading projects:', error)
+   319→    } finally {
+   320→      setIsLoadingProjects(false)
+   321→    }
+   322→  }, [])
+   323→
+   324→  const loadUsers = useCallback(async () => {
+   325→    setIsLoadingUsers(true)
+   326→    try {
+   327→      const res = await fetch('/api/users')
+   328→      const data = await res.json()
+   329→      setUsers(data.users || [])
+   330→    } catch (error) {
+   331→      console.error('Error loading users:', error)
+   332→    } finally {
+   333→      setIsLoadingUsers(false)
+   334→    }
+   335→  }, [])
+   336→
+   337→  const loadCompanies = useCallback(async () => {
+   338→    setIsLoadingCompanies(true)
+   339→    try {
+   340→      const res = await fetch('/api/companies')
+   341→      const data = await res.json()
+   342→      if (data.success) {
+   343→        setCompanies(data.companies || [])
+   344→      }
+   345→    } catch (error) {
+   346→      console.error('Error loading companies:', error)
+   347→    } finally {
+   348→      setIsLoadingCompanies(false)
+   349→    }
+   350→  }, [])
+   351→
+   352→  const loadCompanyDetail = useCallback(async (companyId: string) => {
+   353→    setIsLoadingCompanyDetail(true)
+   354→    try {
+   355→      const res = await fetch(`/api/companies/${companyId}`)
+   356→      const data = await res.json()
+   357→      if (data.success) {
+   358→        setCompanyMembers(data.company?.members || [])
+   359→      }
+   360→    } catch (error) {
+   361→      console.error('Error loading company detail:', error)
+   362→    } finally {
+   363→      setIsLoadingCompanyDetail(false)
+   364→    }
+   365→  }, [])
+   366→
+   367→  // ─── My Company (Datos Empresa) ─────────────────────────────────────────
+   368→  const loadMyCompany = useCallback(async () => {
+   369→    setIsLoadingMyCompany(true)
+   370→    try {
+   371→      const res = await fetch('/api/my-company')
+   372→      const data = await res.json()
+   373→      if (data.success && data.company) {
+   374→        setMyCompany(data.company)
+   375→        // Pre-fill editable copy
+   376→        const edit: Record<string, string> = {}
+   377→        for (const [k, v] of Object.entries(data.company)) {
+   378→          if (typeof v === 'string' || v === null) edit[k] = (v as string) ?? ''
+   379→        }
+   380→        setMyCompanyEdit(edit)
+   381→      }
+   382→    } catch (error) {
+   383→      console.error('Error loading my company:', error)
+   384→    } finally {
+   385→      setIsLoadingMyCompany(false)
+   386→    }
+   387→  }, [])
+   388→
+   389→  const handleSaveMyCompany = async () => {
+   390→    setIsSavingMyCompany(true)
+   391→    try {
+   392→      const res = await fetch('/api/my-company', {
+   393→        method: 'PUT',
+   394→        headers: { 'Content-Type': 'application/json' },
+   395→        body: JSON.stringify(myCompanyEdit),
+   396→      })
+   397→      const data = await res.json()
+   398→      if (data.success) {
+   399→        setMyCompany(data.company)
+   400→        const edit: Record<string, string> = {}
+   401→        for (const [k, v] of Object.entries(data.company)) {
+   402→          if (typeof v === 'string' || v === null) edit[k] = (v as string) ?? ''
+   403→        }
+   404→        setMyCompanyEdit(edit)
+   405→        setIsEditingMyCompany(false)
+   406→      } else {
+   407→        alert(data.error || 'Error al guardar los datos de la empresa')
+   408→      }
+   409→    } catch (error) {
+   410→      console.error('Error saving my company:', error)
+   411→      alert('Error al guardar los datos de la empresa')
+   412→    } finally {
+   413→      setIsSavingMyCompany(false)
+   414→    }
+   415→  }
+   416→
+   417→  // ─── Company Users handlers (Datos Empresa → Usuarios) ──────────────────
+   418→  // Crea un usuario nuevo y lo liga automáticamente a la empresa del admin actual.
+   419→  const handleCreateCompanyUser = async () => {
+   420→    if (!myCompany) return
+   421→    const name = newCompanyUserName.trim()
+   422→    const email = newCompanyUserEmail.trim().toLowerCase()
+   423→    const password = newCompanyUserPassword
+   424→    if (!name || !email || password.length < 6) return
+   425→
+   426→    try {
+   427→      // 1. Crear usuario
+   428→      const createRes = await fetch('/api/users', {
+   429→        method: 'POST',
+   430→        headers: { 'Content-Type': 'application/json' },
+   431→        body: JSON.stringify({ name, email, password, role: newCompanyUserRole, active: true }),
+   432→      })
+   433→      const createData = await createRes.json()
+   434→      let userId: string
+   435→      if (createRes.ok && createData.user) {
+   436→        userId = createData.user.id
+   437→      } else if (
+   438→        createRes.status === 400 &&
+   439→        typeof createData.error === 'string' &&
+   440→        createData.error.toLowerCase().includes('email')
+   441→      ) {
+   442→        // Email ya existe — hacer lookup y reutilizar
+   443→        const lookupRes = await fetch(`/api/users/lookup-by-email?email=${encodeURIComponent(email)}`)
+   444→        const lookupData = await lookupRes.json()
+   445→        if (!lookupData.found || !lookupData.user) {
+   446→          alert('Ya existe un usuario con ese email pero no se pudo localizar. Usa otro email.')
+   447→          return
+   448→        }
+   449→        userId = lookupData.user.id
+   450→      } else {
+   451→        alert(createData.error || 'Error al crear el usuario')
+   452→        return
+   453→      }
+   454→
+   455→      // 2. Ligar a la empresa (si no lo está ya)
+   456→      await fetch(`/api/companies/${myCompany.id}/members`, {
+   457→        method: 'POST',
+   458→        headers: { 'Content-Type': 'application/json' },
+   459→        body: JSON.stringify({ userId, role: newCompanyUserRole }),
+   460→      })
+   461→
+   462→      // 3. Recargar users y limpiar formulario
+   463→      await loadUsers()
+   464→      setNewCompanyUserName('')
+   465→      setNewCompanyUserEmail('')
+   466→      setNewCompanyUserPassword('')
+   467→      setNewCompanyUserRole('empleado')
+   468→      setShowAddCompanyUser(false)
+   469→      alert(`Usuario "${name}" creado y añadado a ${myCompany.name}.`)
+   470→    } catch (err) {
+   471→      console.error('Error creating company user:', err)
+   472→      alert('Error al crear el usuario')
+   473→    }
+   474→  }
+   475→
+   476→  // Activar / desactivar usuario (no borrar — conserva referencias históricas).
+   477→  const handleToggleUserActive = async (userId: string, currentlyActive: boolean, userName: string) => {
+   478→    const action = currentlyActive ? 'desactivar' : 'activar'
+   479→    if (!confirm(`¿${action.charAt(0).toUpperCase() + action.slice(1)} a "${userName}"?`)) return
+   480→    try {
+   481→      const res = await fetch('/api/users', {
+   482→        method: 'PUT',
+   483→        headers: { 'Content-Type': 'application/json' },
+   484→        body: JSON.stringify({ id: userId, active: !currentlyActive }),
+   485→      })
+   486→      const data = await res.json()
+   487→      if (data.success) {
+   488→        await loadUsers()
+   489→      } else {
+   490→        alert(data.error || `Error al ${action} el usuario`)
+   491→      }
+   492→    } catch (err) {
+   493→      console.error('Error toggling user active:', err)
+   494→      alert(`Error al ${action} el usuario`)
+   495→    }
+   496→  }
+   497→
+   498→  // Resetear contraseña de un usuario.
+   499→  const handleResetUserPassword = async (userId: string, userEmail: string) => {
+   500→    const newPassword = prompt(`Nueva contraseña para ${userEmail} (mín. 6 caracteres):`)
+   501→    if (!newPassword) return
+   502→    if (newPassword.length < 6) {
+   503→      alert('La contraseña debe tener al menos 6 caracteres.')
+   504→      return
+   505→    }
+   506→    try {
+   507→      const res = await fetch('/api/users', {
+   508→        method: 'PUT',
+   509→        headers: { 'Content-Type': 'application/json' },
+   510→        body: JSON.stringify({ id: userId, password: newPassword }),
+   511→      })
+   512→      const data = await res.json()
+   513→      if (data.success) {
+   514→        await loadUsers()
+   515→        alert(`Contraseña actualizada para ${userEmail}.`)
+   516→      } else {
+   517→        alert(data.error || 'Error al resetear la contraseña')
+   518→      }
+   519→    } catch (err) {
+   520→      console.error('Error resetting password:', err)
+   521→      alert('Error al resetear la contraseña')
+   522→    }
+   523→  }
+   524→
+   525→  // Eliminar usuario completamente.
+   526→  const handleDeleteCompanyUser = async (userId: string, userName: string, userEmail: string) => {
+   527→    if (!confirm(`¿Eliminar definitivamente a "${userName}" (${userEmail})?\n\nSe quitará de todos los proyectos y zonas. Esta acción no se puede deshacer.`)) return
+   528→    try {
+   529→      const res = await fetch(`/api/users?id=${userId}`, { method: 'DELETE' })
+   530→      const data = await res.json()
+   531→      if (data.success) {
+   532→        await loadUsers()
+   533→        await loadProjects()
+   534→        await fetchProjects()
+   535→      } else {
+   536→        alert(data.error || 'Error al eliminar el usuario')
+   537→      }
+   538→    } catch (err) {
+   539→      console.error('Error deleting user:', err)
+   540→      alert('Error al eliminar el usuario')
+   541→    }
+   542→  }
+   543→
+   544→  const loadProjectDetail = useCallback(async (projectId: string) => {
+   545→    setIsLoadingDetail(true)
+   546→    try {
+   547→      const [zonesRes, membersRes, configsRes] = await Promise.all([
+   548→        fetch(`/api/projects/${projectId}/zones`),
+   549→        fetch(`/api/projects/${projectId}/members`),
+   550→        fetch('/api/board-configs'),
+   551→      ])
+   552→      const zonesData = await zonesRes.json()
+   553→      const membersData = await membersRes.json()
+   554→      const configsData = await configsRes.json()
+   555→      const zones = zonesData.zones || []
+   556→      setProjectZones(zones)
+   557→      setProjectMembers(membersData.members || [])
+   558→      if (configsData.success) {
+   559→        const configs = (configsData.data || []).map((c: any) => ({ id: c.id, name: c.name, isDefault: c.isDefault }))
+   560→        setBoardConfigs(configs)
+   561→      }
+   562→      // Auto-select ALL zones when adding a member (better to remove than to add)
+   563→      setNewMemberZones(zones.map((z: any) => z.id))
+   564→      // Auto-select default board config for new zones
+   565→      const defaultConfig = (configsData.data || []).find((c: any) => c.isDefault)
+   566→      if (defaultConfig) {
+   567→        setDefaultBoardConfigId(defaultConfig.id)
+   568→      }
+   569→    } catch (error) {
+   570→      console.error('Error loading project detail:', error)
+   571→    } finally {
+   572→      setIsLoadingDetail(false)
+   573→    }
+   574→  }, [])
+   575→
+   576→  const load5SProgress = useCallback(async () => {
+   577→    setIsLoading5S(true)
+   578→    try {
+   579→      const params = new URLSearchParams()
+   580→      if (selected5SProjectId) params.set('projectId', selected5SProjectId)
+   581→      const res = await fetch(`/api/progress?${params.toString()}`)
+   582→      const data = await res.json()
+   583→      const progressData = data?.data ? data.data : (Array.isArray(data) ? data : [])
+   584→      // Enrich with zone names
+   585→      if (selected5SProjectId) {
+   586→        const zonesRes = await fetch(`/api/projects/${selected5SProjectId}/zones`)
+   587→        const zonesData = await zonesRes.json()
+   588→        const zones = zonesData.zones || []
+   589→        const enriched = progressData.map((p: any) => ({
+   590→          ...p,
+   591→          zoneName: zones.find((z: any) => z.id === p.zoneId)?.name || (p.zoneId ? 'Zona sin nombre' : 'Sin zona'),
+   592→        }))
+   593→        setProgress5S(enriched)
+   594→      } else {
+   595→        setProgress5S(progressData)
+   596→      }
+   597→    } catch (error) {
+   598→      console.error('Error loading 5S progress:', error)
+   599→    } finally {
+   600→      setIsLoading5S(false)
+   601→    }
+   602→  }, [selected5SProjectId])
+   603→
+   604→  useEffect(() => {
+   605→    loadProjects()
+   606→    loadUsers()
+   607→    loadCompanies()
+   608→    loadMyCompany()
+   609→  }, [loadProjects, loadUsers, loadCompanies, loadMyCompany])
+   610→
+   611→  // 5S-steps tab was removed; load5SProgress kept for potential future use
+   612→  void load5SProgress;
+   613→
+   614→  useEffect(() => {
+   615→    if (selectedProjectId) {
+   616→      loadProjectDetail(selectedProjectId)
+   617→    }
+   618→  }, [selectedProjectId, loadProjectDetail])
+   619→
+   620→  useEffect(() => {
+   621→    if (expandedCompanyId) {
+   622→      loadCompanyDetail(expandedCompanyId)
+   623→    }
+   624→  }, [expandedCompanyId, loadCompanyDetail])
+   625→
+   626→  // ─── Project actions ─────────────────────────────────────────────────────
+   627→
+   628→  // Add an existing user to the new-project pending list.
+   629→  // New users must be created in "Datos Empresa → Usuarios" first.
+   630→  const handleAddNewProjectMember = () => {
+   631→    const u = users.find(x => x.id === npMemberExistingId)
+   632→    if (!u) return
+   633→    setNewProjectMembers(prev => [
+   634→      ...prev,
+   635→      {
+   636→        mode: 'existing' as const,
+   637→        userId: u.id,
+   638→        name: u.name,
+   639→        email: u.email,
+   640→        role: npMemberRole,
+   641→        zoneIdxs: npMemberZoneIdxs.length > 0 ? [...npMemberZoneIdxs] : newProjectZones.map((_, i) => i),
+   642→      },
+   643→    ])
+   644→    // Reset form
+   645→    setNpMemberExistingId('')
+   646→    setNpMemberName('')
+   647→    setNpMemberEmail('')
+   648→    setNpMemberPassword('')
+   649→    setNpMemberRole('empleado')
+   650→    setNpMemberZoneIdxs([])
+   651→  }
+   652→
+   653→  const handleCreateProject = async () => {
+   654→    if (!newProjectName.trim() || !newProjectCompany.trim()) return
+   655→    const validZones = newProjectZones.filter(z => z.name.trim())
+   656→    if (validZones.length === 0) return
+   657→
+   658→    try {
+   659→      const res = await fetch('/api/projects', {
+   660→        method: 'POST',
+   661→        headers: { 'Content-Type': 'application/json' },
+   662→        body: JSON.stringify({
+   663→          name: newProjectName,
+   664→          description: newProjectDesc || undefined,
+   665→          company: newProjectCompany,
+   666→          companyId: companies.find(c => c.name === newProjectCompany)?.id || undefined,
+   667→          zones: validZones.map(z => ({ name: z.name, color: z.color })),
+   668→        }),
+   669→      })
+   670→      if (res.ok) {
+   671→        const data = await res.json()
+   672→        const projectId = data.project.id
+   673→        // Real zone IDs returned by the backend, in the same order as validZones
+   674→        const realZoneIds: string[] = (data.project.zones || []).map((z: any) => z.id)
+   675→
+   676→        // Auto-add current user as admin (always)
+   677→        const { currentUser } = use5SStore.getState()
+   678→        if (currentUser) {
+   679→          await fetch(`/api/projects/${projectId}/members`, {
+   680→            method: 'POST',
+   681→            headers: { 'Content-Type': 'application/json' },
+   682→            body: JSON.stringify({
+   683→              email: currentUser.email,
+   684→              name: currentUser.name,
+   685→              role: 'admin',
+   686→              zoneIds: realZoneIds,
+   687→            }),
+   688→          })
+   689→        }
+   690→
+   691→        // Add each pending member (existing or new) to the newly created project
+   692→        for (const member of newProjectMembers) {
+   693→          // Resolve which zone IDs this member should be assigned to
+   694→          const memberZoneIds = member.zoneIdxs
+   695→            .map(i => realZoneIds[i])
+   696→            .filter(Boolean) as string[]
+   697→          const body: any = {
+   698→            email: member.email,
+   699→            name: member.name,
+   700→            role: member.role,
+   701→            zoneIds: memberZoneIds.length > 0 ? memberZoneIds : undefined,
+   702→          }
+   703→          if (member.mode === 'new' && member.password && member.password.length >= 6) {
+   704→            body.password = member.password
+   705→          }
+   706→          try {
+   707→            await fetch(`/api/projects/${projectId}/members`, {
+   708→              method: 'POST',
+   709→              headers: { 'Content-Type': 'application/json' },
+   710→              body: JSON.stringify(body),
+   711→            })
+   712→          } catch (err) {
+   713→            console.error('Error adding member to new project:', err)
+   714→          }
+   715→        }
+   716→
+   717→        setShowNewProject(false)
+   718→        setNewProjectName('')
+   719→        setNewProjectCompany('')
+   720→        setIsNewCompanyCustom(false)
+   721→        setNewProjectDesc('')
+   722→        setNewProjectZones([{ name: '', color: PRESET_COLORS[0] }])
+   723→        setNewProjectMembers([])
+   724→        setNpMemberMode('existing')
+   725→        setNpMemberExistingId('')
+   726→        setNpMemberName('')
+   727→        setNpMemberEmail('')
+   728→        setNpMemberPassword('')
+   729→        setNpMemberRole('empleado')
+   730→        setNpMemberZoneIdxs([])
+   731→        await loadProjects()
+   732→        await fetchProjects()
+   733→      }
+   734→    } catch (error) {
+   735→      console.error('Error creating project:', error)
+   736→    }
+   737→  }
+   738→
+   739→  const handleUpdateProject = async (projectId: string) => {
+   740→    try {
+   741→      const res = await fetch(`/api/projects/${projectId}`, {
+   742→        method: 'PUT',
+   743→        headers: { 'Content-Type': 'application/json' },
+   744→        body: JSON.stringify(editProjectData),
+   745→      })
+   746→      if (res.ok) {
+   747→        setEditingProject(null)
+   748→        await loadProjects()
+   749→        await fetchProjects()
+   750→      }
+   751→    } catch (error) {
+   752→      console.error('Error updating project:', error)
+   753→    }
+   754→  }
+   755→
+   756→  const handleDeleteProject = async (projectId: string) => {
+   757→    if (!confirm('¿Estás seguro de eliminar este proyecto? Se eliminarán todos los datos asociados (inventarios, progresos, auditorías, etc.).')) return
+   758→    try {
+   759→      const res = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' })
+   760→      if (res.ok) {
+   761→        if (currentProject?.id === projectId) {
+   762→          const remaining = allProjects.filter(p => p.id !== projectId)
+   763→          setCurrentProject(remaining.length > 0 ? remaining[0] : null)
+   764→        }
+   765→        await loadProjects()
+   766→        await fetchProjects()
+   767→      }
+   768→    } catch (error) {
+   769→      console.error('Error deleting project:', error)
+   770→    }
+   771→  }
+   772→
+   773→  const handleSelectProject = (projectId: string) => {
+   774→    if (selectedProjectId === projectId) {
+   775→      setSelectedProjectId(null)
+   776→    } else {
+   777→      setSelectedProjectId(projectId)
+   778→      // Recargar users por si la carga inicial aún no terminó o si han cambiado
+   779→      loadUsers()
+   780→    }
+   781→  }
+   782→
+   783→  const handleAddZone = async () => {
+   784→    if (!selectedProjectId || !newZoneName.trim()) return
+   785→    try {
+   786→      const res = await fetch(`/api/projects/${selectedProjectId}/zones`, {
+   787→        method: 'POST',
+   788→        headers: { 'Content-Type': 'application/json' },
+   789→        body: JSON.stringify({ name: newZoneName, color: newZoneColor }),
+   790→      })
+   791→      if (res.ok) {
+   792→        setNewZoneName('')
+   793→        setNewZoneColor(PRESET_COLORS[(projectZones.length) % PRESET_COLORS.length])
+   794→        await loadProjectDetail(selectedProjectId)
+   795→        await loadProjects()
+   796→      } else {
+   797→        const data = await res.json()
+   798→        alert(data.error || 'Error al agregar zona')
+   799→      }
+   800→    } catch (error) {
+   801→      console.error('Error adding zone:', error)
+   802→      alert('Error de conexión al agregar zona')
+   803→    }
+   804→  }
+   805→
+   806→  const handleDeleteZone = async (zoneId: string, zoneName: string) => {
+   807→    if (!selectedProjectId) return
+   808→    if (!confirm(`¿Estás seguro de eliminar la zona "${zoneName}"? Los miembros asignados a esta zona perderán la asignación.`)) return
+   809→    try {
+   810→      const res = await fetch(`/api/projects/${selectedProjectId}/zones`, {
+   811→        method: 'DELETE',
+   812→        headers: { 'Content-Type': 'application/json' },
+   813→        body: JSON.stringify({ zoneId }),
+   814→      })
+   815→      if (res.ok) {
+   816→        await loadProjectDetail(selectedProjectId)
+   817→        await loadProjects()
+   818→      } else {
+   819→        const data = await res.json()
+   820→        alert(data.error || 'Error al eliminar zona')
+   821→      }
+   822→    } catch (error) {
+   823→      console.error('Error deleting zone:', error)
+   824→    }
+   825→  }
+   826→
+   827→  const handleZoneBoardConfig = async (zoneId: string, boardConfigId: string) => {
+   828→    if (!selectedProjectId) return
+   829→    try {
+   830→      const res = await fetch(`/api/projects/${selectedProjectId}/zones`, {
+   831→        method: 'PATCH',
+   832→        headers: { 'Content-Type': 'application/json' },
+   833→        body: JSON.stringify({ zoneId, boardConfigId }),
+   834→      })
+   835→      if (res.ok) {
+   836→        // Update local state
+   837→        setProjectZones(prev => prev.map(z => {
+   838→          if (z.id === zoneId) {
+   839→            const config = boardConfigs.find(c => c.id === boardConfigId)
+   840→            return { ...z, boardConfigId: boardConfigId || null, boardConfig: config ? { id: config.id, name: config.name } : null }
+   841→          }
+   842→          return z
+   843→        }))
+   844→      }
+   845→    } catch (error) {
+   846→      console.error('Error updating zone board config:', error)
+   847→    }
+   848→  }
+   849→
+   850→  const handleAddMember = async () => {
+   851→    if (!selectedProjectId) return
+   852→    try {
+   853→      if (addMemberMode === 'existing') {
+   854→        // Add existing user to project
+   855→        const selectedUser = users.find(u => u.id === selectedExistingUserId)
+   856→        if (!selectedUser) return
+   857→
+   858→        const body: any = {
+   859→          email: selectedUser.email,
+   860→          name: selectedUser.name,
+   861→          role: newMemberRole,
+   862→          zoneIds: newMemberZones.length > 0 ? newMemberZones : undefined,
+   863→        }
+   864→        const res = await fetch(`/api/projects/${selectedProjectId}/members`, {
+   865→          method: 'POST',
+   866→          headers: { 'Content-Type': 'application/json' },
+   867→          body: JSON.stringify(body),
+   868→        })
+   869→        if (res.ok) {
+   870→          setSelectedExistingUserId('')
+   871→          setNewMemberRole('empleado')
+   872→          setNewMemberZones(projectZones.map(z => z.id))
+   873→          await loadProjectDetail(selectedProjectId)
+   874→        }
+   875→      } else {
+   876→        // Create new user and add to project
+   877→        if (!newMemberName.trim() || !newMemberEmail.trim()) return
+   878→        const body: any = {
+   879→          email: newMemberEmail,
+   880→          name: newMemberName,
+   881→          role: newMemberRole,
+   882→          zoneIds: newMemberZones.length > 0 ? newMemberZones : undefined,
+   883→        }
+   884→        if (newMemberPassword && newMemberPassword.length >= 6) {
+   885→          body.password = newMemberPassword
+   886→        }
+   887→        const res = await fetch(`/api/projects/${selectedProjectId}/members`, {
+   888→          method: 'POST',
+   889→          headers: { 'Content-Type': 'application/json' },
+   890→          body: JSON.stringify(body),
+   891→        })
+   892→        if (res.ok) {
+   893→          const data = await res.json()
+   894→          if (data.member?.generatedPassword) {
+   895→            setGeneratedPassword(data.member.generatedPassword)
+   896→            setGeneratedMemberName(data.member.user?.name || newMemberName)
+   897→          }
+   898→          setNewMemberName('')
+   899→          setNewMemberEmail('')
+   900→          setNewMemberRole('empleado')
+   901→          setNewMemberZones(projectZones.map(z => z.id))
+   902→          setNewMemberPassword('')
+   903→          await loadProjectDetail(selectedProjectId)
+   904→        }
+   905→      }
+   906→    } catch (error) {
+   907→      console.error('Error adding member:', error)
+   908→    }
+   909→  }
+   910→
+   911→  const handleRemoveMember = async (memberId: string, memberName: string) => {
+   912→    if (!selectedProjectId) return
+   913→    if (!confirm(`¿Estás seguro de eliminar a "${memberName}" de este proyecto?`)) return
+   914→    try {
+   915→      const res = await fetch(`/api/projects/${selectedProjectId}/members`, {
+   916→        method: 'DELETE',
+   917→        headers: { 'Content-Type': 'application/json' },
+   918→        body: JSON.stringify({ memberId }),
+   919→      })
+   920→      if (res.ok) {
+   921→        await loadProjectDetail(selectedProjectId)
+   922→        await loadProjects()
+   923→        await loadUsers()
+   924→      } else {
+   925→        const data = await res.json()
+   926→        alert(data.error || 'Error al eliminar miembro')
+   927→      }
+   928→    } catch (error) {
+   929→      console.error('Error removing member:', error)
+   930→    }
+   931→  }
+   932→
+   933→  // ─── Per-zone member actions ─────────────────────────────────────────────
+   934→  // Devuelve los miembros asignados a una zona concreta (deriva del estado de
+   935→  // projectMembers, que ya incluye el array `zones` de cada miembro).
+   936→  const getMembersOfZone = (zoneId: string): MemberData[] => {
+   937→    return projectMembers.filter(m => m.zones.some(z => z.id === zoneId))
+   938→  }
+   939→
+   940→  // Asigna un usuario existente a una zona concreta. Si no es ProjectMember
+   941→  // todavía, lo crea con el rol indicado (por defecto 'empleado') y le asigna
+   942→  // esta zona. Si ya es ProjectMember, solo crea el MemberZone.
+   943→  const handleAddExistingUserToZone = async (zoneId: string) => {
+   944→    if (!selectedProjectId) return
+   945→    const userId = zoneAddUserId[zoneId]
+   946→    if (!userId) {
+   947→      alert('Selecciona un usuario de la lista desplegable.')
+   948→      return
+   949→    }
+   950→    const role = zoneAddRole[zoneId] || 'empleado'
+   951→    try {
+   952→      const res = await fetch(
+   953→        `/api/projects/${selectedProjectId}/zones/${zoneId}/members`,
+   954→        {
+   955→          method: 'POST',
+   956→          headers: { 'Content-Type': 'application/json' },
+   957→          body: JSON.stringify({ userId, role }),
+   958→        }
+   959→      )
+   960→      const data = await res.json()
+   961→      if (!res.ok) {
+   962→        alert(data.error || 'Error al asignar usuario a la zona')
+   963→        return
+   964→      }
+   965→      // Update local state
+   966→      setProjectMembers(prev => {
+   967→        const existingIdx = prev.findIndex(m => m.id === data.member.id)
+   968→        if (existingIdx >= 0) {
+   969→          // Replace with the updated member (zones array updated)
+   970→          const next = [...prev]
+   971→          next[existingIdx] = data.member
+   972→          return next
+   973→        }
+   974→        // New project member
+   975→        return [...prev, data.member]
+   976→      })
+   977→      // Clear picker for this zone
+   978→      setZoneAddUserId(prev => { const n = { ...prev }; delete n[zoneId]; return n })
+   979→      setZoneAddRole(prev => { const n = { ...prev }; delete n[zoneId]; return n })
+   980→      setZoneSearch(prev => { const n = { ...prev }; delete n[zoneId]; return n })
+   981→      setZoneShowList(prev => { const n = { ...prev }; delete n[zoneId]; return n })
+   982→      await loadProjects()
+   983→    } catch (error) {
+   984→      console.error('Error adding user to zone:', error)
+   985→      alert('Error de conexión al asignar usuario a la zona')
+   986→    }
+   987→  }
+   988→
+   989→  // Crea un usuario NUEVO desde el formulario de la zona y lo asigna a ella.
+   990→  // Si el email ya existe (en otra empresa, inactivo, etc.), automáticamente
+   991→  // busca ese usuario y lo asigna a la zona en vez de fallar.
+   992→  const handleCreateNewUserInZone = async (zoneId: string) => {
+   993→    if (!selectedProjectId) return
+   994→    const name = (zoneNewName[zoneId] || '').trim()
+   995→    const email = (zoneNewEmail[zoneId] || '').trim().toLowerCase()
+   996→    const password = zoneNewPassword[zoneId] || ''
+   997→    const role = zoneAddRole[zoneId] || 'empleado'
+   998→
+   999→    if (!name || !email) {
+  1000→      alert('Nombre y email son obligatorios.')
+  1001→      return
+  1002→    }
+  1003→    if (!password || password.length < 6) {
+  1004→      alert('La contraseña debe tener al menos 6 caracteres.')
+  1005→      return
+  1006→    }
+  1007→
+  1008→    try {
+  1009→      // 1. Intentar crear el usuario
+  1010→      let userId: string
+  1011→      let wasExisting = false
+  1012→      let existingUserName = name
+  1013→
+  1014→      const createUserRes = await fetch('/api/users', {
+  1015→        method: 'POST',
+  1016→        headers: { 'Content-Type': 'application/json' },
+  1017→        body: JSON.stringify({ name, email, password, role, active: true }),
+  1018→      })
+  1019→      const createUserData = await createUserRes.json()
+  1020→
+  1021→      if (createUserRes.ok && createUserData.user) {
+  1022→        userId = createUserData.user.id
+  1023→      } else if (
+  1024→        createUserRes.status === 400 &&
+  1025→        typeof createUserData.error === 'string' &&
+  1026→        createUserData.error.toLowerCase().includes('email')
+  1027→      ) {
+  1028→        // El email ya existe en el sistema (probablemente en otra empresa
+  1029→        // o como usuario inactivo que el admin actual no ve en su lista).
+  1030→        // Hacemos lookup exacto por email y lo asignamos a la zona.
+  1031→        const lookupRes = await fetch(
+  1032→          `/api/users/lookup-by-email?email=${encodeURIComponent(email)}`
+  1033→        )
+  1034→        if (!lookupRes.ok) {
+  1035→          alert(
+  1036→            `Ya existe un usuario con ese email pero no se pudo localizar ` +
+  1037→            `automáticamente. Prueba con otro email.`
+  1038→          )
+  1039→          return
+  1040→        }
+  1041→        const lookupData = await lookupRes.json()
+  1042→        if (!lookupData.found || !lookupData.user) {
+  1043→          alert(
+  1044→            `Ya existe un usuario con ese email pero no se pudo localizar ` +
+  1045→            `automáticamente. Prueba con otro email.`
+  1046→          )
+  1047→          return
+  1048→        }
+  1049→        userId = lookupData.user.id
+  1050→        wasExisting = true
+  1051→        existingUserName = lookupData.user.name
+  1052→      } else {
+  1053→        alert(createUserData.error || 'Error al crear el usuario')
+  1054→        return
+  1055→      }
+  1056→
+  1057→      // 2. Asignar a la zona (esto crea ProjectMember + MemberZone si no existen)
+  1058→      const assignRes = await fetch(
+  1059→        `/api/projects/${selectedProjectId}/zones/${zoneId}/members`,
+  1060→        {
+  1061→          method: 'POST',
+  1062→          headers: { 'Content-Type': 'application/json' },
+  1063→          body: JSON.stringify({ userId, role }),
+  1064→        }
+  1065→      )
+  1066→      const assignData = await assignRes.json()
+  1067→      if (!assignRes.ok) {
+  1068→        alert(assignData.error || 'Error al asignar el usuario a la zona')
+  1069→        return
+  1070→      }
+  1071→
+  1072→      // 3. Actualizar estado local
+  1073→      setProjectMembers(prev => {
+  1074→        const existingIdx = prev.findIndex(m => m.id === assignData.member.id)
+  1075→        if (existingIdx >= 0) {
+  1076→          const next = [...prev]
+  1077→          next[existingIdx] = assignData.member
+  1078→          return next
+  1079→        }
+  1080→        return [...prev, assignData.member]
+  1081→      })
+  1082→
+  1083→      // 4. Recargar users y projects para reflejar cambios
+  1084→      await Promise.all([loadUsers(), loadProjects()])
+  1085→
+  1086→      // 5. Limpiar formulario
+  1087→      setZoneNewName(prev => { const n = { ...prev }; delete n[zoneId]; return n })
+  1088→      setZoneNewEmail(prev => { const n = { ...prev }; delete n[zoneId]; return n })
+  1089→      setZoneNewPassword(prev => { const n = { ...prev }; delete n[zoneId]; return n })
+  1090→      setZoneAddRole(prev => { const n = { ...prev }; delete n[zoneId]; return n })
+  1091→      setZoneAddMode(prev => { const n = { ...prev }; delete n[zoneId]; return n })
+  1092→
+  1093→      // 6. Notificación al admin
+  1094→      if (wasExisting) {
+  1095→        alert(
+  1096→          `El email "${email}" ya existía en el sistema (posiblemente en otra empresa). ` +
+  1097→          `Se ha asignado a "${existingUserName}" a esta zona con el rol indicado. ` +
+  1098→          `Si querías crear un usuario distinto, usa otro email.`
+  1099→        )
+  1100→        setGeneratedPassword(null)
+  1101→        setGeneratedMemberName(null)
+  1102→      } else {
+  1103→        setGeneratedPassword(password)
+  1104→        setGeneratedMemberName(name)
+  1105→      }
+  1106→    } catch (error) {
+  1107→      console.error('Error creating new user in zone:', error)
+  1108→      alert('Error de conexión al crear el usuario')
+  1109→    }
+  1110→  }
+  1111→
+  1112→  // Retira a un miembro SOLO de esta zona (mantiene el ProjectMember y el User).
+  1113→  const handleRemoveMemberFromZone = async (zoneId: string, memberId: string, memberName: string) => {
+  1114→    if (!selectedProjectId) return
+  1115→    if (!confirm(`¿Retirar a "${memberName}" de esta zona? Seguirá siendo miembro del proyecto.`)) return
+  1116→    try {
+  1117→      const res = await fetch(
+  1118→        `/api/projects/${selectedProjectId}/zones/${zoneId}/members?memberId=${memberId}`,
+  1119→        { method: 'DELETE' }
+  1120→      )
+  1121→      if (res.ok) {
+  1122→        // Update local state: remove the zone from the member's zones array
+  1123→        setProjectMembers(prev =>
+  1124→          prev.map(m =>
+  1125→            m.id === memberId
+  1126→              ? { ...m, zones: m.zones.filter(z => z.id !== zoneId) }
+  1127→              : m
+  1128→          )
+  1129→        )
+  1130→        await loadProjects()
+  1131→      } else {
+  1132→        const data = await res.json()
+  1133→        alert(data.error || 'Error al retirar miembro de la zona')
+  1134→      }
+  1135→    } catch (error) {
+  1136→      console.error('Error removing member from zone:', error)
+  1137→    }
+  1138→  }
+  1139→
+  1140→  // Cambia el rol de un miembro (a nivel de proyecto, ya que el rol es por
+  1141→  // ProjectMember en este esquema).
+  1142→  const handleUpdateMemberRoleInZone = async (zoneId: string, memberId: string, newRole: string) => {
+  1143→    if (!selectedProjectId) return
+  1144→    setProjectMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m))
+  1145→    try {
+  1146→      await fetch(
+  1147→        `/api/projects/${selectedProjectId}/zones/${zoneId}/members`,
+  1148→        {
+  1149→          method: 'PATCH',
+  1150→          headers: { 'Content-Type': 'application/json' },
+  1151→          body: JSON.stringify({ memberId, role: newRole }),
+  1152→        }
+  1153→      )
+  1154→    } catch (error) {
+  1155→      console.error('Error updating member role:', error)
+  1156→    }
+  1157→  }
+  1158→
+  1159→  // Renombra una zona inline
+  1160→  const handleSaveZoneName = async (zoneId: string) => {
+  1161→    if (!selectedProjectId) return
+  1162→    if (!editingZoneName.trim()) {
+  1163→      setEditingZoneId(null)
+  1164→      return
+  1165→    }
+  1166→    try {
+  1167→      const res = await fetch(`/api/projects/${selectedProjectId}/zones`, {
+  1168→        method: 'PATCH',
+  1169→        headers: { 'Content-Type': 'application/json' },
+  1170→        body: JSON.stringify({ zoneId, name: editingZoneName.trim() }),
+  1171→      })
+  1172→      if (res.ok) {
+  1173→        setProjectZones(prev => prev.map(z => z.id === zoneId ? { ...z, name: editingZoneName.trim() } : z))
+  1174→      } else {
+  1175→        const data = await res.json()
+  1176→        alert(data.error || 'Error al renombrar la zona')
+  1177→      }
+  1178→    } catch (error) {
+  1179→      console.error('Error renaming zone:', error)
+  1180→    }
+  1181→    setEditingZoneId(null)
+  1182→  }
+  1183→
+  1184→  // ─── Company actions ────────────────────────────────────────────────────
+  1185→  const handleCreateCompany = async () => {
+  1186→    if (!newCompanyName.trim()) return
+  1187→    try {
+  1188→      const res = await fetch('/api/companies', {
+  1189→        method: 'POST',
+  1190→        headers: { 'Content-Type': 'application/json' },
+  1191→        body: JSON.stringify({ name: newCompanyName, description: newCompanyDesc || undefined }),
+  1192→      })
+  1193→      if (res.ok) {
+  1194→        setShowNewCompany(false)
+  1195→        setNewCompanyName('')
+  1196→        setNewCompanyDesc('')
+  1197→        await loadCompanies()
+  1198→        await fetchCompanies()
+  1199→      } else {
+  1200→        const data = await res.json()
+  1201→        alert(data.error || 'Error al crear empresa')
+  1202→      }
+  1203→    } catch (error) {
+  1204→      console.error('Error creating company:', error)
+  1205→    }
+  1206→  }
+  1207→
+  1208→  const handleUpdateCompany = async (companyId: string) => {
+  1209→    try {
+  1210→      const res = await fetch(`/api/companies/${companyId}`, {
+  1211→        method: 'PUT',
+  1212→        headers: { 'Content-Type': 'application/json' },
+  1213→        body: JSON.stringify(editCompanyData),
+  1214→      })
+  1215→      if (res.ok) {
+  1216→        setEditingCompany(null)
+  1217→        await loadCompanies()
+  1218→        await fetchCompanies()
+  1219→      } else {
+  1220→        const data = await res.json()
+  1221→        alert(data.error || 'Error al actualizar empresa')
+  1222→      }
+  1223→    } catch (error) {
+  1224→      console.error('Error updating company:', error)
+  1225→    }
+  1226→  }
+  1227→
+  1228→  const handleDeleteCompany = (companyId: string) => {
+  1229→    const company = companies.find(c => c.id === companyId)
+  1230→    if (!company) return
+  1231→    setDeleteCompanyDialog({
+  1232→      open: true,
+  1233→      companyId: company.id,
+  1234→      companyName: company.name,
+  1235→      projectCount: company.projectCount,
+  1236→    })
+  1237→  }
+  1238→
+  1239→  const confirmDeleteCompany = async (force: boolean) => {
+  1240→    const { companyId } = deleteCompanyDialog
+  1241→    setDeleteCompanyDialog(d => ({ ...d, open: false }))
+  1242→    try {
+  1243→      const url = force ? `/api/companies/${companyId}?force=true` : `/api/companies/${companyId}`
+  1244→      const res = await fetch(url, { method: 'DELETE' })
+  1245→      if (res.ok) {
+  1246→        const data = await res.json()
+  1247→        if (data.softDelete) {
+  1248→          alert(data.message)
+  1249→        }
+  1250→        await loadCompanies()
+  1251→        await fetchCompanies()
+  1252→      } else {
+  1253→        const data = await res.json()
+  1254→        alert(data.error || 'Error al eliminar empresa')
+  1255→      }
+  1256→    } catch (error) {
+  1257→      console.error('Error deleting company:', error)
+  1258→    }
+  1259→  }
+  1260→
+  1261→  const handleAddGerente = async () => {
+  1262→    if (!expandedCompanyId || !addGerenteUserId) return
+  1263→    try {
+  1264→      const res = await fetch(`/api/companies/${expandedCompanyId}/members`, {
+  1265→        method: 'POST',
+  1266→        headers: { 'Content-Type': 'application/json' },
+  1267→        body: JSON.stringify({ userId: addGerenteUserId, role: 'gerente' }),
+  1268→      })
+  1269→      if (res.ok) {
+  1270→        setAddGerenteUserId('')
+  1271→        await loadCompanyDetail(expandedCompanyId)
+  1272→        await loadCompanies()
+  1273→      } else {
+  1274→        const data = await res.json()
+  1275→        alert(data.error || 'Error al asignar gerente')
+  1276→      }
+  1277→    } catch (error) {
+  1278→      console.error('Error adding gerente:', error)
+  1279→    }
+  1280→  }
+  1281→
+  1282→  const handleRemoveCompanyMember = async (userId: string, userName: string) => {
+  1283→    if (!expandedCompanyId) return
+  1284→    if (!confirm(`¿Estás seguro de eliminar a "${userName}" de esta empresa?`)) return
+  1285→    try {
+  1286→      const res = await fetch(`/api/companies/${expandedCompanyId}/members`, {
+  1287→        method: 'DELETE',
+  1288→        headers: { 'Content-Type': 'application/json' },
+  1289→        body: JSON.stringify({ memberUserId: userId }),
+  1290→      })
+  1291→      if (res.ok) {
+  1292→        await loadCompanyDetail(expandedCompanyId)
+  1293→        await loadCompanies()
+  1294→      } else {
+  1295→        const data = await res.json()
+  1296→        alert(data.error || 'Error al eliminar miembro')
+  1297→      }
+  1298→    } catch (error) {
+  1299→      console.error('Error removing company member:', error)
+  1300→    }
+  1301→  }
+  1302→
+  1303→  // ─── User actions ────────────────────────────────────────────────────────
+  1304→  const handleCreateUser = async () => {
+  1305→    if (!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim()) return
+  1306→    try {
+  1307→      const res = await fetch('/api/users', {
+  1308→        method: 'POST',
+  1309→        headers: { 'Content-Type': 'application/json' },
+  1310→        body: JSON.stringify({
+  1311→          name: newUserName,
+  1312→          email: newUserEmail,
+  1313→          password: newUserPassword,
+  1314→          role: newUserRole,
+  1315→        }),
+  1316→      })
+  1317→      if (res.ok) {
+  1318→        setShowNewUser(false)
+  1319→        setNewUserName('')
+  1320→        setNewUserEmail('')
+  1321→        setNewUserPassword('')
+  1322→        setNewUserRole('empleado')
+  1323→        await loadUsers()
+  1324→      } else {
+  1325→        const data = await res.json()
+  1326→        alert(data.error || 'Error al crear usuario')
+  1327→      }
+  1328→    } catch (error) {
+  1329→      console.error('Error creating user:', error)
+  1330→    }
+  1331→  }
+  1332→
+  1333→  const handleUpdateUser = async (userId: string) => {
+  1334→    try {
+  1335→      const res = await fetch('/api/users', {
+  1336→        method: 'PUT',
+  1337→        headers: { 'Content-Type': 'application/json' },
+  1338→        body: JSON.stringify({ id: userId, ...editUserData }),
+  1339→      })
+  1340→      if (res.ok) {
+  1341→        setEditingUser(null)
+  1342→        await loadUsers()
+  1343→      } else {
+  1344→        const data = await res.json()
+  1345→        alert(data.error || 'Error al actualizar usuario')
+  1346→      }
+  1347→    } catch (error) {
+  1348→      console.error('Error updating user:', error)
+  1349→    }
+  1350→  }
+  1351→
+  1352→  const handleResetPassword = async (userId: string) => {
+  1353→    if (!newPassword || newPassword.length < 6) {
+  1354→      alert('La contraseña debe tener al menos 6 caracteres')
+  1355→      return
+  1356→    }
+  1357→    try {
+  1358→      const res = await fetch('/api/users', {
+  1359→        method: 'PUT',
+  1360→        headers: { 'Content-Type': 'application/json' },
+  1361→        body: JSON.stringify({ id: userId, password: newPassword }),
+  1362→      })
+  1363→      if (res.ok) {
+  1364→        setResetPasswordUserId(null)
+  1365→        setNewPassword('')
+  1366→        alert('Contraseña actualizada correctamente')
+  1367→      }
+  1368→    } catch (error) {
+  1369→      console.error('Error resetting password:', error)
+  1370→    }
+  1371→  }
+  1372→
+  1373→  const handleToggleActive = async (userId: string, currentActive: boolean) => {
+  1374→    try {
+  1375→      const res = await fetch('/api/users', {
+  1376→        method: 'PUT',
+  1377→        headers: { 'Content-Type': 'application/json' },
+  1378→        body: JSON.stringify({ id: userId, active: !currentActive }),
+  1379→      })
+  1380→      if (res.ok) {
+  1381→        await loadUsers()
+  1382→      }
+  1383→    } catch (error) {
+  1384→      console.error('Error toggling user active:', error)
+  1385→    }
+  1386→  }
+  1387→
+  1388→  const handleDeleteUser = async (userId: string) => {
+  1389→    if (!confirm('¿Estás seguro de eliminar este usuario?')) return
+  1390→    try {
+  1391→      const res = await fetch(`/api/users?id=${userId}`, { method: 'DELETE' })
+  1392→      if (res.ok) {
+  1393→        await loadUsers()
+  1394→      } else {
+  1395→        const data = await res.json()
+  1396→        alert(data.error || 'Error al eliminar usuario')
+  1397→      }
+  1398→    } catch (error) {
+  1399→      console.error('Error deleting user:', error)
+  1400→    }
+  1401→  }
+  1402→
+  1403→  // ─── Render ──────────────────────────────────────────────────────────────
+  1404→  return (
+  1405→    <div className={`flex flex-col h-full bg-gradient-to-b from-gray-50 to-white`}>
+  1406→      {/* Header - only shown in standalone mode */}
+  1407→      {!embedded && (
+  1408→        <header className="border-b bg-white/80 backdrop-blur-sm shrink-0 z-10">
+  1409→          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+  1410→            <div className="flex items-center gap-3">
+  1411→              <Button variant="ghost" size="sm" onClick={() => {
+  1412→                if (!currentProject && allProjects.length > 0) {
+  1413→                  setCurrentProject(allProjects[0])
+  1414→                }
+  1415→                setCurrentView('board')
+  1416→              }} className="gap-1.5">
+  1417→                <ArrowLeft className="h-4 w-4" />
+  1418→                Volver al Tablero
+  1419→              </Button>
+  1420→              <div className="w-px h-6 bg-gray-200" />
+  1421→              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+  1422→                A
+  1423→              </div>
+  1424→              <h1 className="text-lg font-bold text-gray-900">Panel de Admin de Empresa</h1>
+  1425→            </div>
+  1426→          </div>
+  1427→        </header>
+  1428→      )}
+  1429→
+  1430→      {/* Tabs — Order: Empresas / Proyectos / Plantillas / Configuración de Tableros */}
+  1431→      <div className="border-b bg-white shrink-0">
+  1432→        <div className={`flex gap-1 ${embedded ? '' : 'max-w-5xl mx-auto px-4'}`}>
+  1433→          <button
+  1434→            onClick={() => { setActiveTab('companies'); setSelectedProjectId(null) }}
+  1435→            className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+  1436→              activeTab === 'companies'
+  1437→                ? 'border-purple-500 text-purple-600'
+  1438→                : 'border-transparent text-muted-foreground hover:text-foreground'
+  1439→            }`}
+  1440→          >
+  1441→            <Building2 className="h-4 w-4" />
+  1442→            Datos Empresa
+  1443→          </button>
+  1444→          <button
+  1445→            onClick={() => { setActiveTab('projects'); setSelectedProjectId(null) }}
+  1446→            className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+  1447→              activeTab === 'projects'
+  1448→                ? 'border-purple-500 text-purple-600'
+  1449→                : 'border-transparent text-muted-foreground hover:text-foreground'
+  1450→            }`}
+  1451→          >
+  1452→            <Building2 className="h-4 w-4" />
+  1453→            Proyectos
+  1454→          </button>
+  1455→
+  1456→          <button
+  1457→            onClick={() => { setActiveTab('plantillas'); setSelectedProjectId(null) }}
+  1458→            className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+  1459→              activeTab === 'plantillas'
+  1460→                ? 'border-green-500 text-green-600'
+  1461→                : 'border-transparent text-muted-foreground hover:text-foreground'
+  1462→            }`}
+  1463→          >
+  1464→            <BookOpen className="h-4 w-4" />
+  1465→            Plantillas
+  1466→          </button>
+  1467→        </div>
+  1468→      </div>
+  1469→
+  1470→      {/* Content */}
+  1471→      <main className={`flex-1 min-h-0 overflow-auto w-full px-4 py-6 ${embedded ? '' : 'max-w-5xl mx-auto'}`}>
+  1472→        <AnimatePresence mode="wait">
+  1473→          {/* ═══ PROJECTS TAB ═══ */}
+  1474→          {activeTab === 'projects' && (
+  1475→            <motion.div key="projects" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+  1476→              {/* ─────────── CAJA 1: PROYECTOS ACTIVOS (contiene la lista) ─────────── */}
+  1477→              <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-3 space-y-3">
+  1478→                <div className="flex items-center justify-between mb-1">
+  1479→                  <div className="flex items-center gap-2">
+  1480→                    <div className="w-7 h-7 rounded-md bg-blue-500/15 flex items-center justify-center">
+  1481→                      <Building2 className="h-4 w-4 text-blue-600" />
+  1482→                    </div>
+  1483→                    <div>
+  1484→                      <h3 className="text-sm font-semibold text-gray-900">Proyectos Activos</h3>
+  1485→                      <p className="text-[11px] text-muted-foreground">
+  1486→                        {allProjects.length === 0
+  1487→                          ? 'Aún no hay proyectos. Crea el primero más abajo.'
+  1488→                          : `${allProjects.filter(p => p.active).length} activos · ${allProjects.length} en total`}
+  1489→                      </p>
+  1490→                    </div>
+  1491→                  </div>
+  1492→                </div>
+  1493→              
+  1494→              {/* ─────────── LISTA DE PROYECTOS ACTIVOS ─────────── */}
+  1495→
+  1496→              {/* Projects list */}
+  1497→              {isLoadingProjects ? (
+  1498→                <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 text-purple-500 animate-spin" /></div>
+  1499→              ) : allProjects.length === 0 ? (
+  1500→                <div className="text-center py-12 text-muted-foreground">
+  1501→                  <Building2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+  1502→                  <p className="text-sm">No hay proyectos creados</p>
+  1503→                  <p className="text-xs mt-1">Crea un proyecto para comenzar la implementación 5S</p>
+  1504→                </div>
+  1505→              ) : (
+  1506→                <div className="space-y-3">
+  1507→                  {allProjects.map(project => (
+  1508→                    <Card key={project.id} className={`transition-all ${selectedProjectId === project.id ? 'border-purple-300 shadow-md' : 'hover:border-gray-300'}`}>
+  1509→                      <CardContent className="p-4">
+  1510→                        {/* Project header row */}
+  1511→                        <div className="flex items-center justify-between">
+  1512→                          <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => handleSelectProject(project.id)}>
+  1513→                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center">
+  1514→                              <Building2 className="h-5 w-5 text-purple-500" />
+  1515→                            </div>
+  1516→                            <div className="flex-1">
+  1517→                              {editingProject === project.id ? (
+  1518→                                <div className="space-y-2" onClick={e => e.stopPropagation()}>
+  1519→                                  <div className="grid grid-cols-2 gap-2">
+  1520→                                    <Input value={editProjectData.name} onChange={e => setEditProjectData(d => ({ ...d, name: e.target.value }))} className="text-sm" />
+  1521→                                    <Input value={editProjectData.company} onChange={e => setEditProjectData(d => ({ ...d, company: e.target.value }))} className="text-sm" />
+  1522→                                  </div>
+  1523→                                  <Input value={editProjectData.description} onChange={e => setEditProjectData(d => ({ ...d, description: e.target.value }))} className="text-sm" placeholder="Descripción" />
+  1524→                                  <div className="flex gap-2">
+  1525→                                    <Button size="sm" onClick={() => handleUpdateProject(project.id)} className="bg-purple-600 text-white h-7"><Check className="h-3 w-3 mr-1" />Guardar</Button>
+  1526→                                    <Button size="sm" variant="outline" onClick={() => setEditingProject(null)} className="h-7">Cancelar</Button>
+  1527→                                  </div>
+  1528→                                </div>
+  1529→                              ) : (
+  1530→                                <>
+  1531→                                  <h3 className="font-semibold text-sm">{project.name}</h3>
+  1532→                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+  1533→                                    <span>{project.company}</span>
+  1534→                                    <span>·</span>
+  1535→                                    <span>{project.zones.length} zonas</span>
+  1536→                                    <span>·</span>
+  1537→                                    <span>{project.memberCount} miembros</span>
+  1538→                                    {!project.active && <Badge className="bg-red-100 text-red-700 border border-red-200 ml-1">Inactivo</Badge>}
+  1539→                                  </div>
+  1540→                                </>
+  1541→                              )}
+  1542→                            </div>
+  1543→                          </div>
+  1544→                          {editingProject !== project.id && (
+  1545→                            <div className="flex items-center gap-1">
+  1546→                              <Button
+  1547→                                variant="ghost" size="sm" className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700"
+  1548→                                onClick={() => {
+  1549→                                  setEditingProject(project.id)
+  1550→                                  setEditProjectData({ name: project.name, description: project.description || '', company: project.company })
+  1551→                                }}
+  1552→                                title="Editar proyecto"
+  1553→                              >
+  1554→                                <Edit3 className="h-4 w-4" />
+  1555→                              </Button>
+  1556→                              <Button
+  1557→                                variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600"
+  1558→                                onClick={() => handleDeleteProject(project.id)}
+  1559→                                title="Eliminar proyecto"
+  1560→                              >
+  1561→                                <Trash2 className="h-4 w-4" />
+  1562→                              </Button>
+  1563→                            </div>
+  1564→                          )}
+  1565→                        </div>
+  1566→
+  1567→                        {/* Expanded project detail */}
+  1568→                        <AnimatePresence>
+  1569→                          {selectedProjectId === project.id && (
+  1570→                            <motion.div
+  1571→                              initial={{ height: 0, opacity: 0 }}
+  1572→                              animate={{ height: 'auto', opacity: 1 }}
+  1573→                              exit={{ height: 0, opacity: 0 }}
+  1574→                              transition={{ duration: 0.2 }}
+  1575→                              className="overflow-hidden"
+  1576→                            >
+  1577→                              <div className="mt-4 pt-4 border-t space-y-4">
+  1578→                                {isLoadingDetail ? (
+  1579→                                  <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 text-purple-500 animate-spin" /></div>
+  1580→                                ) : (
+  1581→                                  <>
+  1582→                                    {/* Notificación de contraseña generada al crear nuevo usuario */}
+  1583→                                    {generatedPassword && (
+  1584→                                      <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+  1585→                                        <ShieldCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+  1586→                                        <div className="flex-1 min-w-0">
+  1587→                                          <p className="text-xs font-semibold text-green-800">Contraseña creada para {generatedMemberName}</p>
+  1588→                                          <div className="flex items-center gap-2 mt-1">
+  1589→                                            <code className="text-sm font-mono bg-green-100 px-2 py-0.5 rounded text-green-900 select-all">{generatedPassword}</code>
+  1590→                                            <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1" onClick={() => { navigator.clipboard.writeText(generatedPassword) }}>
+  1591→                                              <Save className="h-3 w-3" /> Copiar
+  1592→                                            </Button>
+  1593→                                          </div>
+  1594→                                          <p className="text-[10px] text-green-700 mt-1">Guarda esta contraseña. No se volverá a mostrar.</p>
+  1595→                                        </div>
+  1596→                                        <button onClick={() => { setGeneratedPassword(null); setGeneratedMemberName(null) }} className="text-green-400 hover:text-green-600">
+  1597→                                          <X className="h-4 w-4" />
+  1598→                                        </button>
+  1599→                                      </div>
+  1600→                                    )}
+  1601→
+  1602→                                    {/* Zonas existentes — UNA TRAS OTRA CON SUS USUARIOS */}
+  1603→                                    <div>
+  1604→                                      <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1">
+  1605→                                        <MapPin className="h-3 w-3" /> Zonas del Proyecto
+  1606→                                        {projectZones.length > 0 && (
+  1607→                                          <Badge className="ml-1 text-[9px] py-0 px-1.5 bg-gray-100 text-gray-600 border-0">
+  1608→                                            {projectZones.length}
+  1609→                                          </Badge>
+  1610→                                        )}
+  1611→                                        <span className="ml-2 text-[10px] font-normal text-muted-foreground/70 normal-case">
+  1612→                                          · Cada zona se muestra con sus miembros (compartidos entre zonas)
+  1613→                                        </span>
+  1614→                                      </h4>
+  1615→                                      {projectZones.length === 0 ? (
+  1616→                                        <div className="p-4 rounded-lg border border-dashed bg-gray-50 text-center">
+  1617→                                          <MapPin className="h-6 w-6 mx-auto mb-1 text-gray-300" />
+  1618→                                          <p className="text-xs text-muted-foreground">Todavía no hay zonas en este proyecto.</p>
+  1619→                                          <p className="text-[10px] text-muted-foreground mt-0.5">Crea la primera zona más abajo.</p>
+  1620→                                        </div>
+  1621→                                      ) : (
+  1622→                                        <div className="space-y-3">
+  1623→                                          {projectZones.map(zone => {
+  1624→                                            const zoneMembers = getMembersOfZone(zone.id)
+  1625→                                            // Empresa del proyecto actual (para filtrar "existentes en esta empresa")
+  1626→                                            const currentProjectCompany = allProjects.find(
+  1627→                                              p => p.id === selectedProjectId
+  1628→                                            )?.company
+  1629→                                            // Usuarios disponibles para asignar a esta zona:
+  1630→                                            // - activos
+  1631→                                            // - que pertenezcan a la MISMA EMPRESA que el proyecto
+  1632→                                            // - que no estén ya en esta zona
+  1633→                                            const availableUsers = users.filter(u => {
+  1634→                                              if (!u.active) return false
+  1635→                                              if (zoneMembers.some(m => m.user.id === u.id)) return false
+  1636→                                              if (!currentProjectCompany) return true
+  1637→                                              // Debe pertenecer a la empresa del proyecto (vía companies[])
+  1638→                                              // o ya tener un proyecto en esa misma empresa
+  1639→                                              const inCompany = u.companies?.some(c => c.name === currentProjectCompany)
+  1640→                                              const inProjectCompany = u.projects.some(p => p.projectCompany === currentProjectCompany)
+  1641→                                              return inCompany || inProjectCompany
+  1642→                                            })
+  1643→                                            return (
+  1644→                                              <div key={zone.id} className="rounded-lg border bg-white overflow-hidden">
+  1645→                                                {/* Zona header */}
+  1646→                                                <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-gray-50 to-white border-b">
+  1647→                                                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
+  1648→                                                  {editingZoneId === zone.id ? (
+  1649→                                                    <>
+  1650→                                                      <Input
+  1651→                                                        value={editingZoneName}
+  1652→                                                        onChange={e => setEditingZoneName(e.target.value)}
+  1653→                                                        className="h-7 text-xs flex-1 max-w-[260px]"
+  1654→                                                        autoFocus
+  1655→                                                        onKeyDown={e => {
+  1656→                                                          if (e.key === 'Enter') handleSaveZoneName(zone.id)
+  1657→                                                          if (e.key === 'Escape') setEditingZoneId(null)
+  1658→                                                        }}
+  1659→                                                      />
+  1660→                                                      <Button size="sm" className="h-7 text-[10px] bg-purple-600 text-white" onClick={() => handleSaveZoneName(zone.id)}>
+  1661→                                                        <Check className="h-3 w-3 mr-1" /> Guardar
+  1662→                                                      </Button>
+  1663→                                                      <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => setEditingZoneId(null)}>
+  1664→                                                        Cancelar
+  1665→                                                      </Button>
+  1666→                                                    </>
+  1667→                                                  ) : (
+  1668→                                                    <>
+  1669→                                                      <span className="font-semibold text-sm flex-1">{zone.name}</span>
+  1670→                                                      <Badge className="text-[9px] px-1 py-0 bg-indigo-100 text-indigo-700 border-0" title="Esta zona usa el tablero predeterminado del sistema">
+  1671→                                                        <LayoutGrid className="h-2.5 w-2.5 mr-0.5 inline" />
+  1672→                                                        Tablero predeterminado
+  1673→                                                      </Badge>
+  1674→                                                      <Badge className="text-[9px] px-1 py-0 bg-gray-100 text-gray-600 border-0">
+  1675→                                                        <Users className="h-2.5 w-2.5 mr-0.5 inline" />
+  1676→                                                        {zoneMembers.length} {zoneMembers.length === 1 ? 'miembro' : 'miembros'}
+  1677→                                                      </Badge>
+  1678→                                                      <Button
+  1679→                                                        variant="ghost" size="sm"
+  1680→                                                        className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700"
+  1681→                                                        onClick={() => { setEditingZoneId(zone.id); setEditingZoneName(zone.name) }}
+  1682→                                                        title="Renombrar zona"
+  1683→                                                      >
+  1684→                                                        <Edit3 className="h-3.5 w-3.5" />
+  1685→                                                      </Button>
+  1686→                                                      <Button
+  1687→                                                        variant="ghost" size="sm"
+  1688→                                                        className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
+  1689→                                                        onClick={() => handleDeleteZone(zone.id, zone.name)}
+  1690→                                                        title="Eliminar zona"
+  1691→                                                      >
+  1692→                                                        <Trash2 className="h-3.5 w-3.5" />
+  1693→                                                      </Button>
+  1694→                                                    </>
+  1695→                                                  )}
+  1696→                                                </div>
+  1697→
+  1698→                                                {/* Miembros de esta zona — tabla editable */}
+  1699→                                                <div className="p-3">
+  1700→                                                  {zoneMembers.length === 0 ? (
+  1701→                                                    <p className="text-xs text-muted-foreground text-center py-3">
+  1702→                                                      No hay miembros en esta zona todavía.
+  1703→                                                    </p>
+  1704→                                                  ) : (
+  1705→                                                    <div className="rounded-md border overflow-x-auto mb-3">
+  1706→                                                      <Table>
+  1707→                                                        <TableHeader>
+  1708→                                                          <TableRow>
+  1709→                                                            <TableHead className="text-xs">Nombre</TableHead>
+  1710→                                                            <TableHead className="text-xs">Email</TableHead>
+  1711→                                                            <TableHead className="text-xs">Rol</TableHead>
+  1712→                                                            <TableHead className="text-xs text-center">Acciones</TableHead>
+  1713→                                                          </TableRow>
+  1714→                                                        </TableHeader>
+  1715→                                                        <TableBody>
+  1716→                                                          {zoneMembers.map(member => (
+  1717→                                                            <TableRow key={member.id}>
+  1718→                                                              <TableCell className="text-xs font-medium">{member.user.name}</TableCell>
+  1719→                                                              <TableCell className="text-xs">{member.user.email}</TableCell>
+  1720→                                                              <TableCell>
+  1721→                                                                <Select
+  1722→                                                                  value={member.role}
+  1723→                                                                  onValueChange={(newRole) => handleUpdateMemberRoleInZone(zone.id, member.id, newRole)}
+  1724→                                                                >
+  1725→                                                                  <SelectTrigger className="h-7 text-[10px] w-[120px]">
+  1726→                                                                    <SelectValue />
+  1727→                                                                  </SelectTrigger>
+  1728→                                                                  <SelectContent>
+  1729→                                                                    <SelectItem value="admin">Administrador</SelectItem>
+  1730→                                                                    <SelectItem value="gerente">Gerente</SelectItem>
+  1731→                                                                    <SelectItem value="responsable">Responsable</SelectItem>
+  1732→                                                                    <SelectItem value="empleado">Empleado</SelectItem>
+  1733→                                                                    <SelectItem value="auditor">Auditor</SelectItem>
+  1734→                                                                  </SelectContent>
+  1735→                                                                </Select>
+  1736→                                                              </TableCell>
+  1737→                                                              <TableCell className="text-center">
+  1738→                                                                <Button
+  1739→                                                                  variant="outline" size="sm"
+  1740→                                                                  className="h-7 text-[10px] text-red-500 border-red-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300 gap-1"
+  1741→                                                                  onClick={() => handleRemoveMemberFromZone(zone.id, member.id, member.user.name)}
+  1742→                                                                  title="Retirar de esta zona (sigue en el proyecto)"
+  1743→                                                                >
+  1744→                                                                  <Trash2 className="h-3 w-3" />
+  1745→                                                                </Button>
+  1746→                                                              </TableCell>
+  1747→                                                            </TableRow>
+  1748→                                                          ))}
+  1749→                                                        </TableBody>
+  1750→                                                      </Table>
+  1751→                                                    </div>
+  1752→                                                  )}
+  1753→
+  1754→                                                  {/* Añadir usuario existente a esta zona */}
+  1755→                                                  <div className="rounded-md border border-dashed border-purple-200 bg-purple-50/40 p-2 space-y-2">
+  1756→                                                    <div className="flex items-center justify-between">
+  1757→                                                      <span className="text-[11px] font-semibold text-purple-700 flex items-center gap-1">
+  1758→                                                        <UserPlus className="h-3 w-3" />
+  1759→                                                        Adjudicar usuario a esta zona
+  1760→                                                      </span>
+  1761→                                                      {currentProjectCompany && (
+  1762→                                                        <span className="text-[10px] text-muted-foreground">
+  1763→                                                          Empresa: <strong>{currentProjectCompany}</strong> · {availableUsers.length} disponible(s)
+  1764→                                                        </span>
+  1765→                                                      )}
+  1766→                                                    </div>
+  1767→                                                    {(() => {
+  1768→                                                      if (isLoadingUsers) {
+  1769→                                                        return (
+  1770→                                                          <p className="text-[11px] text-muted-foreground text-center py-1">
+  1771→                                                            <Loader2 className="h-3 w-3 inline animate-spin mr-1" />
+  1772→                                                            Cargando usuarios...
+  1773→                                                          </p>
+  1774→                                                        )
+  1775→                                                      }
+  1776→                                                      if (availableUsers.length === 0) {
+  1777→                                                        return (
+  1778→                                                          <div className="space-y-1.5">
+  1779→                                                            <p className="text-[11px] text-muted-foreground text-center py-1">
+  1780→                                                              No hay usuarios de <strong>{currentProjectCompany || 'esta empresa'}</strong> disponibles
+  1781→                                                              para adjudicar a esta zona (todos los activos ya están adjudicados, o no hay ninguno dado de alta).
+  1782→                                                            </p>
+  1783→                                                            <p className="text-[10px] text-center text-muted-foreground">
+  1784→                                                              Crea nuevos usuarios en <strong>Datos Empresa → Usuarios</strong> y volverán a aparecer aquí.
+  1785→                                                            </p>
+  1786→                                                          </div>
+  1787→                                                        )
+  1788→                                                      }
+  1789→                                                      const q = (zoneSearch[zone.id] || '').trim().toLowerCase()
+  1790→                                                      const filtered = q
+  1791→                                                        ? availableUsers.filter(u =>
+  1792→                                                            u.name.toLowerCase().includes(q) ||
+  1793→                                                            u.email.toLowerCase().includes(q)
+  1794→                                                          )
+  1795→                                                        : availableUsers
+  1796→                                                      const selectedUser = zoneAddUserId[zone.id]
+  1797→                                                        ? availableUsers.find(u => u.id === zoneAddUserId[zone.id])
+  1798→                                                        : null
+  1799→                                                      return (
+  1800→                                                        <div className="space-y-2">
+  1801→                                                          {/* Usuario seleccionado (preview) */}
+  1802→                                                          {selectedUser && (
+  1803→                                                            <div className="flex items-center gap-2 p-2 rounded-md bg-purple-100 border border-purple-300">
+  1804→                                                              <UserCircle className="h-4 w-4 text-purple-600 shrink-0" />
+  1805→                                                              <div className="flex-1 min-w-0">
+  1806→                                                                <div className="text-xs font-semibold truncate">{selectedUser.name}</div>
+  1807→                                                                <div className="text-[10px] text-muted-foreground truncate">{selectedUser.email}</div>
+  1808→                                                              </div>
+  1809→                                                              <Badge className={`${ROLE_COLORS[selectedUser.role] || ''} border text-[9px] py-0`}>
+  1810→                                                                {ROLE_LABELS[selectedUser.role] || selectedUser.role}
+  1811→                                                              </Badge>
+  1812→                                                              <button
+  1813→                                                                type="button"
+  1814→                                                                onClick={() => setZoneAddUserId(prev => { const n = { ...prev }; delete n[zone.id]; return n })}
+  1815→                                                                className="text-gray-400 hover:text-red-500 shrink-0"
+  1816→                                                                title="Quitar selección"
+  1817→                                                              >
+  1818→                                                                <X className="h-3.5 w-3.5" />
+  1819→                                                              </button>
+  1820→                                                            </div>
+  1821→                                                          )}
+  1822→
+  1823→                                                          {/* Buscador + toggle lista */}
+  1824→                                                          <div className="flex items-center gap-2">
+  1825→                                                            <Input
+  1826→                                                              placeholder="Buscar por nombre o email..."
+  1827→                                                              value={zoneSearch[zone.id] || ''}
+  1828→                                                              onChange={e => {
+  1829→                                                                setZoneSearch(prev => ({ ...prev, [zone.id]: e.target.value }))
+  1830→                                                                setZoneShowList(prev => ({ ...prev, [zone.id]: true }))
+  1831→                                                              }}
+  1832→                                                              onFocus={() => setZoneShowList(prev => ({ ...prev, [zone.id]: true }))}
+  1833→                                                              className="h-7 text-xs flex-1"
+  1834→                                                            />
+  1835→                                                            <button
+  1836→                                                              type="button"
+  1837→                                                              onClick={() => setZoneShowList(prev => ({ ...prev, [zone.id]: !prev[zone.id] }))}
+  1838→                                                              className="text-[10px] text-purple-700 hover:text-purple-900 px-2 h-7 rounded border border-purple-200 bg-white"
+  1839→                                                              title={zoneShowList[zone.id] ? 'Ocultar lista' : 'Ver lista'}
+  1840→                                                            >
+  1841→                                                              {zoneShowList[zone.id] ? '▲ Ocultar' : '▼ Ver'} ({availableUsers.length})
+  1842→                                                            </button>
+  1843→                                                          </div>
+  1844→
+  1845→                                                          {/* Lista de usuarios clickeables */}
+  1846→                                                          {zoneShowList[zone.id] && (
+  1847→                                                            <div className="border rounded-md bg-white max-h-[200px] overflow-y-auto">
+  1848→                                                              {filtered.length === 0 ? (
+  1849→                                                                <p className="text-[11px] text-muted-foreground text-center py-2">
+  1850→                                                                  No hay coincidencias para &quot;{q}&quot;
+  1851→                                                                </p>
+  1852→                                                              ) : (
+  1853→                                                                filtered.slice(0, 50).map(u => (
+  1854→                                                                  <button
+  1855→                                                                    key={u.id}
+  1856→                                                                    type="button"
+  1857→                                                                    onClick={() => {
+  1858→                                                                      setZoneAddUserId(prev => ({ ...prev, [zone.id]: u.id }))
+  1859→                                                                      setZoneShowList(prev => ({ ...prev, [zone.id]: false }))
+  1860→                                                                      setZoneSearch(prev => ({ ...prev, [zone.id]: '' }))
+  1861→                                                                    }}
+  1862→                                                                    className={`w-full text-left px-2 py-1.5 flex items-center gap-2 border-b last:border-b-0 hover:bg-purple-50 transition-colors ${
+  1863→                                                                      zoneAddUserId[zone.id] === u.id ? 'bg-purple-100' : ''
+  1864→                                                                    }`}
+  1865→                                                                  >
+  1866→                                                                    <UserCircle className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+  1867→                                                                    <div className="flex-1 min-w-0">
+  1868→                                                                      <div className="text-xs font-medium truncate">{u.name}</div>
+  1869→                                                                      <div className="text-[10px] text-muted-foreground truncate">{u.email}</div>
+  1870→                                                                    </div>
+  1871→                                                                    <Badge className={`${ROLE_COLORS[u.role] || ''} border text-[9px] py-0 shrink-0`}>
+  1872→                                                                      {ROLE_LABELS[u.role] || u.role}
+  1873→                                                                    </Badge>
+  1874→                                                                    {u.projects.length === 0 && (
+  1875→                                                                      <Badge className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] py-0 shrink-0">
+  1876→                                                                        Sin proyecto
+  1877→                                                                      </Badge>
+  1878→                                                                    )}
+  1879→                                                                  </button>
+  1880→                                                                ))
+  1881→                                                              )}
+  1882→                                                              {filtered.length > 50 && (
+  1883→                                                                <p className="text-[10px] text-muted-foreground text-center py-1.5 border-t bg-gray-50">
+  1884→                                                                  Mostrando 50 de {filtered.length}. Afina la búsqueda para ver más.
+  1885→                                                                </p>
+  1886→                                                              )}
+  1887→                                                            </div>
+  1888→                                                          )}
+  1889→
+  1890→                                                          {/* Rol + Añadir (solo cuando hay selección) */}
+  1891→                                                          {selectedUser && (
+  1892→                                                            <div className="flex items-center gap-2 flex-wrap">
+  1893→                                                              <Select
+  1894→                                                                value={zoneAddRole[zone.id] || 'empleado'}
+  1895→                                                                onValueChange={(val) => setZoneAddRole(prev => ({ ...prev, [zone.id]: val }))}
+  1896→                                                              >
+  1897→                                                                <SelectTrigger className="h-7 text-xs w-[140px]">
+  1898→                                                                  <SelectValue />
+  1899→                                                                </SelectTrigger>
+  1900→                                                                <SelectContent position="popper">
+  1901→                                                                  <SelectItem value="admin">Administrador</SelectItem>
+  1902→                                                                  <SelectItem value="gerente">Gerente</SelectItem>
+  1903→                                                                  <SelectItem value="responsable">Responsable</SelectItem>
+  1904→                                                                  <SelectItem value="empleado">Empleado</SelectItem>
+  1905→                                                                  <SelectItem value="auditor">Auditor</SelectItem>
+  1906→                                                                </SelectContent>
+  1907→                                                              </Select>
+  1908→                                                              <Button
+  1909→                                                                size="sm"
+  1910→                                                                className="h-7 text-xs bg-purple-600 text-white"
+  1911→                                                                onClick={() => handleAddExistingUserToZone(zone.id)}
+  1912→                                                              >
+  1913→                                                                <UserPlus className="h-3 w-3 mr-1" />
+  1914→                                                                Añadir a esta zona
+  1915→                                                              </Button>
+  1916→                                                            </div>
+  1917→                                                          )}
+  1918→                                                        </div>
+  1919→                                                      )
+  1920→                                                    })()}
+  1921→                                                  </div>
+  1922→                                                  <p className="text-[10px] text-muted-foreground mt-1.5">
+  1923→                                                    Lista de usuarios activos de <strong>{currentProjectCompany || 'la empresa del proyecto'}</strong> que aún no están en esta zona.
+  1924→                                                    Para crear nuevos usuarios, ve a <strong>Datos Empresa → Usuarios</strong>.
+  1925→                                                  </p>
+  1926→                                                </div>
+  1927→                                              </div>
+  1928→                                            )
+  1929→                                          })}
+  1930→                                        </div>
+  1931→                                      )}
+  1932→                                    </div>
+  1933→
+  1934→                                    {/* Crear nueva zona — separado del listado */}
+  1935→                                    <div className="rounded-lg border border-dashed border-purple-200 bg-purple-50/40 p-3">
+  1936→                                      <h4 className="text-xs font-semibold text-purple-700 uppercase mb-2 flex items-center gap-1">
+  1937→                                        <Plus className="h-3 w-3" /> Crear Nueva Zona
+  1938→                                      </h4>
+  1939→                                      <div className="flex items-center gap-2 flex-wrap">
+  1940→                                        <div className="flex items-center gap-1">
+  1941→                                          <span className="text-[10px] text-muted-foreground mr-1">Color:</span>
+  1942→                                          {PRESET_COLORS.map(c => (
+  1943→                                            <button key={c} type="button" className={`w-5 h-5 rounded-full border-2 ${newZoneColor === c ? 'border-gray-800' : 'border-transparent'}`} style={{ backgroundColor: c }} onClick={() => setNewZoneColor(c)} />
+  1944→                                          ))}
+  1945→                                        </div>
+  1946→                                        <Input placeholder="Nombre de la nueva zona" value={newZoneName} onChange={e => setNewZoneName(e.target.value)} className="h-8 text-xs flex-1 min-w-[180px] max-w-[260px]" />
+  1947→                                        <Button size="sm" onClick={handleAddZone} disabled={!newZoneName.trim()} className="h-8 text-xs bg-purple-600 text-white">
+  1948→                                          <Plus className="h-3 w-3 mr-1" /> Agregar zona
+  1949→                                        </Button>
+  1950→                                      </div>
+  1951→                                    </div>
+  1952→                                  </>
+  1953→                                )}
+  1954→                              </div>
+  1955→                            </motion.div>
+  1956→                          )}
+  1957→                        </AnimatePresence>
+  1958→                      </CardContent>
+  1959→                    </Card>
+  1960→                  ))}
+  1961→                </div>
+  1962→              )}
+  1963→              </div>
+  1964→              
+  1965→              {/* ─────────── CAJA 2: ABRIR NUEVO PROYECTO ─────────── */}
+  1966→              <div id="crear-nuevo-proyecto" className="rounded-lg border border-purple-200 bg-purple-50/30 p-3">
+  1967→                <div className="flex items-center justify-between mb-2">
+  1968→                  <div className="flex items-center gap-2">
+  1969→                    <div className="w-7 h-7 rounded-md bg-purple-500/15 flex items-center justify-center">
+  1970→                      <Plus className="h-4 w-4 text-purple-600" />
+  1971→                    </div>
+  1972→                    <div>
+  1973→                      <h3 className="text-sm font-semibold text-gray-900">Abrir Nuevo Proyecto</h3>
+  1974→                      <p className="text-[11px] text-muted-foreground">
+  1975→                        Da de alta un proyecto nuevo con sus zonas y usuarios (existentes o nuevos).
+  1976→                      </p>
+  1977→                    </div>
+  1978→                  </div>
+  1979→                  {showNewProject && (
+  1980→                    <Button variant="ghost" size="sm" onClick={() => setShowNewProject(false)} className="h-7 text-xs">
+  1981→                      <X className="h-3.5 w-3.5 mr-1" /> Cerrar formulario
+  1982→                    </Button>
+  1983→                  )}
+  1984→                </div>
+  1985→              
+  1986→                {!showNewProject && allProjects.length > 0 ? (
+  1987→                  <Button
+  1988→                    variant="outline"
+  1989→                    size="sm"
+  1990→                    onClick={() => setShowNewProject(true)}
+  1991→                    className="w-full border-dashed border-purple-300 text-purple-700 hover:bg-purple-100 bg-white/60"
+  1992→                  >
+  1993→                    <Plus className="h-4 w-4 mr-2" />
+  1994→                    Abrir formulario de creación
+  1995→                  </Button>
+  1996→                ) : (
+  1997→                  <Card className="border-purple-200 bg-white/70">
+  1998→                    <CardHeader className="pb-3">
+  1999→                      <CardTitle className="text-sm flex items-center gap-2">
+  2000→                        <Plus className="h-4 w-4 text-purple-500" />
+
+[showing lines 1-2000 of 2885; use offset=2001 with limit to continue reading]

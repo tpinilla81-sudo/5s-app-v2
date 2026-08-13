@@ -1,0 +1,2002 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import { use5SStore } from '@/lib/store'
+     6→import { Button } from '@/components/ui/button'
+     7→import { Input } from '@/components/ui/input'
+     8→import { Label } from '@/components/ui/label'
+     9→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+    10→import { Badge } from '@/components/ui/badge'
+    11→import { Textarea } from '@/components/ui/textarea'
+    12→import {
+    13→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    14→} from '@/components/ui/select'
+    15→import {
+    16→  Plus, Trash2, Edit3, Save, Loader2, BookOpen, FileCheck, ClipboardCheck, Camera,
+    17→  ChevronDown, ChevronUp, AlertTriangle, Copy, RotateCcw, X,
+    18→  Eye, EyeOff, Code, GripVertical, Download, Upload, ClipboardList, Award,
+    19→  ClipboardPaste, ClipboardCopy, Check, ArrowRightLeft,
+    20→  Play, SearchCheck, Rocket, Target, Sparkles, LayoutGrid,
+    21→} from 'lucide-react'
+    22→import { S_STEPS, AUDIT_CHECKLISTS, EXAM_PASS_THRESHOLD, SELF_EVAL_THRESHOLD, AUDIT_PASS_THRESHOLD, INVENTORY_CONFIGS, MC_STEP_CONFIG, MC_PASO_CONFIG, PDCA_STEPS } from '@/lib/5s-constants'
+    23→
+    24→// ═══════════════════════════════════════════════════════
+    25→// TYPES
+    26→// ═══════════════════════════════════════════════════════
+    27→interface TemplateData {
+    28→  id: string
+    29→  type: string
+    30→  sStep: number
+    31→  miniStep: number
+    32→  title: string
+    33→  description: string | null
+    34→  content: string
+    35→  notaMinima: number | null
+    36→  active: boolean
+    37→  createdAt: string
+    38→  updatedAt: string
+    39→}
+    40→
+    41→// TemplateTab and TEMPLATE_TABS removed — now organized by S-step → Paso
+    42→
+    43→const S_COLORS: Record<number, string> = { 1: '#8B5CF6', 2: '#EAB308', 3: '#3B82F6', 4: '#F43F5E', 5: '#F97316', 6: '#16A34A' }
+    44→
+    45→// MC Paso icon mapping
+    46→const MC_PASO_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+    47→  Play, ClipboardList, SearchCheck, Rocket, Target,
+    48→}
+    49→
+    50→const MINI_STEPS_LABELS: Record<number, string> = {
+    51→  1: 'Formación y Exámenes',
+    52→  2: 'Fotografías (Antes/Después)',
+    53→  3: 'Inventario / Estándar / Layout / Plan Limpieza',
+    54→  4: 'Autoevaluación / Plan de Acción',
+    55→  5: 'Auditoría Externa / PDCA',
+    56→}
+    57→
+    58→// ═══════════════════════════════════════════════════════
+    59→// DEFAULT CONTENT GENERATORS
+    60→// ═══════════════════════════════════════════════════════
+    61→function getDefaultFormationContent(sStep: number) {
+    62→  const formations: Record<number, { sections: { title: string; content: string }[] }> = {
+    63→    1: {
+    64→      sections: [
+    65→        { title: '¿Qué es Seiri (Clasificar)?', content: 'Seiri es la primera de las 5S y significa "clasificar" o "separar". Consiste en identificar y separar los elementos necesarios de los innecesarios en el lugar de trabajo, eliminando todo aquello que no se utiliza o que no aporta valor al proceso. El objetivo es crear un entorno de trabajo más limpio, seguro y eficiente, donde solo permanezcan los elementos esenciales para realizar las tareas diarias.' },
+    66→        { title: 'Objetivos de Seiri', content: '1. Eliminar del área de trabajo los elementos innecesarios que ocupan espacio y generan desorden.\n2. Liberar espacio útil para mejorar la organización y el flujo de trabajo.\n3. Reducir el tiempo de búsqueda de herramientas, materiales y documentos.\n4. Prevenir accidentes y errores causados por la acumulación de objetos innecesarios.\n5. Facilitar la identificación visual de los recursos realmente necesarios.' },
+    67→        { title: 'Metodología de implementación', content: '1. Recorrer el área de trabajo y clasificar todos los elementos en necesarios e innecesarios.\n2. Utilizar tarjetas de color rojo (Tarjetas Rojas) para marcar los elementos innecesarios.\n3. Colocar los elementos marcados en una "jaula de innecesarios" o zona temporal.\n4. Decidir el destino de cada elemento: eliminar, trasladar, donar o almacenar fuera del área.\n5. Documentar todas las decisiones y mantener un registro de los elementos retirados.\n6. Revisar periódicamente para evitar la acumulación de nuevos innecesarios.' },
+    68→        { title: 'Beneficios esperados', content: 'Al aplicar correctamente Seiri se obtienen beneficios como: mayor espacio disponible en el lugar de trabajo, reducción del tiempo perdido buscando elementos, disminución de accidentes por acumulación, mejora de la productividad al eliminar distracciones, y una cultura de orden y limpieza que se extiende a todas las áreas de la organización.' },
+    69→      ]
+    70→    },
+    71→    2: {
+    72→      sections: [
+    73→        { title: '¿Qué es Seiton (Organizar)?', content: 'Seiton es la segunda de las 5S y significa "organizar" o "ordenar". Consiste en establecer una ubicación definida para cada elemento necesario, de forma que sea fácil de encontrar, usar y devolver a su lugar. Seiton aplica el principio de "un lugar para cada cosa y cada cosa en su lugar", utilizando señalización visual, códigos de color y etiquetas para garantizar que cualquier persona pueda localizar y devolver los objetos de forma intuitiva.' },
+    74→        { title: 'Objetivos de Seiton', content: '1. Asignar una ubicación fija y lógica a cada elemento necesario del lugar de trabajo.\n2. Facilitar la localización rápida de herramientas, materiales y documentos.\n3. Garantizar que cualquier persona pueda encontrar y devolver los objetos sin necesidad de preguntar.\n4. Reducir el tiempo de preparación y cambio de herramientas.\n5. Implementar señalización visual y códigos de color para una identificación inmediata.' },
+    75→        { title: 'Metodología de implementación', content: '1. Analizar la frecuencia de uso de cada elemento: muy frecuente (cerca del puesto), frecuente (zona accesible), ocasional (almacén cercano) y raro (almacén lejano).\n2. Definir la ubicación óptima según la cercanía al punto de uso y la ergonomía.\n3. Implementar métodos de identificación: etiquetas, códigos de color, señales visuales, sombras, soportes.\n4. Crear un layout o distribución visual del área de trabajo.\n5. Señalizar pasillos, zonas de almacenamiento y ubicaciones específicas.\n6. Establecer reglas claras para la devolución de elementos a su ubicación.' },
+    76→        { title: 'Beneficios esperados', content: 'Los beneficios de aplicar Seiton incluyen: eliminación del tiempo perdido buscando herramientas o materiales, reducción de errores por confusión de elementos, mejora de la seguridad al tener pasillos despejados y zonas señalizadas, aumento de la eficiencia operativa, y una comunicación visual que permite detectar anomalías de forma inmediata.' },
+    77→      ]
+    78→    },
+    79→    3: {
+    80→      sections: [
+    81→        { title: '¿Qué es Seiso (Limpiar)?', content: 'Seiso es la tercera de las 5S y significa "limpiar" o "brillar". Va más allá de la simple limpieza: consiste en inspeccionar el lugar de trabajo mientras se limpia, identificando las fuentes de suciedad, las anomalías y los defectos. Seiso convierte la limpieza en una actividad de mantenimiento preventivo, donde cada persona es responsable de mantener su zona limpia y en condiciones óptimas.' },
+    82→        { title: 'Objetivos de Seiso', content: '1. Mantener el lugar de trabajo limpio y en condiciones óptimas de funcionamiento.\n2. Identificar y eliminar las fuentes de suciedad en su origen.\n3. Detectar anomalías, fugas, desgastes y defectos durante la limpieza.\n4. Establecer un plan de limpieza regular con responsables y frecuencias definidas.\n5. Crear el hábito de limpieza como parte de la rutina diaria de trabajo.' },
+    83→        { title: 'Metodología de implementación', content: '1. Realizar un inventario de puntos de suciedad: polvo, grasa, manchas, residuos, humedad, oxidación.\n2. Clasificar cada punto por nivel (leve, moderado, grave) y fuente (proceso, medio ambiente, falta de limpieza, escape, desgaste, derrame).\n3. Definir el método de limpieza adecuado para cada tipo de suciedad: aspirado, fregado, pulido, desinfección, reparación.\n4. Asignar frecuencias de limpieza: diaria, 3 veces por semana, semanal, quincenal, mensual.\n5. Crear un mapa de puntos de suciedad con responsables y plan de limpieza.\n6. Establecer un kit de limpieza accesible en cada zona.' },
+    84→        { title: 'Beneficios esperados', content: 'Aplicar Seiso aporta beneficios como: detección temprana de fallos y fugas, reducción de accidentes por suciedad, mejora de la calidad del producto al evitar contaminación, aumento de la vida útil de los equipos, y un entorno de trabajo más agradable y motivador para los empleados.' },
+    85→      ]
+    86→    },
+    87→    4: {
+    88→      sections: [
+    89→        { title: '¿Qué es Seiketsu (Estandarizar)?', content: 'Seiketsu es la cuarta de las 5S y significa "estandarizar" o "mantener el estado". Consiste en crear estándares, normas y procedimientos que mantengan los logros obtenidos con las 3S anteriores (Seiri, Seiton, Seiso). Seiketsu asegura que las mejoras no se pierdan con el tiempo y que todos los empleados sigan los mismos criterios de orden, organización y limpieza.' },
+    90→        { title: 'Objetivos de Seiketsu', content: '1. Crear estándares visuales y documentados para mantener los logros de las 3S.\n2. Establecer procedimientos claros que cualquier persona pueda seguir.\n3. Prevenir la reaparición de problemas ya resueltos.\n4. Implantar instrucciones visuales, diagramas y señalización permanente.\n5. Definir indicadores visuales que permitan detectar desviaciones de forma inmediata.' },
+    91→        { title: 'Metodología de implementación', content: '1. Documentar las mejores prácticas identificadas en las 3S anteriores.\n2. Crear estándares visuales: fotografías del estado correcto, diagramas de ubicación, etiquetas de identificación.\n3. Establecer procedimientos de inspección y mantenimiento con frecuencia y responsable.\n4. Implantar checklist de verificación diaria o semanal.\n5. Definir indicadores visuales de estado (semáforos, marcas de nivel, contornos).\n6. Revisar y actualizar los estándares periódicamente.' },
+    92→        { title: 'Beneficios esperados', content: 'Los beneficios de Seiketsu incluyen: consolidación de las mejoras de las 3S anteriores, reducción de la variabilidad en los procesos, facilitación de la formación de nuevos empleados, detección rápida de desviaciones, y creación de una base sólida para la mejora continua.' },
+    93→      ]
+    94→    },
+    95→    5: {
+    96→      sections: [
+    97→        { title: '¿Qué es Shitsuke (Disciplina)?', content: 'Shitsuke es la quinta y última de las 5S y significa "disciplina" o "sostener". Consiste en crear el hábito de respetar y cumplir los estándares establecidos en las 4S anteriores, de forma voluntaria y constante. Shitsuke transforma las normas en costumbres, asegurando que el orden, la organización, la limpieza y la estandarización se mantengan en el tiempo sin necesidad de supervisión constante.' },
+    98→        { title: 'Objetivos de Shitsuke', content: '1. Convertir el cumplimiento de los estándares en un hábito diario.\n2. Fomentar la autodisciplina y el compromiso personal con las 5S.\n3. Establecer mecanismos de seguimiento: auditorías internas y externas.\n4. Gestionar las anomalías detectadas y resolverlas de forma sistemática.\n5. Promover la mejora continua como filosofía de trabajo.' },
+    99→        { title: 'Metodología de implementación', content: '1. Realizar auditorías internas (autoevaluación) periódicas para verificar el cumplimiento de los estándares.\n2. Realizar auditorías externas con evaluadores independientes para objetividad.\n3. Registrar y gestionar las anomalías detectadas durante las auditorías.\n4. Establecer planes de acción correctiva con responsable y fecha límite.\n5. Comunicar los resultados de las auditorías a todo el equipo.\n6. Reconocer y premiar a los equipos que mantienen altos niveles de cumplimiento.' },
+   100→        { title: 'Beneficios esperados', content: 'Aplicar Shitsuke genera beneficios como: mantenimiento sostenido de las 5S en el tiempo, mejora continua de los procesos, mayor compromiso y motivación del personal, reducción de recaídas y problemas recurrentes, y una cultura de calidad que se extiende a todos los niveles de la organización.' },
+   101→      ]
+   102→    },
+   103→  }
+   104→  return formations[sStep] || formations[1]
+   105→}
+   106→
+   107→function getDefaultExamContent(sStep: number) {
+   108→  const exams: Record<number, { questions: { question: string; options: string[]; correctIndex: number }[] }> = {
+   109→    1: {
+   110→      questions: [
+   111→        { question: '¿Cuál es el objetivo principal de Seiri (Clasificar)?', options: ['Separar lo necesario de lo innecesario', 'Organizar los elementos por tamaño', 'Limpiar las máquinas', 'Crear estándares visuales'], correctIndex: 0 },
+   112→        { question: '¿Qué herramienta se utiliza en Seiri para marcar los elementos innecesarios?', options: ['Etiqueta verde', 'Tarjeta roja', 'Código de barras', 'Señal de tráfico'], correctIndex: 1 },
+   113→        { question: '¿Dónde se colocan temporalmente los elementos marcados como innecesarios?', options: ['En el almacén principal', 'En la jaula de innecesarios', 'En la mesa del responsable', 'En el pasillo'], correctIndex: 1 },
+   114→        { question: '¿Cuál es un beneficio de aplicar Seiri correctamente?', options: ['Aumentar el número de herramientas', 'Liberar espacio útil en el área de trabajo', 'Crear más documentos', 'Añadir más pasos al proceso'], correctIndex: 1 },
+   115→        { question: '¿Qué decisión NO se puede tomar sobre un elemento innecesario?', options: ['Eliminarlo', 'Trasladarlo a otra zona', 'Dejarlo donde está sin más', 'Donarlo o almacenarlo fuera del área'], correctIndex: 2 },
+   116→        { question: '¿Cada cuánto se debe revisar el área para evitar acumulación de innecesarios?', options: ['Solo al inicio del proyecto', 'Una vez al año', 'Periódicamente de forma regular', 'Nunca, solo una vez'], correctIndex: 2 },
+   117→        { question: '¿Qué tipo de elementos se deben eliminar en Seiri?', options: ['Los que se usan diariamente', 'Los que no se utilizan o no aportan valor', 'Los más caros', 'Los que tienen etiqueta'], correctIndex: 1 },
+   118→        { question: '¿Quién debe participar en el proceso de clasificación de Seiri?', options: ['Solo el responsable del área', 'Solo el jefe de producción', 'Todas las personas que trabajan en el área', 'Solo el equipo de mantenimiento'], correctIndex: 2 },
+   119→      ]
+   120→    },
+   121→    2: {
+   122→      questions: [
+   123→        { question: '¿Cuál es el objetivo principal de Seiton (Organizar)?', options: ['Eliminar innecesarios', 'Asignar una ubicación definida a cada elemento necesario', 'Limpiar los equipos', 'Auditar el proceso'], correctIndex: 1 },
+   124→        { question: '¿Qué principio fundamental aplica Seiton?', options: ['Más es mejor', 'Un lugar para cada cosa y cada cosa en su lugar', 'Todo en una sola estantería', 'Guardar todo en cajas cerradas'], correctIndex: 1 },
+   125→        { question: '¿Dónde se deben ubicar los elementos de uso muy frecuente?', options: ['En el almacén lejano', 'Cerca del puesto de trabajo', 'En el suelo del pasillo', 'En la oficina del jefe'], correctIndex: 1 },
+   126→        { question: '¿Cuál de estos NO es un método de identificación visual en Seiton?', options: ['Etiquetas', 'Código de colores', 'Memorizar la ubicación', 'Sombras y siluetas'], correctIndex: 2 },
+   127→        { question: '¿Qué es un layout en el contexto de Seiton?', options: ['Un tipo de herramienta', 'Una distribución visual del área de trabajo', 'Un informe de auditoría', 'Un código de barras'], correctIndex: 1 },
+   128→        { question: '¿Qué se debe hacer después de usar una herramienta según Seiton?', options: ['Dejarla donde se usó', 'Devolverla a su ubicación asignada', 'Pasarla al compañero', 'Guardarla en un cajón cualquiera'], correctIndex: 1 },
+   129→        { question: '¿Cómo se clasifica la frecuencia de uso en Seiton?', options: ['Barato y caro', 'Muy frecuente, frecuente, ocasional y raro', 'Grande y pequeño', 'Nuevo y viejo'], correctIndex: 1 },
+   130→        { question: '¿Qué beneficio aporta la señalización visual en Seiton?', options: ['Decorar el lugar de trabajo', 'Permitir detectar anomalías de forma inmediata', 'Aumentar el presupuesto', 'Reducir el número de herramientas'], correctIndex: 1 },
+   131→      ]
+   132→    },
+   133→    3: {
+   134→      questions: [
+   135→        { question: '¿Cuál es el objetivo principal de Seiso (Limpiar)?', options: ['Hacer que todo brille', 'Inspeccionar mientras se limpia, identificando anomalías y fuentes de suciedad', 'Pintar las paredes', 'Comprar productos de limpieza'], correctIndex: 1 },
+   136→        { question: '¿En qué se diferencia Seiso de una limpieza normal?', options: ['En que se usa más agua', 'En que convierte la limpieza en mantenimiento preventivo', 'En que solo la hace el equipo de limpieza', 'En que se hace una vez al año'], correctIndex: 1 },
+   137→        { question: '¿Qué tipos de suciedad se deben inventariar en Seiso?', options: ['Solo polvo', 'Polvo, grasa, manchas, residuos, humedad y oxidación', 'Solo grasa', 'Solo restos de comida'], correctIndex: 1 },
+   138→        { question: '¿Quién es responsable de la limpieza en Seiso?', options: ['Solo el equipo de limpieza', 'Solo el encargado', 'Cada persona en su zona de trabajo', 'El departamento de calidad'], correctIndex: 2 },
+   139→        { question: '¿Qué se debe hacer al detectar una fuga durante la limpieza?', options: ['Ignorarla y seguir limpiando', 'Identificarla como fuente de suciedad y reportarla', 'Taparla con cinta', 'Esperar a que se seque sola'], correctIndex: 1 },
+   140→        { question: '¿Qué es un mapa de puntos de suciedad?', options: ['Un mapa del mundo', 'Una representación visual de las zonas con suciedad y sus características', 'Un plano del edificio', 'Un calendario de limpieza'], correctIndex: 1 },
+   141→        { question: '¿Qué frecuencia de limpieza se recomienda para zonas de alto tráfico?', options: ['Mensual', 'Diaria o varias veces por semana', 'Anual', 'Solo cuando está muy sucio'], correctIndex: 1 },
+   142→        { question: '¿Qué debe contener un kit de limpieza según Seiso?', options: ['Solo una escoba', 'Los productos y herramientas necesarios para la limpieza de la zona', 'Documentos de calidad', 'Herramientas de producción'], correctIndex: 1 },
+   143→      ]
+   144→    },
+   145→    4: {
+   146→      questions: [
+   147→        { question: '¿Cuál es el objetivo principal de Seiketsu (Estandarizar)?', options: ['Limpiar más rápido', 'Crear estándares que mantengan los logros de las 3S anteriores', 'Eliminar más innecesarios', 'Organizar mejor las herramientas'], correctIndex: 1 },
+   148→        { question: '¿Qué tipo de estándares se crean en Seiketsu?', options: ['Solo escritos en papel', 'Visuales y documentados: fotos, diagramas, señalización, procedimientos', 'Solo verbales', 'Solo para directivos'], correctIndex: 1 },
+   149→        { question: '¿Para qué sirven los indicadores visuales en Seiketsu?', options: ['Para decorar', 'Para detectar desviaciones del estándar de forma inmediata', 'Para contar herramientas', 'Para medir la temperatura'], correctIndex: 1 },
+   150→        { question: '¿Cuál es un ejemplo de estándar visual?', options: ['Un correo electrónico', 'Una fotografía del estado correcto de una zona', 'Una reunión verbal', 'Un memorándum interno'], correctIndex: 1 },
+   151→        { question: '¿Qué es un checklist de verificación en Seiketsu?', options: ['Una lista de compras', 'Una lista de comprobación diaria o semanal del cumplimiento de estándares', 'Un inventario de herramientas', 'Un parte de trabajo'], correctIndex: 1 },
+   152→        { question: '¿Con qué frecuencia se deben revisar los estándares?', options: ['Nunca, una vez creados son fijos', 'Periódicamente para actualizarlos y mejorarlos', 'Solo cuando hay auditoría', 'Solo si hay queja del cliente'], correctIndex: 1 },
+   153→        { question: '¿Qué S anteriores sostiene Seiketsu?', options: ['Solo Seiri', 'Solo Seiton', 'Seiri, Seiton y Seiso (las 3S anteriores)', 'Ninguna'], correctIndex: 2 },
+   154→        { question: '¿Por qué es importante documentar las mejores prácticas?', options: ['Por requisito legal', 'Para que los nuevos empleados puedan seguirlas y no se pierdan las mejoras', 'Para tener más papeleo', 'Porque lo dice el jefe'], correctIndex: 1 },
+   155→      ]
+   156→    },
+   157→    5: {
+   158→      questions: [
+   159→        { question: '¿Cuál es el objetivo principal de Shitsuke (Disciplina)?', options: ['Crear más normas', 'Crear el hábito de respetar los estándares de forma voluntaria y constante', 'Poner multas a los empleados', 'Hacer auditorías puntuales'], correctIndex: 1 },
+   160→        { question: '¿Qué tipo de auditorías se realizan en Shitsuke?', options: ['Solo financieras', 'Internas (autoevaluación) y externas (evaluadores independientes)', 'Solo de producto', 'Solo de seguridad'], correctIndex: 1 },
+   161→        { question: '¿Qué se debe hacer al detectar una anomalía en una auditoría?', options: ['Ignorarla', 'Registrarla y crear un plan de acción correctiva con responsable y fecha', 'Esperar a la próxima auditoría', 'Solo informar verbalmente'], correctIndex: 1 },
+   162→        { question: '¿Qué convierte Shitsuke en hábito?', options: ['La supervisión constante', 'El cumplimiento voluntario y constante de los estándares', 'Las sanciones económicas', 'Los castigos'], correctIndex: 1 },
+   163→        { question: '¿Por qué es importante comunicar los resultados de las auditorías?', options: ['Para señalar culpables', 'Para que todo el equipo conozca el estado y participe en la mejora', 'Para archivarlos', 'Porque es obligatorio legalmente'], correctIndex: 1 },
+   164→        { question: '¿Cuál es la última etapa del ciclo de mejora continua en 5S?', options: ['Seiri', 'Shitsuke (que a su vez reinicia el ciclo)', 'Seiton', 'Seiso'], correctIndex: 1 },
+   165→        { question: '¿Qué papel tiene el reconocimiento en Shitsuke?', options: ['No tiene ningún papel', 'Motiva al equipo a mantener altos niveles de cumplimiento', 'Genera competencia negativa', 'Solo es para directivos'], correctIndex: 1 },
+   166→        { question: '¿Qué sucede si no se aplica Shitsuke correctamente?', options: ['Nada, las 4S se mantienen solas', 'Las mejoras de las 4S anteriores se pierden con el tiempo', 'Se ahorra tiempo', 'Se reducen costes'], correctIndex: 1 },
+   167→      ]
+   168→    },
+   169→  }
+   170→  return exams[sStep] || exams[1]
+   171→}
+   172→
+   173→function getDefaultChecklistContent(sStep: number) {
+   174→  const checklist = AUDIT_CHECKLISTS[sStep]
+   175→  if (!checklist) return { sections: [] }
+   176→  return {
+   177→    sections: checklist.map(section => ({
+   178→      id: section.id,
+   179→      title: section.title,
+   180→      items: section.items.map(item => ({
+   181→        id: item.id,
+   182→        description: item.description,
+   183→        hasOther: item.hasOther || false,
+   184→      }))
+   185→    }))
+   186→  }
+   187→}
+   188→
+   189→function getDefaultInventoryContent(sStep: number) {
+   190→  const cfg = INVENTORY_CONFIGS[sStep]
+   191→  if (!cfg) return { categories: [], extraFields: [] }
+   192→
+   193→  // S2: Use the comprehensive Seiton template matching the user's Excel structure
+   194→  // (categories by element type with hierarchical subcategories + traceability codes)
+   195→  if (sStep === 2) {
+   196→    return {
+   197→      title: 'Inventario de Necesarios',
+   198→      subtitle: 'SEITON — Organiza los elementos necesarios en su ubicación correcta',
+   199→      templateName: 'S2_Inventario_Necesarios_Seiton.xlsx',
+   200→      categories: [
+   201→        { value: 'materiales', label: 'MATERIALES', color: 'bg-blue-100 text-blue-800' },
+   202→        { value: 'maquinas_equipos', label: 'MÁQUINAS Y EQUIPOS', color: 'bg-purple-100 text-purple-800' },
+   203→        { value: 'mobiliario', label: 'MOBILIARIO', color: 'bg-amber-100 text-amber-800' },
+   204→        { value: 'informacion', label: 'INFORMACIÓN', color: 'bg-teal-100 text-teal-800' },
+   205→        { value: 'transporte_almacenaje', label: 'TRANSPORTE Y ALMACENAJE', color: 'bg-orange-100 text-orange-800' },
+   206→      ],
+   207→      extraFields: [
+   208→        { key: 'codigo', label: 'Código de Trazabilidad', type: 'text' },
+   209→        { key: 'subcategoria', label: 'Subcategoría', type: 'select', options: [
+   210→          'Consumibles', 'Materia Prima', 'Producto en proceso', 'Producto acabado',
+   211→          'Máquinas de trabajo', 'Utillajes de trabajo', 'Equipos y accesorios de Elevación',
+   212→          'Equipos de ensayo y verificación', 'Herramientas de ensamblaje', 'Equipos informáticos', 'Equipos de limpieza',
+   213→          'Bancos de trabajo', 'Paneles herramienta', 'Armarios o taquillas', 'Sillas, mesas', 'Paneles u otros soportes para información',
+   214→          'Planos, instrucciones, boletines de trabajo', 'Posters u otra información divulgativa', 'Información referente a indicadores', 'Carpeta o bandejas con documentación', 'Información de seguridad',
+   215→          'Máquinas de transporte', 'Utillajes de transporte, Pallets, embalajes de madera, cajas', 'Estanterías, gavetas, contenedores', 'Bolsas, plásticos, protecciones, elementos de flejado', 'Carros de transporte',
+   216→        ]},
+   217→        { key: 'zona_destino', label: 'Zona Actual / Destino', type: 'text' },
+   218→        { key: 'responsable', label: 'Responsable / Área', type: 'text' },
+   219→        { key: 'estado', label: 'Estado de Conservación', type: 'select', options: ['Excelente', 'Bueno', 'Regular', 'Requiere Mantenimiento'] },
+   220→      ],
+   221→      desplegables_jerarquicos: {
+   222→        'MATERIALES': { prefijo_codigo: 'MAT', subcategorias: ['Consumibles', 'Materia Prima', 'Producto en proceso', 'Producto acabado'] },
+   223→        'MÁQUINAS Y EQUIPOS': { prefijo_codigo: 'MAQ', subcategorias: ['Máquinas de trabajo', 'Utillajes de trabajo', 'Equipos y accesorios de Elevación', 'Equipos de ensayo y verificación', 'Herramientas de ensamblaje', 'Equipos informáticos', 'Equipos de limpieza'] },
+   224→        'MOBILIARIO': { prefijo_codigo: 'MOB', subcategorias: ['Bancos de trabajo', 'Paneles herramienta', 'Armarios o taquillas', 'Sillas, mesas', 'Paneles u otros soportes para información'] },
+   225→        'INFORMACIÓN': { prefijo_codigo: 'INF', subcategorias: ['Planos, instrucciones, boletines de trabajo', 'Posters u otra información divulgativa', 'Información referente a indicadores', 'Carpeta o bandejas con documentación', 'Información de seguridad'] },
+   226→        'TRANSPORTE Y ALMACENAJE': { prefijo_codigo: 'TRA', subcategorias: ['Máquinas de transporte', 'Utillajes de transporte, Pallets, embalajes de madera, cajas', 'Estanterías, gavetas, contenedores', 'Bolsas, plásticos, protecciones, elementos de flejado', 'Carros de transporte'] },
+   227→      },
+   228→    }
+   229→  }
+   230→
+   231→  return {
+   232→    categories: cfg.categories.map(c => ({ value: c.value, label: c.label, color: c.color })),
+   233→    extraFields: cfg.extraFields.map(f => ({
+   234→      key: f.key, label: f.label, type: f.type,
+   235→      ...(f.options ? { options: f.options } : {}),
+   236→    })),
+   237→  }
+   238→}
+   239→
+   240→function getDefaultStandardContent() {
+   241→  return {
+   242→    fields: [
+   243→      { key: 'beforePhotoUrl', label: 'Foto Antes', type: 'photo', required: true },
+   244→      { key: 'afterPhotoUrl', label: 'Foto Después', type: 'photo', required: true },
+   245→      { key: 'responsable', label: 'Quién lo ha hecho', type: 'text', required: true },
+   246→      { key: 'contacto', label: 'Contacto', type: 'text', required: true },
+   247→      { key: 'mejoraTipo', label: 'Tipo de Mejora', type: 'select', options: ['Seguridad', 'Calidad', 'Proceso', 'Logística'], required: true },
+   248→    ],
+   249→  }
+   250→}
+   251→
+   252→function getDefaultPlanAccionContent(sStep: number) {
+   253→  const S_JAPANESE = ['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke']
+   254→  const S_NAMES = ['Revisar', 'Ordenar', 'Limpiar', 'Estandarizar', 'Mantener']
+   255→  return {
+   256→    tableType: 'plan_accion',
+   257→    description: `Plan de Acción para ${S_JAPANESE[sStep - 1]} (${S_NAMES[sStep - 1]}). Registro de deficiencias encontradas en las autoevaluaciones y auditorías, con las acciones correctivas y preventivas propuestas, responsables y fechas de realización.`,
+   258→    columns: [
+   259→      { key: 'numeroEntrada', label: 'Nº Entrada', type: 'text', width: '100px', description: 'Zona + S de origen + número correlativo', required: true, placeholder: 'Ej: A-S1-001' },
+   260→      { key: 'fechaInicial', label: 'Fecha Inicial', type: 'date', width: '110px', description: 'Fecha en la que entra la deficiencia', required: true },
+   261→      { key: 'auditor', label: 'Auditor', type: 'text', width: '120px', description: 'Quién ha hecho la auditoría o la autoevaluación', required: true },
+   262→      { key: 'semana', label: 'Semana', type: 'text', width: '80px', description: 'La semana de la fecha inicial' },
+   263→      { key: 'zona', label: 'Zona', type: 'text', width: '100px', description: 'Qué zona es la afectada', required: true },
+   264→      { key: 'descripcion', label: 'Descripción', type: 'textarea', width: '200px', description: 'Descripción de la deficiencia encontrada', required: true },
+   265→      { key: 'accionCorrectiva', label: 'Acción Correctiva', type: 'textarea', width: '180px', description: 'Lo que se va a hacer ahora para corregir', required: true },
+   266→      { key: 'accionesPreventivas', label: 'Acciones Preventivas', type: 'textarea', width: '180px', description: 'Lo que se va a hacer para que no ocurra otra vez' },
+   267→      { key: 'semanaPrevista', label: 'Semana Prevista', type: 'text', width: '100px', description: 'La semana prevista para llevar las acciones preventivas' },
+   268→      { key: 'personaResponsable', label: 'Persona Responsable', type: 'text', width: '130px', description: 'Quién es el responsable', required: true },
+   269→      { key: 'estado', label: 'Estado', type: 'select', width: '110px', description: 'Progreso: Empezado (25%), Medio (50%), Casi Hecho (75%), Finalizado (100%)', options: ['Empezado (25%)', 'Medio (50%)', 'Casi Hecho (75%)', 'Finalizado (100%)'] },
+   270→      { key: 'progreso', label: 'Progreso %', type: 'number', width: '80px', description: 'Progreso en %: 25, 50, 75 o 100', min: 0, max: 100 },
+   271→      { key: 'semanaReal', label: 'Semana Real', type: 'text', width: '100px', description: 'Semana real de la finalización' },
+   272→    ],
+   273→    sourceTypes: ['autoevaluacion', 'auditoria'],
+   274→    sStep: sStep,
+   275→  }
+   276→}
+   277→
+   278→function getDefaultLayoutContent(sStep: number) {
+   279→  return {
+   280→    layoutType: 'zone_layout',
+   281→    description: `Layout de la zona para S${sStep}. Dibuja o sube un plano de la zona indicando las áreas de trabajo, pasillos, ubicación de equipos y elementos estáticos.`,
+   282→    floorColors: [
+   283→      { color: '#0E6BA8', label: 'Azul RAL 5017 — Entrada de material', ral: 'RAL 5017' },
+   284→      { color: '#2D8C3C', label: 'Verde RAL 6032 — Salida de material premontado', ral: 'RAL 6032' },
+   285→      { color: '#E8E8E8', label: 'Blanco RAL 9003 — Elementos estáticos', ral: 'RAL 9003' },
+   286→      { color: '#F5E649', label: 'Amarillo RAL 1016 — Área de trabajo', ral: 'RAL 1016' },
+   287→      { color: '#CC0000', label: 'Rojo RAL 3000 — Equipos contra incendios', ral: 'RAL 3000' },
+   288→      { color: '#F5A623', label: 'Amarillo anaranjado RAL 1003 — Elementos de seguridad', ral: 'RAL 1003' },
+   289→    ],
+   290→    drawTools: ['select', 'rect', 'circle', 'line', 'arrow', 'text'],
+   291→    sStep: sStep,
+   292→    targetStandardCategory: 'layout',
+   293→    targetS4Library: true,
+   294→  }
+   295→}
+   296→
+   297→function getDefaultPlanLimpiezaContent(sStep: number) {
+   298→  return {
+   299→    planType: 'inspection_cleaning',
+   300→    description: `Plan de Inspección y Limpieza para S${sStep}. Define la ruta de inspección, los puntos de suciedad que no se pueden eliminar y las acciones de limpieza para la zona.`,
+   301→    sections: [
+   302→      { key: 'ruta_inspeccion', label: 'Ruta de Inspección', type: 'route', description: 'Define el recorrido de inspección paso a paso' },
+   303→      { key: 'puntos_suciedad', label: 'Puntos de Suciedad No Eliminables', type: 'checklist', description: 'Lista de puntos de suciedad que no se pueden eliminar, con acciones preventivas' },
+   304→      { key: 'acciones_limpieza', label: 'Acciones de Limpieza', type: 'list', description: 'Acciones de limpieza a realizar en cada punto' },
+   305→      { key: 'frecuencia', label: 'Frecuencia', type: 'select', options: ['Diaria', 'Semanal', 'Quincenal', 'Mensual'], description: 'Frecuencia de inspección' },
+   306→      { key: 'responsable', label: 'Responsable', type: 'text', description: 'Persona responsable de la inspección' },
+   307→    ],
+   308→    sStep: sStep,
+   309→    targetStandardCategory: 'plan_limpieza',
+   310→    targetS4Library: true,
+   311→  }
+   312→}
+   313→
+   314→function getDefaultPDCAContent(sStep: number) {
+   315→  return {
+   316→    pdcaType: 'continuous_improvement_board',
+   317→    description: `Tablero PDCA para S${sStep}. Herramienta de mejora continua después de acabar las 5S en la que se registra y se dirige las 5S. Incluye el Plan de Acción y KPIs referentes que indican progreso y trabajo realizado y por realizar.`,
+   318→    phases: [
+   319→      { key: 'plan', label: 'PLAN', labelEs: 'Planificar', description: 'Identificar problemas, establecer objetivos y definir planes de acción', color: '#3B82F6' },
+   320→      { key: 'do', label: 'DO', labelEs: 'Ejecutar', description: 'Implementar las acciones planificadas y recopilar datos', color: '#22C55E' },
+   321→      { key: 'check', label: 'CHECK', labelEs: 'Verificar', description: 'Analizar los resultados y comparar con los objetivos', color: '#EAB308' },
+   322→      { key: 'act', label: 'ACT', labelEs: 'Actuar', description: 'Estandarizar lo que funciona y corregir lo que no', color: '#F97316' },
+   323→    ],
+   324→    kpis: [
+   325→      { key: 'completion_rate', label: 'Tasa de Completado', description: 'Porcentaje de elementos PDCA completados' },
+   326→      { key: 'action_progress', label: 'Progreso del Plan de Acción', description: 'Progreso medio del Plan de Acción' },
+   327→      { key: 'open_actions', label: 'Acciones Abiertas', description: 'Acciones del plan de acción en estado abierta' },
+   328→      { key: 'overdue_items', label: 'Elementos Vencidos', description: 'Elementos PDCA con fecha límite pasada' },
+   329→    ],
+   330→    links: ['plan_accion', 'standards_library'],
+   331→    sStep: sStep,
+   332→  }
+   333→}
+   334→
+   335→function getDefaultFotosContent(sStep: number) {
+   336→  const descriptions: Record<number, string> = {
+   337→    1: 'Fotografía la zona para ver qué elementos innecesarios hay antes de clasificar',
+   338→    2: 'Fotografía la zona para ver cómo está organizada antes de reordenar',
+   339→    3: 'Fotografía la zona para documentar los puntos de suciedad antes de limpiar',
+   340→    4: 'Fotografía la zona para documentar el estado actual antes de estandarizar',
+   341→    5: 'Fotografía la zona para documentar el nivel de cumplimiento de los estándares',
+   342→  }
+   343→  return {
+   344→    sections: [
+   345→      {
+   346→        title: 'Fotografías Antes',
+   347→        description: descriptions[sStep] || 'Documenta el estado actual con fotografías',
+   348→        minPhotos: 3,
+   349→        photoTypes: ['antes'],
+   350→        instructions: 'Toma un mínimo de 3 fotografías del estado actual de la zona. Incluye vistas generales y detalles de los problemas detectados.',
+   351→      },
+   352→      {
+   353→        title: 'Fotografías Después',
+   354→        description: 'Fotografía el resultado tras aplicar las mejoras',
+   355→        minPhotos: 3,
+   356→        photoTypes: ['despues'],
+   357→        instructions: 'Toma fotografías desde los mismos ángulos que las fotos "antes" para poder comparar el antes y el después.',
+   358→      },
+   359→    ],
+   360→  }
+   361→}
+   362→
+   363→// ═══════════════════════════════════════════════════════
+   364→// VISUAL EDITOR: ChecklistEditor (autoevaluacion / auditoria)
+   365→// ═══════════════════════════════════════════════════════
+   366→interface ChecklistItem {
+   367→  id: string
+   368→  description: string
+   369→  hasOther: boolean
+   370→  active?: boolean // true (default) → aparece en el tablero (apartados 4/5); false → oculta
+   371→}
+   372→
+   373→interface ChecklistSection {
+   374→  id: string
+   375→  title: string
+   376→  items: ChecklistItem[]
+   377→}
+   378→
+   379→function ChecklistEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
+   380→  let parsed: { sections: ChecklistSection[] }
+   381→  try {
+   382→    parsed = JSON.parse(content)
+   383→  } catch {
+   384→    return (
+   385→      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+   386→        El JSON no es válido. Corrígelo en modo JSON o carga el contenido por defecto.
+   387→      </div>
+   388→    )
+   389→  }
+   390→
+   391→  const sections = parsed.sections || []
+   392→  const sPrefix = String(content.match(/"id"\s*:\s*"(\d+)\./)?.[1] || '1')
+   393→
+   394→  const update = (newSections: ChecklistSection[]) => {
+   395→    onChange(JSON.stringify({ ...parsed, sections: newSections }, null, 2))
+   396→  }
+   397→
+   398→  const addSection = () => {
+   399→    const newId = `${sPrefix}.${sections.length + 1}`
+   400→    update([...sections, { id: newId, title: 'Nueva Sección', items: [] }])
+   401→  }
+   402→
+   403→  const removeSection = (idx: number) => {
+   404→    update(sections.filter((_, i) => i !== idx))
+   405→  }
+   406→
+   407→  const updateSection = (idx: number, field: 'id' | 'title', value: string) => {
+   408→    const updated = [...sections]
+   409→    updated[idx] = { ...updated[idx], [field]: value }
+   410→    update(updated)
+   411→  }
+   412→
+   413→  const moveSection = (idx: number, dir: -1 | 1) => {
+   414→    const target = idx + dir
+   415→    if (target < 0 || target >= sections.length) return
+   416→    const updated = [...sections]
+   417→    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+   418→    update(updated)
+   419→  }
+   420→
+   421→  const addItem = (sectionIdx: number) => {
+   422→    const sec = sections[sectionIdx]
+   423→    const newItemId = `${sec.id}.${sec.items.length + 1}`
+   424→    const updated = [...sections]
+   425→    updated[sectionIdx] = {
+   426→      ...updated[sectionIdx],
+   427→      items: [...updated[sectionIdx].items, { id: newItemId, description: '', hasOther: false, active: true }]
+   428→    }
+   429→    update(updated)
+   430→  }
+   431→
+   432→  const removeItem = (sectionIdx: number, itemIdx: number) => {
+   433→    const updated = [...sections]
+   434→    updated[sectionIdx] = {
+   435→      ...updated[sectionIdx],
+   436→      items: updated[sectionIdx].items.filter((_, i) => i !== itemIdx)
+   437→    }
+   438→    update(updated)
+   439→  }
+   440→
+   441→  const updateItem = (sectionIdx: number, itemIdx: number, field: string, value: string | boolean) => {
+   442→    const updated = [...sections]
+   443→    updated[sectionIdx] = {
+   444→      ...updated[sectionIdx],
+   445→      items: updated[sectionIdx].items.map((item, i) =>
+   446→        i === itemIdx ? { ...item, [field]: value } : item
+   447→      )
+   448→    }
+   449→    update(updated)
+   450→  }
+   451→
+   452→  const moveItem = (sectionIdx: number, itemIdx: number, dir: -1 | 1) => {
+   453→    const items = sections[sectionIdx].items
+   454→    const target = itemIdx + dir
+   455→    if (target < 0 || target >= items.length) return
+   456→    const updated = [...sections]
+   457→    const newItems = [...updated[sectionIdx].items]
+   458→    ;[newItems[itemIdx], newItems[target]] = [newItems[target], newItems[itemIdx]]
+   459→    updated[sectionIdx] = { ...updated[sectionIdx], items: newItems }
+   460→    update(updated)
+   461→  }
+   462→
+   463→  return (
+   464→    <div className="space-y-4">
+   465→      {/* Leyenda rápida */}
+   466→      <div className="flex items-center gap-3 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-md text-xs text-indigo-800">
+   467→        <Eye className="h-3.5 w-3.5 shrink-0" />
+   468→        <span><b>En tablero</b> = la pregunta aparece en los apartados 4/5 de las S del tablero.</span>
+   469→        <span className="text-indigo-400">·</span>
+   470→        <EyeOff className="h-3.5 w-3.5 shrink-0" />
+   471→        <span><b>Oculta</b> = no aparece en el tablero. Pulsa el badge para alternar.</span>
+   472→      </div>
+   473→      {sections.map((section, sIdx) => {
+   474→        const activeCount = section.items.filter(it => it.active !== false).length
+   475→        const totalCount = section.items.length
+   476→        return (
+   477→        <div key={sIdx} className="border-2 rounded-lg overflow-hidden bg-white shadow-sm">
+   478→          {/* Section header */}
+   479→          <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b">
+   480→            <div className="flex flex-col gap-0.5">
+   481→              <button onClick={() => moveSection(sIdx, -1)} className="text-gray-400 hover:text-gray-600 leading-none" title="Subir sección">
+   482→                <ChevronUp className="h-4 w-4" />
+   483→              </button>
+   484→              <button onClick={() => moveSection(sIdx, 1)} className="text-gray-400 hover:text-gray-600 leading-none" title="Bajar sección">
+   485→                <ChevronDown className="h-4 w-4" />
+   486→              </button>
+   487→            </div>
+   488→            <Input
+   489→              value={section.id}
+   490→              onChange={(e) => updateSection(sIdx, 'id', e.target.value)}
+   491→              className="w-20 h-9 text-sm font-mono"
+   492→              placeholder="ID"
+   493→            />
+   494→            <Input
+   495→              value={section.title}
+   496→              onChange={(e) => updateSection(sIdx, 'title', e.target.value)}
+   497→              className="flex-1 h-9 text-base font-semibold"
+   498→              placeholder="Título de sección"
+   499→            />
+   500→            <span
+   501→              className={`text-xs font-medium px-2 py-1 rounded-md whitespace-nowrap shrink-0 ${
+   502→                activeCount === totalCount
+   503→                  ? 'bg-green-100 text-green-700'
+   504→                  : activeCount === 0
+   505→                  ? 'bg-gray-200 text-gray-600'
+   506→                  : 'bg-amber-100 text-amber-700'
+   507→              }`}
+   508→              title={`${activeCount} de ${totalCount} preguntas aparecen en el tablero`}
+   509→            >
+   510→              {activeCount}/{totalCount} en tablero
+   511→            </span>
+   512→            <Button variant="ghost" size="sm" onClick={() => addItem(sIdx)}
+   513→              className="h-9 w-9 p-0 text-green-600 hover:text-green-700 hover:bg-green-50" title="Añadir item">
+   514→              <Plus className="h-5 w-5" />
+   515→            </Button>
+   516→            <Button variant="ghost" size="sm" onClick={() => removeSection(sIdx)}
+   517→              className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50" title="Eliminar sección">
+   518→              <Trash2 className="h-4 w-4" />
+   519→            </Button>
+   520→          </div>
+   521→
+   522→          {/* Items */}
+   523→          <div className="p-3 space-y-2">
+   524→            {section.items.length === 0 && (
+   525→              <p className="text-sm text-muted-foreground italic px-2 py-2">Sin items. Pulsa + para añadir.</p>
+   526→            )}
+   527→            {section.items.map((item, iIdx) => {
+   528→              // Un item se considera "en tablero" a menos que explícitamente esté active:false.
+   529→              // Esto mantiene compatibilidad con plantillas antiguas que no tienen el campo `active`.
+   530→              const isOnBoard = item.active !== false
+   531→              return (
+   532→                <div
+   533→                  key={iIdx}
+   534→                  className={`flex items-center gap-3 group rounded-md px-1 py-0.5 transition-colors ${
+   535→                    isOnBoard ? '' : 'bg-gray-50'
+   536→                  }`}
+   537→                >
+   538→                  <div className="flex flex-col gap-0.5">
+   539→                    <button onClick={() => moveItem(sIdx, iIdx, -1)} className="text-gray-300 hover:text-gray-500 leading-none" title="Subir">
+   540→                      <ChevronUp className="h-3.5 w-3.5" />
+   541→                    </button>
+   542→                    <button onClick={() => moveItem(sIdx, iIdx, 1)} className="text-gray-300 hover:text-gray-500 leading-none" title="Bajar">
+   543→                      <ChevronDown className="h-3.5 w-3.5" />
+   544→                    </button>
+   545→                  </div>
+   546→                  <Input
+   547→                    value={item.id}
+   548→                    onChange={(e) => updateItem(sIdx, iIdx, 'id', e.target.value)}
+   549→                    className="w-20 h-8 text-xs font-mono"
+   550→                    placeholder="ID"
+   551→                  />
+   552→                  <Input
+   553→                    value={item.description}
+   554→                    onChange={(e) => updateItem(sIdx, iIdx, 'description', e.target.value)}
+   555→                    className={`flex-1 h-8 text-sm ${
+   556→                      isOnBoard ? '' : 'text-gray-400 line-through decoration-gray-300'
+   557→                    }`}
+   558→                    placeholder="Descripción del item"
+   559→                  />
+   560→                  {/* Toggle "En tablero" — Controla si esta pregunta aparece en los apartados 4/5 de las S del tablero */}
+   561→                  <button
+   562→                    type="button"
+   563→                    onClick={() => updateItem(sIdx, iIdx, 'active', !isOnBoard)}
+   564→                    className={`flex items-center gap-1 px-2 h-8 rounded-md text-xs font-medium border transition-colors whitespace-nowrap shrink-0 ${
+   565→                      isOnBoard
+   566→                        ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+   567→                        : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'
+   568→                    }`}
+   569→                    title={
+   570→                      isOnBoard
+   571→                        ? 'Esta pregunta aparece en el tablero. Clic para ocultarla.'
+   572→                        : 'Esta pregunta NO aparece en el tablero. Clic para mostrarla.'
+   573→                    }
+   574→                  >
+   575→                    {isOnBoard ? (
+   576→                      <Eye className="h-3.5 w-3.5" />
+   577→                    ) : (
+   578→                      <EyeOff className="h-3.5 w-3.5" />
+   579→                    )}
+   580→                    {isOnBoard ? 'En tablero' : 'Oculta'}
+   581→                  </button>
+   582→                  <Button variant="ghost" size="sm"
+   583→                    onClick={() => removeItem(sIdx, iIdx)}
+   584→                    className="h-8 w-8 p-0 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" title="Eliminar">
+   585→                    <Trash2 className="h-4 w-4" />
+   586→                  </Button>
+   587→                </div>
+   588→              )
+   589→            })}
+   590→          </div>
+   591→        </div>
+   592→        )
+   593→      })}
+   594→
+   595→      <Button variant="outline" onClick={addSection}
+   596→        className="w-full border-dashed border-2 text-green-600 hover:bg-green-50 hover:border-green-400 gap-1 h-10">
+   597→        <Plus className="h-5 w-5" />
+   598→        Añadir sección
+   599→      </Button>
+   600→
+   601→      <div className="text-sm text-muted-foreground text-center">
+   602→        {sections.length} sección(es) · {sections.reduce((s, sec) => s + sec.items.length, 0)} item(s) en total · {sections.reduce((s, sec) => s + sec.items.filter(it => it.active !== false).length, 0)} en tablero
+   603→      </div>
+   604→    </div>
+   605→  )
+   606→}
+   607→
+   608→// ═══════════════════════════════════════════════════════
+   609→// VISUAL EDITOR: ExamEditor (examen)
+   610→// ═══════════════════════════════════════════════════════
+   611→function ExamEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
+   612→  let parsed: { questions: { question: string; options: string[]; correctIndex: number }[] }
+   613→  try {
+   614→    parsed = JSON.parse(content)
+   615→  } catch {
+   616→    return (
+   617→      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+   618→        El JSON no es válido. Corrígelo en modo JSON o carga el contenido por defecto.
+   619→      </div>
+   620→    )
+   621→  }
+   622→
+   623→  const questions = parsed.questions || []
+   624→
+   625→  const update = (newQuestions: typeof questions) => {
+   626→    onChange(JSON.stringify({ ...parsed, questions: newQuestions }, null, 2))
+   627→  }
+   628→
+   629→  const addQuestion = () => {
+   630→    update([...questions, { question: '', options: ['Opción A', 'Opción B', 'Opción C', 'Opción D'], correctIndex: 0 }])
+   631→  }
+   632→
+   633→  const removeQuestion = (idx: number) => {
+   634→    update(questions.filter((_, i) => i !== idx))
+   635→  }
+   636→
+   637→  const updateQuestion = (idx: number, field: string, value: any) => {
+   638→    const updated = [...questions]
+   639→    updated[idx] = { ...updated[idx], [field]: value }
+   640→    update(updated)
+   641→  }
+   642→
+   643→  const updateOption = (qIdx: number, oIdx: number, value: string) => {
+   644→    const updated = [...questions]
+   645→    updated[qIdx] = { ...updated[qIdx], options: updated[qIdx].options.map((o, i) => i === oIdx ? value : o) }
+   646→    update(updated)
+   647→  }
+   648→
+   649→  const addOption = (qIdx: number) => {
+   650→    const updated = [...questions]
+   651→    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+   652→    const newIdx = updated[qIdx].options.length
+   653→    updated[qIdx] = { ...updated[qIdx], options: [...updated[qIdx].options, `Opción ${letters[newIdx] || newIdx + 1}`] }
+   654→    update(updated)
+   655→  }
+   656→
+   657→  const removeOption = (qIdx: number, oIdx: number) => {
+   658→    const updated = [...questions]
+   659→    const newOptions = updated[qIdx].options.filter((_, i) => i !== oIdx)
+   660→    let newCorrect = updated[qIdx].correctIndex
+   661→    if (newCorrect >= newOptions.length) newCorrect = 0
+   662→    else if (newCorrect > oIdx) newCorrect--
+   663→    updated[qIdx] = { ...updated[qIdx], options: newOptions, correctIndex: newCorrect }
+   664→    update(updated)
+   665→  }
+   666→
+   667→  const moveQuestion = (idx: number, dir: -1 | 1) => {
+   668→    const target = idx + dir
+   669→    if (target < 0 || target >= questions.length) return
+   670→    const updated = [...questions]
+   671→    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+   672→    update(updated)
+   673→  }
+   674→
+   675→  return (
+   676→    <div className="space-y-4">
+   677→      {questions.map((q, qIdx) => (
+   678→        <div key={qIdx} className="border-2 rounded-lg overflow-hidden bg-white shadow-sm">
+   679→          <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border-b border-amber-200">
+   680→            <div className="flex flex-col gap-0.5">
+   681→              <button onClick={() => moveQuestion(qIdx, -1)} className="text-gray-400 hover:text-gray-600 leading-none">
+   682→                <ChevronUp className="h-4 w-4" />
+   683→              </button>
+   684→              <button onClick={() => moveQuestion(qIdx, 1)} className="text-gray-400 hover:text-gray-600 leading-none">
+   685→                <ChevronDown className="h-4 w-4" />
+   686→              </button>
+   687→            </div>
+   688→            <Badge className="bg-amber-200 text-amber-800 shrink-0 text-sm px-2 py-0.5">P{qIdx + 1}</Badge>
+   689→            <Input
+   690→              value={q.question}
+   691→              onChange={(e) => updateQuestion(qIdx, 'question', e.target.value)}
+   692→              className="flex-1 h-9 text-base"
+   693→              placeholder="Pregunta"
+   694→            />
+   695→            <Button variant="ghost" size="sm" onClick={() => removeQuestion(qIdx)}
+   696→              className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50" title="Eliminar pregunta">
+   697→              <Trash2 className="h-4 w-4" />
+   698→            </Button>
+   699→          </div>
+   700→
+   701→          <div className="p-4 space-y-2">
+   702→            {q.options.map((opt, oIdx) => (
+   703→              <div key={oIdx} className="flex items-center gap-3 group">
+   704→                <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+   705→                  <input
+   706→                    type="radio"
+   707→                    name={`correct-${qIdx}`}
+   708→                    checked={q.correctIndex === oIdx}
+   709→                    onChange={() => updateQuestion(qIdx, 'correctIndex', oIdx)}
+   710→                    className="h-4 w-4 text-green-600"
+   711→                  />
+   712→                  <span className="text-xs text-muted-foreground w-5 font-semibold">{String.fromCharCode(65 + oIdx)}</span>
+   713→                </label>
+   714→                <Input
+   715→                  value={opt}
+   716→                  onChange={(e) => updateOption(qIdx, oIdx, e.target.value)}
+   717→                  className={`flex-1 h-8 text-sm ${q.correctIndex === oIdx ? 'border-green-400 bg-green-50' : ''}`}
+   718→                />
+   719→                <Button variant="ghost" size="sm"
+   720→                  onClick={() => removeOption(qIdx, oIdx)}
+   721→                  className="h-8 w-8 p-0 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+   722→                  title="Eliminar opción">
+   723→                  <Trash2 className="h-4 w-4" />
+   724→                </Button>
+   725→              </div>
+   726→            ))}
+   727→            <Button variant="ghost" size="sm" onClick={() => addOption(qIdx)}
+   728→              className="h-8 text-sm text-blue-500 hover:text-blue-600 gap-1 px-3">
+   729→              <Plus className="h-4 w-4" /> Añadir opción
+   730→            </Button>
+   731→          </div>
+   732→        </div>
+   733→      ))}
+   734→
+   735→      <Button variant="outline" onClick={addQuestion}
+   736→        className="w-full border-dashed border-2 text-amber-600 hover:bg-amber-50 hover:border-amber-400 gap-1 h-10">
+   737→        <Plus className="h-5 w-5" />
+   738→        Añadir pregunta
+   739→      </Button>
+   740→
+   741→      <div className="text-sm text-muted-foreground text-center">
+   742→        {questions.length} pregunta(s)
+   743→      </div>
+   744→    </div>
+   745→  )
+   746→}
+   747→
+   748→// ═══════════════════════════════════════════════════════
+   749→// VISUAL EDITOR: FormationEditor (formacion)
+   750→// ═══════════════════════════════════════════════════════
+   751→function FormationEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
+   752→  let parsed: { sections: { title: string; content: string }[] }
+   753→  try {
+   754→    parsed = JSON.parse(content)
+   755→  } catch {
+   756→    return (
+   757→      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+   758→        El JSON no es válido. Corrígelo en modo JSON o carga el contenido por defecto.
+   759→      </div>
+   760→    )
+   761→  }
+   762→
+   763→  const sections = parsed.sections || []
+   764→
+   765→  const update = (newSections: typeof sections) => {
+   766→    onChange(JSON.stringify({ ...parsed, sections: newSections }, null, 2))
+   767→  }
+   768→
+   769→  const addSection = () => {
+   770→    update([...sections, { title: '', content: '' }])
+   771→  }
+   772→
+   773→  const removeSection = (idx: number) => {
+   774→    update(sections.filter((_, i) => i !== idx))
+   775→  }
+   776→
+   777→  const updateSection = (idx: number, field: 'title' | 'content', value: string) => {
+   778→    const updated = [...sections]
+   779→    updated[idx] = { ...updated[idx], [field]: value }
+   780→    update(updated)
+   781→  }
+   782→
+   783→  const moveSection = (idx: number, dir: -1 | 1) => {
+   784→    const target = idx + dir
+   785→    if (target < 0 || target >= sections.length) return
+   786→    const updated = [...sections]
+   787→    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+   788→    update(updated)
+   789→  }
+   790→
+   791→  return (
+   792→    <div className="space-y-4">
+   793→      {sections.map((sec, idx) => (
+   794→        <div key={idx} className="border-2 rounded-lg overflow-hidden bg-white shadow-sm">
+   795→          <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border-b border-blue-200">
+   796→            <div className="flex flex-col gap-0.5">
+   797→              <button onClick={() => moveSection(idx, -1)} className="text-gray-400 hover:text-gray-600 leading-none">
+   798→                <ChevronUp className="h-4 w-4" />
+   799→              </button>
+   800→              <button onClick={() => moveSection(idx, 1)} className="text-gray-400 hover:text-gray-600 leading-none">
+   801→                <ChevronDown className="h-4 w-4" />
+   802→              </button>
+   803→            </div>
+   804→            <Badge className="bg-blue-200 text-blue-800 shrink-0 text-sm px-2 py-0.5">Sección {idx + 1}</Badge>
+   805→            <Input
+   806→              value={sec.title}
+   807→              onChange={(e) => updateSection(idx, 'title', e.target.value)}
+   808→              className="flex-1 h-9 text-base font-semibold"
+   809→              placeholder="Título de la sección"
+   810→            />
+   811→            <Button variant="ghost" size="sm" onClick={() => removeSection(idx)}
+   812→              className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-50" title="Eliminar sección">
+   813→              <Trash2 className="h-4 w-4" />
+   814→            </Button>
+   815→          </div>
+   816→          <div className="p-4">
+   817→            <textarea
+   818→              value={sec.content}
+   819→              onChange={(e) => updateSection(idx, 'content', e.target.value)}
+   820→              className="w-full h-28 p-3 border rounded-lg text-sm resize-y focus:ring-2 focus:ring-blue-300 focus:border-blue-400"
+   821→              placeholder="Contenido de la sección..."
+   822→            />
+   823→          </div>
+   824→        </div>
+   825→      ))}
+   826→
+   827→      <Button variant="outline" onClick={addSection}
+   828→        className="w-full border-dashed border-2 text-blue-600 hover:bg-blue-50 hover:border-blue-400 gap-1 h-10">
+   829→        <Plus className="h-5 w-5" />
+   830→        Añadir sección
+   831→      </Button>
+   832→
+   833→      <div className="text-sm text-muted-foreground text-center">
+   834→        {sections.length} sección(es) de formación
+   835→      </div>
+   836→    </div>
+   837→  )
+   838→}
+   839→
+   840→// ═══════════════════════════════════════════════════════
+   841→// VISUAL EDITOR: InventoryConfigEditor (inventario)
+   842→// ═══════════════════════════════════════════════════════
+   843→interface InvCategory { value: string; label: string; color: string }
+   844→interface InvField { key: string; label: string; type: 'select' | 'text' | 'number'; options?: string[] }
+   845→
+   846→function InventoryConfigEditor({ content, onChange, sStep }: { content: string; onChange: (v: string) => void; sStep: number }) {
+   847→  let parsed: { categories: InvCategory[]; extraFields: InvField[]; fixedFields?: InvFixedField[]; title?: string; subtitle?: string; templateName?: string }
+   848→  try {
+   849→    parsed = JSON.parse(content)
+   850→  } catch {
+   851→    return (
+   852→      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+   853→        El JSON no es válido. Corrígelo en modo JSON o carga el contenido por defecto.
+   854→      </div>
+   855→    )
+   856→  }
+   857→
+   858→  const categories = parsed.categories || []
+   859→  const extraFields = parsed.extraFields || []
+   860→
+   861→  const update = (newData: Partial<typeof parsed>) => {
+   862→    onChange(JSON.stringify({ ...parsed, ...newData }, null, 2))
+   863→  }
+   864→
+   865→  const addCategory = () => {
+   866→    update({ categories: [...categories, { value: '', label: '', color: 'bg-gray-100 text-gray-800' }] })
+   867→  }
+   868→
+   869→  const removeCategory = (idx: number) => {
+   870→    update({ categories: categories.filter((_, i) => i !== idx) })
+   871→  }
+   872→
+   873→  const updateCategory = (idx: number, field: keyof InvCategory, value: string) => {
+   874→    const updated = [...categories]
+   875→    updated[idx] = { ...updated[idx], [field]: value }
+   876→    update({ categories: updated })
+   877→  }
+   878→
+   879→  const moveCategory = (idx: number, dir: -1 | 1) => {
+   880→    const target = idx + dir
+   881→    if (target < 0 || target >= categories.length) return
+   882→    const updated = [...categories]
+   883→    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+   884→    update({ categories: updated })
+   885→  }
+   886→
+   887→  const addField = () => {
+   888→    update({ extraFields: [...extraFields, { key: '', label: '', type: 'text' }] })
+   889→  }
+   890→
+   891→  const removeField = (idx: number) => {
+   892→    update({ extraFields: extraFields.filter((_, i) => i !== idx) })
+   893→  }
+   894→
+   895→  const updateField = (idx: number, field: string, value: string | boolean) => {
+   896→    const updated = [...extraFields]
+   897→    updated[idx] = { ...updated[idx], [field]: value }
+   898→    // Remove options if type is not select
+   899→    if (field === 'type' && value !== 'select') {
+   900→      const { options, ...rest } = updated[idx]
+   901→      updated[idx] = rest as InvField
+   902→    }
+   903→    update({ extraFields: updated })
+   904→  }
+   905→
+   906→  const moveField = (idx: number, dir: -1 | 1) => {
+   907→    const target = idx + dir
+   908→    if (target < 0 || target >= extraFields.length) return
+   909→    const updated = [...extraFields]
+   910→    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+   911→    update({ extraFields: updated })
+   912→  }
+   913→
+   914→  const addOption = (fIdx: number) => {
+   915→    const updated = [...extraFields]
+   916→    const opts = [...(updated[fIdx].options || []), '']
+   917→    updated[fIdx] = { ...updated[fIdx], options: opts }
+   918→    update({ extraFields: updated })
+   919→  }
+   920→
+   921→  const removeOption = (fIdx: number, oIdx: number) => {
+   922→    const updated = [...extraFields]
+   923→    const opts = (updated[fIdx].options || []).filter((_, i) => i !== oIdx)
+   924→    updated[fIdx] = { ...updated[fIdx], options: opts }
+   925→    update({ extraFields: updated })
+   926→  }
+   927→
+   928→  const updateOption = (fIdx: number, oIdx: number, value: string) => {
+   929→    const updated = [...extraFields]
+   930→    const opts = [...(updated[fIdx].options || [])]
+   931→    opts[oIdx] = value
+   932→    updated[fIdx] = { ...updated[fIdx], options: opts }
+   933→    update({ extraFields: updated })
+   934→  }
+   935→
+   936→  const COLOR_PRESETS = [
+   937→    'bg-green-100 text-green-800', 'bg-blue-100 text-blue-800', 'bg-yellow-100 text-yellow-800',
+   938→    'bg-red-100 text-red-800', 'bg-purple-100 text-purple-800', 'bg-orange-100 text-orange-800',
+   939→    'bg-gray-100 text-gray-800', 'bg-cyan-100 text-cyan-800', 'bg-amber-100 text-amber-800',
+   940→    'bg-teal-100 text-teal-800', 'bg-pink-100 text-pink-800',
+   941→  ]
+   942→
+   943→  // Built-in fields that always appear in the inventory form (not editable in template, shown for reference)
+   944→  const builtInFields: { label: string; section: string; note?: string }[] = sStep === 1
+   945→    ? [
+   946→        { label: 'Elemento', section: 'Datos básicos', note: 'Nombre del elemento (obligatorio)' },
+   947→        { label: 'Zona', section: 'Datos básicos', note: 'Se rellena automáticamente con la zona actual' },
+   948→        { label: 'Categoría', section: 'Datos básicos', note: 'Innecesario (fijo)' },
+   949→        { label: 'Cantidad', section: 'Datos básicos' },
+   950→        { label: 'Precio (€)', section: 'Datos básicos' },
+   951→        { label: 'F. Entrada', section: 'Etiqueta', note: 'Fecha de entrada a la Jaula' },
+   952→        { label: 'F. Revisión', section: 'Etiqueta', note: 'Calculada automáticamente (F. Entrada + Días cuarentena)' },
+   953→        { label: 'Z. Origen', section: 'Zonas', note: 'Zona donde se encontró el elemento' },
+   954→        { label: 'Z. Destino', section: 'Zonas', note: 'Siempre "Jaula" para innecesarios' },
+   955→      ]
+   956→    : sStep === 2
+   957→    ? [
+   958→        { label: 'Elemento', section: 'Datos básicos' },
+   959→        { label: 'Ubicación', section: 'Datos básicos' },
+   960→        { label: 'Zona', section: 'Datos básicos' },
+   961→        { label: 'Categoría', section: 'Datos básicos' },
+   962→        { label: 'Total exist.', section: 'Datos básicos' },
+   963→        { label: 'Precio (€)', section: 'Datos básicos' },
+   964→      ]
+   965→    : [
+   966→        { label: 'Elemento', section: 'Datos básicos' },
+   967→        { label: 'Ubicación', section: 'Datos básicos' },
+   968→        { label: 'Zona', section: 'Datos básicos' },
+   969→        { label: 'Categoría', section: 'Datos básicos' },
+   970→        { label: 'Total exist.', section: 'Datos básicos' },
+   971→        { label: 'Precio (€)', section: 'Datos básicos' },
+   972→      ]
+   973→
+   974→  return (
+   975→    <div className="space-y-6">
+   976→      {/* BUILT-IN FIELDS (read-only reference) */}
+   977→      <div>
+   978→        <h4 className="text-sm font-bold text-blue-700 mb-2 flex items-center gap-2">
+   979→          <Badge className="bg-blue-100 text-blue-800">Campos fijos del formulario</Badge>
+   980→          {builtInFields.length} campo(s) — no editables
+   981→        </h4>
+   982→        <div className="border rounded-lg p-3 bg-blue-50/30 space-y-1">
+   983→          <p className="text-[10px] text-blue-600 mb-2">Estos campos siempre aparecen en el inventario y no se pueden quitar de la plantilla.</p>
+   984→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+   985→            {builtInFields.map((f, i) => (
+   986→              <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 rounded bg-white/60">
+   987→                <span className="font-medium text-blue-800">{f.label}</span>
+   988→                <span className="text-blue-400">—</span>
+   989→                <span className="text-blue-500 text-[10px]">{f.section}</span>
+   990→                {f.note && <span className="text-[9px] text-blue-400 italic">({f.note})</span>}
+   991→              </div>
+   992→            ))}
+   993→          </div>
+   994→        </div>
+   995→      </div>
+   996→
+   997→      {/* CATEGORIES */}
+   998→      <div>
+   999→        <h4 className="text-sm font-bold text-orange-700 mb-2 flex items-center gap-2">
+  1000→          <Badge className="bg-orange-100 text-orange-800">Categorías</Badge>
+  1001→          {categories.length} categoría(s)
+  1002→        </h4>
+  1003→        <div className="space-y-2">
+  1004→          {categories.map((cat, idx) => (
+  1005→            <div key={idx} className="flex items-center gap-2 group border rounded-lg p-2 bg-white">
+  1006→              <div className="flex flex-col gap-0.5">
+  1007→                <button onClick={() => moveCategory(idx, -1)} className="text-gray-300 hover:text-gray-500 leading-none">
+  1008→                  <ChevronUp className="h-3.5 w-3.5" />
+  1009→                </button>
+  1010→                <button onClick={() => moveCategory(idx, 1)} className="text-gray-300 hover:text-gray-500 leading-none">
+  1011→                  <ChevronDown className="h-3.5 w-3.5" />
+  1012→                </button>
+  1013→              </div>
+  1014→              <Input value={cat.value} onChange={e => updateCategory(idx, 'value', e.target.value)}
+  1015→                className="w-32 h-8 text-xs" placeholder="Valor (ej: muy_frecuente)" />
+  1016→              <Input value={cat.label} onChange={e => updateCategory(idx, 'label', e.target.value)}
+  1017→                className="flex-1 h-8 text-xs" placeholder="Etiqueta (ej: Muy frecuente)" />
+  1018→              <select value={cat.color} onChange={e => updateCategory(idx, 'color', e.target.value)}
+  1019→                className="h-8 text-xs border rounded px-1 max-w-[180px]">
+  1020→                {COLOR_PRESETS.map(c => <option key={c} value={c}>{c}</option>)}
+  1021→              </select>
+  1022→              <Badge className={cat.color}>{cat.label || 'Preview'}</Badge>
+  1023→              <Button variant="ghost" size="sm" onClick={() => removeCategory(idx)}
+  1024→                className="h-8 w-8 p-0 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+  1025→                <Trash2 className="h-4 w-4" />
+  1026→              </Button>
+  1027→            </div>
+  1028→          ))}
+  1029→          <Button variant="outline" onClick={addCategory} size="sm"
+  1030→            className="w-full border-dashed border-2 text-orange-600 hover:bg-orange-50 hover:border-orange-400 gap-1">
+  1031→            <Plus className="h-4 w-4" /> Añadir categoría
+  1032→          </Button>
+  1033→        </div>
+  1034→      </div>
+  1035→
+  1036→      {/* EXTRA FIELDS */}
+  1037→      <div>
+  1038→        <h4 className="text-sm font-bold text-teal-700 mb-2 flex items-center gap-2">
+  1039→          <Badge className="bg-teal-100 text-teal-800">Campos extra</Badge>
+  1040→          {extraFields.length} campo(s)
+  1041→        </h4>
+  1042→        <div className="space-y-2">
+  1043→          {extraFields.map((field, fIdx) => (
+  1044→            <div key={fIdx} className="border-2 rounded-lg overflow-hidden bg-white shadow-sm">
+  1045→              <div className="flex items-center gap-2 px-3 py-2 bg-teal-50 border-b border-teal-200">
+  1046→                <div className="flex flex-col gap-0.5">
+  1047→                  <button onClick={() => moveField(fIdx, -1)} className="text-gray-300 hover:text-gray-500 leading-none">
+  1048→                    <ChevronUp className="h-3.5 w-3.5" />
+  1049→                  </button>
+  1050→                  <button onClick={() => moveField(fIdx, 1)} className="text-gray-300 hover:text-gray-500 leading-none">
+  1051→                    <ChevronDown className="h-3.5 w-3.5" />
+  1052→                  </button>
+  1053→                </div>
+  1054→                <Badge className="bg-teal-200 text-teal-800 shrink-0 text-[10px] px-1.5 py-0.5">Campo {fIdx + 1}</Badge>
+  1055→                <Input value={field.key} onChange={e => updateField(fIdx, 'key', e.target.value)}
+  1056→                  className="w-36 h-7 text-xs font-mono" placeholder="key (ej: ubicacion)" />
+  1057→                <Input value={field.label} onChange={e => updateField(fIdx, 'label', e.target.value)}
+  1058→                  className="flex-1 h-7 text-xs" placeholder="Etiqueta (ej: Ubicación asignada)" />
+  1059→                <select value={field.type} onChange={e => updateField(fIdx, 'type', e.target.value)}
+  1060→                  className="h-7 text-xs border rounded px-2">
+  1061→                  <option value="text">Texto</option>
+  1062→                  <option value="number">Número</option>
+  1063→                  <option value="select">Selección</option>
+  1064→                </select>
+  1065→                <Button variant="ghost" size="sm" onClick={() => removeField(fIdx)}
+  1066→                  className="h-7 w-7 p-0 text-red-400 hover:text-red-500">
+  1067→                  <Trash2 className="h-3.5 w-3.5" />
+  1068→                </Button>
+  1069→              </div>
+  1070→              {field.type === 'select' && (
+  1071→                <div className="px-3 py-2 space-y-1">
+  1072→                  <Label className="text-[10px] text-muted-foreground">Opciones:</Label>
+  1073→                  {(field.options || []).map((opt, oIdx) => (
+  1074→                    <div key={oIdx} className="flex items-center gap-1">
+  1075→                      <Input value={opt} onChange={e => updateOption(fIdx, oIdx, e.target.value)}
+  1076→                        className="flex-1 h-7 text-xs" placeholder={`Opción ${oIdx + 1}`} />
+  1077→                      <Button variant="ghost" size="sm" onClick={() => removeOption(fIdx, oIdx)}
+  1078→                        className="h-7 w-7 p-0 text-red-300 hover:text-red-500">
+  1079→                        <Trash2 className="h-3 w-3" />
+  1080→                      </Button>
+  1081→                    </div>
+  1082→                  ))}
+  1083→                  <Button variant="ghost" size="sm" onClick={() => addOption(fIdx)}
+  1084→                    className="h-7 text-xs text-teal-600 hover:text-teal-700 gap-1 px-2">
+  1085→                    <Plus className="h-3 w-3" /> Añadir opción
+  1086→                  </Button>
+  1087→                </div>
+  1088→              )}
+  1089→            </div>
+  1090→          ))}
+  1091→          <Button variant="outline" onClick={addField} size="sm"
+  1092→            className="w-full border-dashed border-2 text-teal-600 hover:bg-teal-50 hover:border-teal-400 gap-1">
+  1093→            <Plus className="h-4 w-4" /> Añadir campo extra
+  1094→          </Button>
+  1095→        </div>
+  1096→      </div>
+  1097→    </div>
+  1098→  )
+  1099→}
+  1100→
+  1101→// ═══════════════════════════════════════════════════════
+  1102→// VISUAL EDITOR: StandardTemplateEditor (estandar)
+  1103→// ═══════════════════════════════════════════════════════
+  1104→interface StdField { key: string; label: string; type: 'photo' | 'text' | 'number' | 'select'; options?: string[]; required?: boolean }
+  1105→
+  1106→function StandardTemplateEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
+  1107→  let parsed: { fields: StdField[] }
+  1108→  try {
+  1109→    parsed = JSON.parse(content)
+  1110→  } catch {
+  1111→    return (
+  1112→      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+  1113→        El JSON no es válido. Corrígelo en modo JSON o carga el contenido por defecto.
+  1114→      </div>
+  1115→    )
+  1116→  }
+  1117→
+  1118→  const fields = parsed.fields || []
+  1119→
+  1120→  const update = (newFields: StdField[]) => {
+  1121→    onChange(JSON.stringify({ ...parsed, fields: newFields }, null, 2))
+  1122→  }
+  1123→
+  1124→  const addField = () => {
+  1125→    update([...fields, { key: '', label: '', type: 'text', required: false }])
+  1126→  }
+  1127→
+  1128→  const removeField = (idx: number) => {
+  1129→    update(fields.filter((_, i) => i !== idx))
+  1130→  }
+  1131→
+  1132→  const updateField = (idx: number, field: string, value: string | boolean) => {
+  1133→    const updated = [...fields]
+  1134→    updated[idx] = { ...updated[idx], [field]: value }
+  1135→    // Remove options if type is not select
+  1136→    if (field === 'type' && value !== 'select') {
+  1137→      const { options, ...rest } = updated[idx]
+  1138→      updated[idx] = rest as StdField
+  1139→    }
+  1140→    update(updated)
+  1141→  }
+  1142→
+  1143→  const moveField = (idx: number, dir: -1 | 1) => {
+  1144→    const target = idx + dir
+  1145→    if (target < 0 || target >= fields.length) return
+  1146→    const updated = [...fields]
+  1147→    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+  1148→    update(updated)
+  1149→  }
+  1150→
+  1151→  const addOption = (fIdx: number) => {
+  1152→    const updated = [...fields]
+  1153→    const opts = [...(updated[fIdx].options || []), '']
+  1154→    updated[fIdx] = { ...updated[fIdx], options: opts }
+  1155→    update(updated)
+  1156→  }
+  1157→
+  1158→  const removeOption = (fIdx: number, oIdx: number) => {
+  1159→    const updated = [...fields]
+  1160→    const opts = (updated[fIdx].options || []).filter((_, i) => i !== oIdx)
+  1161→    updated[fIdx] = { ...updated[fIdx], options: opts }
+  1162→    update(updated)
+  1163→  }
+  1164→
+  1165→  const updateOption = (fIdx: number, oIdx: number, value: string) => {
+  1166→    const updated = [...fields]
+  1167→    const opts = [...(updated[fIdx].options || [])]
+  1168→    opts[oIdx] = value
+  1169→    updated[fIdx] = { ...updated[fIdx], options: opts }
+  1170→    update(updated)
+  1171→  }
+  1172→
+  1173→  const TYPE_LABELS: Record<string, string> = { photo: 'Foto', text: 'Texto', number: 'Número', select: 'Selección' }
+  1174→
+  1175→  return (
+  1176→    <div className="space-y-3">
+  1177→      {fields.map((field, fIdx) => (
+  1178→        <div key={fIdx} className="border-2 rounded-lg overflow-hidden bg-white shadow-sm">
+  1179→          <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 border-b border-violet-200">
+  1180→            <div className="flex flex-col gap-0.5">
+  1181→              <button onClick={() => moveField(fIdx, -1)} className="text-gray-300 hover:text-gray-500 leading-none">
+  1182→                <ChevronUp className="h-3.5 w-3.5" />
+  1183→              </button>
+  1184→              <button onClick={() => moveField(fIdx, 1)} className="text-gray-300 hover:text-gray-500 leading-none">
+  1185→                <ChevronDown className="h-3.5 w-3.5" />
+  1186→              </button>
+  1187→            </div>
+  1188→            <Badge className="bg-violet-200 text-violet-800 shrink-0 text-[10px] px-1.5 py-0.5">Campo {fIdx + 1}</Badge>
+  1189→            <Input value={field.key} onChange={e => updateField(fIdx, 'key', e.target.value)}
+  1190→              className="w-36 h-7 text-xs font-mono" placeholder="key (ej: beforePhotoUrl)" />
+  1191→            <Input value={field.label} onChange={e => updateField(fIdx, 'label', e.target.value)}
+  1192→              className="flex-1 h-7 text-xs" placeholder="Etiqueta (ej: Foto Antes)" />
+  1193→            <select value={field.type} onChange={e => updateField(fIdx, 'type', e.target.value)}
+  1194→              className="h-7 text-xs border rounded px-2">
+  1195→              <option value="text">Texto</option>
+  1196→              <option value="number">Número</option>
+  1197→              <option value="select">Selección</option>
+  1198→              <option value="photo">Foto</option>
+  1199→            </select>
+  1200→            <label className="flex items-center gap-1 text-[10px] text-muted-foreground whitespace-nowrap cursor-pointer">
+  1201→              <input type="checkbox" checked={field.required || false}
+  1202→                onChange={e => updateField(fIdx, 'required', e.target.checked)}
+  1203→                className="rounded border-gray-300 h-3.5 w-3.5" />
+  1204→              Oblig.
+  1205→            </label>
+  1206→            <Button variant="ghost" size="sm" onClick={() => removeField(fIdx)}
+  1207→              className="h-7 w-7 p-0 text-red-400 hover:text-red-500">
+  1208→              <Trash2 className="h-3.5 w-3.5" />
+  1209→            </Button>
+  1210→          </div>
+  1211→          {field.type === 'select' && (
+  1212→            <div className="px-3 py-2 space-y-1">
+  1213→              <Label className="text-[10px] text-muted-foreground">Opciones:</Label>
+  1214→              {(field.options || []).map((opt, oIdx) => (
+  1215→                <div key={oIdx} className="flex items-center gap-1">
+  1216→                  <Input value={opt} onChange={e => updateOption(fIdx, oIdx, e.target.value)}
+  1217→                    className="flex-1 h-7 text-xs" placeholder={`Opción ${oIdx + 1}`} />
+  1218→                  <Button variant="ghost" size="sm" onClick={() => removeOption(fIdx, oIdx)}
+  1219→                    className="h-7 w-7 p-0 text-red-300 hover:text-red-500">
+  1220→                    <Trash2 className="h-3 w-3" />
+  1221→                  </Button>
+  1222→                </div>
+  1223→              ))}
+  1224→              <Button variant="ghost" size="sm" onClick={() => addOption(fIdx)}
+  1225→                className="h-7 text-xs text-violet-600 hover:text-violet-700 gap-1 px-2">
+  1226→                <Plus className="h-3 w-3" /> Añadir opción
+  1227→              </Button>
+  1228→            </div>
+  1229→          )}
+  1230→        </div>
+  1231→      ))}
+  1232→
+  1233→      <Button variant="outline" onClick={addField} size="sm"
+  1234→        className="w-full border-dashed border-2 text-violet-600 hover:bg-violet-50 hover:border-violet-400 gap-1">
+  1235→        <Plus className="h-4 w-4" /> Añadir campo
+  1236→      </Button>
+  1237→
+  1238→      <div className="text-sm text-muted-foreground text-center">
+  1239→        {fields.length} campo(s) · {fields.filter(f => f.required).length} obligatorio(s)
+  1240→      </div>
+  1241→    </div>
+  1242→  )
+  1243→}
+  1244→
+  1245→// ═══════════════════════════════════════════════════════
+  1246→// VISUAL EDITOR: PlanAccionEditor (plan_accion)
+  1247→// ═══════════════════════════════════════════════════════
+  1248→interface PlanAccionColumn {
+  1249→  key: string; label: string; type: string; width?: string; description?: string;
+  1250→  required?: boolean; placeholder?: string; options?: string[]; min?: number; max?: number;
+  1251→}
+  1252→
+  1253→function PlanAccionEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
+  1254→  let parsed: { tableType: string; description?: string; columns: PlanAccionColumn[]; sourceTypes?: string[] }
+  1255→  try {
+  1256→    parsed = JSON.parse(content)
+  1257→  } catch {
+  1258→    return (
+  1259→      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+  1260→        El JSON no es válido. Corrígelo en modo JSON o carga el contenido por defecto.
+  1261→      </div>
+  1262→    )
+  1263→  }
+  1264→
+  1265→  const columns = parsed.columns || []
+  1266→
+  1267→  const update = (newData: Partial<typeof parsed>) => {
+  1268→    onChange(JSON.stringify({ ...parsed, ...newData }, null, 2))
+  1269→  }
+  1270→
+  1271→  const addColumn = () => {
+  1272→    update({ columns: [...columns, { key: '', label: '', type: 'text' }] })
+  1273→  }
+  1274→
+  1275→  const removeColumn = (idx: number) => {
+  1276→    update({ columns: columns.filter((_, i) => i !== idx) })
+  1277→  }
+  1278→
+  1279→  const updateColumn = (idx: number, field: string, value: string | boolean | number) => {
+  1280→    const updated = [...columns]
+  1281→    updated[idx] = { ...updated[idx], [field]: value }
+  1282→    // Remove options if type is not select
+  1283→    if (field === 'type' && value !== 'select') {
+  1284→      const { options, ...rest } = updated[idx]
+  1285→      updated[idx] = rest as PlanAccionColumn
+  1286→    }
+  1287→    update({ columns: updated })
+  1288→  }
+  1289→
+  1290→  const moveColumn = (idx: number, dir: -1 | 1) => {
+  1291→    const target = idx + dir
+  1292→    if (target < 0 || target >= columns.length) return
+  1293→    const updated = [...columns]
+  1294→    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+  1295→    update({ columns: updated })
+  1296→  }
+  1297→
+  1298→  const addOption = (cIdx: number) => {
+  1299→    const updated = [...columns]
+  1300→    const opts = [...(updated[cIdx].options || []), '']
+  1301→    updated[cIdx] = { ...updated[cIdx], options: opts }
+  1302→    update({ columns: updated })
+  1303→  }
+  1304→
+  1305→  const removeOption = (cIdx: number, oIdx: number) => {
+  1306→    const updated = [...columns]
+  1307→    const opts = (updated[cIdx].options || []).filter((_, i) => i !== oIdx)
+  1308→    updated[cIdx] = { ...updated[cIdx], options: opts }
+  1309→    update({ columns: updated })
+  1310→  }
+  1311→
+  1312→  const updateOption = (cIdx: number, oIdx: number, value: string) => {
+  1313→    const updated = [...columns]
+  1314→    const opts = [...(updated[cIdx].options || [])]
+  1315→    opts[oIdx] = value
+  1316→    updated[cIdx] = { ...updated[cIdx], options: opts }
+  1317→    update({ columns: updated })
+  1318→  }
+  1319→
+  1320→  const TYPE_LABELS: Record<string, string> = { text: 'Texto', textarea: 'Texto largo', number: 'Número', date: 'Fecha', select: 'Selección' }
+  1321→
+  1322→  return (
+  1323→    <div className="space-y-4">
+  1324→      {/* Description */}
+  1325→      <div>
+  1326→        <Label className="text-sm font-semibold text-rose-700">Descripción del Plan de Acción</Label>
+  1327→        <textarea
+  1328→          value={parsed.description || ''}
+  1329→          onChange={(e) => update({ description: e.target.value })}
+  1330→          className="w-full h-20 p-3 border rounded-lg text-sm mt-1 resize-y focus:ring-2 focus:ring-rose-300 focus:border-rose-400"
+  1331→          placeholder="Descripción del plan de acción..."
+  1332→        />
+  1333→      </div>
+  1334→
+  1335→      {/* Info banner */}
+  1336→      <div className="bg-rose-50 border border-rose-200 rounded-lg p-3">
+  1337→        <p className="text-xs text-rose-700">
+  1338→          <strong>Plan de Acción:</strong> Registro de deficiencias detectadas en las autoevaluaciones y auditorías.
+  1339→          Cada columna define un campo de la tabla donde se registrarán las acciones correctivas/preventivas, responsables y seguimiento del progreso.
+  1340→        </p>
+  1341→      </div>
+  1342→
+  1343→      {/* Columns */}
+  1344→      <div>
+  1345→        <h4 className="text-sm font-bold text-rose-700 mb-2 flex items-center gap-2">
+  1346→          <Badge className="bg-rose-100 text-rose-800">Columnas de la tabla</Badge>
+  1347→          {columns.length} columna(s)
+  1348→        </h4>
+  1349→        <div className="space-y-2">
+  1350→          {columns.map((col, cIdx) => (
+  1351→            <div key={cIdx} className="border-2 rounded-lg overflow-hidden bg-white shadow-sm">
+  1352→              <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 border-b border-rose-200">
+  1353→                <div className="flex flex-col gap-0.5">
+  1354→                  <button onClick={() => moveColumn(cIdx, -1)} className="text-gray-300 hover:text-gray-500 leading-none">
+  1355→                    <ChevronUp className="h-3.5 w-3.5" />
+  1356→                  </button>
+  1357→                  <button onClick={() => moveColumn(cIdx, 1)} className="text-gray-300 hover:text-gray-500 leading-none">
+  1358→                    <ChevronDown className="h-3.5 w-3.5" />
+  1359→                  </button>
+  1360→                </div>
+  1361→                <Badge className="bg-rose-200 text-rose-800 shrink-0 text-[10px] px-1.5 py-0.5">Col {cIdx + 1}</Badge>
+  1362→                <Input value={col.key} onChange={e => updateColumn(cIdx, 'key', e.target.value)}
+  1363→                  className="w-32 h-7 text-xs font-mono" placeholder="key (ej: zona)" />
+  1364→                <Input value={col.label} onChange={e => updateColumn(cIdx, 'label', e.target.value)}
+  1365→                  className="flex-1 h-7 text-xs" placeholder="Etiqueta (ej: Zona)" />
+  1366→                <select value={col.type} onChange={e => updateColumn(cIdx, 'type', e.target.value)}
+  1367→                  className="h-7 text-xs border rounded px-2">
+  1368→                  <option value="text">Texto</option>
+  1369→                  <option value="textarea">Texto largo</option>
+  1370→                  <option value="number">Número</option>
+  1371→                  <option value="date">Fecha</option>
+  1372→                  <option value="select">Selección</option>
+  1373→                </select>
+  1374→                <label className="flex items-center gap-1 text-[10px] text-muted-foreground whitespace-nowrap cursor-pointer">
+  1375→                  <input type="checkbox" checked={col.required || false}
+  1376→                    onChange={e => updateColumn(cIdx, 'required', e.target.checked)}
+  1377→                    className="rounded border-gray-300 h-3.5 w-3.5" />
+  1378→                  Oblig.
+  1379→                </label>
+  1380→                <Button variant="ghost" size="sm" onClick={() => removeColumn(cIdx)}
+  1381→                  className="h-7 w-7 p-0 text-red-400 hover:text-red-500">
+  1382→                  <Trash2 className="h-3.5 w-3.5" />
+  1383→                </Button>
+  1384→              </div>
+  1385→              <div className="px-3 py-2 space-y-1.5">
+  1386→                <div className="flex gap-2">
+  1387→                  <div className="flex-1">
+  1388→                    <Label className="text-[10px] text-muted-foreground">Descripción / Ayuda</Label>
+  1389→                    <Input value={col.description || ''} onChange={e => updateColumn(cIdx, 'description', e.target.value)}
+  1390→                      className="h-7 text-xs mt-0.5" placeholder="Texto de ayuda para este campo" />
+  1391→                  </div>
+  1392→                  <div className="w-28">
+  1393→                    <Label className="text-[10px] text-muted-foreground">Ancho</Label>
+  1394→                    <Input value={col.width || ''} onChange={e => updateColumn(cIdx, 'width', e.target.value)}
+  1395→                      className="h-7 text-xs mt-0.5" placeholder="100px" />
+  1396→                  </div>
+  1397→                  {col.type === 'text' && (
+  1398→                    <div className="w-32">
+  1399→                      <Label className="text-[10px] text-muted-foreground">Placeholder</Label>
+  1400→                      <Input value={col.placeholder || ''} onChange={e => updateColumn(cIdx, 'placeholder', e.target.value)}
+  1401→                        className="h-7 text-xs mt-0.5" placeholder="Ej: A-S1-001" />
+  1402→                    </div>
+  1403→                  )}
+  1404→                </div>
+  1405→                {col.type === 'select' && (
+  1406→                  <div>
+  1407→                    <Label className="text-[10px] text-muted-foreground">Opciones:</Label>
+  1408→                    <div className="flex flex-wrap gap-1 mt-1">
+  1409→                      {(col.options || []).map((opt, oIdx) => (
+  1410→                        <div key={oIdx} className="flex items-center gap-1">
+  1411→                          <Input value={opt} onChange={e => updateOption(cIdx, oIdx, e.target.value)}
+  1412→                            className="h-7 text-xs w-32" placeholder={`Opción ${oIdx + 1}`} />
+  1413→                          <Button variant="ghost" size="sm" onClick={() => removeOption(cIdx, oIdx)}
+  1414→                            className="h-7 w-7 p-0 text-red-300 hover:text-red-500">
+  1415→                            <Trash2 className="h-3 w-3" />
+  1416→                          </Button>
+  1417→                        </div>
+  1418→                      ))}
+  1419→                      <Button variant="ghost" size="sm" onClick={() => addOption(cIdx)}
+  1420→                        className="h-7 text-xs text-rose-600 hover:text-rose-700 gap-1 px-2">
+  1421→                        <Plus className="h-3 w-3" /> Añadir
+  1422→                      </Button>
+  1423→                    </div>
+  1424→                  </div>
+  1425→                )}
+  1426→              </div>
+  1427→            </div>
+  1428→          ))}
+  1429→          <Button variant="outline" onClick={addColumn} size="sm"
+  1430→            className="w-full border-dashed border-2 text-rose-600 hover:bg-rose-50 hover:border-rose-400 gap-1">
+  1431→            <Plus className="h-4 w-4" /> Añadir columna
+  1432→          </Button>
+  1433→        </div>
+  1434→      </div>
+  1435→
+  1436→      {/* Source types info */}
+  1437→      <div className="bg-gray-50 border rounded-lg p-3">
+  1438→        <p className="text-xs text-gray-500">
+  1439→          <strong>Tipos de origen:</strong> {(parsed.sourceTypes || []).join(', ') || 'autoevaluacion, auditoria'}
+  1440→        </p>
+  1441→        <p className="text-xs text-gray-400 mt-1">
+  1442→          Las deficiencias se alimentan automáticamente desde las autoevaluaciones y auditorías de este mismo paso S.
+  1443→        </p>
+  1444→      </div>
+  1445→
+  1446→      <div className="text-sm text-muted-foreground text-center">
+  1447→        {columns.length} columna(s) · {columns.filter(c => c.required).length} obligatoria(s)
+  1448→      </div>
+  1449→    </div>
+  1450→  )
+  1451→}
+  1452→
+  1453→// ═══════════════════════════════════════════════════════
+  1454→// VISUAL EDITOR: LayoutTemplateEditor (layout)
+  1455→// ═══════════════════════════════════════════════════════
+  1456→function LayoutTemplateEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
+  1457→  let parsed: any = {}
+  1458→  try { parsed = JSON.parse(content) } catch { /* empty */ }
+  1459→
+  1460→  const updateField = (key: string, value: any) => {
+  1461→    const updated = { ...parsed, [key]: value }
+  1462→    onChange(JSON.stringify(updated, null, 2))
+  1463→  }
+  1464→
+  1465→  return (
+  1466→    <div className="space-y-4">
+  1467→      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+  1468→        <p className="text-xs text-blue-700 font-semibold">Layout de Zona</p>
+  1469→        <p className="text-xs text-blue-600 mt-1">
+  1470→          Esta plantilla configura la herramienta de dibujo/subida de layout de zona.
+  1471→          Los layouts creados se guardarán como estándares en la Biblioteca de S4.
+  1472→        </p>
+  1473→      </div>
+  1474→
+  1475→      <div>
+  1476→        <Label className="text-xs font-semibold">Descripción</Label>
+  1477→        <Textarea
+  1478→          value={parsed.description || ''}
+  1479→          onChange={e => updateField('description', e.target.value)}
+  1480→          placeholder="Describe el propósito del layout de zona..."
+  1481→          className="text-xs min-h-[60px]"
+  1482→        />
+  1483→      </div>
+  1484→
+  1485→      <div>
+  1486→        <Label className="text-xs font-semibold">Tipo de Layout</Label>
+  1487→        <Input
+  1488→          value={parsed.layoutType || 'zone_layout'}
+  1489→          onChange={e => updateField('layoutType', e.target.value)}
+  1490→          className="h-8 text-xs"
+  1491→        />
+  1492→      </div>
+  1493→
+  1494→      <div className="flex items-center gap-2">
+  1495→        <input type="checkbox" checked={parsed.targetS4Library === true}
+  1496→          onChange={e => updateField('targetS4Library', e.target.checked)} />
+  1497→        <Label className="text-xs">Enviar a Biblioteca de Estándares de S4</Label>
+  1498→      </div>
+  1499→
+  1500→      <div className="bg-gray-50 border rounded-lg p-3">
+  1501→        <p className="text-xs font-semibold text-gray-700 mb-2">Colores de Suelo (RAL)</p>
+  1502→        {(parsed.floorColors || []).map((fc: any, i: number) => (
+  1503→          <div key={i} className="flex items-center gap-2 mb-1">
+  1504→            <div className="w-4 h-4 rounded border" style={{ backgroundColor: fc.color }} />
+  1505→            <span className="text-[10px]">{fc.label} ({fc.ral})</span>
+  1506→          </div>
+  1507→        ))}
+  1508→        <p className="text-[10px] text-muted-foreground mt-1">Los colores RAL se configuran desde el editor de layout.</p>
+  1509→      </div>
+  1510→
+  1511→      <div className="text-sm text-muted-foreground text-center">
+  1512→        Layout de Zona · Herramienta de dibujo/subida integrada
+  1513→      </div>
+  1514→    </div>
+  1515→  )
+  1516→}
+  1517→
+  1518→// ═══════════════════════════════════════════════════════
+  1519→// VISUAL EDITOR: PlanLimpiezaTemplateEditor (plan_limpieza)
+  1520→// ═══════════════════════════════════════════════════════
+  1521→interface PlanLimpiezaSection {
+  1522→  key: string; label: string; type: string; description: string; options?: string[];
+  1523→}
+  1524→
+  1525→function PlanLimpiezaTemplateEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
+  1526→  let parsed: any = {}
+  1527→  try { parsed = JSON.parse(content) } catch { /* empty */ }
+  1528→
+  1529→  const sections: PlanLimpiezaSection[] = parsed.sections || []
+  1530→
+  1531→  const updateField = (key: string, value: any) => {
+  1532→    const updated = { ...parsed, [key]: value }
+  1533→    onChange(JSON.stringify(updated, null, 2))
+  1534→  }
+  1535→
+  1536→  const updateSection = (index: number, field: string, value: any) => {
+  1537→    const newSections = [...sections]
+  1538→    newSections[index] = { ...newSections[index], [field]: value }
+  1539→    updateField('sections', newSections)
+  1540→  }
+  1541→
+  1542→  const addSection = () => {
+  1543→    const newSections = [...sections, { key: `seccion_${sections.length + 1}`, label: 'Nueva Sección', type: 'text', description: '' }]
+  1544→    updateField('sections', newSections)
+  1545→  }
+  1546→
+  1547→  const removeSection = (index: number) => {
+  1548→    const newSections = sections.filter((_: any, i: number) => i !== index)
+  1549→    updateField('sections', newSections)
+  1550→  }
+  1551→
+  1552→  return (
+  1553→    <div className="space-y-4">
+  1554→      <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-3">
+  1555→        <p className="text-xs text-cyan-700 font-semibold">Plan de Inspección y Limpieza</p>
+  1556→        <p className="text-xs text-cyan-600 mt-1">
+  1557→          Define la ruta de inspección, los puntos de suciedad no eliminables y las acciones de limpieza.
+  1558→          Los planes creados se guardarán como estándares en la Biblioteca de S4.
+  1559→        </p>
+  1560→      </div>
+  1561→
+  1562→      <div>
+  1563→        <Label className="text-xs font-semibold">Descripción</Label>
+  1564→        <Textarea
+  1565→          value={parsed.description || ''}
+  1566→          onChange={e => updateField('description', e.target.value)}
+  1567→          placeholder="Describe el plan de inspección y limpieza..."
+  1568→          className="text-xs min-h-[60px]"
+  1569→        />
+  1570→      </div>
+  1571→
+  1572→      <div className="flex items-center gap-2">
+  1573→        <input type="checkbox" checked={parsed.targetS4Library === true}
+  1574→          onChange={e => updateField('targetS4Library', e.target.checked)} />
+  1575→        <Label className="text-xs">Enviar a Biblioteca de Estándares de S4</Label>
+  1576→      </div>
+  1577→
+  1578→      <div>
+  1579→        <div className="flex items-center justify-between mb-2">
+  1580→          <Label className="text-xs font-semibold">Secciones del Plan</Label>
+  1581→          <Button variant="outline" size="sm" onClick={addSection} className="h-6 text-[10px] gap-1">
+  1582→            <Plus className="h-3 w-3" /> Añadir Sección
+  1583→          </Button>
+  1584→        </div>
+  1585→        {sections.map((sec, i) => (
+  1586→          <div key={i} className="bg-white border rounded-lg p-3 mb-2">
+  1587→            <div className="flex items-center gap-2 mb-2">
+  1588→              <Input value={sec.key} onChange={e => updateSection(i, 'key', e.target.value)}
+  1589→                className="h-7 text-xs flex-1" placeholder="key" />
+  1590→              <Input value={sec.label} onChange={e => updateSection(i, 'label', e.target.value)}
+  1591→                className="h-7 text-xs flex-1" placeholder="Etiqueta" />
+  1592→              <Select value={sec.type} onValueChange={v => updateSection(i, 'type', v)}>
+  1593→                <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+  1594→                <SelectContent>
+  1595→                  <SelectItem value="route">Ruta</SelectItem>
+  1596→                  <SelectItem value="checklist">Checklist</SelectItem>
+  1597→                  <SelectItem value="list">Lista</SelectItem>
+  1598→                  <SelectItem value="select">Selección</SelectItem>
+  1599→                  <SelectItem value="text">Texto</SelectItem>
+  1600→                </SelectContent>
+  1601→              </Select>
+  1602→              <Button variant="ghost" size="sm" onClick={() => removeSection(i)} className="h-7 w-7 p-0 text-red-500">
+  1603→                <Trash2 className="h-3 w-3" />
+  1604→              </Button>
+  1605→            </div>
+  1606→            <Input value={sec.description || ''} onChange={e => updateSection(i, 'description', e.target.value)}
+  1607→              className="h-7 text-xs" placeholder="Descripción de la sección" />
+  1608→            {sec.type === 'select' && (
+  1609→              <Input
+  1610→                value={(sec.options || []).join(', ')}
+  1611→                onChange={e => updateSection(i, 'options', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+  1612→                className="h-7 text-xs mt-1" placeholder="Opciones separadas por coma"
+  1613→              />
+  1614→            )}
+  1615→          </div>
+  1616→        ))}
+  1617→      </div>
+  1618→
+  1619→      <div className="text-sm text-muted-foreground text-center">
+  1620→        {sections.length} sección(es) · Plan de Inspección y Limpieza
+  1621→      </div>
+  1622→    </div>
+  1623→  )
+  1624→}
+  1625→
+  1626→// ═══════════════════════════════════════════════════════
+  1627→// VISUAL EDITOR: PDCATemplateEditor (pdca)
+  1628→// ═══════════════════════════════════════════════════════
+  1629→function PDCATemplateEditor({ content, onChange }: { content: string; onChange: (v: string) => void }) {
+  1630→  let parsed: any = {}
+  1631→  try { parsed = JSON.parse(content) } catch { /* empty */ }
+  1632→
+  1633→  const updateField = (key: string, value: any) => {
+  1634→    const updated = { ...parsed, [key]: value }
+  1635→    onChange(JSON.stringify(updated, null, 2))
+  1636→  }
+  1637→
+  1638→  return (
+  1639→    <div className="space-y-4">
+  1640→      <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+  1641→        <p className="text-xs text-orange-700 font-semibold">Tablero PDCA — Mejora Continua</p>
+  1642→        <p className="text-xs text-orange-600 mt-1">
+  1643→          Configuración del tablero PDCA (Plan-Do-Check-Act) como herramienta de mejora continua.
+  1644→          Incluye KPIs de progreso y enlace al Plan de Acción y Biblioteca de Estándares.
+  1645→        </p>
+  1646→      </div>
+  1647→
+  1648→      <div>
+  1649→        <Label className="text-xs font-semibold">Descripción</Label>
+  1650→        <Textarea
+  1651→          value={parsed.description || ''}
+  1652→          onChange={e => updateField('description', e.target.value)}
+  1653→          placeholder="Describe el tablero PDCA..."
+  1654→          className="text-xs min-h-[60px]"
+  1655→        />
+  1656→      </div>
+  1657→
+  1658→      <div>
+  1659→        <Label className="text-xs font-semibold mb-2 block">Fases PDCA</Label>
+  1660→        {(parsed.phases || []).map((phase: any, i: number) => (
+  1661→          <div key={i} className="flex items-center gap-2 mb-2 bg-white border rounded-lg p-2">
+  1662→            <div className="w-6 h-6 rounded flex items-center justify-center text-white text-[10px] font-bold"
+  1663→              style={{ backgroundColor: phase.color }}>
+  1664→              {phase.label?.charAt(0)}
+  1665→            </div>
+  1666→            <div className="flex-1">
+  1667→              <div className="flex items-center gap-2">
+  1668→                <span className="text-xs font-bold">{phase.label}</span>
+  1669→                <span className="text-[10px] text-muted-foreground">({phase.labelEs})</span>
+  1670→              </div>
+  1671→              <p className="text-[10px] text-muted-foreground">{phase.description}</p>
+  1672→            </div>
+  1673→          </div>
+  1674→        ))}
+  1675→        <p className="text-[10px] text-muted-foreground mt-1">Las fases PDCA son fijas (Plan-Do-Check-Act) y no se pueden modificar.</p>
+  1676→      </div>
+  1677→
+  1678→      <div>
+  1679→        <Label className="text-xs font-semibold mb-2 block">KPIs del Tablero</Label>
+  1680→        {(parsed.kpis || []).map((kpi: any, i: number) => (
+  1681→          <div key={i} className="bg-white border rounded-lg p-2 mb-1">
+  1682→            <div className="flex items-center gap-2">
+  1683→              <Badge className="bg-orange-100 text-orange-800 text-[9px]">{kpi.key}</Badge>
+  1684→              <span className="text-xs font-semibold">{kpi.label}</span>
+  1685→            </div>
+  1686→            <p className="text-[10px] text-muted-foreground ml-2">{kpi.description}</p>
+  1687→          </div>
+  1688→        ))}
+  1689→      </div>
+  1690→
+  1691→      <div>
+  1692→        <Label className="text-xs font-semibold mb-2 block">Enlaces Integrados</Label>
+  1693→        <div className="flex gap-2">
+  1694→          {(parsed.links || []).map((link: string, i: number) => (
+  1695→            <Badge key={i} className="bg-teal-100 text-teal-800 text-[10px]">
+  1696→              {link === 'plan_accion' ? '📋 Plan de Acción' : link === 'standards_library' ? '📚 Biblioteca' : link}
+  1697→            </Badge>
+  1698→          ))}
+  1699→        </div>
+  1700→        <p className="text-[10px] text-muted-foreground mt-1">
+  1701→          El tablero PDCA se enlaza automáticamente con el Plan de Acción y la Biblioteca de Estándares.
+  1702→        </p>
+  1703→      </div>
+  1704→
+  1705→      <div className="text-sm text-muted-foreground text-center">
+  1706→        Tablero PDCA · Mejora Continua · {(parsed.phases || []).length} fases · {(parsed.kpis || []).length} KPIs
+  1707→      </div>
+  1708→    </div>
+  1709→  )
+  1710→}
+  1711→
+  1712→// ═══════════════════════════════════════════════════════
+  1713→// PASO DEFINITIONS — which template types belong to each paso
+  1714→// ═══════════════════════════════════════════════════════
+  1715→const PASO_CONFIG: { paso: number; label: string; icon: React.ComponentType<{ className?: string }>; types: string[] }[] = [
+  1716→  { paso: 1, label: 'Formación y Exámenes', icon: BookOpen, types: ['formacion', 'examen'] },
+  1717→  { paso: 2, label: 'Fotografías (Antes/Después)', icon: Camera, types: ['fotos'] },
+  1718→  { paso: 3, label: 'Inventario / Estándar / Layout / Plan Limpieza', icon: ClipboardList, types: ['inventario', 'estandar', 'layout', 'plan_limpieza'] },
+  1719→  { paso: 4, label: 'Autoevaluación / Plan de Acción', icon: ClipboardCheck, types: ['autoevaluacion', 'plan_accion'] },
+  1720→  { paso: 5, label: 'Auditoría Externa / PDCA', icon: FileCheck, types: ['auditoria', 'pdca'] },
+  1721→]
+  1722→
+  1723→// ═══════════════════════════════════════════════════════
+  1724→// COMPONENT
+  1725→// ═══════════════════════════════════════════════════════
+  1726→export default function TemplateManager() {
+  1727→  const { currentProject } = use5SStore()
+  1728→  const [templates, setTemplates] = useState<TemplateData[]>([])
+  1729→  const [isLoading, setIsLoading] = useState(false)
+  1730→  const [editingTemplate, setEditingTemplate] = useState<TemplateData | null>(null)
+  1731→  const [isCreating, setIsCreating] = useState(false)
+  1732→  const [isSaving, setIsSaving] = useState(false)
+  1733→  const [expandedS, setExpandedS] = useState<number | null>(null)
+  1734→  const [expandedPaso, setExpandedPaso] = useState<string | null>(null) // 'S2-P3' format
+  1735→  const [editorMode, setEditorMode] = useState<'visual' | 'json'>('visual')
+  1736→
+  1737→  // Form state
+  1738→  const [formType, setFormType] = useState<string>('formacion')
+  1739→  const [formSStep, setFormSStep] = useState<number>(1)
+  1740→  const [formMiniStep, setFormMiniStep] = useState<number>(3)
+  1741→  const [formTitle, setFormTitle] = useState('')
+  1742→  const [formDescription, setFormDescription] = useState('')
+  1743→  const [formContent, setFormContent] = useState('')
+  1744→  const [formNotaMinima, setFormNotaMinima] = useState<number | null>(null)
+  1745→  const [notaMinimaAplica, setNotaMinimaAplica] = useState(true)
+  1746→  const [formActive, setFormActive] = useState(true)
+  1747→
+  1748→  // Save feedback
+  1749→  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  1750→
+  1751→  // ─── Track which templates are assigned to at least one board slot ───
+  1752→  // This lets the admin see, in the plantillas list, which templates are
+  1753→  // "in use" (added to a tablero) vs which are still unassigned. Without
+  1754→  // this indicator, the admin could not tell from the plantillas view
+  1755→  // whether a template had been added to the tablero — even though the
+  1756→  // assignment was actually saved (visible in Tablero5S).
+  1757→  const [templateUsage, setTemplateUsage] = useState<Record<string, number>>({})
+  1758→
+  1759→  const fetchTemplateUsage = useCallback(async () => {
+  1760→    try {
+  1761→      const res = await fetch('/api/boards')
+  1762→      const data = await res.json()
+  1763→      if (!data.success || !Array.isArray(data.data)) return
+  1764→      const counts: Record<string, number> = {}
+  1765→      for (const board of data.data) {
+  1766→        for (const slot of board.slots || []) {
+  1767→          for (const st of slot.templates || []) {
+  1768→            const tid = st.templateId
+  1769→            counts[tid] = (counts[tid] || 0) + 1
+  1770→          }
+  1771→        }
+  1772→      }
+  1773→      setTemplateUsage(counts)
+  1774→    } catch (e) {
+  1775→      console.error('Error fetching template usage:', e)
+  1776→    }
+  1777→  }, [])
+  1778→
+  1779→  // Fetch ALL templates at once (all types)
+  1780→  const ALL_TYPES = ['formacion', 'examen', 'fotos', 'inventario', 'estandar', 'layout', 'plan_limpieza', 'autoevaluacion', 'plan_accion', 'auditoria', 'pdca'] as const
+  1781→
+  1782→  const fetchTemplates = useCallback(async (withSeed = false) => {
+  1783→    setIsLoading(true)
+  1784→    try {
+  1785→      // Run seed on first load to ensure miniStep values are correct.
+  1786→      // The seed now fixes miniStep and creates missing templates.
+  1787→      if (withSeed) {
+  1788→        try {
+  1789→          await fetch('/api/seed/templates', { method: 'POST' })
+  1790→        } catch (e) {
+  1791→          console.error('Auto-seed error:', e)
+  1792→        }
+  1793→      }
+  1794→
+  1795→      // Fetch all templates
+  1796→      const allTemplates: TemplateData[] = []
+  1797→      for (const type of ALL_TYPES) {
+  1798→        const res = await fetch(`/api/templates?type=${type}&includeInactive=true`)
+  1799→        const data = await res.json()
+  1800→        if (data.success && data.data) allTemplates.push(...data.data)
+  1801→      }
+  1802→      setTemplates(allTemplates)
+  1803→    } catch (e) { console.error('Error fetching templates:', e) }
+  1804→    finally { setIsLoading(false) }
+  1805→  }, [])
+  1806→
+  1807→  useEffect(() => {
+  1808→    fetchTemplates(true)
+  1809→    fetchTemplateUsage()
+  1810→  }, [fetchTemplates, fetchTemplateUsage])
+  1811→
+  1812→  const resetForm = () => {
+  1813→    setFormType('formacion')
+  1814→    setFormSStep(1)
+  1815→    setFormMiniStep(1)
+  1816→    setFormTitle('')
+  1817→    setFormDescription('')
+  1818→    setFormContent('')
+  1819→    setFormNotaMinima(EXAM_PASS_THRESHOLD)
+  1820→    setFormActive(true)
+  1821→    setEditingTemplate(null)
+  1822→    setIsCreating(false)
+  1823→    setEditorMode('visual')
+  1824→  }
+  1825→
+  1826→  const startCreate = (sStep: number, type: string, miniStep: number = 3) => {
+  1827→    setIsCreating(true)
+  1828→    setFormType(type)
+  1829→    setFormSStep(sStep)
+  1830→    setFormMiniStep(miniStep)
+  1831→    // MC templates use sStep=0, title shows MC instead of S0
+  1832→    if (sStep === 0) {
+  1833→      const mcPasoLabel = MC_PASO_CONFIG.find(p => p.paso === miniStep)?.label || ''
+  1834→      setFormTitle(`MC - ${mcPasoLabel}`)
+  1835→    } else {
+  1836→      setFormTitle(`S${sStep} - ${S_STEPS.find(s => s.id === sStep)?.japaneseName || ''}`)
+  1837→    }
+  1838→    setFormDescription('')
+  1839→    const aplicaNota = type === 'examen' || type === 'autoevaluacion' || type === 'auditoria'
+  1840→    setNotaMinimaAplica(aplicaNota)
+  1841→    setFormNotaMinima(aplicaNota ? (type === 'examen' ? EXAM_PASS_THRESHOLD : type === 'autoevaluacion' ? SELF_EVAL_THRESHOLD : AUDIT_PASS_THRESHOLD) : null)
+  1842→    setFormActive(true)
+  1843→    setEditorMode('visual')
+  1844→
+  1845→    // Auto-set miniStep based on type
+  1846→    const autoMiniStep = type === 'formacion' || type === 'examen' ? 1 : type === 'fotos' ? 2 : type === 'inventario' || type === 'estandar' || type === 'layout' || type === 'plan_limpieza' ? 3 : type === 'autoevaluacion' || type === 'plan_accion' ? 4 : type === 'auditoria' || type === 'pdca' ? 5 : miniStep
+  1847→    setFormMiniStep(autoMiniStep)
+  1848→
+  1849→    if (type === 'formacion') {
+  1850→      setFormContent(JSON.stringify(getDefaultFormationContent(sStep), null, 2))
+  1851→    } else if (type === 'examen') {
+  1852→      setFormContent(JSON.stringify(getDefaultExamContent(sStep), null, 2))
+  1853→    } else if (type === 'fotos') {
+  1854→      setFormContent(JSON.stringify(getDefaultFotosContent(sStep), null, 2))
+  1855→    } else if (type === 'inventario') {
+  1856→      setFormContent(JSON.stringify(getDefaultInventoryContent(sStep), null, 2))
+  1857→    } else if (type === 'estandar') {
+  1858→      setFormContent(JSON.stringify(getDefaultStandardContent(), null, 2))
+  1859→    } else if (type === 'layout') {
+  1860→      setFormContent(JSON.stringify(getDefaultLayoutContent(sStep), null, 2))
+  1861→    } else if (type === 'plan_limpieza') {
+  1862→      setFormContent(JSON.stringify(getDefaultPlanLimpiezaContent(sStep), null, 2))
+  1863→    } else if (type === 'pdca') {
+  1864→      setFormContent(JSON.stringify(getDefaultPDCAContent(sStep), null, 2))
+  1865→    } else if (type === 'plan_accion') {
+  1866→      setFormContent(JSON.stringify(getDefaultPlanAccionContent(sStep), null, 2))
+  1867→    } else {
+  1868→      setFormContent(JSON.stringify(getDefaultChecklistContent(sStep), null, 2))
+  1869→    }
+  1870→  }
+  1871→
+  1872→  const startEdit = (template: TemplateData) => {
+  1873→    setEditingTemplate(template)
+  1874→    setFormType(template.type)
+  1875→    setFormSStep(template.sStep)
+  1876→    setFormMiniStep(template.miniStep || 3)
+  1877→    setFormTitle(template.title)
+  1878→    setFormDescription(template.description || '')
+  1879→    setFormContent(typeof template.content === 'string' ? template.content : JSON.stringify(template.content, null, 2))
+  1880→    const aplicaNota = template.type === 'examen' || template.type === 'autoevaluacion' || template.type === 'auditoria'
+  1881→    setNotaMinimaAplica(aplicaNota)
+  1882→    setFormNotaMinima(template.notaMinima != null ? template.notaMinima : (aplicaNota ? (template.type === 'examen' ? EXAM_PASS_THRESHOLD : template.type === 'autoevaluacion' ? SELF_EVAL_THRESHOLD : AUDIT_PASS_THRESHOLD) : null))
+  1883→    setFormActive(template.active)
+  1884→    setIsCreating(true)
+  1885→    setEditorMode('visual')
+  1886→  }
+  1887→
+  1888→  const handleSave = async () => {
+  1889→    setIsSaving(true)
+  1890→    try {
+  1891→      // Validate JSON
+  1892→      try { JSON.parse(formContent) } catch { alert('El contenido JSON no es válido. Revísalo.'); setIsSaving(false); return }
+  1893→
+  1894→      const payload = {
+  1895→        type: formType,
+  1896→        sStep: formSStep,
+  1897→        miniStep: formMiniStep,
+  1898→        title: formTitle,
+  1899→        description: formDescription || null,
+  1900→        content: formContent,
+  1901→        notaMinima: notaMinimaAplica ? formNotaMinima : null,
+  1902→        active: formActive,
+  1903→      }
+  1904→
+  1905→      if (editingTemplate) {
+  1906→        const res = await fetch('/api/templates', {
+  1907→          method: 'PUT',
+  1908→          headers: { 'Content-Type': 'application/json' },
+  1909→          body: JSON.stringify({ id: editingTemplate.id, ...payload }),
+  1910→        })
+  1911→        const data = await res.json()
+  1912→        if (!data.success) { alert('Error: ' + data.error); return }
+  1913→      } else {
+  1914→        const res = await fetch('/api/templates', {
+  1915→          method: 'POST',
+  1916→          headers: { 'Content-Type': 'application/json' },
+  1917→          body: JSON.stringify(payload),
+  1918→        })
+  1919→        const data = await res.json()
+  1920→        if (!data.success) { alert('Error: ' + data.error); return }
+  1921→      }
+  1922→
+  1923→      resetForm()
+  1924→      fetchTemplates()
+  1925→      fetchTemplateUsage()
+  1926→      setSaveMessage('Plantilla guardada correctamente')
+  1927→      setTimeout(() => setSaveMessage(null), 3000)
+  1928→    } catch (e) { console.error('Error saving:', e); alert('Error al guardar') }
+  1929→    finally { setIsSaving(false) }
+  1930→  }
+  1931→
+  1932→  const handleDelete = async (id: string) => {
+  1933→    if (!confirm('¿Eliminar esta plantilla?')) return
+  1934→    try {
+  1935→      await fetch(`/api/templates?id=${id}`, { method: 'DELETE' })
+  1936→      fetchTemplates()
+  1937→      fetchTemplateUsage()
+  1938→    } catch (e) { console.error(e) }
+  1939→  }
+  1940→
+  1941→  const handleMovePaso = async (templateId: string, newMiniStep: number) => {
+  1942→    try {
+  1943→      const res = await fetch('/api/templates', {
+  1944→        method: 'PUT',
+  1945→        headers: { 'Content-Type': 'application/json' },
+  1946→        body: JSON.stringify({ id: templateId, miniStep: newMiniStep }),
+  1947→      })
+  1948→      const data = await res.json()
+  1949→      if (data.success) {
+  1950→        fetchTemplates()
+  1951→        setSaveMessage(`Plantilla movida a Paso ${newMiniStep}`)
+  1952→        setTimeout(() => setSaveMessage(null), 3000)
+  1953→      } else {
+  1954→        alert('Error al mover la plantilla: ' + data.error)
+  1955→      }
+  1956→    } catch (e) {
+  1957→      console.error(e)
+  1958→      alert('Error al mover la plantilla')
+  1959→    }
+  1960→  }
+  1961→
+  1962→  // Full template export format (includes metadata + content)
+  1963→  const exportTemplateData = (template: TemplateData) => ({
+  1964→    _5sTemplateExport: true,
+  1965→    version: 1,
+  1966→    type: template.type,
+  1967→    sStep: template.sStep,
+  1968→    miniStep: template.miniStep,
+  1969→    title: template.title,
+  1970→    description: template.description,
+  1971→    content: typeof template.content === 'string' ? JSON.parse(template.content) : template.content,
+  1972→    notaMinima: template.notaMinima,
+  1973→    active: template.active,
+  1974→  })
+  1975→
+  1976→  const handleDownload = (template: TemplateData) => {
+  1977→    try {
+  1978→      const data = exportTemplateData(template)
+  1979→      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  1980→      const url = URL.createObjectURL(blob)
+  1981→      const a = document.createElement('a')
+  1982→      a.href = url
+  1983→      a.download = `${template.type}_S${template.sStep}_${template.title.replace(/[^a-zA-Z0-9]/g, '_')}.json`
+  1984→      a.click()
+  1985→      URL.revokeObjectURL(url)
+  1986→    } catch {
+  1987→      alert('Error al descargar la plantilla')
+  1988→    }
+  1989→  }
+  1990→
+  1991→  const [copiedId, setCopiedId] = useState<string | null>(null)
+  1992→
+  1993→  const handleCopyTemplate = async (template: TemplateData) => {
+  1994→    try {
+  1995→      const data = exportTemplateData(template)
+  1996→      await navigator.clipboard.writeText(JSON.stringify(data, null, 2))
+  1997→      setCopiedId(template.id)
+  1998→      setTimeout(() => setCopiedId(null), 2000)
+  1999→    } catch {
+  2000→      // Fallback: create temporary textarea
+
+[showing lines 1-2000 of 2829; use offset=2001 with limit to continue reading]

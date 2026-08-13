@@ -187,10 +187,20 @@ model Template {
   content     String // JSON con el contenido de la plantilla
   notaMinima  Float? // Nota mínima para pasar (pasa/no pasa)
   active      Boolean  @default(true)
+  // ─── Per-company templates model (v2.30) ───────────────────────────────
+  // companyId = null  → Biblioteca del Sistema (editable solo por gestor)
+  // companyId = X     → Plantilla de la empresa X (editable por su admin)
+  // Las zonas ven primero sus plantillas de empresa y, si no hay, caen a
+  // las del sistema. El fallback lo hace el modal/board-config, no la BD.
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   slotTemplates BoardSlotTemplate[]
+
+  @@index([companyId])
+  @@index([type, sStep, miniStep, active])
 }
 
 model ExamAnswer {
@@ -398,6 +408,7 @@ model Company {
   projects     Project[]
   members      CompanyMember[]
   subscription Subscription?
+  templates    Template[] // Plantillas propiedad de esta empresa (v2.30)
 }
 
 model Subscription {
