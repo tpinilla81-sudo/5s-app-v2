@@ -57,27 +57,9 @@ export async function POST(
       })
     }
 
-    // ── Auto-ligar el usuario a la EMPRESA del proyecto (si no lo está ya) ──
-    // Así el usuario aparece en "Datos empresa" y está disponible para otras
-    // zonas/proyectos de la misma empresa. La tarifa depende de estos listados.
-    const project = await db.project.findUnique({
-      where: { id: projectId },
-      select: { companyId: true, company: true },
-    })
-    if (project?.companyId) {
-      await db.companyMember.upsert({
-        where: { userId_companyId: { userId, companyId: project.companyId } },
-        update: {}, // no-op si ya existe
-        create: {
-          userId,
-          companyId: project.companyId,
-          role: 'gerente', // rol por defecto a nivel empresa
-        },
-      }).catch((err) => {
-        // Non-fatal: si la empresa no existe o hay error, seguir con la asignación
-        console.error('[zone-members] Auto-link to company failed:', err)
-      })
-    }
+    // NOTE: No se toca CompanyMember aquí. La empresa del usuario se gestiona
+    // exclusivamente desde "Datos Empresa → Usuarios". Adjudicar a una zona
+    // solo crea/actualiza ProjectMember + MemberZone.
 
     // Check if MemberZone already exists
     const existing = await db.memberZone.findUnique({
