@@ -145,3 +145,34 @@ Stage Summary:
 - Caja 2 permite crear un proyecto nuevo con zonas Y usuarios
   (existentes o nuevos) en un solo flujo.
 - Listo para commit + push a Vercel.
+
+---
+Task ID: v2.20
+Agent: Main
+Task: Eliminar el listado "Miembros del Proyecto" (redundante — ya están en cada zona)
+
+Work Log:
+- Localizada la sección "Miembros del Proyecto" en AdminPanel.tsx
+  (líneas 1558-1931): incluía el formulario de alta de miembros
+  (existente/nuevo) + tabla editable con nombre/email/contraseña/rol/
+  zonas + botones de enviar credenciales / eliminar.
+- Confirmado que toda esa información YA está disponible dentro de cada
+  zona en la sección "Zonas del Proyecto" (arriba): cada zona muestra
+  sus miembros con rol, eliminar de zona, añadir existente/nuevo.
+- Script scripts/remove_project_members_listing.py elimina 375 líneas
+  (líneas 1557-1931 inclusive) dejando la estructura JSX válida.
+- TypeScript: solo 2 errores preexistentes en AdminPanel.tsx (líneas
+  635 y 1158), ninguno relacionado con este cambio.
+- Next.js build: "✓ Compiled successfully in 20.5s" — 56 páginas
+  estáticas generadas.
+- Bump de versión: BUILD_VERSION → 20260813-130000-v2.20, badges en
+  page.tsx y LoginPage.tsx → v2.20.
+- Commit + push a GitHub (5c81f07). Vercel redeploy disparado.
+
+Stage Summary:
+- Pestaña Proyectos: cada proyecto expandible ahora muestra solo
+  (1) info editable, (2) zonas con sus miembros. Sin listado
+  duplicado a nivel de proyecto.
+- Caja "Abrir Nuevo Proyecto" intacta (sigue permitiendo añadir
+  usuarios existentes/nuevos al crear el proyecto).
+- Despliegue en curso en Vercel.
