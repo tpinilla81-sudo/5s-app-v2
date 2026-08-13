@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const BUILD_VERSION = '20260813-170000-v2.24';
+const BUILD_VERSION = '20260813-174500-v2.25';
+const SESSION_COOKIE = '5s_session';
+const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 export function middleware(request: NextRequest) {
   const url = request.nextUrl;
@@ -40,6 +42,21 @@ export function middleware(request: NextRequest) {
 
   // 4. Procesar request normal
   const response = NextResponse.next();
+
+  // Sliding session: si el usuario tiene cookie de sesión, refrescar su
+  // maxAge a 7 días en CADA petición. Así un usuario activo nunca es
+  // desconectado por expiración de cookie — el token "dura 7 días" desde
+  // su última actividad, no desde el login.
+  const sessionToken = request.cookies.get(SESSION_COOKIE)?.value;
+  if (sessionToken) {
+    response.cookies.set(SESSION_COOKIE, sessionToken, {
+      httpOnly: true,
+      path: '/',
+      maxAge: SESSION_MAX_AGE,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    });
+  }
 
   // Security headers para producción
   // X-Frame-Options: evitar clickjacking (la app no se embebe en iframes)
