@@ -156,7 +156,7 @@ export default function LoginPage() {
         </Card>
 
         <p className="text-center text-xs text-green-500 mt-6">
-          Método 5S · <span className="font-mono text-purple-600">v2.17</span>
+          Método 5S · <span className="font-mono text-purple-600">v2.18</span>
         </p>
       </motion.div>
     </div>

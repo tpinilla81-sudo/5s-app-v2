@@ -1114,130 +1114,183 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
           {/* ═══ PROJECTS TAB ═══ */}
           {activeTab === 'projects' && (
             <motion.div key="projects" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-              {/* New project button */}
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-muted-foreground">
-                  Gestiona los proyectos de implementación 5S
-                </p>
-                <Button
-                  onClick={() => setShowNewProject(true)}
-                  className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white"
-                  size="sm"
-                >
-                  <Plus className="h-4 w-4 mr-1" /> Nuevo Proyecto
-                </Button>
+              {/* ─────────── SECCIÓN 1: PROYECTOS ACTIVOS ─────────── */}
+              <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-md bg-blue-500/15 flex items-center justify-center">
+                      <Building2 className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900">Proyectos Activos</h3>
+                      <p className="text-[11px] text-muted-foreground">
+                        {allProjects.length === 0
+                          ? 'Aún no hay proyectos. Crea el primero más abajo.'
+                          : `${allProjects.filter(p => p.active).length} activos · ${allProjects.length} en total`}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowNewProject(true)
+                      // Scroll al formulario de creación
+                      setTimeout(() => {
+                        document.getElementById('crear-nuevo-proyecto')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }, 50)
+                    }}
+                    className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                  >
+                    <Plus className="h-4 w-4 mr-1" /> Nuevo Proyecto
+                  </Button>
+                </div>
               </div>
 
-              {/* New project form */}
-              {showNewProject && (
-                <Card className="border-purple-200 bg-purple-50/30">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Plus className="h-4 w-4 text-purple-500" />
-                      Crear Nuevo Proyecto
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Nombre del Proyecto *</Label>
-                        <Input placeholder="Nombre" value={newProjectName} onChange={e => setNewProjectName(e.target.value)} />
+              {/* ─────────── SECCIÓN 2: CREAR NUEVO ─────────── */}
+              <div id="crear-nuevo-proyecto" className="rounded-lg border border-purple-200 bg-purple-50/30 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-md bg-purple-500/15 flex items-center justify-center">
+                      <Plus className="h-4 w-4 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900">Crear Nuevo</h3>
+                      <p className="text-[11px] text-muted-foreground">
+                        Da de alta un proyecto nuevo con sus zonas. Se añadirá a la lista de arriba.
+                      </p>
+                    </div>
+                  </div>
+                  {showNewProject && (
+                    <Button variant="ghost" size="sm" onClick={() => setShowNewProject(false)} className="h-7 text-xs">
+                      <X className="h-3.5 w-3.5 mr-1" /> Cerrar formulario
+                    </Button>
+                  )}
+                </div>
+
+                {/* Toggle: si hay proyectos existentes, el formulario empieza colapsado */}
+                {!showNewProject && allProjects.length > 0 ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowNewProject(true)}
+                    className="w-full border-dashed border-purple-300 text-purple-700 hover:bg-purple-100 bg-white/60"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Abrir formulario de creación
+                  </Button>
+                ) : (
+                  <Card className="border-purple-200 bg-white/70">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Plus className="h-4 w-4 text-purple-500" />
+                        Crear Nuevo Proyecto
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Nombre del Proyecto *</Label>
+                          <Input placeholder="Nombre" value={newProjectName} onChange={e => setNewProjectName(e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Empresa *</Label>
+                          {companies.length > 0 && !isNewCompanyCustom ? (
+                            <div className="space-y-1">
+                              <Select
+                                value={newProjectCompany ? (companies.find(c => c.name === newProjectCompany)?.id || '') : undefined}
+                                onValueChange={val => {
+                                  if (val === '__custom__') {
+                                    setNewProjectCompany('')
+                                    setIsNewCompanyCustom(true)
+                                  } else {
+                                    const comp = companies.find(c => c.id === val)
+                                    if (comp) setNewProjectCompany(comp.name)
+                                  }
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Seleccionar empresa" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {companies.map(c => (
+                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                  ))}
+                                  <SelectItem value="__custom__">+ Otra empresa...</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <Input placeholder="Nombre de la nueva empresa" value={newProjectCompany} onChange={e => setNewProjectCompany(e.target.value)} />
+                              {companies.length > 0 && (
+                                <Button variant="ghost" size="sm" onClick={() => { setIsNewCompanyCustom(false); setNewProjectCompany('') }} className="h-6 text-xs text-purple-600 p-0">
+                                  ← Seleccionar empresa existente
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-xs">Empresa *</Label>
-                        {companies.length > 0 && !isNewCompanyCustom ? (
-                          <div className="space-y-1">
-                            <Select
-                              value={newProjectCompany ? (companies.find(c => c.name === newProjectCompany)?.id || '') : undefined}
-                              onValueChange={val => {
-                                if (val === '__custom__') {
-                                  setNewProjectCompany('')
-                                  setIsNewCompanyCustom(true)
-                                } else {
-                                  const comp = companies.find(c => c.id === val)
-                                  if (comp) setNewProjectCompany(comp.name)
-                                }
+                        <Label className="text-xs">Descripción</Label>
+                        <Input placeholder="Descripción del proyecto (opcional)" value={newProjectDesc} onChange={e => setNewProjectDesc(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs">Zonas *</Label>
+                          <Button variant="ghost" size="sm" onClick={() => setNewProjectZones([...newProjectZones, { name: '', color: PRESET_COLORS[newProjectZones.length % PRESET_COLORS.length] }])} className="h-6 text-xs text-purple-600">
+                            <Plus className="h-3 w-3 mr-1" /> Agregar zona
+                          </Button>
+                        </div>
+                        {newProjectZones.map((zone, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="w-6 h-6 rounded-full border-2 flex-shrink-0"
+                              style={{ backgroundColor: zone.color, borderColor: zone.color }}
+                              onClick={() => {
+                                const next = PRESET_COLORS[(PRESET_COLORS.indexOf(zone.color) + 1) % PRESET_COLORS.length]
+                                const updated = [...newProjectZones]
+                                updated[idx] = { ...updated[idx], color: next }
+                                setNewProjectZones(updated)
                               }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar empresa" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {companies.map(c => (
-                                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                ))}
-                                <SelectItem value="__custom__">+ Otra empresa...</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                            <Input placeholder="Nombre de la nueva empresa" value={newProjectCompany} onChange={e => setNewProjectCompany(e.target.value)} />
-                            {companies.length > 0 && (
-                              <Button variant="ghost" size="sm" onClick={() => { setIsNewCompanyCustom(false); setNewProjectCompany('') }} className="h-6 text-xs text-purple-600 p-0">
-                                ← Seleccionar empresa existente
+                            />
+                            <Input
+                              placeholder="Nombre de la zona"
+                              value={zone.name}
+                              onChange={e => {
+                                const updated = [...newProjectZones]
+                                updated[idx] = { ...updated[idx], name: e.target.value }
+                                setNewProjectZones(updated)
+                              }}
+                              className="flex-1"
+                            />
+                            {newProjectZones.length > 1 && (
+                              <Button variant="ghost" size="sm" onClick={() => setNewProjectZones(newProjectZones.filter((_, i) => i !== idx))} className="h-8 w-8 p-0 text-red-400 hover:text-red-600">
+                                <X className="h-4 w-4" />
                               </Button>
                             )}
                           </div>
-                        )}
+                        ))}
                       </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Descripción</Label>
-                      <Input placeholder="Descripción del proyecto (opcional)" value={newProjectDesc} onChange={e => setNewProjectDesc(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs">Zonas *</Label>
-                        <Button variant="ghost" size="sm" onClick={() => setNewProjectZones([...newProjectZones, { name: '', color: PRESET_COLORS[newProjectZones.length % PRESET_COLORS.length] }])} className="h-6 text-xs text-purple-600">
-                          <Plus className="h-3 w-3 mr-1" /> Agregar zona
+                      <div className="flex gap-2 justify-end">
+                        <Button variant="outline" size="sm" onClick={() => setShowNewProject(false)}>Cancelar</Button>
+                        <Button
+                          size="sm"
+                          onClick={handleCreateProject}
+                          disabled={!newProjectName.trim() || !newProjectCompany.trim() || newProjectZones.filter(z => z.name.trim()).length === 0}
+                          className="bg-gradient-to-r from-purple-500 to-purple-600 text-white"
+                        >
+                          Crear Proyecto
                         </Button>
                       </div>
-                      {newProjectZones.map((zone, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            className="w-6 h-6 rounded-full border-2 flex-shrink-0"
-                            style={{ backgroundColor: zone.color, borderColor: zone.color }}
-                            onClick={() => {
-                              const next = PRESET_COLORS[(PRESET_COLORS.indexOf(zone.color) + 1) % PRESET_COLORS.length]
-                              const updated = [...newProjectZones]
-                              updated[idx] = { ...updated[idx], color: next }
-                              setNewProjectZones(updated)
-                            }}
-                          />
-                          <Input
-                            placeholder="Nombre de la zona"
-                            value={zone.name}
-                            onChange={e => {
-                              const updated = [...newProjectZones]
-                              updated[idx] = { ...updated[idx], name: e.target.value }
-                              setNewProjectZones(updated)
-                            }}
-                            className="flex-1"
-                          />
-                          {newProjectZones.length > 1 && (
-                            <Button variant="ghost" size="sm" onClick={() => setNewProjectZones(newProjectZones.filter((_, i) => i !== idx))} className="h-8 w-8 p-0 text-red-400 hover:text-red-600">
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-2 justify-end">
-                      <Button variant="outline" size="sm" onClick={() => setShowNewProject(false)}>Cancelar</Button>
-                      <Button
-                        size="sm"
-                        onClick={handleCreateProject}
-                        disabled={!newProjectName.trim() || !newProjectCompany.trim() || newProjectZones.filter(z => z.name.trim()).length === 0}
-                        className="bg-gradient-to-r from-purple-500 to-purple-600 text-white"
-                      >
-                        Crear Proyecto
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              {/* ─────────── LISTA DE PROYECTOS ACTIVOS ─────────── */}
 
               {/* Projects list */}
               {isLoadingProjects ? (
