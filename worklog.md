@@ -253,3 +253,43 @@ Stage Summary:
 - Dropdown de existentes: siempre visible cuando hay disponibles,
   con count en el placeholder y portal bien posicionado.
 - Empty state claro con CTA hacia "Crear nuevo usuario".
+
+---
+Task ID: v2.25
+Agent: Main
+Task: Sliding session — "con el mismo token, dura 7 días" desde última actividad
+
+Work Log:
+- Diagnóstico: la sesión actual era FIJA de 7 días desde el login.
+  getAuthUser solo verificaba expiresAt; cookie con maxAge fijo de 7 días
+  desde el login. Usuario activo era desconectado a los 7 días exactos.
+- auth-helpers.ts (getAuthUser): añadida renovación "sliding" en DB.
+  * Nueva constante SESSION_RENEWAL_THRESHOLD_DAYS = 1
+  * Si faltan <1 día para expirar, UPDATE session.expiresAt = ahora + 7d
+  * Evita escribir en DB en cada petición (solo cuando está cerca de
+    expirar)
+  * Exportada SESSION_DURATION_DAYS para reutilización
+- middleware.ts: añadido refresh de cookie en cada petición autenticada.
+  * Si request tiene cookie 5s_session, response.cookies.set con mismo
+    valor + maxAge=7d
+  * Hace la cookie "sliding" — el navegador no la borra mientras el
+    usuario esté activo
+- Bump versión v2.25 en middleware, LoginPage.tsx, page.tsx
+- Build Next.js: "✓ Compiled successfully in 20.2s"
+- Commit local: e3f6a50 "v2.25: sliding session — mismo token dura
+  7 días desde última actividad"
+- Push a GitHub: FALLA — el entorno actual no tiene credenciales
+  configuradas (no ~/.git-credentials, no GH_TOKEN, no gh CLI).
+  El usuario necesita hacer `git push origin main` desde su entorno
+  para disparar el deploy en Vercel.
+
+Stage Summary:
+- Comportamiento nuevo: mientras el usuario use la app al menos una
+  vez cada 7 días, NUNCA es desconectado. Solo caduca si pasan 7 días
+  seguidos sin actividad.
+- Mecanismo: cookie refrescada en cada request (middleware) + DB
+  session.expiresAt renovada cuando faltan <24h (getAuthUser).
+- El token mismo no cambia — sigue siendo el mismo durante toda la
+  vida de la sesión. Solo se extienden cookie maxAge y DB expiresAt.
+- Pendiente: `git push origin main` desde entorno con credenciales
+  GitHub para deploy en Vercel.
