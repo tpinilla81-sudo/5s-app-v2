@@ -373,3 +373,54 @@ Stage Summary:
 - v2.27 desplegado en Vercel.
 - ⚠️ PAT quedó guardado en .git/config (remote URL con credenciales).
   El usuario puede revocarlo cuando quiera desde GitHub Settings.
+
+---
+Task ID: v2.28
+Agent: Main
+Task: Pantalla de selección de proyecto/zona tras login (eliminar dropdown del header)
+
+Work Log:
+- Decisiones UX confirmadas con usuario:
+  * Mostrar SIEMPRE tras login (aunque tenga 1 sola opción)
+  * Botón 'Cambiar' en header para volver al selector (elimina dropdown)
+  * Gestor pasa por el MISMO selector (no skip a admin)
+  * Layout: tarjetas de proyecto expandibles a zonas con color
+- Cambios en src/lib/store.ts:
+  * authView: añadido 'project_selector'
+  * login/register/checkSession: si hay proyectos y NO es gestor,
+    va a 'project_selector' (no asigna currentProject automáticamente).
+    Gestor sigue yendo directo a 'board' con tab 'gestion'.
+  * Nuevas acciones:
+    - selectProjectAndZone(project, zone) → setea ambos + authView='board'
+      + dispara fetchProgress y fetchEmployeeProgress
+    - goToProjectSelector() → limpia currentProject/currentZone + authView='project_selector'
+- Nuevo componente src/components/auth/ProjectSelector.tsx:
+  * Header con logo + avatar del usuario + logout
+  * Saludo personalizado ("Hola {nombre} 👋")
+  * Grid 1-2 columnas de tarjetas de proyecto
+  * Cada tarjeta: icono Building2 + nombre + companyName + descripción
+    + badges (count de zonas, count de miembros)
+  * Al clickar tarjeta: se expande (AnimatePresence) mostrando zonas
+    accesibles como botones con color de la zona
+  * Para admin/gestor/gerente: muestra todas las zonas del proyecto
+  * Para empleado/responsable/auditor: solo las zonas en userZones
+  * Empty state: "No tienes zonas asignadas en este proyecto"
+  * Estado de carga con spinner
+  * Si no hay proyectos: mensaje con CTA al logout
+- Cambios en src/app/page.tsx:
+  * Import ProjectSelector
+  * Añadido 'if (authView === "project_selector") return <ProjectSelector onLogout={handleLogout} />'
+  * Eliminado el dropdown de zona del header (líneas 384-413 antes)
+  * Añadido botón 'Cambiar' (variant outline, color azul, icono RefreshCw)
+    que llama a goToProjectSelector(). Visible solo cuando hay currentProject.
+  * Destructure goToProjectSelector del store
+- Bump v2.28 en middleware, LoginPage.tsx, page.tsx
+- Build Next.js: "✓ Compiled successfully in 22.3s"
+- Commit local: b6a9c29
+- Push a GitHub: OK (6db1ec2..b6a9c29). Vercel auto-redeploy.
+
+Stage Summary:
+- Flujo nuevo: login → ProjectSelector → tablero
+- Usuario cambia de proyecto/zona con botón 'Cambiar' del header
+- Gestor se salta el selector (va directo a gestión)
+- Dropdown del header eliminado
