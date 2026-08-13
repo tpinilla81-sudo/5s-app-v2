@@ -652,6 +652,8 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
       setSelectedProjectId(null)
     } else {
       setSelectedProjectId(projectId)
+      // Recargar users por si la carga inicial aún no terminó o si han cambiado
+      loadUsers()
     }
   }
 
@@ -860,8 +862,8 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
   }
 
   // Crea un usuario NUEVO desde el formulario de la zona y lo asigna a ella.
-  // 1. POST /api/users (crea el User sin empresa/proyecto)
-  // 2. POST /api/projects/{pid}/zones/{zid}/members (lo asigna a la zona)
+  // Si el email ya existe (en otra empresa, inactivo, etc.), automáticamente
+  // busca ese usuario y lo asigna a la zona en vez de fallar.
   const handleCreateNewUserInZone = async (zoneId: string) => {
     if (!selectedProjectId) return
     const name = (zoneNewName[zoneId] || '').trim()
@@ -879,31 +881,66 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
     }
 
     try {
-      // 1. Crear el usuario
+      // 1. Intentar crear el usuario
+      let userId: string
+      let wasExisting = false
+      let existingUserName = name
+
       const createUserRes = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password, role, active: true }),
       })
       const createUserData = await createUserRes.json()
-      if (!createUserRes.ok || !createUserData.user) {
+
+      if (createUserRes.ok && createUserData.user) {
+        userId = createUserData.user.id
+      } else if (
+        createUserRes.status === 400 &&
+        typeof createUserData.error === 'string' &&
+        createUserData.error.toLowerCase().includes('email')
+      ) {
+        // El email ya existe en el sistema (probablemente en otra empresa
+        // o como usuario inactivo que el admin actual no ve en su lista).
+        // Hacemos lookup exacto por email y lo asignamos a la zona.
+        const lookupRes = await fetch(
+          `/api/users/lookup-by-email?email=${encodeURIComponent(email)}`
+        )
+        if (!lookupRes.ok) {
+          alert(
+            `Ya existe un usuario con ese email pero no se pudo localizar ` +
+            `automáticamente. Prueba con otro email.`
+          )
+          return
+        }
+        const lookupData = await lookupRes.json()
+        if (!lookupData.found || !lookupData.user) {
+          alert(
+            `Ya existe un usuario con ese email pero no se pudo localizar ` +
+            `automáticamente. Prueba con otro email.`
+          )
+          return
+        }
+        userId = lookupData.user.id
+        wasExisting = true
+        existingUserName = lookupData.user.name
+      } else {
         alert(createUserData.error || 'Error al crear el usuario')
         return
       }
-      const newUserId = createUserData.user.id as string
 
-      // 2. Asignar a la zona (esto crea ProjectMember + MemberZone)
+      // 2. Asignar a la zona (esto crea ProjectMember + MemberZone si no existen)
       const assignRes = await fetch(
         `/api/projects/${selectedProjectId}/zones/${zoneId}/members`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: newUserId, role }),
+          body: JSON.stringify({ userId, role }),
         }
       )
       const assignData = await assignRes.json()
       if (!assignRes.ok) {
-        alert(assignData.error || 'Error al asignar el nuevo usuario a la zona')
+        alert(assignData.error || 'Error al asignar el usuario a la zona')
         return
       }
 
@@ -918,20 +955,29 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
         return [...prev, assignData.member]
       })
 
-      // 4. Recargar users para que aparezca en la lista de "existentes"
-      //    de otras zonas, y proyectos para que el memberCount se actualice.
+      // 4. Recargar users y projects para reflejar cambios
       await Promise.all([loadUsers(), loadProjects()])
 
-      // 5. Limpiar el formulario de esta zona
+      // 5. Limpiar formulario
       setZoneNewName(prev => { const n = { ...prev }; delete n[zoneId]; return n })
       setZoneNewEmail(prev => { const n = { ...prev }; delete n[zoneId]; return n })
       setZoneNewPassword(prev => { const n = { ...prev }; delete n[zoneId]; return n })
       setZoneAddRole(prev => { const n = { ...prev }; delete n[zoneId]; return n })
       setZoneAddMode(prev => { const n = { ...prev }; delete n[zoneId]; return n })
 
-      // 6. Mostrar contraseña generada/auto-guardada al admin
-      setGeneratedPassword(password)
-      setGeneratedMemberName(name)
+      // 6. Notificación al admin
+      if (wasExisting) {
+        alert(
+          `El email "${email}" ya existía en el sistema (posiblemente en otra empresa). ` +
+          `Se ha asignado a "${existingUserName}" a esta zona con el rol indicado. ` +
+          `Si querías crear un usuario distinto, usa otro email.`
+        )
+        setGeneratedPassword(null)
+        setGeneratedMemberName(null)
+      } else {
+        setGeneratedPassword(password)
+        setGeneratedMemberName(name)
+      }
     } catch (error) {
       console.error('Error creating new user in zone:', error)
       alert('Error de conexión al crear el usuario')
@@ -1602,11 +1648,30 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
 
                                                     {/* Modo: asignar existente */}
                                                     {(zoneAddMode[zone.id] || 'existing') === 'existing' ? (
-                                                      availableUsers.length === 0 ? (
+                                                      isLoadingUsers ? (
                                                         <p className="text-[11px] text-muted-foreground text-center py-1">
-                                                          Todos los usuarios activos ya están en esta zona.
-                                                          Usa <strong>Crear nuevo usuario</strong> para dar de alta uno.
+                                                          <Loader2 className="h-3 w-3 inline animate-spin mr-1" />
+                                                          Cargando usuarios...
                                                         </p>
+                                                      ) : availableUsers.length === 0 ? (
+                                                        <div className="space-y-1.5">
+                                                          <p className="text-[11px] text-muted-foreground text-center py-1">
+                                                            No hay usuarios disponibles para asignar a esta zona.
+                                                          </p>
+                                                          <p className="text-[10px] text-center">
+                                                            <button
+                                                              type="button"
+                                                              onClick={() => setZoneAddMode(prev => ({ ...prev, [zone.id]: 'new' }))}
+                                                              className="text-purple-700 underline hover:text-purple-900 font-medium"
+                                                            >
+                                                              → Crear nuevo usuario
+                                                            </button>
+                                                          </p>
+                                                          <p className="text-[9px] text-muted-foreground text-center">
+                                                            (Si esperabas ver usuarios, recarga la pestaña Proyectos —
+                                                            puede que estén en otra empresa o inactivos)
+                                                          </p>
+                                                        </div>
                                                       ) : (
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                           <Select
@@ -1614,9 +1679,9 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                                             onValueChange={(val) => setZoneAddUserId(prev => ({ ...prev, [zone.id]: val }))}
                                                           >
                                                             <SelectTrigger className="h-7 text-xs flex-1 min-w-[180px]">
-                                                              <SelectValue placeholder="Seleccionar usuario existente..." />
+                                                              <SelectValue placeholder={`Seleccionar usuario (${availableUsers.length} disponibles)...`} />
                                                             </SelectTrigger>
-                                                            <SelectContent>
+                                                            <SelectContent position="popper" side="top" className="max-h-[280px]">
                                                               {availableUsers.map(u => (
                                                                 <SelectItem key={u.id} value={u.id}>
                                                                   <div className="flex items-center gap-2">
@@ -1637,7 +1702,7 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                                             <SelectTrigger className="h-7 text-xs w-[120px]">
                                                               <SelectValue />
                                                             </SelectTrigger>
-                                                            <SelectContent>
+                                                            <SelectContent position="popper" side="top">
                                                               <SelectItem value="admin">Administrador</SelectItem>
                                                               <SelectItem value="gerente">Gerente</SelectItem>
                                                               <SelectItem value="responsable">Responsable</SelectItem>
@@ -1689,7 +1754,7 @@ export default function AdminPanel({ embedded }: AdminPanelProps = {}) {
                                                             <SelectTrigger className="h-7 text-xs">
                                                               <SelectValue />
                                                             </SelectTrigger>
-                                                            <SelectContent>
+                                                            <SelectContent position="popper" side="top">
                                                               <SelectItem value="admin">Administrador</SelectItem>
                                                               <SelectItem value="gerente">Gerente</SelectItem>
                                                               <SelectItem value="responsable">Responsable</SelectItem>
