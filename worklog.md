@@ -2574,3 +2574,96 @@ Stage Summary:
     - Persiste al navegar entre tabs (localStorage)
   * Responsable entra a Avisos → ve 'Solicitud autoevaluación: S{X}'
   * Responsable completa paso 4 → botón desaparece (estado completado)
+
+---
+Task ID: v2.64
+Agent: Main
+Task: Autoevaluación/Auditoría — autocompletar hallazgo con IA + responsable + foto primero
+
+Work Log:
+- Usuario: "En la autoevaluacion no deja incorporar foto, los hallazgos tienen
+  que seguir el flujo de la S1, incorporar la foto al paso 2, de hay al paso 3.
+  Avisar al responsable de que rellene el inventario jaula para que se trasfiera
+  al plan de accion, biblioteca de fotos, avisos y calendario."
+- Usuario (2º msg): "Cuando se mete en la autoevaluacion y auditoria un NOK
+  hallazgo, se tiene que autocompletar lo masimo posible. Primero meter la foto
+  con el flujo antes descrito, la descripcion con la IA, que no he visto funcionar,
+  el responsable ya se sabe que es el empleado. O al menos todo elegible de una
+  lista despegable. Quitar de la lista los usuarios que no son del proyecto"
+
+CAMBIOS:
+
+1) ORDEN DEL FLUJO NOK — FOTO PRIMERO (paso 2 → paso 3):
+   - Antes: hallazgo → mejora → responsable → foto (no funcional)
+   - Ahora: FOTO (1º) → hallazgo (autocompletado IA) → mejora → responsable
+   - Aplicado a AutoevaluacionModal y AuditoriaModal
+   - Sigue el mismo patrón que S1: captura fotos (paso 2) → van al inventario/
+     plan de acción (paso 3)
+
+2) AUTOCOMPLETAR HALLAZGO CON IA (VLM):
+   - Al añadir una foto al NOK, se llama automáticamente a /api/photo-describe
+     con la primera foto convertida a base64 data URL.
+   - El VLM devuelve una descripción adaptada al S-Step (S1: elementos
+     innecesarios, S3: suciedad, etc.) y se autocompleta en 'hallazgo'.
+   - También autocompleta 'Punto a Mejorar' con plantilla basada en la
+     descripción IA: 'Aplicar 5S en {japaneseName}: corregir desviación
+     detectada — {descripción IA}'
+   - Botón '✨ Regenerar con IA' visible junto al campo hallazgo cuando
+     hay fotos adjuntas. Permite regenerar la descripción cuantas veces
+     se quiera.
+   - Spinner 'IA analizando…' visible en púrpura durante el procesamiento.
+
+3) AUTOCOMPLETAR RESPONSABLE:
+   - Al marcar un item como NOK, se autocompleta el responsable con:
+     a) zone.responsableId (responsable de la zona) → buscar nombre en
+        projectMembers
+     b) Primer miembro con role='responsable' en el proyecto
+     c) Usuario actual (empleado/auditor que hace la autoeval/auditoría)
+   - Texto '✓ Autocompletado — puedes cambiarlo si es necesario' visible
+     bajo el Select para que el usuario sepa que se autocompletó.
+   - Solo autocompleta si está vacío (no sobreescribe).
+
+4) FILTRO DE MIEMBROS DEL PROYECTO:
+   - La lista de responsables solo muestra miembros del proyecto actual,
+     ya que se obtiene de /api/projects/{projectId}/members.
+   - Se confirma con .filter(m => m.user?.active !== false) para no mostrar
+     usuarios inactivos.
+   - Ya NO aparecen usuarios que no son del proyecto.
+
+5) FOTOS ENLAZADAS AL ACTIONITEM (PHOTOREFS):
+   - Las fotos del hallazgo se suben a /api/upload y luego se registran en
+     /api/photo-library con:
+     * photoType='hallazgo'
+     * category='autoeval_nok_sX' o 'auditoria_nok_sX'
+     * tags con [S{X}, japaneseName, zona, paso4/paso5, hallazgo, nok,
+       item:{itemId}]
+     * description con texto completo + nombre del auditor (en auditoría)
+   - Se enlazan al ActionItem creado vía photoRefs (JSON array de URLs).
+   - API /api/actions POST y PUT ahora aceptan y persisten photoRefs.
+   - En Autoevaluación: si el hallazgo tiene foto(s) y responsable,
+     se envía notificación 'new_action_item' al responsable indicando
+     'revisa el Plan de Acción para ver la evidencia fotográfica'.
+
+6) ENVISUAL:
+   - Imports añadidos: Loader2, Sparkles (lucide-react)
+   - State nuevo: nokPhotos (Record<itemId, File[]>), nokPhotoAnalyzing
+   - Refs: nokPhotoInputRef (Record<itemId, HTMLInputElement>)
+   - Handlers: handleNokPhotoSelect, removeNokPhoto, autoFillResponsableForNok
+   - setItemStatus ahora dispara autoFillResponsableForNok si status='nok'
+
+Bump v2.62 → v2.64 (middleware.ts, page.tsx).
+Build Next.js: ✓ Compiled successfully.
+Commit 51ff953 + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- TRAS DEPLOY v2.64 (~1-2 min):
+  * En Autoeval/Auditoría, al marcar NOK:
+    - Aparece PRIMERO el botón 'Añadir foto'
+    - Al añadir foto, IA describe el hallazgo automáticamente
+    - Mejora sugerida se autocompleta
+    - Responsable se autocompleta con responsable de zona o usuario actual
+    - Botón 'Regenerar con IA' para volver a generar la descripción
+  * Lista de responsables solo muestra miembros del proyecto activos
+  * Fotos del hallazgo van a la biblioteca y se enlazan al ActionItem
+    (visible en ActionPlanTracker como 'Evidencia fotográfica')
+  * Responsable recibe aviso 'Hallazgo con foto' si hay fotos adjuntas
