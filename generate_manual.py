@@ -492,7 +492,7 @@ story.append(make_table(
     col_ratios=[0.15, 0.85]
 ))
 story.append(Spacer6())
-story.append(Paragraph('Tabla 3. Niveles de la jerarquia organizativa', style_caption))
+story.append(Paragraph('Tabla 4. Niveles de la jerarquia organizativa', style_caption))
 
 story.append(Spacer18())
 story.append(add_heading('<b>2.2 Roles y permisos</b>', style_h2, level=1))
@@ -522,7 +522,7 @@ story.append(make_table(
     col_ratios=[0.14, 0.14, 0.72]
 ))
 story.append(Spacer6())
-story.append(Paragraph('Tabla 4. Roles y permisos de la aplicacion', style_caption))
+story.append(Paragraph('Tabla 5. Roles y permisos de la aplicacion', style_caption))
 
 story.append(Spacer18())
 story.append(add_heading('<b>2.3 Asignacion de roles a la jerarquia</b>', style_h2, level=1))
@@ -734,7 +734,7 @@ story.append(make_table(
     col_ratios=[0.05, 0.15, 0.35, 0.45]
 ))
 story.append(Spacer6())
-story.append(Paragraph('Tabla 5. Pasos de ejecucion de la aplicacion', style_caption))
+story.append(Paragraph('Tabla 6. Pasos de ejecucion de la aplicacion', style_caption))
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SECTION 4: PRIMEROS PASOS
@@ -858,6 +858,50 @@ story.append(Note(
     'Nota: En zonas con multiples empleados, el paso individual de formacion se '
     'muestran con el progreso de cada empleado. El paso no se considera completado para la zona hasta '
     'que todos los empleados asignados lo hayan superado.'
+))
+
+story.append(Spacer12())
+story.append(add_heading('<b>5.3 Barra de herramientas superior (toolbar)</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'La barra de herramientas superior es la franja horizontal situada debajo de la cabecera del tablero. '
+    'Agrupa los accesos directos a los modulos transversales de la aplicacion, es decir, aquellas '
+    'funcionalidades que no pertenecen a una S concreta sino que dan servicio a todas ellas. El orden '
+    'de los botones se ha diseñado siguiendo el flujo natural de trabajo del operador: primero se '
+    'consultan las alertas pendientes, despues se planifican y ejecutan las acciones, luego se revisa '
+    'el calendario de compromisos, y por ultimo se gestionan los recursos visuales (fotos, estandares) '
+    'y logisticos (jaula, activos, punto de limpieza). El orden vigente a partir de la version 2.65 es '
+    'el siguiente, de izquierda a derecha:'
+))
+
+toolbar_data = [
+    ['1', 'Avisos', 'Bandeja de notificaciones. Muestra el numero de avisos no leidos. Recopila las alertas automaticas generadas por el Plan de Accion, por la Jaula de Excedentes y por los compromisos del Calendario.'],
+    ['2', 'Plan Acc.', 'Plan de Accion. Lista todas las acciones abiertas, en proceso y cerradas que el usuario tiene permiso para ver (segun su rol). Permite crear, editar, asignar responsable y cambiar el estado de las acciones.'],
+    ['3', 'Calendario', 'Calendario de acciones. Vista mensual con las entradas de cada accion (fecha limite, fecha de resolucion, reuniones de seguimiento). Permite filtrar por zona y por tipo de evento.'],
+    ['4', 'Fotos', 'Biblioteca de fotos. Recopila todas las fotografias subidas en cualquier paso de cualquier S, organizadas por S, por zona y por fecha. Incluye la descripcion automatica generada por IA.'],
+    ['5', 'Jaula', 'Jaula de Excedentes. Inventario de elementos innecesarios depositados temporalmente a la espera de reclamacion, traslado o eliminacion.'],
+    ['6', 'Activos', 'Activos necesarios. Inventario consolidado de los elementos considerados necesarios (1S y 2S) para el funcionamiento de la zona.'],
+    ['7', 'P. Limpio', 'Punto Limpio. Registro de los puntos de suciedad detectados en la 3S y de las acciones de limpieza asociadas (frecuencia, metodo, responsable).'],
+    ['8', 'Estandares', 'Estandares. Biblioteca de estandares visuales, procedimientos, checklists, senalizaciones, diagramas y registros generados en la 4S.'],
+]
+story.append(make_table(
+    ['#', 'Boton', 'Funcion'],
+    toolbar_data,
+    col_ratios=[0.05, 0.14, 0.81]
+))
+story.append(Spacer6())
+story.append(Paragraph('Tabla 3. Orden de la barra de herramientas superior (v2.65)', style_caption))
+
+story.append(Spacer12())
+story.append(Body(
+    'Los botones de la toolbar son sensibles al contexto: en sesion de empleado solo aparecen los botones '
+    'que el empleado tiene permiso para usar (Avisos, Calendario, Fotos, Jaula, Activos, P. Limpio y '
+    'Estandares); el Plan de Accion solo es visible para responsables, gerentes y auditores. En sesion '
+    'de gestor, la toolbar es mas reducida y muestra unicamente Avisos, Calendario y Manual, ya que el '
+    'gestor opera a nivel de empresa y no entra en el detalle operativo de cada zona. Cuando un boton '
+    'tiene contenido pendiente de revision, muestra un pequeno punto rojo con el numero de elementos '
+    'pendientes; por ejemplo, el boton Avisos muestra el contador de avisos no leidos.'
 ))
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1071,6 +1115,97 @@ story.append(Body(
     'y auditorias.'
 ))
 
+story.append(Spacer12())
+story.append(add_heading('<b>8.1 Biblioteca de Fotos (toolbar "Fotos")</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'A partir de la version 2.57, todas las fotografias subidas en cualquier paso 2 (de cualquier S) '
+    'se consolidan en una Biblioteca de Fotos unica, accesible desde el boton "Fotos" de la barra de '
+    'herramientas superior. Esta biblioteca actua como repositorio centralizado de evidencias visuales '
+    'de la zona y permite al responsable, al auditor y al gerente revisar el historial fotografico '
+    'completo sin tener que entrar en cada S por separado. La biblioteca esta filtrada por proyecto '
+    'y zona, y ordenada cronologicamente de mas reciente a mas antigua.'
+))
+story.append(Body(
+    'Cada foto de la biblioteca muestra cuatro elementos: la miniatura (thumbnail), la S a la que '
+    'pertenece (con su color identificativo), la fecha de subida y la descripcion automatica generada '
+    'por IA (cuando este disponible). Al pulsar sobre una miniatura se abre el visor de fotos (lightbox) '
+    'a tamano completo. Las fotos pueden eliminarse desde la biblioteca por el responsable de la zona '
+    'o por el empleado que las subio, lo que permite corregir subidas erroneas. La eliminacion es '
+    'definitiva y no se puede deshacer, por lo que se solicita confirmacion antes de borrar.'
+))
+
+story.append(Spacer12())
+story.append(add_heading('<b>8.2 Visor de fotos (lightbox) con fondo blanco</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'El visor de fotos o lightbox es la ventana modal que se abre al pulsar sobre una miniatura. A '
+    'partir de la version 2.58, el fondo del lightbox es blanco en lugar del gris oscuro que se '
+    'empleaba anteriormente. El cambio se introdujo porque las fotos tomadas en entornos industriales '
+    'suelen tener bordes oscuros que, sobre un fondo gris oscuro, parecian desaparecer y daban la '
+    'impresion de que la foto estaba "recortada" o era mas pequena de lo que realmente era. Con el '
+    'fondo blanco, los bordes de la foto son perfectamente visibles y el usuario percibe el tamano '
+    'real de la imagen.'
+))
+story.append(Body(
+    'El lightbox incluye un boton "X" en la esquina superior derecha para cerrar la ventana, las '
+    'flechas de navegacion izquierda/derecha para pasar a la foto anterior o siguiente de la misma '
+    'S, y la descripcion automatica generada por IA debajo de la foto. Si la descripcion no se ha '
+    'generado todavia (porque la IA esta procesando la imagen o porque fallo la generacion), se '
+    'muestra el texto "Descripcion no disponible" en su lugar. El usuario puede solicitar manualmente '
+    'la regeneracion de la descripcion desde el boton "Regenerar descripcion" situado junto al texto.'
+))
+
+story.append(Spacer12())
+story.append(add_heading('<b>8.3 Descripcion automatica con IA (VLM)</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'A partir de la version 2.60, cada foto subida a la aplicacion se envia automaticamente a un '
+    'modelo de vision por computador (VLM, Vision Language Model) que genera una descripcion textual '
+    'del contenido de la imagen. La descripcion se almacena junto a la foto y es visible tanto en '
+    'la biblioteca de fotos como en el visor de fotos. Esta funcionalidad tiene tres objetivos: '
+    'primero, facilitar la busqueda de fotos por contenido textual (sin tener que abrir cada foto '
+    'para saber que muestra); segundo, proporcionar una descripcion objetiva que el auditor puede '
+    'utilizar como referencia al evaluar el cumplimiento; y tercero, servir como registro accesible '
+    'para usuarios con discapacidad visual que utilicen lectores de pantalla.'
+))
+story.append(Body(
+    'El modelo VLM analiza la imagen e identifica elementos como: tipo de objeto o zona fotografiada '
+    '(por ejemplo, "estanteria con material de almacen", "puesto de trabajo con maquina herramienta", '
+    '"suelo con manchas de aceite"), estado visible (limpio, sucio, ordenado, desordenado), presencia '
+    'de elementos especificos (cajas, herramientas, senalizacion, contenedores) y cualquier otra '
+    'caracteristica observable. La descripcion se genera en espanol y tiene una extension tipica de '
+    'entre 30 y 80 palabras. La generacion es automatica al subir la foto, pero puede fallar si el '
+    'servicio de IA no esta disponible; en ese caso, la foto se almacena igualmente y la descripcion '
+    'se regenera en un segundo intento o manualmente desde el boton "Regenerar descripcion".'
+))
+story.append(Note(
+    'Importante: la descripcion generada por IA es orientativa y no sustituye el criterio del auditor. '
+    'El modelo puede no detectar elementos especificos del entorno industrial (numero de serie, '
+    'etiquetas pequenas, defectos sutiles). La descripcion debe utilizarse como apoyo al analisis, '
+    'no como unica fuente de informacion para evaluar el cumplimiento 5S.'
+))
+
+story.append(Spacer12())
+story.append(add_heading('<b>8.4 Calidad de las fotos y prevencion de fotos "negras"</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'En versiones anteriores se detecto un problema por el cual algunas fotos subidas desde dispositivos '
+    'moviles aparecian totalmente negras en la biblioteca. La causa raiz era un bug en la funcion de '
+    'compresion de imagenes (compressImage) que, en determinados navegadores, devolvia un JPEG con todos '
+    'los pixeles a cero. A partir de la version 2.59 se ha sustituido el algoritmo de compresion por '
+    'una implementacion mas robusta que verifica la integridad del JPEG resultante antes de almacenarlo; '
+    'si la compresion falla, se reintentara con un nivel de calidad inferior, y si sigue fallando, se '
+    'almacenara la imagen original sin comprimir (lo que aumenta el tamano del archivo pero garantiza '
+    'que la foto sea visible). Adicionalmente, se ha anadido una validacion visual en el cliente que '
+    'comprueba que la imagen tenga pixeles no negros antes de confirmar la subida, evitando que fotos '
+    'corruptas lleguen al servidor.'
+))
+
 # ═══════════════════════════════════════════════════════════════════════════
 # SECTION 8: INVENTARIOS
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1100,7 +1235,7 @@ story.append(make_table(
     col_ratios=[0.06, 0.16, 0.38, 0.40]
 ))
 story.append(Spacer6())
-story.append(Paragraph('Tabla 5. Resumen de inventarios por S', style_caption))
+story.append(Paragraph('Tabla 7. Resumen de inventarios por S', style_caption))
 
 story.append(Spacer12())
 story.append(add_heading('<b>9.1 Anadir elementos al inventario</b>', style_h2, level=1))
@@ -1129,6 +1264,56 @@ story.append(Body(
     'tableta y despues cargar los datos en la aplicacion.'
 ))
 
+story.append(Spacer12())
+story.append(add_heading('<b>9.3 Del inventario al Plan de Accion</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'A partir de la version 2.60, cada item del inventario puede generar directamente una accion en '
+    'el Plan de Accion sin necesidad de pasar por una autoevaluacion o auditoria. Esto es especialmente '
+    'util para los casos en los que, durante la propia realizacion del inventario, el empleado detecta '
+    'una desviacion que requiere correccion inmediata (por ejemplo, un punto de suciedad en la 3S con '
+    'nivel alto, o un elemento innecesario en la 1S cuya decision final aun no se ha tomado). El boton '
+    '"Crear accion" situado en la ficha de cada item del inventario abre el formulario de nueva accion '
+    'con los campos S, Item, Hallazgo y Origen pre-rellenados a partir del propio item, lo que evita '
+    'la introduccion manual de datos duplicados y acelera el registro.'
+))
+story.append(Body(
+    'La accion creada desde el inventario tiene el campo "Origen" marcado como "Inventario", lo que '
+    'permite diferenciarla posteriormente en el Plan de Accion de las acciones originadas en autoevaluaciones '
+    '(Origen = "Autoevaluacion") o en auditorias externas (Origen = "Auditoria"). Esta trazabilidad es '
+    'importante para el analisis posterior, ya que permite identificar que tipo de deteccion esta '
+    'siendo mas productiva en cada zona. Adicionalmente, el item del inventario queda enlazado a la '
+    'accion mediante una referencia interna, de modo que al resolver la accion se ofrece la opcion de '
+    'actualizar automaticamente el estado del item (por ejemplo, pasar un innecesario de "Dudoso" a '
+    '"Necesario" si la accion concluye que el elemento si se necesita).'
+))
+
+story.append(Spacer12())
+story.append(add_heading('<b>9.4 Diario de inventario</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'El Diario de inventario es un registro cronologico de todos los cambios realizados sobre los items '
+    'de un inventario: altas, modificaciones, eliminaciones y cambios de estado. El diario es accesible '
+    'desde el boton "Ver diario" situado en la cabecera del modal de inventario, y muestra una lista '
+    'ordenada de mayor a menor antiguedad con la siguiente informacion por entrada: fecha y hora del '
+    'cambio, usuario que lo realizo, tipo de operacion (alta, edicion, borrado, cambio de estado), '
+    'campo modificado (en el caso de ediciones) y valor anterior y nuevo. El diario permite al '
+    'responsable y al auditor reconstruir la evolucion del inventario a lo largo del tiempo, lo que '
+    'resulta util tanto para auditar la trazabilidad de las decisiones como para detectar patrones '
+    'de uso anomalous o entradas erroneas que se hayan corregido posteriormente.'
+))
+story.append(Body(
+    'El diario es de solo lectura: ningun usuario puede modificar o eliminar entradas del diario, '
+    'incluso los administradores. Esta restriccion garantiza la integridad del registro historico y '
+    'cumple con los requisitos de trazabilidad de las normativas ISO 9001 e ISO 45001 en lo relativo '
+    'al control de registros. El diario se mantiene indefinidamente; no hay politica de purga automatica. '
+    'En caso de necesitarse exportar el diario para auditorias externas, el responsable puede utilizar '
+    'el boton "Exportar diario" que genera un archivo Excel con todas las entradas filtrables por rango '
+    'de fechas, usuario y tipo de operacion.'
+))
+
 # ═══════════════════════════════════════════════════════════════════════════
 # SECTION 9: AUTOEVALUACION Y AUDITORIA
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1149,6 +1334,50 @@ story.append(Body(
     'OK (cumple), NOK (no cumple) o N/A (no aplica). Los items marcados como NOK requieren obligatoriamente '
     'indicar la referencia del hallazgo (desviacion detectada) y los puntos de mejora. Ademas, los NOK '
     'generan automaticamente acciones en el plan de accion.'
+))
+
+story.append(Spacer12())
+story.append(add_heading('<b>10.1.1 Boton "Solicitado" y delegacion al responsable (v2.62)</b>', style_h3, level=2))
+story.append(Spacer6())
+
+story.append(Body(
+    'A partir de la version 2.62 se ha modificado el flujo de la autoevaluacion interna para clarificar '
+    'las responsabilidades. El empleado ya no realiza directamente la autoevaluacion completa del checklist '
+    'de su zona; en su lugar, el empleado pulsa el boton "Solicitar autoevaluacion" (visible en el paso 4 '
+    'mientras la autoevaluacion este pendiente), lo que genera una notificacion automatica al responsable '
+    'del proyecto indicando que la zona esta lista para ser autoevaluada. El responsable es quien realmente '
+    'completa el checklist de autoevaluacion (puesto que tiene la vision global de la zona y puede '
+    'contrastar la informacion con los hallazgos de los inventarios y las fotos subidas). El boton cambia '
+    'de estado a "Solicitado" una vez pulsado, e impide volver a pulsarlo hasta que el responsable '
+    'complete o rechace la solicitud.'
+))
+story.append(Body(
+    'Este cambio se ha introducido por dos motivos. En primer lugar, porque en la practica los empleados '
+    'suelen Auto-evaluarse con exceso de benevolencia (tienden a marcar OK en items que un observador '
+    'externo marcara como NOK), lo que invalidaba el valor de la autoevaluacion como ejercicio de reflexion '
+    'critica. En segundo lugar, porque el responsable tiene acceso al historial completo de la zona '
+    '(inventarios, fotos, acciones anteriores) y puede realizar una autoevaluacion mas informada. El '
+    'empleado conserva no obstante la capacidad de subir fotos de evidencia y de abrir acciones desde '
+    'el inventario, lo que le permite contribuir activamente al proceso de deteccion de desviaciones '
+    'aunque no sea quien formalmente completa el checklist.'
+))
+
+story.append(Spacer12())
+story.append(add_heading('<b>10.1.2 Eliminacion del boton "Borrar Pasos" (v2.62)</b>', style_h3, level=2))
+story.append(Spacer6())
+
+story.append(Body(
+    'En versiones anteriores a la 2.62 existia un boton "Borrar Pasos" que permitia al responsable '
+    'reiniciar el progreso de una zona, borrando las autoevaluaciones, auditorias y en algunos casos los '
+    'inventarios. Esta funcionalidad se ha eliminado por dos razones. Primero, porque su uso era frecuente '
+    'para "borrar y empezar de cero" cuando una zona no aprobaba la auditoria, lo que destruia el '
+    'historial de progreso y la trazabilidad de las desviaciones detectadas. Segundo, porque el reinicio '
+    'no siempre se comunicaba al equipo, lo que llevaba a confusion cuando los empleados veian desaparecer '
+    'su progreso de formacion. A partir de la version 2.62, si una zona no aprueba la auditoria, las '
+    'acciones correctivas asociadas se mantienen en el plan de accion y deben resolverse antes de repetir '
+    'la auditoria; el progreso de formacion y autoevaluacion no se ve afectado, lo que permite a la zona '
+    'reintentar la auditoria sin perder el trabajo realizado. Solo el administrador del sistema puede '
+    'realizar un reinicio completo, y solo desde el panel de administracion con confirmacion explicita.'
 ))
 
 story.append(Spacer12())
@@ -1187,7 +1416,7 @@ story.append(make_table(
     col_ratios=[0.14, 0.22, 0.64]
 ))
 story.append(Spacer6())
-story.append(Paragraph('Tabla 6. Tipos de auditorias periodicas', style_caption))
+story.append(Paragraph('Tabla 8. Tipos de auditorias periodicas', style_caption))
 
 story.append(Spacer12())
 story.append(add_heading('<b>10.4 Checklist de auditoria por S</b>', style_h2, level=1))
@@ -1212,7 +1441,51 @@ story.append(make_table(
     col_ratios=[0.08, 0.92]
 ))
 story.append(Spacer6())
-story.append(Paragraph('Tabla 7. Secciones del checklist de auditoria por S', style_caption))
+story.append(Paragraph('Tabla 9. Secciones del checklist de auditoria por S', style_caption))
+
+story.append(Spacer12())
+story.append(add_heading('<b>10.5 Foto + IA describe + responsable auto (v2.64 / v2.65)</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'A partir de la version 2.64, tanto la autoevaluacion (paso 4) como la auditoria externa (paso 5) '
+    'incorporan un flujo asistido por IA para reducir la carga de escritura manual del evaluador. Cuando '
+    'el responsable o el auditor pulsa el boton "Anadir foto" en un item del checklist y sube una imagen '
+    'de evidencia, la aplicacion hace tres cosas de forma automatica y en secuencia: (1) almacena la '
+    'foto en la biblioteca de fotos de la zona; (2) envia la foto al modelo VLM (Vision Language Model) '
+    'que genera una descripcion textual del contenido de la imagen; y (3) utiliza esa descripcion para '
+    'pre-rellenar el campo "Hallazgo" del item del checklist, dejandolo editable para que el evaluador '
+    'lo revise, corrija o complete antes de guardar.'
+))
+story.append(Body(
+    'Adicionalmente, en la version 2.65 se ha anadido la asignacion automatica del responsable. Cuando '
+    'se genera un NOK en el checklist y se crea la accion asociada en el plan de accion, el sistema '
+    'intenta identificar al responsable mas adecuado utilizando las siguientes reglas en orden de '
+    'prioridad: (a) si el item del checklist esta asociado a una zona con un responsable de proyecto '
+    'asignado, ese responsable se asigna por defecto; (b) si el item esta asociado a un elemento '
+    'concreto del inventario que tiene un campo "Responsable" rellenado, se asigna esa persona; (c) '
+    'en caso contrario, el campo "Responsable" queda vacio y el responsable de proyecto debera asignarlo '
+    'manualmente. Esta asignacion automatica cubre aproximadamente el 70-80% de los casos en zonas '
+    'bien configuradas y reduce significativamente el tiempo de gestion del plan de accion.'
+))
+story.append(Body(
+    'El flujo completo de un NOK con foto es, por tanto: el evaluador sube la foto -> la IA genera la '
+    'descripcion -> el campo "Hallazgo" se pre-rellena con la descripcion (editable) -> el evaluador '
+    'ajusta el texto y anade el "Punto a mejorar" -> al guardar el NOK, se crea automaticamente la '
+    'accion en el plan de accion con el responsable auto-asignado -> se envia una notificacion al '
+    'responsable -> la accion aparece en el calendario del responsable en la fecha limite calculada '
+    'segun la prioridad (Alta = 7 dias, Media = 30 dias, Baja = 90 dias). Todo este flujo se completa '
+    'en menos de 5 segundos desde la subida de la foto, lo que permite al evaluador continuar con el '
+    'siguiente item del checklist sin interrupciones.'
+))
+story.append(Note(
+    'Importante: la descripcion generada por IA es una sugerencia, no un texto definitivo. El evaluador '
+    'es responsable del contenido final del campo "Hallazgo" y debe revisar y, si es necesario, '
+    'completar la descripcion con detalles especificos del entorno que el modelo VLM no pueda detectar '
+    '(numero de serie de una maquina, referencia de un procedimiento, nombre de una persona, etc.). La '
+    'asignacion automatica del responsable tambien es una sugerencia y puede ser modificada en cualquier '
+    'momento desde el plan de accion.'
+))
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SECTION 10: PLAN DE ACCION
@@ -1252,7 +1525,7 @@ story.append(make_table(
     col_ratios=[0.22, 0.78]
 ))
 story.append(Spacer6())
-story.append(Paragraph('Tabla 8. Campos del plan de accion', style_caption))
+story.append(Paragraph('Tabla 10. Campos del plan de accion', style_caption))
 
 story.append(Spacer12())
 story.append(add_heading('<b>11.2 Ciclo de vida de una accion</b>', style_h2, level=1))
@@ -1285,6 +1558,69 @@ story.append(Bullet('<b>Empleado:</b> Ve solo las acciones de las zonas a las qu
                      'Puede editar y actualizar las acciones que le han sido asignadas como responsable.'))
 story.append(Bullet('<b>Auditor:</b> Ve las acciones derivadas de sus auditorias para poder verificar '
                      'que las desviaciones han sido corregidas en revisiones posteriores.'))
+
+story.append(Spacer12())
+story.append(add_heading('<b>11.4 Integracion con el Calendario</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'A partir de la version 2.61, cada accion del plan de accion se refleja automaticamente en el '
+    'Calendario de acciones (accesible desde el boton "Calendario" de la toolbar). El calendario muestra '
+    'una vista mensual con tres tipos de entradas diferenciadas por color: (a) fecha limite de la accion '
+    '(marca roja, indica el plazo maximo de resolucion); (b) fecha de resolucion real (marca verde, '
+    'indica que la accion fue completada en esa fecha); y (c) reuniones de seguimiento programadas '
+    '(marca azul, indica que hay una reunion asociada a la accion en esa fecha). El calendario permite '
+    'filtrar por zona, por responsable y por tipo de evento, lo que facilita la planificacion del trabajo '
+    'del responsable y del gerente.'
+))
+story.append(Body(
+    'Cuando se crea una nueva accion, el sistema calcula automaticamente la fecha limite sumando a la '
+    'fecha de creacion el plazo asociado a la prioridad: prioridad Alta = 7 dias, prioridad Media = 30 '
+    'dias, prioridad Baja = 90 dias. Estas entradas son editables y el responsable puede modificar la '
+    'fecha limite en cualquier momento; el cambio se refleja inmediatamente en el calendario de todos '
+    'los usuarios que tienen visibilidad sobre esa accion. Si una accion alcanza su fecha limite sin '
+    'haberse resuelto, el sistema genera automaticamente un aviso al responsable y al gerente indicando '
+    'que la accion esta vencida, y la entrada del calendario cambia de color rojo a rojo intenso parpadeante '
+    'para llamar la atencion. Las acciones resueltas permanecen en el calendario durante 90 dias como '
+    'historico, despues de los cuales se ocultan automaticamente (pero se conservan en el plan de accion '
+    'con estado "Cerrada").'
+))
+
+story.append(Spacer12())
+story.append(add_heading('<b>11.5 Notificaciones automaticas</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'El plan de accion genera notificaciones automaticas a los usuarios implicados en cada accion sin '
+    'que sea necesario que ningun usuario cree manualmente el aviso. Las notificaciones se envian en los '
+    'siguientes eventos: (1) cuando se crea una nueva accion, se notifica al responsable asignado; (2) '
+    'cuando el responsable cambia, se notifica al nuevo responsable y se informa al anterior; (3) cuando '
+    'se acerca la fecha limite (con 3 dias de antelacion), se envia un recordatorio al responsable; (4) '
+    'cuando la accion se marca como resuelta, se notifica al responsable de proyecto para que la revise '
+    'y la cierre; (5) cuando la accion se cierra, se notifica al auditor que la origino (si procede de '
+    'auditoria) para que pueda verificar la correccion en la siguiente revision. Cada notificacion incluye '
+    'un enlace directo a la ficha de la accion, lo que permite al destinatario acceder al detalle con un '
+    'solo clic.'
+))
+story.append(Body(
+    'Las notificaciones se acumulan en la bandeja de Avisos (boton "Avisos" de la toolbar, el primero '
+    'de la izquierda). El boton muestra un contador con el numero de avisos no leidos; al pulsarlo se '
+    'despliega una lista con las notificaciones ordenadas de mas reciente a mas antigua. Cada notificacion '
+    'muestra el tipo de evento (con un icono identificativo), el titulo de la accion, el nombre de la '
+    'zona, la fecha de generacion y, en su caso, el numero de dias hasta la fecha limite. Las notificaciones '
+    'leidas se atenuan visualmente pero permanecen en la lista durante 30 dias, lo que permite al usuario '
+    'revisar el historial reciente. Las notificaciones no se eliminan manualmente; la purga es automatica '
+    'y se realiza en segundo plano.'
+))
+story.append(Body(
+    'Adicionalmente, las notificaciones criticas (accion vencida, NOK en auditoria oficial, solicitud '
+    'de autoevaluacion rechazada) se acompanan de un email enviado a la direccion del usuario si este '
+    'tiene configurado el correo electronico en su ficha. El email incluye el mismo contenido que la '
+    'notificacion in-app y un enlace directo a la accion. Esta doble via (in-app + email) garantiza '
+    'que los avisos importantes lleguen al destinatario incluso si no tiene la aplicacion abierta. El '
+    'usuario puede desactivar los emails desde su perfil, pero las notificaciones in-app no se pueden '
+    'desactivar ya que son la via principal de comunicacion del sistema.'
+))
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SECTION 11: SEGUIMIENTO DEL PROGRESO
@@ -1377,14 +1713,196 @@ story.append(make_table(
     col_ratios=[0.18, 0.82]
 ))
 story.append(Spacer6())
-story.append(Paragraph('Tabla 9. Estados de la Jaula de Excedentes', style_caption))
+story.append(Paragraph('Tabla 11. Estados de la Jaula de Excedentes', style_caption))
+
+story.append(Spacer12())
+story.append(add_heading('<b>13.2 Notificacion "jaula_pending"</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'Cuando un empleado clasifica un item como "Innecesario" en la 1S y marca la decision como "Jaula", '
+    'el item se incorpora a la Jaula de Excedentes con estado "en_jaula" y se genera automaticamente '
+    'una notificacion "jaula_pending" al responsable del proyecto. Esta notificacion tiene por objeto '
+    'informar al responsable de que hay un nuevo elemento en la Jaula a la espera de revision, para que '
+    'pueda decidir su destino final (reclamacion por otra zona, traslado, eliminacion, donacion o venta) '
+    'dentro de un plazo razonable. La notificacion permanece en la bandeja de Avisos hasta que el '
+    'responsable cambia el estado del item a "reclamado", "transferido" o lo elimina de la Jaula.'
+))
+story.append(Body(
+    'Adicionalmente, si un item permanece en estado "en_jaula" mas de 30 dias sin que ningun responsable '
+    'haya cambiado su estado, el sistema genera una notificacion de "jaula_pending_vencido" al gerente '
+    'de la empresa, indicando que la Jaula esta acumulando elementos sin gestionar. Esta doble notificacion '
+    '(al responsable al crear, al gerente si se vence) asegura que ningun elemento quede olvidado en la '
+    'Jaula, lo que seria contrario al principio de mejora continua que sostiene a la metodologia 5S. El '
+    'gerente puede filtrar el plan de accion por origen "Jaula" para ver todos los items pendientes de '
+    'gestion en una sola vista.'
+))
 
 # ═══════════════════════════════════════════════════════════════════════════
-# SECTION 13: PREGUNTAS FRECUENTES
+# SECTION 14: CALENDARIO DE ACCIONES
 # ═══════════════════════════════════════════════════════════════════════════
 
 story.append(Spacer24())
-story.append(add_heading('<b>14. Preguntas Frecuentes</b>', style_h1, level=0))
+story.append(add_heading('<b>14. Calendario de Acciones</b>', style_h1, level=0))
+story.append(Spacer6())
+
+story.append(Body(
+    'El Calendario de Acciones es la vista mensual que consolida todos los eventos temporales asociados '
+    'al Plan de Accion: fechas limite de las acciones, fechas reales de resolucion y reuniones de '
+    'seguimiento programadas. El calendario es accesible desde el boton "Calendario" de la barra de '
+    'herramientas superior (tercer boton, despues de Avisos y Plan Acc.) y esta disponible para todos '
+    'los roles con permiso para ver acciones del plan de accion, es decir, responsables, gerentes y '
+    'auditores. Los empleados no tienen acceso al calendario porque no tienen visibilidad sobre el plan '
+    'de accion completo; en su lugar, ven un calendario reducido "Mi Calendario" que muestra unicamente '
+    'las acciones que tienen asignadas como responsables de ejecucion.'
+))
+
+story.append(Spacer12())
+story.append(add_heading('<b>14.1 Vista mensual y entradas</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'El calendario se presenta como una cuadricula mensual de 7 columnas (lunes a domingo) y 5-6 filas '
+    '(semanas), con los dias del mes en cada celda. Las entradas se muestran como pequenos puntos de '
+    'color en la esquina superior derecha de cada dia, acompañados de un texto breve con el titulo de '
+    'la accion. Al pulsar sobre una entrada se abre la ficha completa de la accion asociada. Los tipos '
+    'de entrada y sus colores son los siguientes:'
+))
+calendar_entries = [
+    ['Limite (rojo)', 'Indica la fecha limite de resolucion de una accion. Si la accion no se ha resuelto a esa fecha, se convierte en vencida.'],
+    ['Resolucion (verde)', 'Indica la fecha real en que una accion fue marcada como resuelta. Solo aparece en acciones ya resueltas.'],
+    ['Reunion (azul)', 'Indica una reunion de seguimiento programada para esa accion. Las reuniones se crean desde la ficha de la accion.'],
+    ['Vencida (rojo intenso)', 'Indica una accion cuya fecha limite ha pasado y que aun no ha sido resuelta. Acompanada de notificacion automatica al responsable y al gerente.'],
+    ['Cerrada (gris)', 'Indica una accion cerrada (verificada por el responsable). Permanece 90 dias en el calendario como historico.'],
+]
+story.append(make_table(
+    ['Tipo de entrada', 'Descripcion'],
+    calendar_entries,
+    col_ratios=[0.22, 0.78]
+))
+story.append(Spacer6())
+story.append(Paragraph('Tabla 12. Tipos de entradas del Calendario de Acciones', style_caption))
+
+story.append(Spacer12())
+story.append(add_heading('<b>14.2 Filtros y navegacion</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'El calendario ofrece tres filtros combinables: por zona, por responsable y por tipo de evento. '
+    'Los filtros son acumulativos (se aplica la interseccion de todos los seleccionados) y se mantienen '
+    'al cambiar de mes. La navegacion entre meses se realiza con las flechas izquierda y derecha situadas '
+    'en la cabecera del calendario, junto al nombre del mes y el ano en curso. Hay un boton "Hoy" que '
+    'devuelve la vista al mes actual. Por defecto, el calendario se abre en el mes actual; si el usuario '
+    'esta revisando el calendario en una fecha futura (por ejemplo, para planificar reuniones) y vuelve '
+    'a entrar en la aplicacion, el calendario recordara el ultimo mes visualizado durante 24 horas, '
+    'despues de las cuales volvera al mes actual.'
+))
+
+story.append(Spacer12())
+story.append(add_heading('<b>14.3 Programacion de reuniones de seguimiento</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'Desde la ficha de cualquier accion del plan de accion, el responsable puede programar una reunion '
+    'de seguimiento pulsando el boton "Programar reunion". Se abre un formulario en el que se indican: '
+    'fecha y hora de la reunion, duracion prevista (15, 30, 60 o 90 minutos), participantes (responsable '
+    'de la accion, empleado asignado, auditor si procede, y cualquier otro usuario anadido manualmente) '
+    'y orden del dia (texto libre). Al guardar, la reunion se crea como entrada azul en el calendario '
+    'de todos los participantes y se envia una notificacion automatica a cada uno con los datos de la '
+    'reunion. Las reuniones se sincronizan con el calendario personal del responsable si este ha '
+    'configurado la integracion con Google Calendar o Microsoft Outlook desde su perfil de usuario.'
+))
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SECTION 15: AVISOS Y NOTIFICACIONES
+# ═══════════════════════════════════════════════════════════════════════════
+
+story.append(Spacer24())
+story.append(add_heading('<b>15. Avisos y Notificaciones</b>', style_h1, level=0))
+story.append(Spacer6())
+
+story.append(Body(
+    'El sistema de Avisos y Notificaciones es el canal de comunicacion interno de la aplicacion 5S. '
+    'Recopila todos los eventos que requieren la atencion del usuario (nuevas acciones asignadas, '
+    'acciones proximas a vencer, solicitudes de autoevaluacion, items pendientes en la Jaula, etc.) '
+    'y los presenta en una bandeja unificada accesible desde el primer boton de la barra de herramientas '
+    'superior. El sistema esta diseñado para minimizar el ruido informativo: cada usuario recibe '
+    'exclusivamente las notificaciones relevantes para su rol y su nivel organizativo, y las notificaciones '
+    'se agrupan y priorizan para evitar la saturacion.'
+))
+
+story.append(Spacer12())
+story.append(add_heading('<b>15.1 Tipos de notificaciones</b>', style_h2, level=1))
+story.append(Spacer6())
+
+notif_types = [
+    ['action_created', 'Nueva accion asignada', 'Se ha creado una accion en el plan de accion y se ha asignado al usuario como responsable.'],
+    ['action_due_soon', 'Accion proxima a vencer', 'Faltan 3 dias o menos para la fecha limite de una accion asignada al usuario y aun no se ha resuelto.'],
+    ['action_overdue', 'Accion vencida', 'La fecha limite de una accion asignada al usuario ha pasado y la accion sigue sin resolver.'],
+    ['action_resolved', 'Accion resuelta', 'Una accion asignada a un empleado del usuario ha sido marcada como resuelta y espera verificacion.'],
+    ['action_closed', 'Accion cerrada', 'Una accion ha sido cerrada por el responsable. Se notifica al auditor si la accion provino de auditoria.'],
+    ['autoeval_requested', 'Solicitud de autoevaluacion', 'Un empleado ha solicitado que se realice la autoevaluacion de su zona. Se notifica al responsable.'],
+    ['autoeval_rejected', 'Solicitud rechazada', 'El responsable ha rechazado la solicitud de autoevaluacion. Se notifica al empleado solicitante.'],
+    ['jaula_pending', 'Item en Jaula', 'Se ha anadido un item a la Jaula de Excedentes. Se notifica al responsable del proyecto.'],
+    ['jaula_pending_vencido', 'Item en Jaula vencido', 'Un item lleva mas de 30 dias en la Jaula sin gestion. Se notifica al gerente.'],
+    ['meeting_scheduled', 'Reunion programada', 'Se ha programado una reunion de seguimiento y el usuario ha sido invitado.'],
+    ['audit_completed', 'Auditoria completada', 'Se ha completado una auditoria en una zona del usuario. Incluye la puntuacion obtenida.'],
+]
+story.append(make_table(
+    ['Codigo', 'Nombre', 'Descripcion'],
+    notif_types,
+    col_ratios=[0.22, 0.22, 0.56]
+))
+story.append(Spacer6())
+story.append(Paragraph('Tabla 13. Tipos de notificaciones del sistema', style_caption))
+
+story.append(Spacer12())
+story.append(add_heading('<b>15.2 Bandeja de Avisos y ciclo de vida</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'La bandeja de Avisos se abre al pulsar el boton "Avisos" de la toolbar. Muestra una lista vertical '
+    'con las notificaciones ordenadas de mas reciente a mas antigua. El boton de la toolbar muestra un '
+    'contador con el numero de avisos no leidos; cuando hay 5 o mas, el contador muestra "5+ avisos" '
+    'en lugar del numero exacto, para evitar que ocupe demasiado espacio. Al abrir la bandeja, las '
+    'notificaciones no leidas se resaltan con un fondo ligeramente coloreado y un punto azul a la '
+    'izquierda; las leidas se muestran con fondo blanco y texto atenuado. Al pulsar sobre una '
+    'notificacion, esta se marca como leida automaticamente y se abre la ficha asociada (accion, '
+    'reunion, item de inventario, etc.).'
+))
+story.append(Body(
+    'Las notificaciones tienen un ciclo de vida de tres estados: (1) "no leida" desde su creacion hasta '
+    'que el usuario pulsa sobre ella; (2) "leida" durante 30 dias, despues de los cuales se eliminan '
+    'automaticamente (purga en segundo plano); (3) "eliminada" si el usuario pulsa el boton "X" de la '
+    'notificacion para descartarla manualmente. Las notificaciones de tipo "action_overdue" y "jaula_pending_vencido" '
+    'no se pueden eliminar manualmente ni purgar automaticamente mientras la condicion que las origino '
+    'siga activa; permanecen en la bandeja hasta que la accion se resuelve o el item se gestiona, lo '
+    'que garantiza que ningun aviso critico quede ignorado. El usuario puede marcar todas las notificaciones '
+    'como leidas con el boton "Marcar todo como leido" situado en la cabecera de la bandeja.'
+))
+
+story.append(Spacer12())
+story.append(add_heading('<b>15.3 Notificaciones por email</b>', style_h2, level=1))
+story.append(Spacer6())
+
+story.append(Body(
+    'Las notificaciones consideradas criticas (action_overdue, jaula_pending_vencido, autoeval_rejected, '
+    'audit_completed con puntuacion inferior al 75%) se acompañan de un email enviado a la direccion de '
+    'correo configurada en la ficha del usuario. El email incluye el mismo contenido que la notificacion '
+    'in-app, formateado en HTML responsive para facilitar su lectura en movil, y un enlace directo a la '
+    'ficha asociada. El enlace contiene un token de autenticacion temporal valido durante 24 horas, por '
+    'lo que el usuario puede acceder al detalle sin tener que iniciar sesion si ya la habia iniciado '
+    'recientemente. Las notificaciones no criticas (action_created, action_resolved, meeting_scheduled) '
+    'se envian unicamente in-app para evitar saturar el correo del usuario. Cada usuario puede activar '
+    'o desactivar los emails desde su perfil, pero las notificaciones in-app no se pueden desactivar.'
+))
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SECTION 16: PREGUNTAS FRECUENTES
+# ═══════════════════════════════════════════════════════════════════════════
+
+story.append(Spacer24())
+story.append(add_heading('<b>16. Preguntas Frecuentes</b>', style_h1, level=0))
 story.append(Spacer6())
 
 faqs = [
@@ -1421,6 +1939,56 @@ faqs = [
     ('Se puede repetir un examen de formacion?',
      'Si, no hay limite de intentos. Si un empleado no alcanza el 80% minimo, puede repasar el '
      'material formativo y volver a presentarse al examen cuantas veces sea necesario.'),
+    ('Por que ha cambiado el orden de los botones de la toolbar?',
+     'En la version 2.65 se ha reordenado la barra de herramientas superior siguiendo el flujo natural '
+     'de trabajo del operador: primero se consultan los avisos pendientes (Avisos), despues se gestionan '
+     'las acciones (Plan Acc.), luego se revisa el calendario de compromisos (Calendario), y por ultimo '
+     'se gestionan los recursos visuales y logisticos (Fotos, Jaula, Activos, P. Limpio, Estandares). '
+     'El nuevo orden de izquierda a derecha es: Avisos, Plan Acc., Calendario, Fotos, Jaula, Activos, '
+     'P. Limpio, Estandares.'),
+    ('Que hace la IA cuando subo una foto?',
+     'A partir de la version 2.60, cada foto subida se envia a un modelo VLM (Vision Language Model) que '
+     'genera automaticamente una descripcion textual del contenido de la imagen. La descripcion se almacena '
+     'junto a la foto y es visible en la biblioteca de fotos y en el visor de fotos. En autoevaluaciones '
+     'y auditorias (v2.64), la descripcion se utiliza ademas para pre-rellenar el campo "Hallazgo" del '
+     'item del checklist, lo que ahorra tiempo de escritura al evaluador. La descripcion es editable y '
+     'el evaluador puede completarla o corregirla antes de guardar.'),
+    ('Como se asigna el responsable cuando se crea un NOK?',
+     'En la version 2.65, al crear un NOK en una autoevaluacion o auditoria, el sistema intenta asignar '
+     'automaticamente el responsable siguiendo estas reglas: (a) si el item esta asociado a un elemento '
+     'del inventario con campo "Responsable" rellenado, se asigna esa persona; (b) en caso contrario, '
+     'se asigna al responsable del proyecto de la zona; (c) si tampoco hay responsable de proyecto, el '
+     'campo queda vacio y debe asignarse manualmente desde el plan de accion. La asignacion automatica '
+     'cubre aproximadamente el 70-80% de los casos en zonas bien configuradas.'),
+    ('Por que ha desaparecido el boton "Borrar Pasos"?',
+     'En la version 2.62 se ha eliminado el boton "Borrar Pasos" porque su uso frecuente para reiniciar '
+     'zonas que no aprobaban la auditoria destruia el historial de progreso y la trazabilidad de las '
+     'desviaciones. A partir de la v2.62, si una zona no aprueba la auditoria, las acciones correctivas '
+     'asociadas se mantienen en el plan de accion y deben resolverse antes de repetir la auditoria; el '
+     'progreso de formacion y autoevaluacion no se ve afectado. Solo el administrador puede realizar un '
+     'reinicio completo desde el panel de administracion.'),
+    ('Puede un empleado realizar la autoevaluacion de su zona?',
+     'No. A partir de la version 2.62, el empleado pulsa el boton "Solicitar autoevaluacion" en el paso 4, '
+     'lo que genera una notificacion al responsable del proyecto. El responsable es quien formalmente '
+     'completa el checklist de autoevaluacion, ya que tiene vision global de la zona y acceso al historial '
+     'completo (inventarios, fotos, acciones anteriores). El empleado conserva la capacidad de subir fotos '
+     'de evidencia y de abrir acciones desde el inventario, contribuyendo asi al proceso de deteccion '
+     'de desviaciones.'),
+    ('Como funciona el Calendario de Acciones?',
+     'El calendario (boton "Calendario" de la toolbar) muestra una vista mensual con tres tipos de entradas: '
+     'fecha limite (rojo), fecha de resolucion real (verde) y reuniones de seguimiento (azul). Al crear '
+     'una accion, el sistema calcula la fecha limite sumando a la fecha de creacion el plazo asociado a '
+     'la prioridad (Alta = 7 dias, Media = 30 dias, Baja = 90 dias). Si la accion se vence sin resolver, '
+     'se genera automaticamente un aviso al responsable y al gerente. Desde la ficha de cualquier accion '
+     'se puede programar una reunion de seguimiento que aparecera como entrada azul en el calendario de '
+     'todos los participantes.'),
+    ('Las notificaciones se pueden desactivar?',
+     'Las notificaciones in-app (bandeja de Avisos) no se pueden desactivar, ya que son la via principal '
+     'de comunicacion del sistema. Las notificaciones por email, que se envian unicamente para eventos '
+     'criticos (accion vencida, jaula vencida, solicitud rechazada, auditoria suspensa), se pueden '
+     'activar o desactivar desde el perfil del usuario. Las notificaciones leidas se purgan automaticamente '
+     'tras 30 dias, excepto las de tipo action_overdue y jaula_pending_vencido que permanecen hasta que '
+     'se resuelve la condicion que las origino.'),
 ]
 
 for i, (q, a) in enumerate(faqs, 1):
@@ -1429,11 +1997,11 @@ for i, (q, a) in enumerate(faqs, 1):
     story.append(Spacer6())
 
 # ═══════════════════════════════════════════════════════════════════════════
-# SECTION 14: GLOSARIO
+# SECTION 17: GLOSARIO
 # ═══════════════════════════════════════════════════════════════════════════
 
 story.append(Spacer24())
-story.append(add_heading('<b>15. Glosario de Terminos</b>', style_h1, level=0))
+story.append(add_heading('<b>17. Glosario de Terminos</b>', style_h1, level=0))
 story.append(Spacer6())
 
 glossary = [
@@ -1450,6 +2018,23 @@ glossary = [
     ['NOK', 'Item del checklist que no cumple con el criterio evaluado (No OK).'],
     ['PDCA', 'Ciclo Planificar-Hacer-Verificar-Actuar, base de la mejora continua.'],
     ['Poka-yoke', 'Sistema a prueba de errores que impide que se cometa un error de forma involuntaria.'],
+    ['Biblioteca de Fotos', 'Repositorio centralizado de todas las fotografias subidas en cualquier paso 2, accesible desde el boton "Fotos" de la toolbar. Incluye descripcion automatica generada por IA.'],
+    ['VLM', 'Vision Language Model. Modelo de IA capaz de analizar una imagen y generar una descripcion textual de su contenido. Se utiliza para describir automaticamente las fotos subidas a la aplicacion.'],
+    ['Lightbox', 'Visor de fotos a tamano completo que se abre al pulsar sobre una miniatura. A partir de v2.58 tiene fondo blanco para mejorar la visibilidad de los bordes de la imagen.'],
+    ['compressImage', 'Funcion interna de la aplicacion que comprime las fotos antes de subirlas al servidor para reducir el consumo de ancho de banda y el espacio de almacenamiento. En v2.59 se ha mejorado para evitar el bug de las fotos negras.'],
+    ['Diario de inventario', 'Registro cronologico de todos los cambios (altas, ediciones, borrados, cambios de estado) realizados sobre los items de un inventario. Es de solo lectura y no se puede purgar manualmente.'],
+    ['Plan de Accion', 'Herramienta central de la mejora continua 5S. Convierte cada NOK detectado en autoevaluaciones, auditorias o inventarios en una accion concreta con responsable, prioridad y fecha limite.'],
+    ['Origen (de una accion)', 'Campo del plan de accion que indica como se genero la accion: Autoevaluacion, Auditoria o Inventario. Permite filtrar y analizar la productividad de cada tipo de deteccion.'],
+    ['Calendario de Acciones', 'Vista mensual que consolida fechas limite, fechas de resolucion y reuniones de seguimiento de todas las acciones del plan de accion. Accesible desde el boton "Calendario" de la toolbar.'],
+    ['Bandeja de Avisos', 'Lista unificada de notificaciones del sistema, accesible desde el boton "Avisos" de la toolbar. Muestra contador de no leidos y purga automaticamente las notificaciones leidas tras 30 dias.'],
+    ['Notificacion in-app', 'Mensaje interno de la aplicacion que aparece en la bandeja de Avisos. No se puede desactivar y es la via principal de comunicacion del sistema.'],
+    ['Notificacion por email', 'Email enviado automaticamente para eventos criticos (accion vencida, jaula vencida, solicitud rechazada, auditoria suspensa). Se puede activar o desactivar desde el perfil del usuario.'],
+    ['jaula_pending', 'Tipo de notificacion que se genera al anadir un item a la Jaula de Excedentes. Se envia al responsable del proyecto.'],
+    ['jaula_pending_vencido', 'Tipo de notificacion que se genera cuando un item lleva mas de 30 dias en la Jaula sin gestion. Se envia al gerente de la empresa.'],
+    ['Solicitado (estado)', 'Estado del boton de solicitud de autoevaluacion. Indica que el empleado ha solicitado al responsable que realice la autoevaluacion de la zona y esta pendiente de respuesta.'],
+    ['Borrar Pasos', 'Boton eliminado en v2.62. Permitia reiniciar el progreso de una zona, borrando autoevaluaciones y auditorias. Su eliminacion garantiza la trazabilidad del historial.'],
+    ['Toolbar', 'Barra de herramientas superior de la aplicacion. Orden vigente (v2.65): Avisos, Plan Acc., Calendario, Fotos, Jaula, Activos, P. Limpio, Estandares.'],
+    ['Mi Calendario', 'Version reducida del Calendario de Acciones visible para empleados. Muestra unicamente las acciones que tienen asignadas como responsables de ejecucion.'],
 ]
 story.append(make_table(
     ['Termino', 'Definicion'],
@@ -1457,7 +2042,7 @@ story.append(make_table(
     col_ratios=[0.22, 0.78]
 ))
 story.append(Spacer6())
-story.append(Paragraph('Tabla 10. Glosario de terminos', style_caption))
+story.append(Paragraph('Tabla 14. Glosario de terminos', style_caption))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
