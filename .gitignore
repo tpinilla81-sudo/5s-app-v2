@@ -1,13 +1,13 @@
-skills/
-node_modules/
-
-# Next.js build output
-.next/
 
 # Environment variables — MUST be set in Vercel dashboard, never in repo
+# Next.js build output
 .env
+.env.*.local
 .env.local
 .env.production
-.env.*.local
-tsconfig.tsbuildinfo
+.next/
 dev-local.log
+node_modules/
+skills/
+tsconfig.tsbuildinfo
+upload/
