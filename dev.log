@@ -1,93 +1,13 @@
 ▲ Next.js 16.1.3 (Turbopack)
 - Local:         http://localhost:3000
-- Network:       http://21.0.20.129:3000
+- Network:       http://21.0.1.26:3000
+- Environments: .env
 
 ✓ Starting...
 ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
-✓ Ready in 2s
+✓ Ready in 815ms
 ○ Compiling / ...
 ⚠ metadataBase property in metadata export is not set for resolving social open graph or twitter images, using "http://localhost:3000". See https://nextjs.org/docs/app/api-reference/functions/generate-metadata#metadatabase
- GET / 200 in 11.1s (compile: 10.6s, proxy.ts: 87ms, render: 480ms)
-[db.ts] DATABASE_URL misconfigured: file:/home/z/my-project/db/custom.db...
-prisma:error 
-Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].contactRequest.findMany()` invocation in
-/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__8db61589._.js:293:168
-
-  290 async function GET() {
-  291     try {
-  292         // @ts-expect-error: contactRequest puede no existir en el cliente Prisma
-→ 293         const requests = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].contactRequest.findMany(
-The table `main.ContactRequest` does not exist in the current database.
-[contact] GET: tabla no disponible: Error [PrismaClientKnownRequestError]: 
-Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].contactRequest.findMany()` invocation in
-/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__8db61589._.js:293:168
-
-  290 async function GET() {
-  291     try {
-  292         // @ts-expect-error: contactRequest puede no existir en el cliente Prisma
-→ 293         const requests = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].contactRequest.findMany(
-The table `main.ContactRequest` does not exist in the current database.
-    at <unknown> (src/app/api/contact/route.ts:101:46)
-    at async GET (src/app/api/contact/route.ts:101:22)
-   99 |   try {
-  100 |     // @ts-expect-error: contactRequest puede no existir en el cliente Prisma
-> 101 |     const requests = await db.contactRequest.findMany({
-      |                                              ^
-  102 |       orderBy: { createdAt: 'desc' },
-  103 |       take: 100,
-  104 |     }) {
-  code: 'P2021',
-  meta: [Object],
-  clientVersion: '6.19.3'
-}
- GET /api/contact 200 in 540ms (compile: 210ms, proxy.ts: 4ms, render: 326ms)
-prisma:error 
-Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].contactRequest.create()` invocation in
-/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__8db61589._.js:253:155
-
-  250 // @ts-expect-error: contactRequest se añadió al schema pero Prisma Client
-  251 // puede no haber sido regenerado en todos los entornos. Si falla, se
-  252 // cae al catch y el mensaje se registra en logs.
-→ 253 await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].contactRequest.create(
-The table `main.ContactRequest` does not exist in the current database.
-[contact] No se pudo guardar en DB (tabla no migrada?): Error [PrismaClientKnownRequestError]: 
-Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].contactRequest.create()` invocation in
-/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__8db61589._.js:253:155
-
-  250 // @ts-expect-error: contactRequest se añadió al schema pero Prisma Client
-  251 // puede no haber sido regenerado en todos los entornos. Si falla, se
-  252 // cae al catch y el mensaje se registra en logs.
-→ 253 await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$db$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["db"].contactRequest.create(
-The table `main.ContactRequest` does not exist in the current database.
-    at <unknown> (src/app/api/contact/route.ts:59:31)
-    at async POST (src/app/api/contact/route.ts:59:7)
-  57 |       // puede no haber sido regenerado en todos los entornos. Si falla, se
-  58 |       // cae al catch y el mensaje se registra en logs.
-> 59 |       await db.contactRequest.create({
-     |                               ^
-  60 |         data: {
-  61 |           name: cleanName,
-  62 |           email: cleanEmail, {
-  code: 'P2021',
-  meta: [Object],
-  clientVersion: '6.19.3'
-}
-[contact] Nueva solicitud recibida: {
-  name: 'Test',
-  email: 'test@test.com',
-  company: '(sin empresa)',
-  hasPhone: false,
-  messageLength: 4,
-  timestamp: '2026-08-13T09:36:59.306Z'
-}
- POST /api/contact 200 in 149ms (compile: 4ms, proxy.ts: 14ms, render: 132ms)
-✓ Compiled in 76ms
-⚠ metadataBase property in metadata export is not set for resolving social open graph or twitter images, using "http://localhost:3000". See https://nextjs.org/docs/app/api-reference/functions/generate-metadata#metadatabase
- GET / 200 in 531ms (compile: 137ms, proxy.ts: 19ms, render: 376ms)
- GET / 200 in 513ms (compile: 97ms, proxy.ts: 4ms, render: 411ms)
-✓ Compiled in 97ms
-⚠ metadataBase property in metadata export is not set for resolving social open graph or twitter images, using "http://localhost:3000". See https://nextjs.org/docs/app/api-reference/functions/generate-metadata#metadatabase
- GET / 200 in 376ms (compile: 120ms, proxy.ts: 20ms, render: 236ms)
- GET / 200 in 350ms (compile: 80ms, proxy.ts: 4ms, render: 266ms)
-✓ Compiled in 68ms
-✓ Compiled in 215ms
+ GET / 200 in 8.9s (compile: 8.4s, proxy.ts: 3ms, render: 501ms)
+ GET / 200 in 16.8s (compile: 16.3s, proxy.ts: 57ms, render: 469ms)
+0 in 16.8s (compile: 16.3s, proxy.ts: 57ms, render: 469ms)

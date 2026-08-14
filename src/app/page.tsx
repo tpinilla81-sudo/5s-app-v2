@@ -361,7 +361,7 @@ export default function HomePage() {
   // Loading screen
   if (isAuthLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-green-50 via-white to-emerald-50 gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-green-50 gap-4">
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200 }}
           className="w-16 h-16">
           <img src="/5s-logo.png" alt="5S" className="w-full h-full object-contain" />
@@ -379,7 +379,7 @@ export default function HomePage() {
   if (authView === 'admin_panel') return <AdminPanel onLogout={handleLogout} />;
   if (authView === 'no_projects') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-white to-emerald-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-green-50 p-4">
         <div className="w-full max-w-md text-center">
           <div className="w-20 h-20 mx-auto mb-6">
             <img src="/5s-logo.png" alt="5S" className="w-full h-full object-contain" />
@@ -399,9 +399,9 @@ export default function HomePage() {
   // SINGLE-SCREEN LAYOUT WITH TABS
   // ============================================================
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-b from-gray-50 to-white overflow-hidden">
+    <div className="h-screen flex flex-col bg-green-50 overflow-hidden">
       {/* Compact Header */}
-      <header className="border-b bg-white/90 backdrop-blur-sm shrink-0 z-20">
+      <header className="border-b border-green-200 bg-green-50/90 backdrop-blur-sm shrink-0 z-20">
         <div className="px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8">
