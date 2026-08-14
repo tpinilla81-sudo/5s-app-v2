@@ -186,7 +186,10 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
 
       // Create each item via POST so they get database IDs
       for (const item of itemsToCreate) {
-        const isInnecesario = sStep === 1 && item.category === 'innecesario';
+        // v2.54: en S1 todos los items son innecesario por definición (la columna
+        // Categoría se renderiza hardcoded como 'Innecesario'), así que no exigimos
+        // que item.category === 'innecesario' — bast con estar en S1.
+        const isInnecesario = sStep === 1 || item.category === 'innecesario';
         const isNecesario = sStep === 1 && item.category === 'necesario';
         const qty = item.quantity || 1;
         const extra = { ...(item.extra || {}) };
@@ -429,11 +432,12 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
             category: item.category || '',
             quantity: item.quantity || 1,
             // S1: Set quantities based on category (innecesario or necesario)
+            // v2.54: en S1, si category es vacío o distinto, tratar como innecesario
             quantityNeeded: sStep === 1
               ? (item.category === 'necesario' ? (item.quantityNeeded || item.quantity || 1) : 0)
               : (item.quantityNeeded || 0),
             quantityUnneeded: sStep === 1
-              ? (item.category === 'innecesario' ? (item.quantityUnneeded || item.quantity || 1) : 0)
+              ? (item.category !== 'necesario' ? (item.quantityUnneeded || item.quantity || 1) : 0)
               : (item.quantityUnneeded || 0),
             price: item.price ?? null,
             action: item.action || '',
@@ -451,6 +455,28 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
         setItems(mappedItems);
         setItemPhotos(photosMap);
 
+        // v2.54: backfill crítico — En S1 todos los items son 'innecesario' por definición.
+        // Pero items creados desde fotos del Paso 2 (migrateOrphanPhotos) se guardaban con
+        // category='' (string vacío), lo que rompía TODA la lógica automática:
+        //   - Z Destino no mostraba 'Jaula'/'Residuo'
+        //   - handleAutoGenerateEtiqueta no disparaba
+        //   - jaulaStatus/jaulaFechaEntrada no se seteaban
+        // Ahora: si sStep===1 y category!=='innecesario', normalizamos y persistimos.
+        if (sStep === 1) {
+          mappedItems.forEach((it: any) => {
+            if (it.id && it.category !== 'innecesario') {
+              // 1) Normalizar en state local (inmediato)
+              setItems(prev => prev.map(x => x.id === it.id ? { ...x, category: 'innecesario' } : x));
+              // 2) Persistir en DB (background, sin await)
+              fetch(`/api/inventory?id=${it.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category: 'innecesario' }),
+              }).catch(e => console.error('Error normalizando category:', e));
+            }
+          });
+        }
+
         // v2.53: backfill — items S1 con decisión Retirar (o legacy 'Jaula')
         // pero sin etiquetaGenerada, se auto-generan al cargar el modal.
         // Esto cubre items creados antes de v2.52 que ya tenían Retirar seleccionado.
@@ -461,6 +487,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
             if (isRetirar && !it.extra?.etiquetaGenerada && it.id) {
               const enriched = {
                 ...it,
+                category: 'innecesario', // v2.54: forzar para que handleAutoGenerateEtiqueta funcione
                 jaulaStatus: it.jaulaStatus || 'en_jaula',
                 jaulaFechaEntrada: it.jaulaFechaEntrada || new Date().toISOString(),
               };
@@ -552,7 +579,10 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
             zoneId: currentZone?.id || null,
             name: DRAFT_NAME_BY_S[sStep]?.(idx + 1) || `Pendiente de clasificar (${idx + 1})`,
             location: null,
-            category: '',
+            // v2.54: en S1 todos los items son innecesario por definición;
+            // crear el borrador ya con la categoría correcta para que toda
+            // la lógica automática (Z Destino, etiqueta, jaulaStatus) funcione.
+            category: sStep === 1 ? 'innecesario' : '',
             quantity: 1,
             photoUrl: photo.photoUrl,
             extra: {
@@ -995,17 +1025,19 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
             location: item.location,
             category: item.category || config.categories[0]?.value || '',
             quantity: item.quantity || 1,
+            // v2.54: en S1, si category es vacío o distinto, tratar como innecesario
             quantityNeeded: sStep === 1 ? (item.category === 'necesario' ? (item.quantityNeeded || item.quantity || 1) : 0) : (item.quantityNeeded || 0),
-            quantityUnneeded: sStep === 1 ? (item.category === 'innecesario' ? (item.quantityUnneeded || item.quantity || 1) : 0) : (item.quantityUnneeded || 0),
+            quantityUnneeded: sStep === 1 ? (item.category !== 'necesario' ? (item.quantityUnneeded || item.quantity || 1) : 0) : (item.quantityUnneeded || 0),
             price: item.price || null,
             action: item.action || '',
             extra: item.extra || {},
             // v2.50: Retirar (legacy 'Jaula') → en_jaula; Eliminar (legacy 'Tirar') → Residuo.
-            jaulaStatus: sStep === 1 && item.category === 'innecesario' && isJaulaDecision(item.extra?.decision) ? 'en_jaula' : '',
-            jaulaFechaEntrada: sStep === 1 && item.category === 'innecesario' && isJaulaDecision(item.extra?.decision) ? new Date().toISOString() : null,
-            jaulaOrigen: sStep === 1 && item.category === 'innecesario' && isJaulaDecision(item.extra?.decision) ? item.zonaOrigen || currentZone?.name || currentProject!.name || '' : null,
+            // v2.54: en S1 no exigir item.category === 'innecesario' (podría ser '')
+            jaulaStatus: sStep === 1 && item.category !== 'necesario' && isJaulaDecision(item.extra?.decision) ? 'en_jaula' : '',
+            jaulaFechaEntrada: sStep === 1 && item.category !== 'necesario' && isJaulaDecision(item.extra?.decision) ? new Date().toISOString() : null,
+            jaulaOrigen: sStep === 1 && item.category !== 'necesario' && isJaulaDecision(item.extra?.decision) ? item.zonaOrigen || currentZone?.name || currentProject!.name || '' : null,
             zonaOrigen: item.zonaOrigen || currentZone?.name || null,
-            zonaDestino: sStep === 1 && item.category === 'innecesario' ? (isEliminarDecision(item.extra?.decision) ? 'Residuo' : 'Jaula') : (item.zonaOrigen || currentZone?.name || null),
+            zonaDestino: sStep === 1 && item.category !== 'necesario' ? (isEliminarDecision(item.extra?.decision) ? 'Residuo' : 'Jaula') : (item.zonaOrigen || currentZone?.name || null),
           }))
         ),
       });
@@ -1947,8 +1979,9 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                   </thead>
                   <tbody>
                     {items.map(item => {
-                      const isInnecesario = item.category === 'innecesario';
-                      const isNecesario = item.category === 'necesario';
+                      // v2.54: en S1, todos los items son innecesario (aunque category sea '')
+                      const isInnecesario = sStep === 1 || item.category === 'innecesario';
+                      const isNecesario = sStep !== 1 && item.category === 'necesario';
                       const canEdit = !isReadOnly && item.id;
                       const inlineInput = "h-6 text-[10px] border-0 p-0 px-1 bg-transparent";
                       const inlineSelect = "h-6 text-[10px] border-0 p-0 bg-transparent";
@@ -2067,7 +2100,8 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                 <Select value={displayDecision(item.extra?.decision)}
                                   onValueChange={val => {
                                     handleUpdateExtra(item.id!, 'decision', val);
-                                    const isInn = item.category === 'innecesario';
+                                    // v2.54: en S1 todos son innecesario aunque category sea ''
+                                    const isInn = sStep === 1 || item.category === 'innecesario';
                                     if (isInn) {
                                       handleUpdateField(item.id!, 'action', val);
                                       const newDestino = val === 'Eliminar' ? 'Residuo' : 'Jaula';
@@ -2197,7 +2231,8 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                         </td>
                         {/* UBICACIÓN: Z. Destino — v2.50: en S1 auto-determinada por decisión (Jaula/Residuo, read-only); S2-S5 editable */}
                         <td className={`px-1 py-1 border ${locBg} text-center`}>
-                          {sStep === 1 && item.category === 'innecesario' ? (
+                          {/* v2.54: en S1 todos los items son innecesario — no exigir item.category === 'innecesario' */}
+                          {sStep === 1 && item.category !== 'necesario' ? (
                             <span className={`text-[11px] font-medium ${isEliminarDecision(item.extra?.decision) ? 'text-yellow-700' : 'text-red-600'}`}>
                               {isEliminarDecision(item.extra?.decision) ? 'Residuo' : 'Jaula'}
                             </span>
