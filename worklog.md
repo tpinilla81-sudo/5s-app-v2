@@ -1907,3 +1907,73 @@ Stage Summary:
 - El usuario ve de un vistazo qué items van a Jaula y si ya tienen
   etiqueta impresa o están pendientes.
 - Pendiente: usuario prueba en v2.51 tras deploy (~1-2 min).
+
+---
+Task ID: v2.52
+Agent: Main
+Task: Etiqueta automática al Retirar + quitar candado 🔒
+
+Work Log:
+- Petición del usuario: "z. destino no lo has puesto como te dije.
+  si en decision es retirar sera jaula si es eliminar sera residuos,
+  esto es automático. Si es retirar la etiqueta se hace automáticamente
+  y se pone para poder imprimir en la columna. la foto se ve en negro,
+  no se para qué es el candado."
+
+3 PROBLEMAS:
+
+1) Z Destino automática:
+- Ya estaba implementado desde v2.50 (celda Z Destino renderiza
+  'Residuo'/'Jaula' según decisión, read-only).
+- Al cambiar decisión, handler ya hace handleUpdateField(zonaDestino).
+- Confirmado: funciona correctamente.
+
+2) Etiqueta automática al seleccionar Retirar:
+- NUEVO handleAutoGenerateEtiqueta(item):
+  * Calcula diasCuarentena (default 40) y fechaRevision.
+  * Construye snapshot {nombre, ubicacion, cantidad, estado,
+    frecuenciaUso, decision:'Retirar', categoria, fechaEntrada,
+    fechaRevision, diasCuarentena, zonaOrigen, observaciones}.
+  * Genera fecha = now ISO.
+  * Persiste en DB: PUT /api/inventory con extra completo incluyendo
+    etiquetaGenerada=true, etiquetaFecha=fecha, etiquetaData=snapshot.
+  * Update optimista en state local.
+- Handler de Decisión al seleccionar Retirar:
+  * Llama handleAutoGenerateEtiqueta vía setTimeout(50ms) para que
+    primero se apliquen los handleUpdateField de jaulaStatus y
+    jaulaFechaEntrada.
+- Handler de Decisión al seleccionar Eliminar:
+  * Limpia etiquetaGenerada/etiquetaFecha/etiquetaData si existían.
+- Columna "Etiquetas":
+  * Si Retirar + etiquetaGenerada=true → muestra getEtiquetaBadge
+    (verde "Impresa DD/MM/YY") + TagPrinter inline con un solo item
+    (botón impresión individual).
+  * Si Retirar sin etiquetaGenerada → badge rosa "Pendiente".
+  * Si Eliminar → "—".
+
+3) Candado 🔒:
+- Símbolo 🔒 aparecía en la columna × cuando el item venía de una foto
+  del Paso 2 (extra.sourcePhotoId). El usuario no entendía para qué era.
+- CAMBIO InventarioModal:
+  * Celda × ahora muestra Button × siempre (no el candado).
+  * handleDeleteItem: confirm() antes de borrar; si sourcePhotoId,
+    avisa que la foto quedará como pendiente.
+- CAMBIO API /api/inventory DELETE:
+  * Quitado el GUARD que bloqueaba delete si sourcePhotoId + Paso 2
+    completado. Ahora cualquier item se puede borrar.
+  * La foto queda sin inventoryItemId (onDelete: SetNull) y reaparece
+    como pendiente de clasificar en el Paso 2.
+
+Version bump: v2.51 → v2.52 (middleware, page.tsx, LoginPage).
+Build Next.js: ✓ Compiled successfully in 21.8s.
+Commit aa08484 + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- Flujo simplificado:
+  1. Seleccionar Retirar → Z Destino = Jaula (auto), etiqueta generada
+     automáticamente, columna Etiquetas muestra "Impresa DD/MM/YY" +
+     botón 🖨️ para imprimir.
+  2. Seleccionar Eliminar → Z Destino = Residuo (auto), Días cuar. = —,
+     Etiquetas = —.
+  3. Cualquier item se puede borrar con × (sin candado).
+- Pendiente: usuario prueba en v2.52 tras deploy (~1-2 min).
