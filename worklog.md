@@ -1775,3 +1775,94 @@ Stage Summary:
 - Alternativa: × admin en el círculo del paso (también hace cleanup
   profundo si es el paso 2).
 - Pendiente: usuario prueba en v2.49 tras deploy (~1-2 min).
+
+---
+Task ID: v2.50
+Agent: Main
+Task: Simplificar Paso 3 (S1) — auto-fill ubicación/categoría/frecuencia/Z Origen/Z Destino, decisión Retirar/Eliminar, lightbox negro, sin botón añadir fotos
+
+Work Log:
+- Petición del usuario: "la ubicación sale puesta automática ya que ya se
+  sabe la zona, lo mismo que categoría. Frecuencia de uso, si es
+  innecesario no aplica. Días de cuarentena solo si va a la jaula. En
+  decisión Tirar es lo mismo que eliminar, dejar eliminar. En Z origen
+  se sabe cuál es. En destino si es jaula es jaula. En decisión es
+  Retirar que va a jaula o eliminar que va a residuo. La foto al
+  pinchar sale en negro. Quitar poner más fotos, no hace falta."
+- Aclaración: "no borrar columna, solo dejar deshabilitado o fijar,
+  esta tabla vale para los necesarios" → los cambios de auto-fill/
+  read-only aplican SOLO a S1; S2-S5 conservan las columnas editables.
+
+CAMBIOS InventarioModal.tsx (solo S1):
+- Ubicación: auto-fill desde currentZone/currentProject (read-only).
+- Categoría: badge fijo 'Innecesario' (read-only) — antes era Select.
+- Frecuencia uso: texto 'No aplica' (read-only) — antes era Select.
+- Decisión: dropdown con solo 'Retirar' y 'Eliminar'.
+  * Retirar → jaulaStatus='en_jaula', zonaDestino='Jaula',
+    diasCuarentena default 40 si no tenía.
+  * Eliminar → jaulaStatus='', jaulaFechaEntrada=null,
+    diasCuarentena='_clear_', zonaDestino='Residuo'.
+- Días cuarentena: solo se muestra el Select si decisión = Retirar;
+  si Eliminar muestra '—'.
+- Z Origen: auto-fill desde currentZone (read-only).
+- Z Destino: auto-determinada por decisión (Jaula/Residuo, read-only).
+- Lightbox foto: DialogContent con bg-black, texto blanco, border-0.
+- Quitado botón 'añadir más fotos' (label con Camera icon).
+
+CAMBIOS InventarioModal.tsx (S2-S5):
+- Ubicación, Z Origen, Z Destino: restaurado comportamiento editable
+  original (Input / Select con zonas del proyecto). NO se borran
+  columnas.
+- Frecuencia uso: como ya estaba dentro del bloque sStep===1, los
+  demás S caen al else branch que renderiza extraFields.slice(0,2)
+  → comportamiento original.
+
+CAMBIOS 5s-constants.ts:
+- INVENTORY_CONFIGS[1].extraFields decision options:
+  ['Jaula','Tirar','Eliminar'] → ['Retirar','Eliminar'].
+- subtitle y descriptionByS actualizados.
+- DRAFT_INSTRUCTIONS_BY_S[1].fields actualizado.
+
+CAMBIOS API inventory/route.ts:
+- Default decision 'Retirar' (was 'Jaula').
+- isJaulaDecision helper (acepta null/Retirar/Jaula como →jaula).
+- isEliminarDecision helper (acepta Eliminar/Tirar como →residuo).
+- Si isInnecesario + isEliminarDecision → fuerza jaulaStatus='' y
+  jaulaFechaEntrada=null (no debe quedar en jaula).
+
+BACKWARD COMPAT (helpers displayDecision/isJaulaDecision/isEliminarDecision):
+- InventarioModal, JaulaView, JaulaModal, GlobalInventoryModal,
+  TagPrinter: si el DB tiene decision='Jaula' (legacy) muestra
+  'Retirar'; si tiene 'Tirar' muestra 'Eliminar'.
+- TagPrinter QR y snapshot: usa 'Retirar' como default.
+
+JaulaView.tsx:
+- displayDecision() e isJaulaDecision() helpers.
+- Filtro tagItemsAndIds: isJaulaDecision (acepta Retirar/Jaula/null).
+- Select decisión: opciones Retirar/Eliminar/Reubicar.
+- Badge card view: naranja si isJaulaDecision, rojo si no.
+- Nueva entrada directa: decision default 'Retirar' (was 'Jaula').
+
+JaulaModal.tsx:
+- Mismos helpers y normalización que JaulaView.
+
+GlobalInventoryModal.tsx:
+- Badge decisión: clasificación de colores revisada para reconocer
+  Retirar/Jaula → naranja, Eliminar/Tirar → rojo.
+- Display text normalizado.
+
+Version bump: v2.49 → v2.50 (middleware, page.tsx, LoginPage).
+Build Next.js: ✓ Compiled successfully in 19.9s.
+Commit 5712398 + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- Paso 3 (S1) ahora es mucho más rápido de rellenar:
+  * El usuario solo edita: Nombre, Cantidad, Precio, Estado, Decisión
+    (y Días cuarentena si Retirar).
+  * Ubicación, Categoría, Frecuencia, Z Origen, Z Destino se
+    autocompletan / muestran fijos.
+- Columnas NO se borraron — S2-S5 sigue funcionando como antes.
+- Items legacy con decision='Jaula' o 'Tirar' se ven correctamente
+  en JaulaView, JaulaModal, GlobalInventoryModal.
+- Foto: al pulsar la miniatura se abre en grande sobre fondo negro.
+- Pendiente: usuario prueba en v2.50 tras deploy (~1-2 min).
