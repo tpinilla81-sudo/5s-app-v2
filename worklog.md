@@ -2224,3 +2224,55 @@ Stage Summary:
   * Thumbnails: si la foto carga, se ve; si no, icono gris (no negro)
   * Sin botón global 'Etiquetas rojas' (usa el de cada línea)
   * Foto subida desde inventario → aparece también en Paso 2 y biblioteca
+
+---
+Task ID: v2.59
+Agent: Main
+Task: FIX fotos guardadas en negro (biblioteca, Paso 2, Paso 3)
+
+Work Log:
+- Usuario: "las fotos están guardadas en negro, no se ve ni en la
+  biblioteca en el paso 2 ni en el paso 3"
+- v2.58 solo cambió el fondo del lightbox (bg-zinc-900 → bg-white),
+  pero el problema real era que las FOTOS se guardaban negras en DB.
+
+ROOT CAUSE (src/lib/image-utils.ts → compressImage):
+1) img.crossOrigin = 'anonymous' se seteaba SIEMPRE, incluso para
+   data URLs (base64). Esto puede causar que el canvas se "tainte"
+   y toDataURL('image/jpeg') devuelva una imagen completamente negra
+   SILANCIOSAMENTE (sin lanzar error). El catch nunca disparaba.
+2) JPEG no soporta transparencia. Si el canvas tenía píxeles
+   transparentes (PNG con alpha, o áreas del canvas no cubiertas por
+   la imagen), se convertían a NEGRO al exportar como JPEG.
+3) No había validación de dimensiones — si la imagen tenía width=0
+   o height=0, el canvas era 0x0 → toDataURL devolvía negro.
+
+FIX en compressImage:
+- No setear crossOrigin para data URLs (solo para http:// o https://)
+- Validar dimensiones: si width o height son 0, rechazar con error
+- Llenar canvas con blanco (#ffffff) ANTES de drawImage
+  → así píxeles transparentes se convierten en blancos, no negros
+- Sanity check: si resultado < 1KB para imagen >100x100, probablemente
+  es negro → devolver original sin comprimir
+
+FIX en callers:
+- InventarioModal.handleAttachPhoto: envolver compressImage() en
+  try/catch; si falla, usar rawBase64 original
+- FotosModal.processQueue: misma protección
+- Mejor foto grande (sin comprimir) que foto negra
+
+Bump v2.58 → v2.59 (middleware, page.tsx, LoginPage).
+Build Next.js: ✓ Compiled successfully.
+Commit 71e01cb + push a GitHub. Vercel deploy.
+
+Stage Summary:
+- TRAS DEPLOY v2.59 (~1-2 min):
+  * Fotos subidas desde Paso 2 o desde Inventario (botón +) se guardan
+    correctamente en la biblioteca, aparecen en Paso 2 y en la columna
+    Fotos del Paso 3.
+  * Las fotos ya existentes en negro NO se recuperan (ya están
+    guardadas como negro en DB). El usuario debe borrarlas y volver
+    a subirlas para que se vean correctamente.
+  * Si por algún motivo la compresión sigue fallando para una foto
+    específica, se usará el original sin comprimir (más grande pero
+    visible).
