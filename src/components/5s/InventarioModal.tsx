@@ -1751,7 +1751,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                         <tr>
                           <th colSpan={3} className="bg-sky-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-600">IDENTIFICACIÓN</th>
                           <th colSpan={2} className="bg-emerald-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-emerald-600">CANTIDAD / VALOR</th>
-                          <th colSpan={4} className="bg-red-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-red-600">CLASIFICACIÓN INNECESARIO</th>
+                          <th colSpan={5} className="bg-red-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-red-600">CLASIFICACIÓN INNECESARIO</th>
                           <th colSpan={2} className="bg-amber-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-amber-600">UBICACIÓN</th>
                           <th colSpan={2} className="bg-gray-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-gray-600"></th>
                         </tr>
@@ -1768,6 +1768,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                           <th className="bg-red-400 text-white px-1 py-1 text-center font-semibold border border-red-400 whitespace-nowrap">Frec. uso</th>
                           <th className="bg-red-400 text-white px-1 py-1 text-center font-semibold border border-red-400 whitespace-nowrap">Decisión</th>
                           <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Días cuar.</th>
+                          <th className="bg-rose-500 text-white px-1 py-1 text-center font-semibold border border-rose-500 whitespace-nowrap">Etiquetas</th>
                           {/* UBICACIÓN */}
                           <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Z. Origen</th>
                           <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Z. Destino</th>
@@ -2019,10 +2020,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                   </SelectContent>
                                 </Select>
                               ) : item.extra?.decision ? (
-                                <div className="flex flex-col items-center gap-0.5">
-                                  <Badge className={`text-[9px] px-1 ${isJaulaDecision(item.extra.decision) ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800'}`}>{displayDecision(item.extra.decision)}</Badge>
-                                  {getEtiquetaBadge(item)}
-                                </div>
+                                <Badge className={`text-[9px] px-1 ${isJaulaDecision(item.extra.decision) ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800'}`}>{displayDecision(item.extra.decision)}</Badge>
                               ) : <span className="text-[11px] text-muted-foreground">—</span>}
                             </td>
                             {/* ETIQUETA: Días cuarentena — v2.50: solo si decisión = Retirar (va a jaula) */}
@@ -2037,6 +2035,20 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                   </SelectContent>
                                 </Select>
                               ) : <span className="text-[11px]">{item.extra?.diasCuarentena ?? 40}d</span>}
+                            </td>
+                            {/* ETIQUETA ROJA — v2.51: columna dedicada; solo aplica si decisión = Retirar (→Jaula) */}
+                            <td className="px-1 py-1 border bg-rose-50 text-center">
+                              {isEliminarDecision(item.extra?.decision) ? (
+                                <span className="text-muted-foreground text-[10px]" title="No aplica: el elemento va a residuo">—</span>
+                              ) : isJaulaDecision(item.extra?.decision) ? (
+                                <div className="flex flex-col items-center gap-0.5">
+                                  {getEtiquetaBadge(item) || (
+                                    <Badge className="bg-rose-100 text-rose-800 text-[8px] px-1 py-0 whitespace-nowrap" title="Etiqueta roja pendiente de imprimir (usa el botón 'Etiquetas' arriba)">
+                                      🔴 Pendiente
+                                    </Badge>
+                                  )}
+                                </div>
+                              ) : <span className="text-[11px] text-muted-foreground">—</span>}
                             </td>
                           </>
                         ) : (
