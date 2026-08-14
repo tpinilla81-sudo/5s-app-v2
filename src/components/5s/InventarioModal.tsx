@@ -1122,6 +1122,23 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
     }
   };
 
+  // v2.41: helper para que pulsar Enter en un input inline dispare el guardado
+  // sin tener que hacer clic fuera (que era la única forma con onBlur solo).
+  // Llama al handler de commit con el valor actual y quita el foco del input
+  // para que el estado visual quede consistente.
+  const commitOnEnter = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    commit: () => void,
+  ) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      (e.currentTarget as HTMLInputElement).blur();
+      // El blur disparará onBlur que llama a handleUpdateField, pero por
+      // si algún campo no tiene onBlur, llamamos al commit explícitamente.
+      commit();
+    }
+  };
+
   // Helper: update a simple field on an item and persist
   const handleUpdateField = async (itemId: string, field: string, value: any) => {
     const cleanValue = value === '_clear_' ? null : value;
@@ -1717,6 +1734,12 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                         placeholder="Nombre del elemento"
                         value={newItem.name}
                         onChange={e => setNewItem(prev => ({ ...prev, name: e.target.value }))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && newItem.name && newItem.category) {
+                            e.preventDefault();
+                            handleAddItem();
+                          }
+                        }}
                       />
                     </div>
                     {sStep === 1 ? (
@@ -1814,6 +1837,12 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                         min="1"
                         value={newItem.quantity || 1}
                         onChange={e => setNewItem(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && newItem.name && newItem.category) {
+                            e.preventDefault();
+                            handleAddItem();
+                          }
+                        }}
                       />
                     </div>
                     <div>
@@ -1825,6 +1854,12 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                         placeholder="0.00"
                         value={newItem.price ?? ''}
                         onChange={e => setNewItem(prev => ({ ...prev, price: e.target.value ? parseFloat(e.target.value) : null }))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && newItem.name && newItem.category) {
+                            e.preventDefault();
+                            handleAddItem();
+                          }
+                        }}
                       />
                     </div>
                   </div>
@@ -2420,6 +2455,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                             {canEdit ? (
                               <Input value={item.name} className={`${inlineInput} ${isDraft ? 'ring-1 ring-red-300' : ''}`}
                                 onChange={e => setItems(prev => prev.map(it => it.id === item.id ? { ...it, name: e.target.value } : it))}
+                                onKeyDown={e => commitOnEnter(e, () => handleUpdateField(item.id!, 'name', (e.target as HTMLInputElement).value))}
                                 onBlur={e => handleUpdateField(item.id!, 'name', e.target.value)} />
                             ) : <span className="text-[11px]">{item.name}</span>}
                           </div>
@@ -2429,6 +2465,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                           {canEdit ? (
                             <Input value={item.location || ''} className={inlineInput}
                               onChange={e => setItems(prev => prev.map(it => it.id === item.id ? { ...it, location: e.target.value } : it))}
+                              onKeyDown={e => commitOnEnter(e, () => handleUpdateField(item.id!, 'location', (e.target as HTMLInputElement).value))}
                               onBlur={e => handleUpdateField(item.id!, 'location', e.target.value)} />
                           ) : <span className="text-[11px]">{item.location || '—'}</span>}
                         </td>
@@ -2467,6 +2504,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                           {canEdit ? (
                             <Input type="number" min="1" value={item.quantity || 1} className={`${inlineInput} w-12 text-center`}
                               onChange={e => { const val = parseInt(e.target.value) || 1; setItems(prev => prev.map(it => it.id === item.id ? { ...it, quantity: val } : it)); }}
+                              onKeyDown={e => commitOnEnter(e, () => handleUpdateField(item.id!, 'quantity', parseInt((e.target as HTMLInputElement).value) || 1))}
                               onBlur={e => handleUpdateField(item.id!, 'quantity', parseInt(e.target.value) || 1)} />
                           ) : <span className="text-[11px]">{sStep === 1 ? (isInnecesario ? (item.quantityUnneeded || item.quantity) : isNecesario ? (item.quantityNeeded || item.quantity) : item.quantity) : item.quantity}</span>}
                         </td>
@@ -2475,6 +2513,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                           {canEdit ? (
                             <Input type="number" min="0" step="0.01" value={item.price ?? ''} className={`${inlineInput} w-16 text-right`}
                               onChange={e => { const val = e.target.value ? parseFloat(e.target.value) : null; setItems(prev => prev.map(it => it.id === item.id ? { ...it, price: val } : it)); }}
+                              onKeyDown={e => commitOnEnter(e, () => handleUpdateField(item.id!, 'price', (e.target as HTMLInputElement).value ? parseFloat((e.target as HTMLInputElement).value) : null))}
                               onBlur={e => handleUpdateField(item.id!, 'price', e.target.value ? parseFloat(e.target.value) : null)} />
                           ) : <span className="text-[11px]">{item.price != null ? `${item.price.toFixed(2)} €` : '—'}</span>}
                         </td>
@@ -2572,6 +2611,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                               </Select>
                             ) : (
                               <Input value={item.zonaOrigen || ''} className={inlineInput} placeholder="—"
+                                onKeyDown={e => commitOnEnter(e, () => handleUpdateField(item.id!, 'zonaOrigen', (e.target as HTMLInputElement).value))}
                                 onBlur={e => handleUpdateField(item.id!, 'zonaOrigen', e.target.value)} />
                             )
                           ) : <span className="text-[11px] text-muted-foreground">{item.zonaOrigen || '—'}</span>}
