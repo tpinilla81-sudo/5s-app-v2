@@ -428,7 +428,7 @@ export default function HomePage() {
               <h1 className="text-sm font-black text-gray-900 leading-tight tracking-wide">5S</h1>
               <div className="flex items-center gap-1">
                 <span className="text-[10px] font-semibold text-green-600">by Método</span>
-                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.68</span>
+                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.69</span>
                 {isGestor && <span className="text-[10px] font-semibold text-red-500">· Gestor</span>}
                 {!isGestor && currentProject && <span className="text-[10px] text-muted-foreground">· {currentProject.name}</span>}
                 {!isGestor && currentZone && <span className="text-[10px] font-medium" style={{ color: currentZone.color || '#3B82F6' }}>· {currentZone.name}</span>}
@@ -963,20 +963,15 @@ export default function HomePage() {
                   <p className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-line">{n.message}</p>
                   <div className="flex items-center justify-between mt-1.5">
                     <p className="text-[9px] text-muted-foreground">{new Date(n.createdAt).toLocaleString('es-ES')}</p>
-                    {/* v2.68: Programar fecha de autoeval/auditoría — botón visible para responsable/auditor */}
-                    {(n.type === 'autoeval_requested' || n.type === 'audit_requested') && !n.read && (
+                    {/* v2.68: Programar fecha de autoeval/auditoría — botón visible para responsable/auditor.
+                        v2.69: visible siempre (leída o no) — el botón siga disponible para reprogramar. */}
+                    {(n.type === 'autoeval_requested' || n.type === 'audit_requested') && (
                       <button
                         className="text-[10px] font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 px-2 py-0.5 rounded border border-blue-300 transition-colors flex items-center gap-0.5"
                         onClick={async (e) => {
                           e.stopPropagation();
-                          // Mark as read
-                          try {
-                            await fetch('/api/notifications', {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ notificationId: n.id, read: true }),
-                            });
-                          } catch (e) { /* ignore */ }
+                          // v2.69: NO marcamos como leída aquí — el botón sigue visible siempre.
+                          // Solo abrimos el diálogo.
                           // Find empleado that requested (we need to know who to notify back)
                           let empleadoId: string | undefined;
                           try {
