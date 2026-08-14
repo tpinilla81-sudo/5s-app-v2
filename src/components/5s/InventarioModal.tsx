@@ -1125,6 +1125,36 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
   // Helper: update a simple field on an item and persist
   const handleUpdateField = async (itemId: string, field: string, value: any) => {
     const cleanValue = value === '_clear_' ? null : value;
+    // v2.40: si el item era borrador y el usuario está cambiando el nombre
+    // (o la categoría) a un valor real, eliminamos la marca isDraft para
+    // que deje de contar como "pendiente de clasificar".
+    const item = items.find(i => i.id === itemId);
+    const wasDraft = (item?.extra as any)?.isDraft === true;
+    const nameChangedAwayFromDraft = field === 'name'
+      && typeof cleanValue === 'string'
+      && cleanValue.trim() !== ''
+      && !cleanValue.toLowerCase().startsWith('pendiente de clasificar');
+    const categoryChanged = field === 'category'
+      && typeof cleanValue === 'string'
+      && cleanValue.trim() !== '';
+
+    if (wasDraft && (nameChangedAwayFromDraft || categoryChanged)) {
+      const newExtra = { ...(item?.extra || {}) };
+      delete (newExtra as any).isDraft;
+      // Mantenemos sourcePhotoId/sourcePhotoUrl para trazabilidad histórica
+      setItems(prev => prev.map(it => it.id === itemId ? { ...it, [field]: cleanValue, extra: newExtra } : it));
+      try {
+        await fetch(`/api/inventory?id=${itemId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [field]: cleanValue, extra: newExtra }),
+        });
+      } catch (e) {
+        console.error('Error updating field (draft clearing):', e);
+      }
+      return;
+    }
+
     setItems(prev => prev.map(it => it.id === itemId ? { ...it, [field]: cleanValue } : it));
     try {
       await fetch(`/api/inventory?id=${itemId}`, {
@@ -1146,11 +1176,16 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
   // Cada foto del Paso 2 debe estar vinculada a un ítem del inventario.
   const unclassifiedPhotosCount = step2Photos.length;
   const allPhotosClassified = unclassifiedPhotosCount === 0;
+  // v2.40: items "borrador" (creados automáticamente al tomar foto en Paso 2)
+  // también bloquean la compleción. El usuario debe clasificarlos (cambiar
+  // el nombre, asignar categoría/decisión) para que dejen de ser borrador.
+  const pendingDraftsCount = items.filter(i => (i.extra as any)?.isDraft === true).length;
+  const allDraftsClassified = pendingDraftsCount === 0;
   // S1: No minimum percentage required — just need at least 1 item. If step 4 goes bad, it means not everything was eliminated.
   // S2-S5: Must meet classification threshold (80%)
   const canComplete = sStep === 1
-    ? items.length > 0 && classifiedCount > 0 && allPhotosClassified
-    : classifyPercent >= INVENTORY_CLASSIFY_THRESHOLD && items.length > 0 && (!needsLayout || layoutUploaded) && allPhotosClassified;
+    ? items.length > 0 && classifiedCount > 0 && allPhotosClassified && allDraftsClassified
+    : classifyPercent >= INVENTORY_CLASSIFY_THRESHOLD && items.length > 0 && (!needsLayout || layoutUploaded) && allPhotosClassified && allDraftsClassified;
 
   // S1 specific counts: split by category
   const innecesarios = sStep === 1 ? items.filter(i => i.category === 'innecesario') : items.filter(i => i.category === 'innecesario');
@@ -1168,6 +1203,11 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
     // v2.39: extra guard — fotos del Paso 2 sin clasificar bloquean
     if (unclassifiedPhotosCount > 0) {
       toast.error(`Quedan ${unclassifiedPhotosCount} foto(s) del Paso 2 sin clasificar. Vincula cada foto a un elemento del inventario antes de completar.`);
+      return;
+    }
+    // v2.40: extra guard — items borrador sin clasificar bloquean
+    if (pendingDraftsCount > 0) {
+      toast.error(`Quedan ${pendingDraftsCount} elemento(s) del inventario pendiente(s) de clasificar. Edita su nombre, categoría y decisión antes de completar.`);
       return;
     }
 
@@ -1366,6 +1406,31 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                 {config.subtitle}
               </p>
             </div>
+
+            {/* ═══ ELEMENTOS BORRADOR (creados automáticamente al tomar fotos en Paso 2) ═══ */}
+            {pendingDraftsCount > 0 && (
+              <Card className="border-2 border-red-300 bg-red-50/40">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                    <h4 className="font-semibold text-red-800">Elementos pendientes de clasificar</h4>
+                    <Badge className="bg-red-100 text-red-800">{pendingDraftsCount} sin clasificar</Badge>
+                  </div>
+                  <p className="text-xs text-red-700 mb-2 font-medium">
+                    Cada foto que tomaste en el Paso 2 creó automáticamente un elemento en la tabla de abajo (marcado con badge rojo <span className="font-mono bg-red-500 text-white px-1 rounded">Pendiente</span>).
+                    La foto ya está vinculada a su elemento — solo tienes que rellenar los datos:
+                  </p>
+                  <ul className="text-xs text-red-700 mb-2 list-disc pl-5 space-y-0.5">
+                    <li><strong>Nombre del elemento</strong> (cámbialo por uno real, p. ej. «Carretilla» o «Estantería A3»)</li>
+                    <li><strong>Categoría</strong> (innecesario / necesario en S1, etc.)</li>
+                    {sStep === 1 && <li><strong>Decisión</strong> (Jaula / Tirar / Eliminar en S1)</li>}
+                  </ul>
+                  <p className="text-xs text-muted-foreground">
+                    Cuando rellenes el nombre o la categoría, el elemento deja de ser «pendiente» automáticamente. Hasta que no clasifiques todos los elementos, no podrás completar el inventario.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* ═══ FOTOS DEL PASO 2 (Fotos) ═══ */}
             {step2Photos.length > 0 && (
@@ -2340,15 +2405,24 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                       const qtyBg = 'bg-emerald-50';
                       const specBg = sStep === 1 ? 'bg-red-50' : sStep === 2 ? 'bg-blue-50' : sStep === 3 ? 'bg-violet-50' : sStep === 4 ? 'bg-teal-50' : 'bg-indigo-50';
                       const locBg = 'bg-amber-50';
+                      // v2.40: items borrador (pendientes de clasificar) se resaltan
+                      const isDraft = (item.extra as any)?.isDraft === true;
                       return (
-                      <tr key={item.id} className={`border-b hover:bg-gray-50 ${isInnecesario ? 'bg-red-50/30' : isNecesario ? 'bg-green-50/20' : ''}`}>
+                      <tr key={item.id} className={`border-b hover:bg-gray-50 ${isDraft ? 'bg-red-50/40 ring-1 ring-red-200' : isInnecesario ? 'bg-red-50/30' : isNecesario ? 'bg-green-50/20' : ''}`}>
                         {/* IDENTIFICACIÓN: Elemento */}
                         <td className={`px-1 py-1 border ${idBg} font-medium`}>
-                          {canEdit ? (
-                            <Input value={item.name} className={inlineInput}
-                              onChange={e => setItems(prev => prev.map(it => it.id === item.id ? { ...it, name: e.target.value } : it))}
-                              onBlur={e => handleUpdateField(item.id!, 'name', e.target.value)} />
-                          ) : <span className="text-[11px]">{item.name}</span>}
+                          <div className="flex items-center gap-1">
+                            {isDraft && (
+                              <Badge className="text-[8px] px-1 py-0 bg-red-500 text-white whitespace-nowrap shrink-0" title="Elemento creado automáticamente al tomar la foto en el Paso 2. Edita el nombre, categoría y decisión para clasificarlo.">
+                                Pendiente
+                              </Badge>
+                            )}
+                            {canEdit ? (
+                              <Input value={item.name} className={`${inlineInput} ${isDraft ? 'ring-1 ring-red-300' : ''}`}
+                                onChange={e => setItems(prev => prev.map(it => it.id === item.id ? { ...it, name: e.target.value } : it))}
+                                onBlur={e => handleUpdateField(item.id!, 'name', e.target.value)} />
+                            ) : <span className="text-[11px]">{item.name}</span>}
+                          </div>
                         </td>
                         {/* IDENTIFICACIÓN: Ubicación */}
                         <td className={`px-1 py-1 border ${idBg}`}>
@@ -2367,7 +2441,16 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                 const isNec = val === 'necesario';
                                 const qty = item.quantity || 1;
                                 const updates: any = { category: val, quantityNeeded: isNec ? qty : 0, quantityUnneeded: isInn ? qty : 0, jaulaStatus: isInn ? 'en_jaula' : '', jaulaFechaEntrada: isInn ? (item.jaulaFechaEntrada || new Date().toISOString()) : null };
-                                setItems(prev => prev.map(it => it.id === item.id ? { ...it, ...updates } : it));
+                                // v2.40: si el item era borrador, al asignar categoría real se quita isDraft
+                                const wasDraft = (item.extra as any)?.isDraft === true;
+                                if (wasDraft) {
+                                  const newExtra = { ...(item.extra || {}) };
+                                  delete (newExtra as any).isDraft;
+                                  updates.extra = newExtra;
+                                  setItems(prev => prev.map(it => it.id === item.id ? { ...it, ...updates } : it));
+                                } else {
+                                  setItems(prev => prev.map(it => it.id === item.id ? { ...it, ...updates } : it));
+                                }
                                 fetch(`/api/inventory?id=${item.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
                               }}>
                               <SelectTrigger className={inlineSelect}><SelectValue /></SelectTrigger>
@@ -2566,6 +2649,11 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
               {unclassifiedPhotosCount > 0 && (
                 <span className="text-xs text-red-600 font-medium">
                   ⚠ {unclassifiedPhotosCount} foto(s) del Paso 2 sin clasificar
+                </span>
+              )}
+              {pendingDraftsCount > 0 && (
+                <span className="text-xs text-red-600 font-medium" title="Elementos creados automáticamente al tomar fotos en el Paso 2. Edita su nombre o categoría para clasificarlos.">
+                  ⚠ {pendingDraftsCount} elemento(s) pendiente(s) de clasificar
                 </span>
               )}
               <Button

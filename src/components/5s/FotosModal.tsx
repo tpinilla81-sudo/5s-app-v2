@@ -370,39 +370,116 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
     try {
       const urls = photos.map(p => p.serverUrl || p.preview).join(',');
 
-      // Save each photo to the PhotoLibrary with full traceability
-      // Use serverUrl if available, otherwise use preview (base64) as the photoUrl
-      const libraryPromises = photos
-        .filter(p => !p.savedToLibrary)
-        .map((p, idx) => {
-          const allUploadedBefore = photos.slice(0, idx).filter(pp => pp.serverUrl || pp.preview).length;
-          const photoUrlForDb = p.serverUrl || p.preview; // Use base64 as fallback if upload failed
-          return fetch('/api/photo-library', {
+      // v2.40: Cada foto del Paso 2 se vincula automáticamente a un elemento
+      // de inventario "borrador" que el usuario clasificará en el Paso 3.
+      // Así la foto está vinculada al registro DESDE EL MOMENTO en que se
+      // toma, no después. El flujo en InventarioModal cambia: el usuario ya
+      // no necesita vincular manualmente — solo rellenar los datos del
+      // elemento (nombre, categoría, decisión, etc.) y al hacerlo el
+      // borrador pasa a ser un item clasificado.
+      const sName = sStepData?.japaneseName || `S${sStep}`;
+      const zoneName = currentZone?.name || 'Zona';
+      const userLabel = currentUser?.name || 'Usuario';
+      let savedCount = 0;
+      let failedCount = 0;
+
+      // Procesamos SECUENCIALMENTE (no en paralelo) porque cada foto necesita
+      // el id del item creado en el paso anterior para vincularse.
+      for (let idx = 0; idx < photos.length; idx++) {
+        const p = photos[idx];
+        if (p.savedToLibrary) { savedCount++; continue; }
+        const photoUrlForDb = p.serverUrl || p.preview; // base64 fallback si el upload falló
+        const photoTitle = p.title || generatePhotoTitle(idx, p.photoType);
+
+        // 1) Guardar en PhotoLibrary
+        let photoId: string | null = null;
+        try {
+          const libRes = await fetch('/api/photo-library', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               sStep,
               miniStep: 2,
-              title: p.title || generatePhotoTitle(allUploadedBefore, p.photoType),
-              description: `${sStepData?.japaneseName || 'S' + sStep} - ${currentZone?.name || 'Zona'} - Paso 2 Fotos - Subida por ${currentUser?.name || 'Usuario'}`,
+              title: photoTitle,
+              description: `${sName} - ${zoneName} - Paso 2 Fotos - Subida por ${userLabel}`,
               photoUrl: photoUrlForDb,
               photoType: p.photoType || 'antes',
               category: `paso2_s${sStep}`,
-              tags: JSON.stringify([`S${sStep}`, sStepData?.japaneseName || '', currentZone?.name || '', `paso2`, p.photoType]),
+              tags: JSON.stringify([`S${sStep}`, sName, zoneName, `paso2`, p.photoType]),
               projectId: currentProject?.id,
               zoneId: currentZone?.id || null,
               uploadedBy: currentUser?.id || null,
             }),
           });
-        });
-      
-      // Wait for ALL photo library saves to complete before proceeding
-      const libraryResults = await Promise.allSettled(libraryPromises);
-      const savedCount = libraryResults.filter(r => r.status === 'fulfilled').length;
-      const failedCount = libraryResults.filter(r => r.status === 'rejected').length;
-      if (failedCount > 0) console.warn(`[FotosModal] ${failedCount} photos failed to save to library`);
-      else if (savedCount > 0) console.log(`[FotosModal] ${savedCount} photos saved to library`);
-      
+          const libJson = await libRes.json();
+          if (libJson.success && libJson.data?.id) {
+            photoId = libJson.data.id;
+            savedCount++;
+          } else {
+            failedCount++;
+            console.warn(`[FotosModal] Foto ${idx + 1} no se pudo guardar en la biblioteca`);
+            continue;
+          }
+        } catch (err) {
+          failedCount++;
+          console.error(`[FotosModal] Error guardando foto ${idx + 1} en biblioteca:`, err);
+          continue;
+        }
+
+        // 2) Crear elemento de inventario BORRADOR vinculado a esta foto.
+        //    El nombre es provisional — el usuario lo reemplazará en el Paso 3.
+        //    extra.isDraft = true marca el item como pendiente de clasificar.
+        let newItemId: string | null = null;
+        try {
+          const itemRes = await fetch('/api/inventory', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sStep,
+              projectId: currentProject?.id,
+              zoneId: currentZone?.id || null,
+              name: `Pendiente de clasificar (${idx + 1})`,
+              location: null,
+              category: '', // API aplicará default según sStep; el usuario lo reescribirá
+              quantity: 1,
+              photoUrl: photoUrlForDb,
+              extra: {
+                isDraft: true,
+                sourcePhotoId: photoId,
+                sourcePhotoUrl: photoUrlForDb,
+                sourcePhotoType: p.photoType || 'antes',
+                sourcePhotoTitle: photoTitle,
+              },
+              zonaOrigen: currentZone?.name || null,
+            }),
+          });
+          const itemJson = await itemRes.json();
+          if (itemJson.success && itemJson.data?.id) {
+            newItemId = itemJson.data.id;
+          } else {
+            console.warn(`[FotosModal] No se pudo crear el borrador para la foto ${idx + 1}`);
+          }
+        } catch (err) {
+          console.error(`[FotosModal] Error creando borrador para foto ${idx + 1}:`, err);
+        }
+
+        // 3) Vincular la foto al nuevo item (inventoryItemId en PhotoLibrary)
+        if (photoId && newItemId) {
+          try {
+            await fetch('/api/photo-library', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: photoId, inventoryItemId: newItemId }),
+            });
+          } catch (err) {
+            console.error(`[FotosModal] Error vinculando foto ${idx + 1} al item ${newItemId}:`, err);
+          }
+        }
+      }
+
+      if (failedCount > 0) console.warn(`[FotosModal] ${failedCount} fotos fallaron al guardar`);
+      else if (savedCount > 0) console.log(`[FotosModal] ${savedCount} fotos guardadas y vinculadas a borradores`);
+
       // Mark all photos as saved in local state
       setPhotos(prev => prev.map(p => ({ ...p, savedToLibrary: true })));
 
@@ -477,8 +554,13 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
             <h3 className="text-xl font-bold mb-2">Fotografías del ANTES Guardadas</h3>
             <p className="text-muted-foreground">Ha guardado {photos.length} fotos como evidencia del estado inicial.</p>
             <p className="text-xs text-muted-foreground mt-2">Tamaño total optimizado: {formatBytes(totalSize)}</p>
-            <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
-              <p className="text-sm font-semibold">→ Próximo paso: Inventario (Clasificar elementos)</p>
+            <div className="mt-4 p-4 rounded-lg bg-amber-50 border border-amber-300 text-amber-800 text-left">
+              <p className="text-sm font-semibold mb-1">→ Próximo paso: Clasificar cada foto en el Inventario</p>
+              <p className="text-xs">
+                Cada foto que acabas de tomar se ha vinculado automáticamente a un elemento del inventario en estado <strong className="bg-red-500 text-white px-1 rounded">Pendiente</strong>.
+                En el siguiente paso deberás rellenar el nombre real del elemento, su categoría y la decisión a tomar.
+                Hasta que no clasifiques todos los elementos, no podrás completar el inventario.
+              </p>
             </div>
             <div className="mt-4 flex justify-center">
               <Button
