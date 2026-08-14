@@ -690,19 +690,7 @@ export default function HomePage() {
           ) : (
           <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto">
             {/* v2.62: 'Borrar Pasos' eliminado — ya no vale */}
-            {/* 📅 Calendario de acciones */}
-            {currentUser && (
-              <Button variant={userTaskCount > 0 ? 'default' : 'outline'} size="sm"
-                className={`relative gap-1 text-[10px] h-8 ${userTaskCount > 0 ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : 'border-blue-300 text-blue-600 hover:bg-blue-50'}`}
-                onClick={() => setShowUserCalendar(true)}
-                title="Mi calendario de acciones">
-                <CalendarDays className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Calendario</span>
-                {userTaskCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center animate-pulse">{userTaskCount > 9 ? '9+' : userTaskCount}</span>
-                )}
-              </Button>
-            )}
+            {/* v2.65: orden toolbar — Avisos → Plan Acc. → Calendario → Fotos → Jaula → Activos → P. Limpio → Estándares */}
             {/* 🔔 Notification bell */}
             {canSeeNotifications && (
               <Button variant={unreadNotifs > 0 ? 'default' : 'outline'} size="sm"
@@ -724,6 +712,29 @@ export default function HomePage() {
                 )}
               </Button>
             )}
+            {/* 📋 Plan de Acción General */}
+            {canSeeNotifications && currentUser?.role !== 'auditor' && (
+              <Button variant="outline" size="sm"
+                className="gap-1 text-[10px] h-8 border-orange-300 text-orange-600 hover:bg-orange-50"
+                onClick={() => setActiveTab('actionplan')}
+                title="Plan de Acción General">
+                <ListChecks className="h-3 w-3" />
+                <span className="hidden sm:inline">Plan Acc.</span>
+              </Button>
+            )}
+            {/* 📅 Calendario de acciones */}
+            {currentUser && (
+              <Button variant={userTaskCount > 0 ? 'default' : 'outline'} size="sm"
+                className={`relative gap-1 text-[10px] h-8 ${userTaskCount > 0 ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' : 'border-blue-300 text-blue-600 hover:bg-blue-50'}`}
+                onClick={() => setShowUserCalendar(true)}
+                title="Mi calendario de acciones">
+                <CalendarDays className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Calendario</span>
+                {userTaskCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center animate-pulse">{userTaskCount > 9 ? '9+' : userTaskCount}</span>
+                )}
+              </Button>
+            )}
             {/* 📸 Biblioteca de Fotos */}
             {canSeeNotifications && (
               <Button variant="outline" size="sm"
@@ -732,16 +743,6 @@ export default function HomePage() {
                 title="Biblioteca de Fotos">
                 <Camera className="h-3 w-3" />
                 <span className="hidden sm:inline">Fotos</span>
-              </Button>
-            )}
-            {/* 📚 Biblioteca de Estándares */}
-            {canSeeNotifications && (
-              <Button variant="outline" size="sm"
-                className="gap-1 text-[10px] h-8 border-indigo-300 text-indigo-600 hover:bg-indigo-50"
-                onClick={() => openModal('standards', 3)}
-                title="Biblioteca de Estándares">
-                <BookOpen className="h-3 w-3" />
-                <span className="hidden sm:inline">Estándares</span>
               </Button>
             )}
             {/* 📦 Jaula de Excedentes */}
@@ -774,14 +775,14 @@ export default function HomePage() {
                 <span className="hidden sm:inline">P. Limpio</span>
               </Button>
             )}
-            {/* 📋 Plan de Acción General */}
-            {canSeeNotifications && currentUser?.role !== 'auditor' && (
+            {/* 📚 Biblioteca de Estándares */}
+            {canSeeNotifications && (
               <Button variant="outline" size="sm"
-                className="gap-1 text-[10px] h-8 border-orange-300 text-orange-600 hover:bg-orange-50"
-                onClick={() => setActiveTab('actionplan')}
-                title="Plan de Acción General">
-                <ListChecks className="h-3 w-3" />
-                <span className="hidden sm:inline">Plan Acc.</span>
+                className="gap-1 text-[10px] h-8 border-indigo-300 text-indigo-600 hover:bg-indigo-50"
+                onClick={() => openModal('standards', 3)}
+                title="Biblioteca de Estándares">
+                <BookOpen className="h-3 w-3" />
+                <span className="hidden sm:inline">Estándares</span>
               </Button>
             )}
             {/* 📊 Gerencia — accessible from header for roles with view_progress */}
