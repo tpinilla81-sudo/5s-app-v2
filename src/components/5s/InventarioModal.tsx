@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ClipboardList, Plus, CheckCircle, Download, Upload, FileSpreadsheet, BookOpen, ArrowRight, AlertTriangle, FileUp, Maximize2, Minimize2, File, PenTool, Image as ImageIcon, Eye, Loader2, MapPin, Tag, Camera, Link2, Unlink, X, ZoomIn } from 'lucide-react';
+import { ClipboardList, Plus, CheckCircle, Download, Upload, FileSpreadsheet, BookOpen, ArrowRight, AlertTriangle, FileUp, Maximize2, Minimize2, File, PenTool, Eye, Loader2, MapPin, Tag, Camera, ZoomIn } from 'lucide-react';
 import { toast } from 'sonner';
 import { use5SStore } from '@/lib/store';
 import { S_STEPS, INVENTORY_CONFIGS, INVENTORY_CLASSIFY_THRESHOLD, DRAFT_NAME_BY_S, DRAFT_INSTRUCTIONS_BY_S } from '@/lib/5s-constants';
@@ -115,8 +115,8 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
   const [uploadingPhotoForItem, setUploadingPhotoForItem] = useState<string | null>(null);
   const [uploadPhotoType, setUploadPhotoType] = useState<string>('antes');
   const [showPhotoLightbox, setShowPhotoLightbox] = useState<PhotoData | null>(null);
-  const [pendingNewPhoto, setPendingNewPhoto] = useState<File | null>(null);
-  const [pendingNewPhotoType, setPendingNewPhotoType] = useState<string>('antes');
+  // v2.44: eliminados pendingNewPhoto y pendingNewPhotoType — las fotos
+  // se vinculan automáticamente desde el Paso 2 (FotosModal.handleSubmit).
   // v2.42: guard contra re-entrancia en la migración de fotos huérfanas.
   // Impide que loadStep2Photos → migrateOrphanPhotos → loadStep2Photos
   // se vuelva a disparar mientras la migración está en curso.
@@ -765,12 +765,8 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
       const json = await res.json();
       if (json.success) {
         toast.success('Elemento agregado correctamente');
-        // If there's a pending photo, attach it to the newly created item
-        const newItemId = json.data?.id;
-        if (pendingNewPhoto && newItemId) {
-          await handleAttachPhoto(newItemId, pendingNewPhoto, pendingNewPhotoType);
-          setPendingNewPhoto(null);
-        }
+        // v2.44: las fotos ya no se adjuntan manualmente desde aquí —
+        // se vinculan automáticamente al tomar la foto en el Paso 2.
         await loadInventory();
         setNewItem({ name: '', location: '', category: defaultCategory as string | undefined, quantity: 1, quantityNeeded: 0, quantityUnneeded: 0, price: null, action: '', zonaOrigen: currentZone?.name || null, jaulaFechaEntrada: new Date().toISOString(), extra: {} });
       } else {
@@ -2075,47 +2071,8 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                   )
                   )}
 
-                  {/* Add button + Photo attach */}
+                  {/* Add button — las fotos se vinculan automáticamente desde el Paso 2 */}
                   <div className="flex justify-end items-center gap-2">
-                    {pendingNewPhoto && (
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <div className="w-6 h-6 rounded bg-muted flex items-center justify-center">
-                          <ImageIcon className="h-3 w-3" />
-                        </div>
-                        <span className="max-w-[120px] truncate">{pendingNewPhoto.name}</span>
-                        <button className="text-destructive hover:text-red-700" onClick={() => setPendingNewPhoto(null)}>
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    )}
-                    {!isReadOnly && (
-                      <div className="flex items-center gap-1">
-                        <Select value={pendingNewPhotoType} onValueChange={setPendingNewPhotoType}>
-                          <SelectTrigger className="h-7 w-20 text-[10px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="antes">Antes</SelectItem>
-                            <SelectItem value="despues">Después</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <label className="inline-flex items-center justify-center h-7 px-2 rounded-md border border-input bg-background text-xs cursor-pointer hover:bg-accent transition-colors gap-1">
-                          <Camera className="h-3 w-3" />
-                          Adjuntar Foto
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            className="hidden"
-                            onChange={e => {
-                              const file = e.target.files?.[0];
-                              if (file) setPendingNewPhoto(file);
-                              e.target.value = '';
-                            }}
-                          />
-                        </label>
-                      </div>
-                    )}
                     <Button
                       onClick={handleAddItem}
                       disabled={!newItem.name || !newItem.category}
@@ -2128,120 +2085,6 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                 </div>
               </CardContent>
             </Card>
-
-            {/* ═══ S3: Puntos de Suciedad — Before/After Photos ═══ */}
-            {sStep === 3 && items.some(i => (itemPhotos[i.id!] || i.photos || []).length > 0) && (
-              <Card className="border-2 border-orange-200 bg-orange-50/30">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Camera className="h-5 w-5 text-orange-600" />
-                    <h4 className="font-semibold text-orange-800">Puntos de Suciedad — Fotos Antes/Después</h4>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Las fotos vinculadas a cada punto de suciedad ayudan a documentar el estado antes y después de la limpieza.
-                  </p>
-                  <div className="space-y-3 max-h-64 overflow-y-auto">
-                    {items.filter(i => (itemPhotos[i.id!] || i.photos || []).length > 0).map(item => {
-                      const itemPhotoList = itemPhotos[item.id!] || item.photos || [];
-                      const antesPhotos = itemPhotoList.filter(p => p.photoType === 'antes');
-                      const despuesPhotos = itemPhotoList.filter(p => p.photoType === 'despues');
-                      return (
-                        <div key={item.id} className="flex items-start gap-3 p-2 rounded-lg border bg-white">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-medium truncate">{item.name}</div>
-                            <div className="text-[10px] text-muted-foreground">{item.location || '—'} · {item.category}</div>
-                          </div>
-                          <div className="flex gap-2 flex-shrink-0">
-                            {/* ANTES */}
-                            <div className="text-center">
-                              <span className="text-[9px] font-medium text-amber-700 block mb-1">ANTES</span>
-                              {antesPhotos.length > 0 ? (
-                                <div className="flex gap-1">
-                                  {antesPhotos.map(p => (
-                                    <img key={p.id} src={p.photoUrl} alt="Antes" className="w-16 h-12 object-cover rounded border cursor-pointer hover:opacity-80" onClick={() => setShowPhotoLightbox(p)} />
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="w-16 h-12 bg-amber-50 border border-dashed border-amber-300 rounded flex items-center justify-center">
-                                  <Camera className="h-3 w-3 text-amber-300" />
-                                </div>
-                              )}
-                            </div>
-                            {/* DESPUÉS */}
-                            <div className="text-center">
-                              <span className="text-[9px] font-medium text-green-700 block mb-1">DESPUÉS</span>
-                              {despuesPhotos.length > 0 ? (
-                                <div className="flex gap-1">
-                                  {despuesPhotos.map(p => (
-                                    <img key={p.id} src={p.photoUrl} alt="Después" className="w-16 h-12 object-cover rounded border cursor-pointer hover:opacity-80" onClick={() => setShowPhotoLightbox(p)} />
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="w-16 h-12 bg-green-50 border border-dashed border-green-300 rounded flex items-center justify-center">
-                                  <Camera className="h-3 w-3 text-green-300" />
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          {/* Quick attach after photo */}
-                          {!isReadOnly && item.id && (
-                            <label className="inline-flex items-center justify-center px-2 py-1 rounded border border-dashed border-green-300 cursor-pointer hover:bg-green-50 text-[9px] text-green-600 gap-1 flex-shrink-0" title="Adjuntar foto DESPUÉS">
-                              <Camera className="h-3 w-3" /> Después
-                              <input
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                className="hidden"
-                                onChange={e => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handleAttachPhoto(item.id!, file, 'despues');
-                                  e.target.value = '';
-                                }}
-                              />
-                            </label>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ═══ S1: Jaula Items with Photos ═══ */}
-            {sStep === 1 && items.some(i => i.category === 'innecesario' && (itemPhotos[i.id!] || i.photos || []).length > 0) && (
-              <Card className="border-2 border-red-200 bg-red-50/30">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Camera className="h-5 w-5 text-red-600" />
-                    <h4 className="font-semibold text-red-800">Elementos en Jaula — Trazabilidad Fotográfica</h4>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Las fotos de elementos innecesarios en la Jaula permiten la trazabilidad del material clasificado.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                    {items.filter(i => i.category === 'innecesario' && (itemPhotos[i.id!] || i.photos || []).length > 0).map(item => {
-                      const itemPhotoList = itemPhotos[item.id!] || item.photos || [];
-                      return (
-                        <div key={item.id} className="flex items-center gap-2 p-2 rounded-lg border bg-white">
-                          <div className="flex -space-x-1">
-                            {itemPhotoList.slice(0, 3).map(p => (
-                              <img key={p.id} src={p.photoUrl} alt={p.title} className="w-10 h-10 object-cover rounded border-2 border-white cursor-pointer hover:opacity-80" onClick={() => setShowPhotoLightbox(p)} />
-                            ))}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="text-xs font-medium truncate">{item.name}</div>
-                            <div className="text-[9px] text-muted-foreground">
-                              {item.extra?.decision || 'Jaula'} · {itemPhotoList.length} foto{itemPhotoList.length !== 1 ? 's' : ''}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* ═══ S3: Plan de Limpieza e Inspección ═══ */}
             {sStep === 3 && (
