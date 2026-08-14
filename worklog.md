@@ -1059,3 +1059,95 @@ Stage Summary:
 - Pendiente: usuario prueba en v2.39 tras deploy (~1-2 min). Si
   quiere ajustar el texto del card, el umbral, o el flujo de
   vinculación (e.g. auto-crear item al vincular), iterar.
+
+---
+Task ID: v2.40
+Agent: Main
+Task: Foto ya vinculada al registro en el momento de tomarla (Paso 2 → borrador auto-creado en Inventario)
+
+Work Log:
+- Petición del usuario: "busco la manera de que la foto ya este como
+  vinculada al registro, sea obligatorio o algo asi"
+- En v2.39 habíamos hecho que clasificar fotos fuera OBLIGATORIO para
+  completar el inventario, pero el flujo seguía siendo: sacar foto en
+  Paso 2 → ir a Paso 3 → crear item → pulsar 📷 para vincular. Era
+  manual y el usuario pedía que la foto YA ESTUVIERA vinculada al
+  registro desde el momento de tomarla.
+
+CAMBIO PRINCIPAL: cada foto del Paso 2 crea automáticamente un
+elemento de inventario "borrador" con la foto ya vinculada.
+- FotosModal.tsx handleSubmit refactorizado:
+  * Antes: Promise.allSettled de libraryPromises (paralelo).
+  * Ahora: bucle secuencial for-loop. Para cada foto:
+    1) POST /api/photo-library → obtiene photoId
+    2) POST /api/inventory con name="Pendiente de clasificar (idx+1)",
+       category='' (API aplica default según sStep), y extra.isDraft=true
+       + sourcePhotoId/sourcePhotoUrl/sourcePhotoType/sourcePhotoTitle
+       para trazabilidad.
+    3) PUT /api/photo-library con {id: photoId, inventoryItemId: newItemId}
+       → vincula la foto al item recién creado.
+  * Secuencial (no paralelo) porque cada iteración necesita el photoId
+    del paso anterior y el itemId del paso intermedio.
+  * Errores por-foto no abortan el resto: si una foto falla al guardar,
+    se salta a la siguiente.
+
+- InventarioModal.tsx:
+  * Nuevo estado derivado:
+      const pendingDraftsCount = items.filter(i => i.extra?.isDraft === true).length
+      const allDraftsClassified = pendingDraftsCount === 0
+  * canComplete ahora requiere allDraftsClassified (además de
+    allPhotosClassified que ya existía para fotos huérfanas pre-v2.40).
+  * handleComplete: nuevo guard extra con toast específico:
+      "Quedan N elemento(s) del inventario pendiente(s) de clasificar.
+       Edita su nombre, categoría y decisión antes de completar."
+  * handleUpdateField extendido: si el item era borrador (isDraft=true)
+    y el usuario cambia el nombre a algo distinto de "Pendiente de
+    clasificar" O cambia la categoría, se elimina automáticamente la
+    marca isDraft del extra. El item deja de contar como pendiente.
+    Se mantiene sourcePhotoId/sourcePhotoUrl para trazabilidad histórica.
+  * Select de categoría (sStep===1) en la tabla: onValueChange también
+    limpia isDraft si era borrador (porque este flujo no pasa por
+    handleUpdateField, hace fetch directo).
+  * Tabla de items: nueva celda con badge rojo "Pendiente" para items
+    borrador, junto al input del nombre. La fila completa se resalta
+    con bg-red-50/40 + ring-1 ring-red-200 para que destaque.
+  * Nuevo card rojo arriba de la tabla "Elementos pendientes de
+    clasificar" (similar al de "Fotos del Paso 2 pendientes") con:
+    - Contador "N sin clasificar"
+    - Instrucciones: cambia nombre, categoría, decisión
+    - Aclaración de que al rellenar nombre/categoría se quita el
+      badge automáticamente.
+  * Junto al botón "Completar Inventario": contador rojo
+    "⚠ N elemento(s) pendiente(s) de clasificar" cuando hay borradores.
+
+- FotosModal.tsx success UI:
+  * Antes: "Próximo paso: Inventario (Clasificar elementos)" en azul.
+  * Ahora: card ámbar explicativo que dice:
+    "Cada foto que acabas de tomar se ha vinculado automáticamente a
+    un elemento del inventario en estado Pendiente. En el siguiente
+    paso deberás rellenar el nombre real del elemento, su categoría
+    y la decisión a tomar. Hasta que no clasifiques todos los
+    elementos, no podrás completar el inventario."
+
+- Bump v2.40 en middleware.ts, page.tsx, LoginPage.tsx.
+- Build Next.js: ✓ Compiled successfully in 20.5s.
+- Commit + push a GitHub (4e3343d). Vercel deploy automático.
+
+Stage Summary:
+- El flujo Paso 2 → Paso 3 ahora es directo y obligatorio:
+  1. Empleado saca fotos en Paso 2 (FotosModal).
+  2. Al pulsar "Guardar", cada foto crea automáticamente un elemento
+     de inventario "borrador" con la foto vinculada (inventoryItemId
+     en PhotoLibrary).
+  3. En Paso 3 (Inventario), los items borrador aparecen arriba en
+     la tabla con badge rojo "Pendiente" y la foto ya attached.
+  4. Empleado rellena nombre, categoría, decisión → isDraft se
+     elimina automáticamente → badge desaparece.
+  5. Cuando no quedan borradores (ni fotos huérfanas), se puede
+     completar el inventario.
+- Backward compatible: fotos huérfanas pre-v2.40 siguen apareciendo
+  en el card "Fotos del Paso 2 pendientes" y se pueden vincular
+  manualmente con el botón 📷 (flujo v2.39 sigue funcionando).
+- Pendiente: usuario prueba en v2.40 tras deploy (~1-2 min). Si
+  quiere ajustar el umbral de "clasificación" (p. ej. requerir
+  también decisión o ubicación), el punto está en handleUpdateField.
