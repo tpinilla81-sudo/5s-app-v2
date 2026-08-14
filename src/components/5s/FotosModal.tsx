@@ -26,6 +26,7 @@ import {
   Minimize2,
 } from 'lucide-react';
 import { use5SStore } from '@/lib/store';
+import { toast } from 'sonner';
 import { S_STEPS, MIN_PHOTOS, MINI_STEPS, DRAFT_NAME_BY_S } from '@/lib/5s-constants';
 import {
   compressImage,
@@ -60,6 +61,7 @@ interface PhotoItem {
   title: string; // Título descriptivo de la foto
   photoType: string; // "antes", "despues", "referencia", "hallazgo"
   savedToLibrary: boolean; // Si ya se guardó en la biblioteca
+  dbId?: string; // v2.47: id real en PhotoLibrary (solo si savedToLibrary=true)
 }
 
 export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModalProps) {
@@ -299,6 +301,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
               title: p.title || '',
               photoType: p.photoType || 'antes',
               savedToLibrary: true, // Already saved in DB
+              dbId: p.id, // v2.47: id real en PhotoLibrary
             }));
             photoCounterRef.current = existingPhotos.length;
             setPhotos(existingPhotos);
@@ -357,7 +360,31 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
     await Promise.all(fileArr.map(f => readFileAsDataURL(f).then(addPhoto).catch(err => console.error('Error leyendo archivo de cámara:', err))));
   };
 
-  const removePhoto = (index: number) => setPhotos(prev => prev.filter((_, i) => i !== index));
+  // v2.47: si la foto ya está guardada en la biblioteca (dbId presente),
+  // llamamos al backend DELETE para que el borrado persista. Si el backend
+  // devuelve 409 (Paso 2 ya completado), mostramos error y NO quitamos la
+  // foto del estado local — así el usuario entiende que no se puede borrar.
+  // Si la foto no está en la biblioteca (todavía no se hizo handleSubmit),
+  // simplemente la quitamos del estado local.
+  const removePhoto = async (index: number) => {
+    const photo = photos[index];
+    if (!photo) return;
+    if (photo.savedToLibrary && photo.dbId) {
+      try {
+        const res = await fetch(`/api/photo-library?id=${photo.dbId}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const json = await res.json().catch(() => null);
+          toast.error(json?.error || 'No se puede eliminar esta foto.');
+          return; // NO la quitamos del estado local
+        }
+      } catch (e) {
+        console.error('Error deleting photo from backend:', e);
+        toast.error('Error de conexión al eliminar la foto.');
+        return;
+      }
+    }
+    setPhotos(prev => prev.filter((_, i) => i !== index));
+  };
 
   const uploadingCount = photos.filter(p => p.uploading).length;
   const isQueueBusy = queueLength > 0 || uploadingCount > 0;
