@@ -49,6 +49,7 @@ import {
   ChevronRight,
   Library,
   AlertTriangle,
+  Camera,
 } from 'lucide-react'
 import { S_STEPS } from '@/lib/5s-constants'
 import TemplateManager from './TemplateManager'
@@ -68,12 +69,14 @@ interface SlotTemplate {
   id: string
   templateId: string
   sortOrder: number
+  minPhotosOverride: number | null  // v2.35: override del límite de fotos
   template: {
     id: string
     type: string
     title: string
     sStep: number
     miniStep: number
+    minPhotos: number | null  // v2.35: límite base definido en la plantilla
   }
 }
 
@@ -151,6 +154,11 @@ export default function ZoneTemplatesSection({
   const isAdmin = currentUser?.role === 'admin'
   const isResponsable = currentUser?.role === 'responsable'
   const canManage = isGestor || isAdmin || isResponsable
+
+  // v2.35: estado para edición del override de minPhotos por celda fotos
+  const [photoLimitEditing, setPhotoLimitEditing] = useState<string | null>(null) // cellKey
+  const [photoLimitValue, setPhotoLimitValue] = useState<string>('') // string para input controlado
+  const [photoLimitSaving, setPhotoLimitSaving] = useState<string | null>(null) // cellKey
 
   // ─── Fetch slots ────────────────────────────────────────────────────────
   const fetchSlots = useCallback(async () => {
@@ -273,6 +281,37 @@ export default function ZoneTemplatesSection({
       alert('Error al guardar la asignación')
     } finally {
       setIsSavingCell(null)
+    }
+  }
+
+  // v2.35: guardar override de minPhotos para una celda type='fotos'
+  const savePhotoLimitOverride = async (slotTemplateId: string, value: string, cellKey: string) => {
+    setPhotoLimitSaving(cellKey)
+    try {
+      const trimmed = value.trim()
+      // Si vacío → eliminar override (null). Si número → validar y guardar.
+      const override = trimmed === '' ? null : Number(trimmed)
+      if (override !== null && (isNaN(override) || override < 0 || override > 1000)) {
+        alert('El mínimo de fotos debe ser un número entre 0 y 1000, o vacío para heredar.')
+        return
+      }
+      const res = await fetch('/api/photo-limits', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ boardSlotTemplateId: slotTemplateId, minPhotosOverride: override }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        await fetchSlots() // refresca para reflejar el nuevo valor
+        setPhotoLimitEditing(null)
+      } else {
+        alert('Error al guardar: ' + (data.error || 'desconocido'))
+      }
+    } catch (e) {
+      console.error('Error saving photo limit override:', e)
+      alert('Error al guardar el límite de fotos')
+    } finally {
+      setPhotoLimitSaving(null)
     }
   }
 
@@ -412,6 +451,7 @@ export default function ZoneTemplatesSection({
                                 const isPicking = pickerCell === cellKey
                                 const isSaving = isSavingCell === cellKey
                                 return (
+                                  <>
                                   <div
                                     key={type}
                                     className="flex items-center gap-1.5 px-2 py-1 rounded border border-gray-100 bg-gray-50/50"
@@ -496,6 +536,90 @@ export default function ZoneTemplatesSection({
                                       </>
                                     )}
                                   </div>
+
+                                  {/* v2.35: override del límite de fotos (solo type='fotos' y con plantilla asignada) */}
+                                  {type === 'fotos' && assigned && (
+                                    <div className="ml-6 mb-1 flex items-center gap-1.5 px-2 py-1 rounded border border-amber-100 bg-amber-50/40">
+                                      <Camera className="h-3 w-3 text-amber-600 shrink-0" />
+                                      <span className="text-[10px] text-amber-700 font-medium shrink-0">Mín. fotos:</span>
+                                      {photoLimitEditing === cellKey ? (
+                                        <>
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            max={1000}
+                                            value={photoLimitValue}
+                                            onChange={(e) => setPhotoLimitValue(e.target.value)}
+                                            placeholder={String(assigned.template.minPhotos ?? 10)}
+                                            className="h-5 w-16 text-[11px] px-1 border border-amber-300 rounded focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                            autoFocus
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') savePhotoLimitOverride(assigned.id, photoLimitValue, cellKey)
+                                              if (e.key === 'Escape') setPhotoLimitEditing(null)
+                                            }}
+                                          />
+                                          {photoLimitSaving === cellKey ? (
+                                            <Loader2 className="h-3 w-3 animate-spin text-amber-600" />
+                                          ) : (
+                                            <>
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-5 px-1 text-[9px] text-emerald-700 hover:bg-emerald-100"
+                                                onClick={() => savePhotoLimitOverride(assigned.id, photoLimitValue, cellKey)}
+                                                title="Guardar"
+                                              >
+                                                Guardar
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-5 px-1 text-[9px] text-gray-500 hover:bg-gray-100"
+                                                onClick={() => setPhotoLimitEditing(null)}
+                                                title="Cancelar"
+                                              >
+                                                Cancelar
+                                              </Button>
+                                            </>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span className="text-[11px] font-semibold text-amber-800">
+                                            {assigned.minPhotosOverride != null
+                                              ? assigned.minPhotosOverride
+                                              : (assigned.template.minPhotos ?? 10)}
+                                          </span>
+                                          {assigned.minPhotosOverride != null ? (
+                                            <Badge className="text-[8px] px-1 py-0 bg-amber-200 text-amber-800 border-0">
+                                              override zona
+                                            </Badge>
+                                          ) : (
+                                            <span className="text-[9px] text-amber-600 italic">
+                                              (hereda de plantilla: {assigned.template.minPhotos ?? 10})
+                                            </span>
+                                          )}
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-5 px-1 ml-auto text-[9px] text-amber-700 hover:bg-amber-100"
+                                            onClick={() => {
+                                              setPhotoLimitEditing(cellKey)
+                                              setPhotoLimitValue(
+                                                assigned.minPhotosOverride != null
+                                                  ? String(assigned.minPhotosOverride)
+                                                  : ''
+                                              )
+                                            }}
+                                            title="Sobreescribir el mínimo para esta zona"
+                                          >
+                                            Cambiar
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
+                                  </>
                                 )
                               })}
                             </div>

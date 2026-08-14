@@ -186,6 +186,10 @@ model Template {
   description String?
   content     String // JSON con el contenido de la plantilla
   notaMinima  Float? // Nota mínima para pasar (pasa/no pasa)
+  // ─── v2.35: límite mínimo de fotos (paso 2) configurable por plantilla ──
+  // Solo aplica a type='fotos'. El gestor lo define en plantillas globales (default 10);
+  // el admin puede crear plantillas de empresa con otro valor. Si NULL → fallback a 10.
+  minPhotos   Int?
   active      Boolean  @default(true)
   // ─── Per-company templates model (v2.30) ───────────────────────────────
   // companyId = null  → Biblioteca del Sistema (editable solo por gestor)
@@ -512,7 +516,13 @@ model BoardSlotTemplate {
   slotId      String
   templateId  String
   sortOrder   Int      @default(0)
+  // ─── v2.35: override del minPhotos a nivel zona/slot ───────────────────
+  // Si está setteado, tiene prioridad sobre Template.minPhotos.
+  // Permite al admin de proyecto ajustar el límite para una zona concreta
+  // sin tener que crear/modificar la plantilla global o de empresa.
+  minPhotosOverride Int?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   slot        BoardSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
   template    Template  @relation(fields: [templateId], references: [id], onDelete: Cascade)

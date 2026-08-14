@@ -664,3 +664,85 @@ Stage Summary:
 - Bug mío de la v2.33: limpiaba el input antes de leer los archivos.
 - Fix en v2.34: snapshot del FileList antes de limpiar + logs de depuración.
 - Pendiente: usuario prueba en v2.34 tras deploy (~1-2 min).
+
+---
+Task ID: v2.35
+Agent: Main
+Task: Límite mínimo de fotos configurable por plantilla + override por zona
+
+Work Log:
+- Usuario: "SE tiene qeu poder modificar la cantidad en la plantilla paso 2
+  de cada s de cada zona de cada proyecto de cada empresa. Lo puede modificar
+  el administrador. El gestor tambien, en su tablero pone 10 como partida."
+- Modelo de datos (2 capas):
+  1. Template.minPhotos (valor base) — lo define el gestor en plantillas
+     globales type='fotos'. Default 10. El admin puede crear plantillas de
+     empresa con otro valor.
+  2. BoardSlotTemplate.minPhotosOverride (override por zona) — el admin lo
+     rellena en cada zona para sobreescribir el valor base sin tocar la
+     plantilla.
+- Resolución en runtime (GET /api/photo-limits):
+  1. Si override existe → usarlo.
+  2. Si no, usar Template.minPhotos de la plantilla asignada.
+  3. Si no hay plantilla → fallback a 10.
+- Migración prisma/schema.prisma + SQL en
+  prisma/migrations/20260814_add_min_photos_config/migration.sql.
+- ensureDbSchema() en src/lib/db.ts ampliado con ALTER TABLE IF NOT EXISTS
+  idempotente (ADD COLUMN minPhotos, ADD COLUMN minPhotosOverride, ADD COLUMN
+  updatedAt) para que se aplique en el primer cold start tras deploy sin
+  necesidad de correr prisma migrate localmente.
+- Prisma client regenerado.
+- API nueva /api/photo-limits/route.ts:
+  * GET ?projectId&zoneId&sStep[&miniStep=2] → resuelve y devuelve
+    { minPhotos, source, templateId, templateTitle, boardSlotTemplateId,
+      baseMinPhotos, overrideMinPhotos }.
+  * PUT body { boardSlotTemplateId, minPhotosOverride } → guarda/elimina override.
+  * PUT body { templateId, minPhotos } → actualiza valor base de la plantilla.
+- API /api/templates/route.ts actualizada:
+  * POST incluye minPhotos (solo si type='fotos', default 10).
+  * PUT acepta minPhotos (si llega undefined no lo toca).
+- API /api/board-slots/route.ts: select de template ampliado con `minPhotos: true`
+  para que el AdminPanel reciba el valor base.
+- FotosModal.tsx:
+  * Estado `minPhotos` (number) + `photoLimitSource` ('override'|'template'|'default').
+  * useEffect llama a /api/photo-limits al abrir el modal → actualiza minPhotos.
+  * Sustituidas todas las refs a MIN_PHOTOS constante por `minPhotos` dinámico:
+    canSubmit, badge "X / Y mínimo", línea "Mínimo N fotos del ANTES".
+  * Indicación visual del origen: "(override de zona)" o "(definido en plantilla)".
+- TemplateManager.tsx (gestor y admin):
+  * TemplateData.minPhotos añadido al interface.
+  * Estado formMinPhotos (default 10).
+  * startCreate, startEdit, importTemplateData → cargan el valor.
+  * handleSave → incluye minPhotos en el payload (solo type='fotos').
+  * exportTemplateData → version bumped a 2, incluye minPhotos.
+  * Duplicate → incluye minPhotos al copiar.
+  * UI: input "Mínimo de fotos" visible solo cuando formType==='fotos',
+    debajo del campo "Nota mínima". Helper text explicativo.
+  * Badge en lista de plantillas: "N fotos mín" (amber) para type='fotos'.
+- ZoneTemplatesSection.tsx (admin, por zona):
+  * SlotTemplate interface ampliada con minPhotosOverride + template.minPhotos.
+  * Estado photoLimitEditing, photoLimitValue, photoLimitSaving.
+  * savePhotoLimitOverride(slotTemplateId, value) → PUT /api/photo-limits.
+  * UI: sub-fila amber bajo la celda type='fotos' con:
+    - Valor actual (resuelto: override o heredado de plantilla).
+    - Badge "override zona" si está sobreescrito, o "(hereda: N)" si no.
+    - Botón "Cambiar" → input inline + Enter/Guardar/Cancelar.
+    - Vaciar el input = eliminar override (volver a heredar).
+- Bump v2.35 en middleware.ts, page.tsx, LoginPage.tsx.
+- TypeScript: sin errores nuevos en archivos modificados (pre-existing errors
+  en TemplateManager y MiniStepModal siguen, ignoreBuildErrors=true).
+- Next.js build: "✓ Compiled successfully in 20.8s".
+
+Stage Summary:
+- Gestor: en su pestaña Plantillas, al editar una plantilla type='fotos',
+  ve y edita el campo "Mínimo de fotos" (default 10). Es el valor base
+  global para todas las zonas que usen esa plantilla.
+- Admin de empresa: puede crear plantilla type='fotos' propia con su minPhotos.
+- Admin de proyecto/zona: en la sección "Plantillas de esta zona", cada
+  celda de tipo Fotos muestra el límite actual y un botón "Cambiar" para
+  hacer override puntual (sin tocar la plantilla).
+- FotosModal: al abrir, consulta /api/photo-limits y usa el valor resuelto
+  (override > template > 10). Indica visualmente el origen del valor.
+- Pendiente: commit + push a GitHub para deploy en Vercel. Las columnas
+  nuevas se crearán automáticamente en el primer cold start vía
+  ensureDbSchema (ADD COLUMN IF NOT EXISTS).

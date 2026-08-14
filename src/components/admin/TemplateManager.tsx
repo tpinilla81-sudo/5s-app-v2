@@ -34,6 +34,8 @@ interface TemplateData {
   description: string | null
   content: string
   notaMinima: number | null
+  // v2.35: límite de fotos (solo aplica a type='fotos'). Null = fallback a 10.
+  minPhotos: number | null
   active: boolean
   companyId: string | null // null = Biblioteca del Sistema (v2.30)
   createdAt: string
@@ -1812,6 +1814,8 @@ export default function TemplateManager({
   const [formContent, setFormContent] = useState('')
   const [formNotaMinima, setFormNotaMinima] = useState<number | null>(null)
   const [notaMinimaAplica, setNotaMinimaAplica] = useState(true)
+  // v2.35: límite de fotos (type='fotos' solamente). Default 10.
+  const [formMinPhotos, setFormMinPhotos] = useState<number>(10)
   const [formActive, setFormActive] = useState(true)
 
   // Save feedback
@@ -1908,6 +1912,8 @@ export default function TemplateManager({
     const aplicaNota = type === 'examen' || type === 'autoevaluacion' || type === 'auditoria'
     setNotaMinimaAplica(aplicaNota)
     setFormNotaMinima(aplicaNota ? (type === 'examen' ? EXAM_PASS_THRESHOLD : type === 'autoevaluacion' ? SELF_EVAL_THRESHOLD : AUDIT_PASS_THRESHOLD) : null)
+    // v2.35: default 10 para plantillas de fotos
+    setFormMinPhotos(10)
     setFormActive(true)
     setEditorMode('visual')
 
@@ -1949,6 +1955,8 @@ export default function TemplateManager({
     const aplicaNota = template.type === 'examen' || template.type === 'autoevaluacion' || template.type === 'auditoria'
     setNotaMinimaAplica(aplicaNota)
     setFormNotaMinima(template.notaMinima != null ? template.notaMinima : (aplicaNota ? (template.type === 'examen' ? EXAM_PASS_THRESHOLD : template.type === 'autoevaluacion' ? SELF_EVAL_THRESHOLD : AUDIT_PASS_THRESHOLD) : null))
+    // v2.35: cargar minPhotos existente (default 10 si es null)
+    setFormMinPhotos(template.minPhotos != null ? template.minPhotos : 10)
     setFormActive(template.active)
     setIsCreating(true)
     setEditorMode('visual')
@@ -1969,6 +1977,8 @@ export default function TemplateManager({
         content: formContent,
         notaMinima: notaMinimaAplica ? formNotaMinima : null,
         active: formActive,
+        // v2.35: incluir minPhotos solo para plantillas de fotos
+        ...(formType === 'fotos' ? { minPhotos: formMinPhotos } : {}),
       }
 
       if (editingTemplate) {
@@ -2034,7 +2044,7 @@ export default function TemplateManager({
   // Full template export format (includes metadata + content)
   const exportTemplateData = (template: TemplateData) => ({
     _5sTemplateExport: true,
-    version: 1,
+    version: 2, // v2.35: bumped para incluir minPhotos
     type: template.type,
     sStep: template.sStep,
     miniStep: template.miniStep,
@@ -2042,6 +2052,8 @@ export default function TemplateManager({
     description: template.description,
     content: typeof template.content === 'string' ? JSON.parse(template.content) : template.content,
     notaMinima: template.notaMinima,
+    // v2.35: incluir minPhotos en export (solo relevante para type='fotos')
+    minPhotos: template.minPhotos,
     active: template.active,
   })
 
@@ -2101,6 +2113,8 @@ export default function TemplateManager({
       const aplicaNota = data.type === 'examen' || data.type === 'autoevaluacion' || data.type === 'auditoria'
       setNotaMinimaAplica(aplicaNota)
       setFormNotaMinima(data.notaMinima != null ? data.notaMinima : (aplicaNota ? (data.type === 'examen' ? EXAM_PASS_THRESHOLD : data.type === 'autoevaluacion' ? SELF_EVAL_THRESHOLD : AUDIT_PASS_THRESHOLD) : null))
+      // v2.35: importar minPhotos si existe (solo aplica a type='fotos')
+      setFormMinPhotos(data.minPhotos != null ? Number(data.minPhotos) : 10)
       setFormActive(data.active !== false)
       setIsCreating(true)
       setEditorMode('visual')
@@ -2136,6 +2150,8 @@ export default function TemplateManager({
           description: template.description,
           content: template.content,
           notaMinima: template.notaMinima,
+          // v2.35: incluir minPhotos al duplicar (relevante para type='fotos')
+          minPhotos: template.minPhotos,
           active: template.active,
           companyId: activeCompanyId,
         }
@@ -2386,6 +2402,13 @@ export default function TemplateManager({
                                                 ) : (
                                                   <Badge variant="outline" className="shrink-0 text-xs text-gray-400 border-gray-200">
                                                     Sin nota mín
+                                                  </Badge>
+                                                )}
+                                                {/* v2.35: mostrar minPhotos para plantillas type='fotos' */}
+                                                {tpl.type === 'fotos' && (
+                                                  <Badge variant="outline" className="shrink-0 text-xs text-amber-700 border-amber-200 bg-amber-50" title="Mínimo de fotos requeridas en paso 2">
+                                                    <Camera className="h-3 w-3 mr-0.5" />
+                                                    {tpl.minPhotos != null ? tpl.minPhotos : 10} fotos mín
                                                   </Badge>
                                                 )}
                                                 {templateUsage[tpl.id] ? (
@@ -2818,6 +2841,33 @@ export default function TemplateManager({
                     )}
                   </div>
                 </div>
+
+                {/* v2.35: límite mínimo de fotos — solo visible para plantillas type='fotos' */}
+                {formType === 'fotos' && (
+                  <div className="col-span-1">
+                    <Label className="text-sm font-semibold flex items-center gap-1.5">
+                      <Camera className="h-3.5 w-3.5" />
+                      Mínimo de fotos
+                    </Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        type="number"
+                        value={formMinPhotos}
+                        onChange={(e) => {
+                          const n = Number(e.target.value)
+                          setFormMinPhotos(isNaN(n) || n < 0 ? 0 : n)
+                        }}
+                        min={0}
+                        max={1000}
+                        className="h-10 w-24"
+                      />
+                      <span className="text-sm text-muted-foreground">fotos</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Las zonas que usen esta plantilla requerirán este mínimo para completar el paso 2.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-4 gap-4">

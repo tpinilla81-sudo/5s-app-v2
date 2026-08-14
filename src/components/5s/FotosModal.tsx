@@ -90,6 +90,11 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
   const [activeTab, setActiveTab] = useState<'camera' | 'upload'>('camera');
   const [defaultPhotoType, setDefaultPhotoType] = useState<string>('antes');
 
+  // v2.35: límite dinámico de fotos configurable por plantilla / override por zona.
+  // Por defecto 10 (MIN_PHOTOS). Se actualiza al abrir el modal.
+  const [minPhotos, setMinPhotos] = useState<number>(MIN_PHOTOS);
+  const [photoLimitSource, setPhotoLimitSource] = useState<'override' | 'template' | 'default'>('default');
+
   const beforePrompt = BEFORE_PROMPT_BY_S[sStep] || 'Fotografía la zona para documentar su estado actual.';
 
   // Generate auto title with traceability
@@ -259,6 +264,23 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
   // Load existing photos from DB when modal opens
   const [loadingPhotos, setLoadingPhotos] = useState(false);
 
+  // v2.35: cargar límite dinámico de fotos al abrir el modal.
+  // Llama a /api/photo-limits que resuelve override > template > 10.
+  useEffect(() => {
+    if (!open || !currentProject?.id || !currentZone?.id) return;
+    const url = `/api/photo-limits?projectId=${currentProject.id}&zoneId=${currentZone.id}&sStep=${sStep}&miniStep=${miniStep}`;
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.data && typeof data.data.minPhotos === 'number') {
+          setMinPhotos(data.data.minPhotos);
+          setPhotoLimitSource(data.data.source);
+          console.log(`[FotosModal] minPhotos resuelto: ${data.data.minPhotos} (origen: ${data.data.source})`);
+        }
+      })
+      .catch(err => console.error('[FotosModal] Error al cargar photo-limits:', err));
+  }, [open, currentProject?.id, currentZone?.id, sStep, miniStep]);
+
   useEffect(() => {
     if (open && currentProject?.id) {
       setLoadingPhotos(true);
@@ -283,7 +305,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
             // If step was already completed, mark it
             const antesCount = existingPhotos.filter(p => p.photoType === 'antes').length;
             const despuesCount = existingPhotos.filter(p => p.photoType === 'despues').length;
-            if (antesCount >= MIN_PHOTOS) setIsCompleted(true);
+            if (antesCount >= minPhotos) setIsCompleted(true);
           }
           setLoadingPhotos(false);
         })
@@ -339,7 +361,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
 
   const uploadingCount = photos.filter(p => p.uploading).length;
   const isQueueBusy = queueLength > 0 || uploadingCount > 0;
-  const canSubmit = photos.length >= MIN_PHOTOS && uploadingCount === 0 && queueLength === 0;
+  const canSubmit = photos.length >= minPhotos && uploadingCount === 0 && queueLength === 0;
   const totalSize = photos.reduce((sum, p) => sum + p.estimatedSize, 0);
 
   const handleSubmit = async () => {
@@ -478,7 +500,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
             <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
               <span className="text-sm font-medium">Fotos del ANTES</span>
               <div className="flex items-center gap-2">
-                <Badge variant={photos.length >= MIN_PHOTOS ? 'default' : 'secondary'}>{photos.length} / {MIN_PHOTOS} mínimo</Badge>
+                <Badge variant={photos.length >= minPhotos ? 'default' : 'secondary'}>{photos.length} / {minPhotos} mínimo</Badge>
                 {totalSize > 0 && <span className="text-xs text-muted-foreground">({formatBytes(totalSize)})</span>}
               </div>
             </div>
@@ -655,7 +677,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
             )}
 
             <div className="text-xs text-muted-foreground space-y-1">
-              <p>• Mínimo {MIN_PHOTOS} fotos del estado ANTES de la zona</p>
+              <p>• Mínimo {minPhotos} fotos del estado ANTES de la zona {photoLimitSource === 'override' && '(override de zona)'}{photoLimitSource === 'template' && '(definido en plantilla)'}</p>
               <p>• Las fotos se comprimen automáticamente para ahorrar espacio</p>
               <p>• Incluya diferentes ángulos y perspectivas de la zona</p>
             </div>

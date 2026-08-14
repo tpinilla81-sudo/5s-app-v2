@@ -123,6 +123,22 @@ export async function ensureDbSchema() {
       CREATE UNIQUE INDEX IF NOT EXISTS "SystemConfig_key_key" ON "SystemConfig"("key");
     `)
 
+    // v2.35: añadir minPhotos a Template y minPhotosOverride + updatedAt a BoardSlotTemplate
+    // Idempotente: ADD COLUMN IF NOT EXISTS (Postgres 9.6+)
+    try {
+      await db.$executeRawUnsafe(`ALTER TABLE "Template" ADD COLUMN IF NOT EXISTS "minPhotos" INTEGER;`)
+      // Seed default 10 for existing fotos templates without a value
+      await db.$executeRawUnsafe(`UPDATE "Template" SET "minPhotos" = 10 WHERE "type" = 'fotos' AND "minPhotos" IS NULL;`)
+    } catch (e) {
+      console.error('[db.ts] minPhotos column add failed (non-fatal):', e instanceof Error ? e.message : e)
+    }
+    try {
+      await db.$executeRawUnsafe(`ALTER TABLE "BoardSlotTemplate" ADD COLUMN IF NOT EXISTS "minPhotosOverride" INTEGER;`)
+      await db.$executeRawUnsafe(`ALTER TABLE "BoardSlotTemplate" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;`)
+    } catch (e) {
+      console.error('[db.ts] BoardSlotTemplate columns add failed (non-fatal):', e instanceof Error ? e.message : e)
+    }
+
     globalForPrisma.dbSchemaVerified = true
   } catch (e) {
     // Don't crash on schema errors — log and continue

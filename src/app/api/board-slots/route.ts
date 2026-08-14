@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
         include: {
           templates: {
             include: {
-              template: { select: { id: true, type: true, title: true, sStep: true, miniStep: true, content: true, notaMinima: true } },
+              template: { select: { id: true, type: true, title: true, sStep: true, miniStep: true, content: true, notaMinima: true, minPhotos: true } },
             },
             orderBy: { sortOrder: 'asc' },
           },

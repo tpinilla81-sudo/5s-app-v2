@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { type, sStep, miniStep, title, description, content, notaMinima, companyId, active } = body
+    const { type, sStep, miniStep, title, description, content, notaMinima, companyId, active, minPhotos } = body
 
     if (!type || sStep == null || !title || !content) {
       return NextResponse.json({ success: false, error: 'Faltan campos obligatorios: type, sStep, title, content' }, { status: 400 })
@@ -137,8 +137,12 @@ export async function POST(request: NextRequest) {
       companyId: targetCompanyId,
       active: active !== undefined ? Boolean(active) : true,
     }
+    // v2.35: minPhotos solo aplica a type='fotos' (default 10 si no se especifica)
+    if (type === 'fotos') {
+      data.minPhotos = minPhotos != null ? Number(minPhotos) : 10
+    }
 
-    const template = await db.template.create({ data })
+    const template = await db.template.create({ data: data as any })
     return NextResponse.json({ success: true, data: template })
   } catch (error) {
     console.error('Error creating template:', error)
@@ -159,7 +163,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { id, type, sStep, miniStep, title, description, content, active, notaMinima } = body
+    const { id, type, sStep, miniStep, title, description, content, active, notaMinima, minPhotos } = body
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'Se requiere el id de la plantilla' }, { status: 400 })
@@ -200,6 +204,11 @@ export async function PUT(request: NextRequest) {
     if (content !== undefined) data.content = typeof content === 'string' ? content : JSON.stringify(content)
     if (active !== undefined) data.active = Boolean(active)
     if (notaMinima !== undefined) data.notaMinima = notaMinima != null ? Number(notaMinima) : null
+    // v2.35: minPhotos (solo type='fotos'). Si llega undefined, no se toca;
+    // si llega null o número, se actualiza.
+    if (minPhotos !== undefined) {
+      data.minPhotos = minPhotos != null ? Number(minPhotos) : null
+    }
 
     const template = await db.template.update({ where: { id }, data })
     return NextResponse.json({ success: true, data: template })
