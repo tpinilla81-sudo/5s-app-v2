@@ -1,0 +1,1242 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import { useState, useEffect, useMemo, useRef } from 'react';
+     4→     4→import {
+     5→     5→  Dialog,
+     6→     6→  DialogContent,
+     7→     7→  DialogHeader,
+     8→     8→  DialogTitle,
+     9→     9→} from '@/components/ui/dialog';
+    10→    10→import { Button } from '@/components/ui/button';
+    11→    11→import { Card, CardContent } from '@/components/ui/card';
+    12→    12→import { Badge } from '@/components/ui/badge';
+    13→    13→import { Input } from '@/components/ui/input';
+    14→    14→import { Textarea } from '@/components/ui/textarea';
+    15→    15→import { Label } from '@/components/ui/label';
+    16→    16→import {
+    17→    17→  ShieldCheck,
+    18→    18→  CheckCircle,
+    19→    19→  XCircle,
+    20→    20→  Camera,
+    21→    21→  ChevronDown,
+    22→    22→  ChevronRight,
+    23→    23→  AlertCircle,
+    24→    24→  AlertTriangle,
+    25→    25→  Plus,
+    26→    26→  Trash2,
+    27→    27→  TrendingUp,
+    28→    28→  Maximize2,
+    29→    29→  Minimize2,
+    30→    30→  Upload,
+    31→    31→  X,
+    32→    32→  Image as ImageIcon,
+    33→    33→  Calendar,
+    34→    34→  UserCircle,
+    35→    35→  CheckCheck,
+    36→    36→} from 'lucide-react';
+    37→    37→import { use5SStore } from '@/lib/store';
+    38→    38→import {
+    39→    39→  S_STEPS,
+    40→    40→  AUDIT_PASS_THRESHOLD,
+    41→    41→} from '@/lib/5s-constants';
+    42→    42→import type { AuditSection, AuditItemResult } from '@/lib/5s-constants';
+    43→    43→import { useChecklistTemplate } from '@/lib/checklist-templates';
+    44→    44→import {
+    45→    45→  Select,
+    46→    46→  SelectContent,
+    47→    47→  SelectItem,
+    48→    48→  SelectTrigger,
+    49→    49→  SelectValue,
+    50→    50→} from '@/components/ui/select';
+    51→    51→import { toast } from 'sonner';
+    52→    52→
+    53→    53→interface AuditoriaModalProps {
+    54→    54→  open: boolean;
+    55→    55→  onClose: () => void;
+    56→    56→  sStep: number;
+    57→    57→  miniStep: number;
+    58→    58→}
+    59→    59→
+    60→    60→
+    61→    61→
+    62→    62→export default function AuditoriaModal({ open, onClose, sStep, miniStep }: AuditoriaModalProps) {
+    63→    63→  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, hasPermission } = use5SStore();
+    64→    64→  const sStepData = S_STEPS.find(s => s.id === sStep);
+    65→    65→  const canSkipSteps = hasPermission('skip_steps');
+    66→    66→  const canAudit = canPerform(sStep, 5);
+    67→    67→
+    68→    68→  const [auditorName, setAuditorName] = useState('');
+    69→    69→  const [results, setResults] = useState<Record<string, AuditItemResult>>({});
+    70→    70→  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+    71→    71→  const [observaciones, setObservaciones] = useState('');
+    72→    72→  const [isSubmitting, setIsSubmitting] = useState(false);
+    73→    73→  const [isCompleted, setIsCompleted] = useState(false);
+    74→    74→  const [finalScore, setFinalScore] = useState(0);
+    75→    75→  // Track which (open, sStep, sections-signature) we've already initialized for,
+    76→    76→  // so we don't reset user edits if `sections` ref changes mid-session.
+    77→    77→  const initializedFor = useRef<string>('');
+    78→    78→  const [notaMinima, setNotaMinima] = useState(75);
+    79→    79→  const [fechaAuditoria, setFechaAuditoria] = useState('');
+    80→    80→  const [horaAuditoria, setHoraAuditoria] = useState('');
+    81→    81→  const [auditPhotos, setAuditPhotos] = useState<{ file: File; preview: string; uploading?: boolean; serverUrl?: string }[]>([]);
+    82→    82→  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+    83→    83→  const photoInputRef = useRef<HTMLInputElement>(null);
+    84→    84→
+    85→    85→  // Project members for responsable selector on NOK items
+    86→    86→  const [projectMembers, setProjectMembers] = useState<Array<{ id: string; userId: string; role: string; user: { id: string; name: string; email: string; role: string; active: boolean } }>>([]);
+    87→    87→
+    88→    88→  // Scheduling for audit
+    89→    89→  const [fechaProgramada, setFechaProgramada] = useState('');
+    90→    90→  const [horaProgramada, setHoraProgramada] = useState('');
+    91→    91→
+    92→    92→  // Load template from API (uses board config if zone has one)
+    93→    93→  const { sections, isLoading: isLoadingTemplate, notaMinima: templateNotaMinima } = useChecklistTemplate('auditoria', sStep, open, currentZone?.boardConfigId);
+    94→    94→
+    95→    95→  // Apply template notaMinima when loaded
+    96→    96→  useEffect(() => {
+    97→    97→    if (templateNotaMinima !== null) setNotaMinima(templateNotaMinima);
+    98→    98→  }, [templateNotaMinima]);
+    99→    99→
+   100→   100→  // Load project members (for responsable selector on NOK items)
+   101→   101→  useEffect(() => {
+   102→   102→    if (open && currentProject?.id) {
+   103→   103→      fetch(`/api/projects/${currentProject.id}/members`)
+   104→   104→        .then(r => r.json())
+   105→   105→        .then(data => setProjectMembers(data?.members || []))
+   106→   106→        .catch(err => console.error('Error loading project members:', err));
+   107→   107→    } else {
+   108→   108→      setProjectMembers([]);
+   109→   109→    }
+   110→   110→  }, [open, currentProject?.id]);
+   111→   111→
+   112→   112→  // Mejoras realizadas
+   113→   113→  const [isFullscreen, setIsFullscreen] = useState(true);
+   114→   114→  const [haMejoras, setHaMejoras] = useState<boolean | null>(null);
+   115→   115→  const [mejoras, setMejoras] = useState<Array<{ id: string; descripcion: string; responsable: string; fecha: string }>>([]);
+   116→   116→
+   117→   117→
+   118→   118→
+   119→   119→  // Fetch dynamic threshold
+   120→   120→  useEffect(() => {
+   121→   121→    if (open && currentProject?.id) {
+   122→   122→      const fetchThreshold = async () => {
+   123→   123→        try {
+   124→   124→          const params = new URLSearchParams({ projectId: currentProject.id });
+   125→   125→          if (currentZone?.id) params.set('zoneId', currentZone.id);
+   126→   126→          const res = await fetch(`/api/audit-targets?${params}`);
+   127→   127→          const json = await res.json();
+   128→   128→          if (json.success && json.data) {
+   129→   129→            const zoneTarget = json.data.find((t: any) => t.sStep === sStep && t.miniStep === 5 && t.zoneId === currentZone?.id);
+   130→   130→            const projectTarget = json.data.find((t: any) => t.sStep === sStep && t.miniStep === 5 && t.zoneId === null);
+   131→   131→            const target = zoneTarget || projectTarget;
+   132→   132→            if (target?.notaMinima) setNotaMinima(target.notaMinima);
+   133→   133→          }
+   134→   134→        } catch (e) { console.error('Error fetching threshold:', e); }
+   135→   135→      };
+   136→   136→      fetchThreshold();
+   137→   137→    }
+   138→   138→  }, [open, sStep, currentProject?.id, currentZone?.id]);
+   139→   139→
+   140→   140→  // ─────────────────────────────────────────────────────────────
+   141→   141→  // ROBUST PRE-TICK: Merge missing items as 'ok' whenever sections change.
+   142→   142→  // This replaces the fragile one-shot pre-tick. Instead of setting results
+   143→   143→  // once and praying the effect fires after sections loads, we continuously
+   144→   144→  // MERGE missing items as 'ok' into `results` without overwriting user
+   145→   145→  // edits. This guarantees that every visible item always has an 'ok' entry
+   146→   146→  // unless the user explicitly marks it NOK/N/A.
+   147→   147→  // ─────────────────────────────────────────────────────────────
+   148→   148→  useEffect(() => {
+   149→   149→    if (!open || sections.length === 0) return;
+   150→   150→    setResults(prev => {
+   151→   151→      const next = { ...prev };
+   152→   152→      let changed = false;
+   153→   153→      sections.forEach(s => s.items.forEach(item => {
+   154→   154→        if (!next[item.id]) {
+   155→   155→          next[item.id] = { itemId: item.id, status: 'ok' };
+   156→   156→          changed = true;
+   157→   157→        }
+   158→   158→      }));
+   159→   159→      return changed ? next : prev;
+   160→   160→    });
+   161→   161→  }, [open, sections]);
+   162→   162→
+   163→   163→  // Initialize expanded sections + reset form state once per (sStep + sections signature)
+   164→   164→  useEffect(() => {
+   165→   165→    if (!open || sections.length === 0) return;
+   166→   166→    const sig = `${sStep}:${sections.map(s => s.items.map(i => i.id).join(',')).join('|')}`;
+   167→   167→    if (initializedFor.current === sig) return;
+   168→   168→    initializedFor.current = sig;
+   169→   169→
+   170→   170→    const expanded: Record<string, boolean> = {};
+   171→   171→    sections.forEach(s => { expanded[s.id] = true; });
+   172→   172→    setExpandedSections(expanded);
+   173→   173→    setAuditorName(currentUser?.name || '');
+   174→   174→    setObservaciones('');
+   175→   175→    setIsCompleted(false);
+   176→   176→    setFinalScore(0);
+   177→   177→    setHaMejoras(null);
+   178→   178→    setAuditPhotos([]);
+   179→   179→    setMejoras([]);
+   180→   180→    // Auto-fill date and time of the audit
+   181→   181→    const now = new Date();
+   182→   182→    setFechaAuditoria(now.toISOString().slice(0, 10));
+   183→   183→    setHoraAuditoria(now.toTimeString().slice(0, 5));
+   184→   184→    // Load scheduled date if available
+   185→   185→    loadScheduledDate();
+   186→   186→    // Load previously saved results (so user can see what was saved before)
+   187→   187→    loadSavedResults();
+   188→   188→  }, [open, sStep, sections]);
+   189→   189→
+   190→   190→  // Load previously saved audit results from the backend
+   191→   191→  const loadSavedResults = async () => {
+   192→   192→    if (!currentProject?.id) return;
+   193→   193→    try {
+   194→   194→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}&projectId=${currentProject.id}${currentZone?.id ? `&zoneId=${currentZone.id}` : ''}`);
+   195→   195→      const json = await res.json();
+   196→   196→      if (json.success && json.data?.notes) {
+   197→   197→        try {
+   198→   198→          const notes = typeof json.data.notes === 'string' ? JSON.parse(json.data.notes) : json.data.notes;
+   199→   199→          if (notes?.results && Array.isArray(notes.results)) {
+   200→   200→            const loaded: Record<string, AuditItemResult> = {};
+   201→   201→            notes.results.forEach((r: any) => {
+   202→   202→              if (r?.itemId) loaded[r.itemId] = r;
+   203→   203→            });
+   204→   204→            if (Object.keys(loaded).length > 0) {
+   205→   205→              setResults(loaded);
+   206→   206→              if (notes.observaciones) setObservaciones(notes.observaciones);
+   207→   207→              if (notes.fechaAuditoria) setFechaAuditoria(notes.fechaAuditoria);
+   208→   208→              if (notes.horaAuditoria) setHoraAuditoria(notes.horaAuditoria);
+   209→   209→              if (notes.auditorName) setAuditorName(notes.auditorName);
+   210→   210→            }
+   211→   211→          }
+   212→   212→        } catch (e) {
+   213→   213→          console.error('Error parsing saved notes:', e);
+   214→   214→        }
+   215→   215→      }
+   216→   216→    } catch (e) {
+   217→   217→      console.error('Error loading saved results:', e);
+   218→   218→    }
+   219→   219→  };
+   220→   220→
+   221→   221→  // Reset the init guard when modal closes, so next open re-initializes
+   222→   222→  useEffect(() => {
+   223→   223→    if (!open) {
+   224→   224→      initializedFor.current = '';
+   225→   225→      setResults({});
+   226→   226→    }
+   227→   227→  }, [open]);
+   228→   228→
+   229→   229→  // Load scheduled date/time for this auditoría
+   230→   230→  const loadScheduledDate = async () => {
+   231→   231→    if (!currentProject?.id || !currentZone?.id) return;
+   232→   232→    try {
+   233→   233→      const res = await fetch(`/api/evaluation-schedule?sStep=${sStep}&miniStep=5&projectId=${currentProject.id}&zoneId=${currentZone.id}`);
+   234→   234→      const json = await res.json();
+   235→   235→      if (json.success && json.data) {
+   236→   236→        setFechaProgramada(json.data.fechaProgramada || '');
+   237→   237→        setHoraProgramada(json.data.horaProgramada || '');
+   238→   238→      }
+   239→   239→    } catch (e) {
+   240→   240→      console.error('Error loading scheduled date:', e);
+   241→   241→    }
+   242→   242→  };
+   243→   243→
+   244→   244→  // Save scheduled date/time
+   245→   245→  const handleSaveSchedule = async () => {
+   246→   246→    if (!currentProject?.id || !currentZone?.id) return;
+   247→   247→    try {
+   248→   248→      await fetch('/api/evaluation-schedule', {
+   249→   249→        method: 'POST',
+   250→   250→        headers: { 'Content-Type': 'application/json' },
+   251→   251→        body: JSON.stringify({
+   252→   252→          sStep,
+   253→   253→          miniStep: 5,
+   254→   254→          projectId: currentProject.id,
+   255→   255→          zoneId: currentZone.id,
+   256→   256→          fechaProgramada,
+   257→   257→          horaProgramada,
+   258→   258→        }),
+   259→   259→      });
+   260→   260→      toast.success('Fecha programada guardada');
+   261→   261→    } catch (e) {
+   262→   262→      console.error('Error saving schedule:', e);
+   263→   263→      toast.error('Error al guardar la fecha programada');
+   264→   264→    }
+   265→   265→  };
+   266→   266→
+   267→   267→  const totalItems = sections.reduce((sum, s) => sum + s.items.length, 0) || 26;
+   268→   268→
+   269→   269→  const scoring = useMemo(() => {
+   270→   270→    // SCORING: Treat missing results as 'ok' (default).
+   271→   271→    // Bulletproof — does NOT depend on useEffect timing.
+   272→   272→    let okCount = 0;
+   273→   273→    let nokCount = 0;
+   274→   274→    sections.forEach(s => s.items.forEach(item => {
+   275→   275→      const status = results[item.id]?.status ?? 'ok';
+   276→   276→      if (status === 'ok') okCount++;
+   277→   277→      else if (status === 'nok') nokCount++;
+   278→   278→    }));
+   279→   279→    const answeredCount = okCount + nokCount;
+   280→   280→    // Checklist maxes at 90%
+   281→   281→    const checklistScore = totalItems > 0 ? Math.round((okCount / totalItems) * 90) : 0;
+   282→   282→    // Each mejora with description adds 5%, max 2 mejoras = +10%
+   283→   283→    const validMejorasCount = haMejoras ? mejoras.filter(m => m.descripcion.trim()).length : 0;
+   284→   284→    const mejorasScore = Math.min(validMejorasCount, 2) * 5;
+   285→   285→    const scorePercent = Math.min(checklistScore + mejorasScore, 100); // HARD CAP: never exceeds 100%
+   286→   286→    return { okCount, nokCount, answeredCount, checklistScore, mejorasScore, validMejorasCount, scorePercent };
+   287→   287→  }, [results, sections, totalItems, haMejoras, mejoras]);
+   288→   288→
+   289→   289→  const canSubmit = canAudit && auditorName.trim() !== '' && scoring.answeredCount > 0;
+   290→   290→
+   291→   291→  // Check that all NOK items have hallazgo and mejora filled
+   292→   292→  const nokItems = Object.values(results).filter(r => r.status === 'nok');
+   293→   293→  const allNokCompleted = nokItems.length === 0 || nokItems.every(r => (r.hallazgo || '').trim() !== '' && (r.mejora || '').trim() !== '' && (r.responsable || '').trim() !== '');
+   294→   294→  const canSubmitFinal = canSubmit && allNokCompleted;
+   295→   295→
+   296→   296→  const toggleSection = (sectionId: string) => {
+   297→   297→    setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+   298→   298→  };
+   299→   299→
+   300→   300→  const setItemStatus = (itemId: string, status: 'ok' | 'nok' | 'na') => {
+   301→   301→    setResults(prev => ({
+   302→   302→      ...prev,
+   303→   303→      [itemId]: { ...prev[itemId], itemId, status },
+   304→   304→    }));
+   305→   305→  };
+   306→   306→
+   307→   307→  // Marcar TODOS los items como OK de una sola vez.
+   308→   308→  // Respeta los items ya marcados como NOK/N/A (no los sobreescribe).
+   309→   309→  const markAllOk = () => {
+   310→   310→    setResults(prev => {
+   311→   311→      const next = { ...prev };
+   312→   312→      sections.forEach(s => s.items.forEach(item => {
+   313→   313→        const existing = next[item.id];
+   314→   314→        if (!existing || existing.status === 'ok') {
+   315→   315→          next[item.id] = { ...existing, itemId: item.id, status: 'ok' };
+   316→   316→        }
+   317→   317→      }));
+   318→   318→      return next;
+   319→   319→    });
+   320→   320→  };
+   321→   321→
+   322→   322→  // Forzar TODOS los items como OK (sobreescribe incluso NOK/N/A). Con confirmación.
+   323→   323→  const forceAllOk = () => {
+   324→   324→    const nokCount = sections.reduce((acc, s) => acc + s.items.filter(i => results[i.id]?.status === 'nok').length, 0);
+   325→   325→    if (nokCount > 0) {
+   326→   326→      if (!confirm(`¿Sobreescribir ${nokCount} hallazgo(s) NOK y marcar TODO como OK?`)) return;
+   327→   327→    }
+   328→   328→    setResults(prev => {
+   329→   329→      const next = { ...prev };
+   330→   330→      sections.forEach(s => s.items.forEach(item => {
+   331→   331→        next[item.id] = { ...next[item.id], itemId: item.id, status: 'ok' };
+   332→   332→      }));
+   333→   333→      return next;
+   334→   334→    });
+   335→   335→  };
+   336→   336→
+   337→   337→  const setItemField = (itemId: string, field: 'hallazgo' | 'mejora' | 'otherText' | 'responsable', value: string) => {
+   338→   338→    setResults(prev => ({
+   339→   339→      ...prev,
+   340→   340→      [itemId]: { ...prev[itemId], itemId, [field]: value },
+   341→   341→    }));
+   342→   342→  };
+   343→   343→
+   344→   344→  const handleAuditPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   345→   345→    const files = e.target.files;
+   346→   346→    if (!files) return;
+   347→   347→    for (const file of Array.from(files)) {
+   348→   348→      const preview = URL.createObjectURL(file);
+   349→   349→      setAuditPhotos(prev => [...prev, { file, preview }]);
+   350→   350→    }
+   351→   351→    if (photoInputRef.current) photoInputRef.current.value = '';
+   352→   352→  };
+   353→   353→
+   354→   354→  const removeAuditPhoto = (index: number) => {
+   355→   355→    setAuditPhotos(prev => {
+   356→   356→      const photo = prev[index];
+   357→   357→      if (photo.preview) URL.revokeObjectURL(photo.preview);
+   358→   358→      return prev.filter((_, i) => i !== index);
+   359→   359→    });
+   360→   360→  };
+   361→   361→
+   362→   362→  const handleSubmit = async () => {
+   363→   363→    if (!canSubmit) return;
+   364→   364→    setIsSubmitting(true);
+   365→   365→    const isApto = scoring.scorePercent >= notaMinima;
+   366→   366→    try {
+   367→   367→      // Save audit result (always save, even if not apto)
+   368→   368→      const auditRes = await fetch('/api/audit', {
+   369→   369→        method: 'POST',
+   370→   370→        headers: { 'Content-Type': 'application/json' },
+   371→   371→        body: JSON.stringify({
+   372→   372→          sStep,
+   373→   373→          auditorName,
+   374→   374→          result: isApto ? 'apto' : 'no_apto',
+   375→   375→          score: Math.min(scoring.scorePercent, 100),
+   376→   376→          observations: observaciones || null,
+   377→   377→          fechaAuditoria,
+   378→   378→          horaAuditoria,
+   379→   379→          projectId: currentProject?.id,
+   380→   380→          zoneId: currentZone?.id || null,
+   381→   381→          checklistData: JSON.stringify(Object.values(results)),
+   382→   382→          mejorasData: haMejoras ? JSON.stringify(mejoras.filter(m => m.descripcion.trim())) : null,
+   383→   383→        }),
+   384→   384→      });
+   385→   385→
+   386→   386→      const auditJson = await auditRes.json();
+   387→   387→
+   388→   388→      // Handle server-side role rejection
+   389→   389→      if (auditRes.status === 403) {
+   390→   390→        setIsSubmitting(false);
+   391→   391→        alert(auditJson.error || 'No tienes permisos para realizar auditorías externas');
+   392→   392→        return;
+   393→   393→      }
+   394→   394→
+   395→   395→      if (!auditJson.success) {
+   396→   396→        setIsSubmitting(false);
+   397→   397→        alert(auditJson.error || 'Error al guardar la auditoría');
+   398→   398→        return;
+   399→   399→      }
+   400→   400→      if (auditJson.success) {
+   401→   401→        // Feedback visible
+   402→   402→        toast.success(`Auditoría guardada: ${Object.keys(results).length} items (${scoring.okCount} OK, ${scoring.nokCount} NOK, score ${scoring.scorePercent}%)`);
+   403→   403→        // Also save results in progress.notes so loadSavedResults can find them on reopen
+   404→   404→        try {
+   405→   405→          await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+   406→   406→            method: 'PUT',
+   407→   407→            headers: { 'Content-Type': 'application/json' },
+   408→   408→            body: JSON.stringify({
+   409→   409→              completed: isApto,
+   410→   410→              score: scoring.scorePercent,
+   411→   411→              notes: JSON.stringify({
+   412→   412→                type: 'auditoria',
+   413→   413→                passed: isApto,
+   414→   414→                notaMinima,
+   415→   415→                results: Object.values(results),
+   416→   416→                observaciones,
+   417→   417→                auditorName,
+   418→   418→                fechaAuditoria,
+   419→   419→                horaAuditoria,
+   420→   420→              }),
+   421→   421→              projectId: currentProject?.id,
+   422→   422→              zoneId: currentZone?.id || null,
+   423→   423→            }),
+   424→   424→          });
+   425→   425→        } catch (progressErr) {
+   426→   426→          console.error('Error saving audit results to progress.notes:', progressErr);
+   427→   427→        }
+   428→   428→
+   429→   429→        // Create action items for each NOK to transmit disfunciones to the operator
+   430→   430→        const nokResults = Object.values(results).filter(r => r.status === 'nok');
+   431→   431→        for (const nok of nokResults) {
+   432→   432→          await fetch('/api/actions', {
+   433→   433→            method: 'POST',
+   434→   434→            headers: { 'Content-Type': 'application/json' },
+   435→   435→            body: JSON.stringify({
+   436→   436→              sStep,
+   437→   437→              miniStep: 5,
+   438→   438→              itemId: nok.itemId,
+   439→   439→              itemDescription: `Disfunción detectada en auditoría: ${nok.itemId}`,
+   440→   440→              hallazgo: nok.hallazgo || nok.itemId,
+   441→   441→              mejora: nok.mejora || '',
+   442→   442→              responsable: nok.responsable || null,
+   443→   443→              prioridad: 'alta',
+   444→   444→              estado: 'abierta',
+   445→   445→              source: 'auditoria',
+   446→   446→              auditor: auditorName,
+   447→   447→              projectId: currentProject?.id,
+   448→   448→              zoneId: currentZone?.id || null,
+   449→   449→            }),
+   450→   450→          });
+   451→   451→        }
+   452→   452→
+   453→   453→        // ─── Notify responsables of NOK disfunciones from audit ───
+   454→   454→        if (nokResults.length > 0 && currentProject?.id && currentZone?.id) {
+   455→   455→          try {
+   456→   456→            const membersRes = await fetch(`/api/projects/${currentProject.id}/members`);
+   457→   457→            const membersData = await membersRes.json();
+   458→   458→            const allMembers = membersData?.members || [];
+   459→   459→
+   460→   460→            const sStepData = S_STEPS.find(s => s.id === sStep);
+   461→   461→            const disfuncionMessage = `El auditor ha detectado ${nokResults.length} disfunción(es) en la auditoría de S${sStep} (${sStepData?.japaneseName || ''}) en la zona "${currentZone.name}". Revisa el Plan de Acción.`;
+   462→   462→
+   463→   463→            // Notify zone responsable
+   464→   464→            const responsableIds = new Set<string>();
+   465→   465→            if (currentZone.responsableId) responsableIds.add(currentZone.responsableId);
+   466→   466→            const responsables = allMembers.filter((m: any) => m.role === 'responsable');
+   467→   467→            for (const resp of responsables) responsableIds.add(resp.userId);
+   468→   468→
+   469→   469→            for (const respId of responsableIds) {
+   470→   470→              await fetch('/api/notifications', {
+   471→   471→                method: 'POST',
+   472→   472→                headers: { 'Content-Type': 'application/json' },
+   473→   473→                body: JSON.stringify({
+   474→   474→                  userId: respId,
+   475→   475→                  type: 'disfuncion',
+   476→   476→                  title: `Disfunciones en auditoría: S${sStep} — ${sStepData?.japaneseName || ''}`,
+   477→   477→                  message: disfuncionMessage,
+   478→   478→                  sStep,
+   479→   479→                  zoneId: currentZone.id,
+   480→   480→                  projectId: currentProject.id,
+   481→   481→                }),
+   482→   482→              });
+   483→   483→            }
+   484→   484→          } catch (notifError) {
+   485→   485→            console.error('Error notifying responsables of audit disfunciones:', notifError);
+   486→   486→          }
+   487→   487→        }
+   488→   488→
+   489→   489→        // ─── Upload audit photos to library with traceability ───
+   490→   490→        if (auditPhotos.length > 0) {
+   491→   491→          setIsUploadingPhotos(true);
+   492→   492→          for (let idx = 0; idx < auditPhotos.length; idx++) {
+   493→   493→            const photo = auditPhotos[idx];
+   494→   494→            try {
+   495→   495→              const formData = new FormData();
+   496→   496→              formData.append('file', photo.file);
+   497→   497→              formData.append('filename', `S${sStep}_auditoria_${currentZone?.name || 'zona'}_${idx + 1}_${Date.now()}.jpg`);
+   498→   498→
+   499→   499→              const uploadRes = await fetch('/api/upload', {
+   500→   500→                method: 'POST',
+   501→   501→                body: formData,
+   502→   502→              });
+   503→   503→              const uploadData = await uploadRes.json();
+   504→   504→
+   505→   505→              if (uploadData.success && uploadData.url) {
+   506→   506→                await fetch('/api/photo-library', {
+   507→   507→                  method: 'POST',
+   508→   508→                  headers: { 'Content-Type': 'application/json' },
+   509→   509→                  body: JSON.stringify({
+   510→   510→                    sStep,
+   511→   511→                    miniStep: 5,
+   512→   512→                    title: `Auditoría S${sStep} - Foto ${idx + 1}`,
+   513→   513→                    description: `${sStepData?.japaneseName || 'S' + sStep} - ${currentZone?.name || 'Zona'} - Paso 5 Auditoría - Auditor: ${auditorName}`,
+   514→   514→                    photoUrl: uploadData.url,
+   515→   515→                    photoType: 'hallazgo',
+   516→   516→                    category: `paso5_s${sStep}`,
+   517→   517→                    tags: JSON.stringify([`S${sStep}`, sStepData?.japaneseName || '', currentZone?.name || '', 'paso5', 'auditoria', 'hallazgo']),
+   518→   518→                    projectId: currentProject?.id,
+   519→   519→                    zoneId: currentZone?.id || null,
+   520→   520→                    uploadedBy: currentUser?.id || null,
+   521→   521→                  }),
+   522→   522→                });
+   523→   523→              }
+   524→   524→            } catch (photoErr) {
+   525→   525→              console.error('Error uploading audit photo:', photoErr);
+   526→   526→            }
+   527→   527→          }
+   528→   528→          setIsUploadingPhotos(false);
+   529→   529→        }
+   530→   530→
+   531→   531→        // Mark the mini-step as completed
+   532→   532→        // Build effective results: merge missing items as 'ok' (default) before sending to backend
+   533→   533→        const effectiveResults = sections.flatMap(s => s.items).map(item => {
+   534→   534→          const r = results[item.id];
+   535→   535→          return r ?? { itemId: item.id, status: 'ok' as const };
+   536→   536→        });
+   537→   537→        const progressRes = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+   538→   538→          method: 'PUT',
+   539→   539→          headers: { 'Content-Type': 'application/json' },
+   540→   540→          body: JSON.stringify({
+   541→   541→            completed: isApto,
+   542→   542→            score: Math.min(scoring.scorePercent, 100),
+   543→   543→            notes: JSON.stringify({
+   544→   544→              type: 'auditoria_externa',
+   545→   545→              auditor: auditorName,
+   546→   546→              result: isApto ? 'apto' : 'no_apto',
+   547→   547→              fecha: fechaAuditoria,
+   548→   548→              hora: horaAuditoria,
+   549→   549→              results: effectiveResults,
+   550→   550→              observaciones,
+   551→   551→              mejorasRealizadas: haMejoras,
+   552→   552→              mejoras: haMejoras ? mejoras.filter(m => m.descripcion.trim()) : [],
+   553→   553→              disfuncionesCount: nokResults.length,
+   554→   554→            }),
+   555→   555→            projectId: currentProject?.id,
+   556→   556→            zoneId: currentZone?.id || null,
+   557→   557→          }),
+   558→   558→        });
+   559→   559→
+   560→   560→        const progressJson = await progressRes.json();
+   561→   561→
+   562→   562→        // Handle progress update failure
+   563→   563→        if (!progressJson.success) {
+   564→   564→          console.error('Error updating progress after audit:', progressJson.error);
+   565→   565→          if (progressRes.status === 403) {
+   566→   566→            alert(`La auditoría se ha guardado, pero no se pudo marcar el paso como completado: ${progressJson.error}. Verifica los permisos del auditor.`);
+   567→   567→          } else {
+   568→   568→            alert(`La auditoría se ha guardado, pero hubo un error al actualizar el progreso: ${progressJson.error || 'Error desconocido'}`);
+   569→   569→          }
+   570→   570→        }
+   571→   571→
+   572→   572→        // Always mark as completed in UI if audit was saved successfully
+   573→   573→        // (even if progress update failed, the audit result is saved)
+   574→   574→        setIsCompleted(true);
+   575→   575→        setFinalScore(scoring.scorePercent);
+   576→   576→
+   577→   577→        // Refresh progress (this also refreshes employeeProgress now)
+   578→   578→        await fetchProgress();
+   579→   579→      }
+   580→   580→    } catch (error) {
+   581→   581→      console.error('Error submitting audit:', error);
+   582→   582→      toast.error('Error al guardar la auditoría. Revisa la consola (F12) para más detalles.');
+   583→   583→    } finally {
+   584→   584→      setIsSubmitting(false);
+   585→   585→    }
+   586→   586→  };
+   587→   587→
+   588→   588→  const handleAdminSkip = async () => {
+   589→   589→    try {
+   590→   590→      // Save audit result
+   591→   591→      await fetch('/api/audit', {
+   592→   592→        method: 'POST',
+   593→   593→        headers: { 'Content-Type': 'application/json' },
+   594→   594→        body: JSON.stringify({
+   595→   595→          sStep,
+   596→   596→          auditorName: 'Admin (skip)',
+   597→   597→          result: 'apto',
+   598→   598→          score: 100,
+   599→   599→          observations: 'Completado por administrador (skip)',
+   600→   600→          projectId: currentProject?.id,
+   601→   601→          zoneId: currentZone?.id || null,
+   602→   602→        }),
+   603→   603→      });
+   604→   604→      // Mark progress as completed
+   605→   605→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+   606→   606→        method: 'PUT',
+   607→   607→        headers: { 'Content-Type': 'application/json' },
+   608→   608→        body: JSON.stringify({ completed: true, score: 100, notes: 'Completado por administrador (skip)', skipMissingTemplate: true, projectId: currentProject?.id, zoneId: currentZone?.id || null }),
+   609→   609→      });
+   610→   610→      const json = await res.json();
+   611→   611→      if (json.success) {
+   612→   612→        await fetchProgress();
+   613→   613→        onClose();
+   614→   614→      }
+   615→   615→    } catch (error) {
+   616→   616→      console.error('Error admin skip:', error);
+   617→   617→    }
+   618→   618→  };
+   619→   619→
+   620→   620→  return (
+   621→   621→    <Dialog open={open} onOpenChange={() => onClose()}>
+   622→   622→      <DialogContent size={isFullscreen ? "fullscreen" : "xl"} className="flex flex-col overflow-hidden p-0">
+   623→   623→        <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
+   624→   624→          <DialogTitle className="flex items-center gap-2">
+   625→   625→            <ShieldCheck className="h-5 w-5" style={{ color: sStepData?.color }} />
+   626→   626→            <span>Auditoría Externa</span>
+   627→   627→            <Badge variant="outline" style={{ borderColor: sStepData?.color, color: sStepData?.color }}>
+   628→   628→              {sStepData?.japaneseName} — {sStepData?.spanishName}
+   629→   629→            </Badge>
+   630→   630→            <span className="ml-2 text-[10px] text-muted-foreground font-mono" title="Versión del modal">v2.5</span>
+   631→   631→            <button
+   632→   632→              onClick={() => setIsFullscreen(!isFullscreen)}
+   633→   633→              className="ml-auto p-1 rounded hover:bg-muted transition-colors"
+   634→   634→              title={isFullscreen ? "Reducir ventana" : "Pantalla completa"}
+   635→   635→            >
+   636→   636→              {isFullscreen ? <Minimize2 className="h-4 w-4 text-muted-foreground" /> : <Maximize2 className="h-4 w-4 text-muted-foreground" />}
+   637→   637→            </button>
+   638→   638→          </DialogTitle>
+   639→   639→        </DialogHeader>
+   640→   640→
+   641→   641→        {canSkipSteps && !isCompleted && (
+   642→   642→          <div className="flex items-center gap-2 p-2 mx-6 flex-shrink-0 bg-amber-50 border border-amber-200 rounded-lg">
+   643→   643→            <span className="text-xs text-amber-700 font-medium">Modo Admin:</span>
+   644→   644→            <Button
+   645→   645→              variant="outline"
+   646→   646→              size="sm"
+   647→   647→              className="text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
+   648→   648→              onClick={handleAdminSkip}
+   649→   649→            >
+   650→   650→              Completar paso sin auditoría
+   651→   651→            </Button>
+   652→   652→          </div>
+   653→   653→        )}
+   654→   654→
+   655→   655→        {/* Barra FIJA con acciones rápidas — siempre visible, fuera del scroll */}
+   656→   656→        {!isCompleted && sections.length > 0 && (
+   657→   657→          <div className="flex items-center gap-2 flex-wrap px-6 py-2 flex-shrink-0 bg-green-50 border-b border-green-200">
+   658→   658→            <CheckCheck className="h-4 w-4 text-green-700 shrink-0" />
+   659→   659→            <span className="text-xs text-green-800 font-medium">Acciones rápidas:</span>
+   660→   660→            <Button
+   661→   661→              type="button"
+   662→   662→              size="sm"
+   663→   663→              variant="outline"
+   664→   664→              className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-100 bg-white"
+   665→   665→              onClick={markAllOk}
+   666→   666→              title="Marca como OK todos los items que aún no tienen estado (respeta los NOK/N/A ya marcados)"
+   667→   667→            >
+   668→   668→              Marcar todo OK
+   669→   669→            </Button>
+   670→   670→            <Button
+   671→   671→              type="button"
+   672→   672→              size="sm"
+   673→   673→              variant="outline"
+   674→   674→              className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100 bg-white"
+   675→   675→              onClick={forceAllOk}
+   676→   676→              title="Fuerza TODOS los items a OK (sobreescribe NOK existentes)"
+   677→   677→            >
+   678→   678→              Forzar TODO OK
+   679→   679→            </Button>
+   680→   680→            <span className="ml-auto text-[10px] text-muted-foreground font-mono">
+   681→   681→              {scoring.okCount} OK · {scoring.nokCount} NOK · {scoring.scorePercent}%
+   682→   682→            </span>
+   683→   683→          </div>
+   684→   684→        )}
+   685→   685→
+   686→   686→        <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
+   687→   687→        {/* Permission check */}
+   688→   688→        {!canAudit && !isCompleted && (
+   689→   689→          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+   690→   690→            <AlertCircle className="h-4 w-4 text-red-600" />
+   691→   691→            <span className="text-sm text-red-700 font-medium">No tienes permiso para realizar auditorías en este paso. Tu rol: {currentUser?.role || 'sin rol'}</span>
+   692→   692→          </div>
+   693→   693→        )}
+   694→   694→
+   695→   695→        {!canAudit && !isCompleted ? null : isLoadingTemplate ? (
+   696→   696→          <div className="flex items-center justify-center py-12">
+   697→   697→            <div className="h-8 w-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+   698→   698→          </div>
+   699→   699→        ) : sections.length === 0 ? (
+   700→   700→          <div className="text-center py-12">
+   701→   701→            <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-3" />
+   702→   702→            <h3 className="text-lg font-bold mb-2">No hay checklist configurado</h3>
+   703→   703→            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+   704→   704→              No se encontró una plantilla de auditoría para S{sStep}. 
+   705→   705→              Crea una plantilla en <strong>Administración → Plantillas → Auditoría Externa</strong> 
+   706→   706→              o pulsa el botón &quot;Crear plantillas por defecto&quot;.
+   707→   707→            </p>
+   708→   708→          </div>
+   709→   709→        ) : isCompleted ? (
+   710→   710→          <div className="space-y-4">
+   711→   711→            <div className="text-center py-4">
+   712→   712→              {finalScore >= notaMinima ? (
+   713→   713→                <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-3" />
+   714→   714→              ) : (
+   715→   715→                <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-3" />
+   716→   716→              )}
+   717→   717→              <h3 className="text-xl font-bold mb-2">
+   718→   718→                {finalScore >= notaMinima ? 'Auditoría Externa Superada' : 'Auditoría No Superada'}
+   719→   719→              </h3>
+   720→   720→              <p className="text-lg mb-1">Puntuación Total: <strong>{finalScore}%</strong></p>
+   721→   721→              <div className="flex justify-center gap-3 my-2">
+   722→   722→                <Badge className="bg-blue-100 text-blue-800">Checklist: {scoring.checklistScore}%</Badge>
+   723→   723→                <Badge className="bg-green-100 text-green-800">Mejoras: +{scoring.mejorasScore}%</Badge>
+   724→   724→              </div>
+   725→   725→              <p className="text-muted-foreground">
+   726→   726→                {scoring.okCount} OK / {scoring.nokCount} NOK de {totalItems} puntos de verificación
+   727→   727→              </p>
+   728→   728→              <p className="text-sm text-muted-foreground mt-2">
+   729→   729→                Auditor: <strong>{auditorName}</strong>
+   730→   730→              </p>
+   731→   731→            </div>
+   732→   732→
+   733→   733→            {finalScore >= notaMinima ? (
+   734→   734→              <div className="text-center">
+   735→   735→                <Badge className="bg-green-500 text-lg px-4 py-1">Apto — Mini-paso completado</Badge>
+   736→   736→                <p className="text-sm text-muted-foreground mt-2">La auditoría ha sido registrada y el paso se marca como completado.</p>
+   737→   737→              </div>
+   738→   738→            ) : (
+   739→   739→              <div className="space-y-3">
+   740→   740→                <div className="text-center">
+   741→   741→                  <Badge className="bg-red-500 text-lg px-4 py-1">No Apto — Se requiere corrección</Badge>
+   742→   742→                  <p className="text-sm text-muted-foreground mt-2">
+   743→   743→                    Mínimo requerido: {notaMinima}%. Debes corregir las disfunciones y realizar una nueva auditoría.
+   744→   744→                  </p>
+   745→   745→                </div>
+   746→   746→
+   747→   747→                {/* Saved confirmation */}
+   748→   748→                <Card className="border-green-200 bg-green-50/30">
+   749→   749→                  <CardContent className="p-3">
+   750→   750→                    <div className="flex items-center gap-2 mb-1">
+   751→   751→                      <CheckCircle className="h-4 w-4 text-green-600" />
+   752→   752→                      <span className="text-sm font-semibold text-green-800">Auditoría guardada correctamente</span>
+   753→   753→                    </div>
+   754→   754→                    <p className="text-xs text-green-700">
+   755→   755→                      El resultado de esta auditoría ({finalScore}%) ha sido registrado. Las disfunciones detectadas se han guardado como acciones de mejora en el Plan de Acción.
+   756→   756→                    </p>
+   757→   757→                  </CardContent>
+   758→   758→                </Card>
+   759→   759→
+   760→   760→                {scoring.nokCount > 0 && (
+   761→   761→                  <Card className="border-red-200">
+   762→   762→                    <CardContent className="p-3">
+   763→   763→                      <p className="text-sm font-semibold text-red-800 mb-2">
+   764→   764→                        {scoring.nokCount} disfunciones detectadas:
+   765→   765→                      </p>
+   766→   766→                      <div className="space-y-1 max-h-40 overflow-y-auto">
+   767→   767→                        {Object.values(results).filter(r => r.status === 'nok').map((nok) => (
+   768→   768→                          <div key={nok.itemId} className="bg-red-50 border border-red-200 rounded p-2 text-xs">
+   769→   769→                            <span className="font-medium text-red-700">{nok.itemId}</span>
+   770→   770→                            {nok.hallazgo && <span className="text-red-600"> — {nok.hallazgo}</span>}
+   771→   771→                            {nok.mejora && <span className="text-amber-600"> → Mejora: {nok.mejora}</span>}
+   772→   772→                          </div>
+   773→   773→                        ))}
+   774→   774→                      </div>
+   775→   775→                      <p className="text-xs text-muted-foreground mt-2">
+   776→   776→                        Estas disfunciones están disponibles en el Plan de Acción para su seguimiento.
+   777→   777→                      </p>
+   778→   778→                    </CardContent>
+   779→   779→                  </Card>
+   780→   780→                )}
+   781→   781→              </div>
+   782→   782→            )}
+   783→   783→          </div>
+   784→   784→        ) : (
+   785→   785→          <div className="space-y-4">
+   786→   786→            {/* Info banner */}
+   787→   787→            <div className="p-3 rounded-lg border-l-4" style={{ borderColor: sStepData?.color, backgroundColor: `${sStepData?.color}08` }}>
+   788→   788→              <p className="text-sm font-medium" style={{ color: sStepData?.color }}>
+   789→   789→                Auditoría Externa — {sStepData?.japaneseName}
+   790→   790→              </p>
+   791→   791→              <p className="text-sm text-muted-foreground mt-1">
+   792→   792→                El auditor evalúa cada punto (máx. 90%). Cada mejora realizada suma +5% (máx. 2 mejoras = +10%). Para aprobar se necesita ≥{notaMinima}%.
+   793→   793→                Los NOKs generan hallazgos y puntos de mejora como plan de acción.
+   794→   794→              </p>
+   795→   795→            </div>
+   796→   796→
+   797→   797→            {/* Auditor name + date/time */}
+   798→   798→            <Card>
+   799→   799→              <CardContent className="p-4 space-y-3">
+   800→   800→                <div>
+   801→   801→                  <Label htmlFor="auditorName" className="text-sm font-medium">Nombre del Auditor Externo *</Label>
+   802→   802→                  <Input
+   803→   803→                    id="auditorName"
+   804→   804→                    placeholder="Ingrese el nombre del auditor externo"
+   805→   805→                    value={auditorName}
+   806→   806→                    onChange={e => setAuditorName(e.target.value)}
+   807→   807→                    className="mt-1"
+   808→   808→                  />
+   809→   809→                </div>
+   810→   810→                <div className="grid grid-cols-2 gap-3">
+   811→   811→                  <div>
+   812→   812→                    <Label htmlFor="fechaAuditoria" className="text-sm font-medium">Fecha de auditoría</Label>
+   813→   813→                    <Input
+   814→   814→                      id="fechaAuditoria"
+   815→   815→                      type="date"
+   816→   816→                      value={fechaAuditoria}
+   817→   817→                      onChange={e => setFechaAuditoria(e.target.value)}
+   818→   818→                      className="mt-1"
+   819→   819→                    />
+   820→   820→                  </div>
+   821→   821→                  <div>
+   822→   822→                    <Label htmlFor="horaAuditoria" className="text-sm font-medium">Hora de auditoría</Label>
+   823→   823→                    <Input
+   824→   824→                      id="horaAuditoria"
+   825→   825→                      type="time"
+   826→   826→                      value={horaAuditoria}
+   827→   827→                      onChange={e => setHoraAuditoria(e.target.value)}
+   828→   828→                      className="mt-1"
+   829→   829→                    />
+   830→   830→                  </div>
+   831→   831→                </div>
+   832→   832→                {/* Scheduling section */}
+   833→   833→                <div className="border-t pt-3 mt-1">
+   834→   834→                  <p className="text-xs font-semibold text-blue-700 flex items-center gap-1 mb-2">
+   835→   835→                    <Calendar className="h-3.5 w-3.5" />
+   836→   836→                    Programar Auditoría
+   837→   837→                  </p>
+   838→   838→                  <div className="grid grid-cols-2 gap-3">
+   839→   839→                    <div>
+   840→   840→                      <Label htmlFor="fechaProgAudit" className="text-[10px] text-blue-600">Fecha programada</Label>
+   841→   841→                      <Input id="fechaProgAudit" type="date" value={fechaProgramada}
+   842→   842→                        onChange={e => setFechaProgramada(e.target.value)}
+   843→   843→                        className="h-7 text-xs" />
+   844→   844→                    </div>
+   845→   845→                    <div>
+   846→   846→                      <Label htmlFor="horaProgAudit" className="text-[10px] text-blue-600">Hora programada</Label>
+   847→   847→                      <Input id="horaProgAudit" type="time" value={horaProgramada}
+   848→   848→                        onChange={e => setHoraProgramada(e.target.value)}
+   849→   849→                        className="h-7 text-xs" />
+   850→   850→                    </div>
+   851→   851→                  </div>
+   852→   852→                  {fechaProgramada && (
+   853→   853→                    <Button size="sm" variant="outline" className="h-6 text-[10px] border-blue-300 text-blue-700 mt-2"
+   854→   854→                      onClick={handleSaveSchedule}>
+   855→   855→                      Guardar programación
+   856→   856→                    </Button>
+   857→   857→                  )}
+   858→   858→                </div>
+   859→   859→              </CardContent>
+   860→   860→            </Card>
+   861→   861→
+   862→   862→            {/* Score indicator */}
+   863→   863→            <div className="p-3 bg-muted rounded-lg space-y-2">
+   864→   864→              <div className="flex items-center justify-between">
+   865→   865→                <div>
+   866→   866→                  <span className="text-sm font-medium">Puntuación Total</span>
+   867→   867→                  <p className="text-xs text-muted-foreground">
+   868→   868→                    {scoring.okCount} OK / {scoring.nokCount} NOK de {totalItems} puntos
+   869→   869→                  </p>
+   870→   870→                </div>
+   871→   871→                <Badge variant={scoring.scorePercent >= notaMinima ? 'default' : 'secondary'} className="text-base px-3 py-1">
+   872→   872→                  {scoring.scorePercent}%
+   873→   873→                </Badge>
+   874→   874→              </div>
+   875→   875→              <div className="flex items-center gap-2 flex-wrap">
+   876→   876→                <Badge className="bg-blue-100 text-blue-800">Checklist: {scoring.checklistScore}% (máx. 90%)</Badge>
+   877→   877→                <Badge className="bg-green-100 text-green-800">Mejoras: +{scoring.mejorasScore}% ({scoring.validMejorasCount} {scoring.validMejorasCount === 1 ? 'mejora' : 'mejoras'}, máx. +10%)</Badge>
+   878→   878→                <Badge className="bg-green-100 text-green-800">OK: {scoring.okCount}</Badge>
+   879→   879→                <Badge className="bg-red-100 text-red-800">NOK: {scoring.nokCount}</Badge>
+   880→   880→              </div>
+   881→   881→              <p className="text-[10px] text-muted-foreground">Mínimo para aprobar: {notaMinima}%</p>
+   882→   882→            </div>
+   883→   883→
+   884→   884→            {/* Checklist sections - same checklist as autoevaluación */}
+   885→   885→            <div className="space-y-3">
+   886→   886→              {sections.map(section => (
+   887→   887→                <Card key={section.id} className="overflow-hidden">
+   888→   888→                  {/* Section header */}
+   889→   889→                  <button
+   890→   890→                    className="w-full p-3 flex items-center gap-2 hover:bg-muted/50 transition-colors text-left"
+   891→   891→                    onClick={() => toggleSection(section.id)}
+   892→   892→                  >
+   893→   893→                    {expandedSections[section.id] ? (
+   894→   894→                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+   895→   895→                    ) : (
+   896→   896→                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+   897→   897→                    )}
+   898→   898→                    <Badge variant="outline" className="text-xs font-mono">{section.id}</Badge>
+   899→   899→                    <span className="font-semibold text-sm">{section.title}</span>
+   900→   900→                    <span className="ml-auto text-xs text-muted-foreground">
+   901→   901→                      {section.items.length} puntos
+   902→   902→                    </span>
+   903→   903→                  </button>
+   904→   904→
+   905→   905→                  {/* Section items */}
+   906→   906→                  {expandedSections[section.id] && (
+   907→   907→                    <CardContent className="px-4 pb-4 pt-0 space-y-3">
+   908→   908→                      {section.items.map(item => {
+   909→   909→                        // BULLETPROOF DEFAULT 'ok': if no result entry exists, treat as 'ok'.
+   910→   910→                        // This is the source of truth — does NOT depend on useEffect timing or MERGE.
+   911→   911→                        const hasResult = !!results[item.id];
+   912→   912→                        const result = results[item.id];
+   913→   913→                        const status = hasResult ? (result?.status ?? 'ok') : 'ok';
+   914→   914→                        const isNok = status === 'nok';
+   915→   915→
+   916→   916→                        return (
+   917→   917→                          <div key={item.id} className="border rounded-lg p-3 space-y-2">
+   918→   918→                            <div className="flex items-start gap-3">
+   919→   919→                              <span className="text-xs font-mono text-muted-foreground shrink-0 mt-0.5">
+   920→   920→                                {item.id}
+   921→   921→                              </span>
+   922→   922→                              <p className="text-sm flex-1">{item.description}</p>
+   923→   923→                              <div className="flex gap-1 shrink-0">
+   924→   924→                                <button
+   925→   925→                                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+   926→   926→                                    status === 'ok'
+   927→   927→                                      ? 'bg-green-500 text-white'
+   928→   928→                                      : 'bg-green-50 text-green-700 hover:bg-green-100'
+   929→   929→                                  }`}
+   930→   930→                                  onClick={() => setItemStatus(item.id, 'ok')}
+   931→   931→                                >
+   932→   932→                                  OK
+   933→   933→                                </button>
+   934→   934→                                <button
+   935→   935→                                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+   936→   936→                                    status === 'nok'
+   937→   937→                                      ? 'bg-red-500 text-white'
+   938→   938→                                      : 'bg-red-50 text-red-700 hover:bg-red-100'
+   939→   939→                                  }`}
+   940→   940→                                  onClick={() => setItemStatus(item.id, 'nok')}
+   941→   941→                                >
+   942→   942→                                  NOK
+   943→   943→                                </button>
+   944→   944→                                <button
+   945→   945→                                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+   946→   946→                                    status === 'na'
+   947→   947→                                      ? 'bg-gray-500 text-white'
+   948→   948→                                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+   949→   949→                                  }`}
+   950→   950→                                  onClick={() => setItemStatus(item.id, 'na')}
+   951→   951→                                >
+   952→   952→                                  N/A
+   953→   953→                                </button>
+   954→   954→                              </div>
+   955→   955→                            </div>
+   956→   956→
+   957→   957→                            {item.hasOther && (
+   958→   958→                              <Input
+   959→   959→                                placeholder="Especificar..."
+   960→   960→                                value={result?.otherText || ''}
+   961→   961→                                onChange={e => setItemField(item.id, 'otherText', e.target.value)}
+   962→   962→                                className="text-sm"
+   963→   963→                              />
+   964→   964→                            )}
+   965→   965→
+   966→   966→                            {/* NOK details: hallazgo + mejora — OBLIGATORIOS */}
+   967→   967→                            {isNok && (
+   968→   968→                              <div className="space-y-2 pl-6 border-l-2 border-red-200">
+   969→   969→                                <div>
+   970→   970→                                  <label className="text-xs font-medium text-red-700">Referencia del hallazgo (desviación) *</label>
+   971→   971→                                  <Textarea
+   972→   972→                                    placeholder="Obligatorio: describa la desviación encontrada..."
+   973→   973→                                    value={result?.hallazgo || ''}
+   974→   974→                                    onChange={e => setItemField(item.id, 'hallazgo', e.target.value)}
+   975→   975→                                    className={`text-sm mt-1 ${!(result?.hallazgo || '').trim() ? 'border-red-400 focus:border-red-500' : ''}`}
+   976→   976→                                    rows={2}
+   977→   977→                                  />
+   978→   978→                                  {!(result?.hallazgo || '').trim() && (
+   979→   979→                                    <p className="text-[10px] text-red-500 mt-0.5">Campo obligatorio</p>
+   980→   980→                                  )}
+   981→   981→                                </div>
+   982→   982→                                <div>
+   983→   983→                                  <label className="text-xs font-medium text-amber-700">Punto a Mejorar (sugerencia) *</label>
+   984→   984→                                  <Textarea
+   985→   985→                                    placeholder="Obligatorio: sugiera una mejora..."
+   986→   986→                                    value={result?.mejora || ''}
+   987→   987→                                    onChange={e => setItemField(item.id, 'mejora', e.target.value)}
+   988→   988→                                    className={`text-sm mt-1 ${!(result?.mejora || '').trim() ? 'border-amber-400 focus:border-amber-500' : ''}`}
+   989→   989→                                    rows={2}
+   990→   990→                                  />
+   991→   991→                                  {!(result?.mejora || '').trim() && (
+   992→   992→                                    <p className="text-[10px] text-amber-500 mt-0.5">Campo obligatorio</p>
+   993→   993→                                  )}
+   994→   994→                                </div>
+   995→   995→                                <div>
+   996→   996→                                  <label className="text-xs font-medium text-blue-700 flex items-center gap-1">
+   997→   997→                                    <UserCircle className="h-3 w-3" />
+   998→   998→                                    Responsable de la acción *
+   999→   999→                                  </label>
+  1000→  1000→                                  <Select
+  1001→  1001→                                    value={result?.responsable || ''}
+  1002→  1002→                                    onValueChange={val => setItemField(item.id, 'responsable', val)}
+  1003→  1003→                                  >
+  1004→  1004→                                    <SelectTrigger className={`text-sm mt-1 ${!(result?.responsable || '').trim() ? 'border-blue-400 focus:border-blue-500' : ''}`}>
+  1005→  1005→                                      <SelectValue placeholder="Selecciona quien debe resolverlo..." />
+  1006→  1006→                                    </SelectTrigger>
+  1007→  1007→                                    <SelectContent>
+  1008→  1008→                                      {projectMembers.length === 0 ? (
+  1009→  1009→                                        <SelectItem value="__none__" disabled>No hay miembros en el proyecto</SelectItem>
+  1010→  1010→                                      ) : (
+  1011→  1011→                                        projectMembers
+  1012→  1012→                                          .filter(m => m.user?.active !== false)
+  1013→  1013→                                          .map(m => (
+  1014→  1014→                                            <SelectItem key={m.id} value={m.user.name}>
+  1015→  1015→                                              <div className="flex items-center gap-2">
+  1016→  1016→                                                <span>{m.user.name}</span>
+  1017→  1017→                                                <span className="text-[10px] text-muted-foreground">({m.role})</span>
+  1018→  1018→                                              </div>
+  1019→  1019→                                            </SelectItem>
+  1020→  1020→                                          ))
+  1021→  1021→                                      )}
+  1022→  1022→                                    </SelectContent>
+  1023→  1023→                                  </Select>
+  1024→  1024→                                  {!(result?.responsable || '').trim() && (
+  1025→  1025→                                    <p className="text-[10px] text-blue-500 mt-0.5">Selecciona un responsable</p>
+  1026→  1026→                                  )}
+  1027→  1027→                                </div>
+  1028→  1028→                                <div>
+  1029→  1029→                                  <Button variant="outline" size="sm" className="text-xs">
+  1030→  1030→                                    <Camera className="h-3 w-3 mr-1" /> Añadir foto (biblioteca paso 2)
+  1031→  1031→                                  </Button>
+  1032→  1032→                                </div>
+  1033→  1033→                              </div>
+  1034→  1034→                            )}
+  1035→  1035→                          </div>
+  1036→  1036→                        );
+  1037→  1037→                      })}
+  1038→  1038→                    </CardContent>
+  1039→  1039→                  )}
+  1040→  1040→                </Card>
+  1041→  1041→              ))}
+  1042→  1042→            </div>
+  1043→  1043→
+  1044→  1044→            {/* Mejoras realizadas */}
+  1045→  1045→            <Card className="border-green-200 bg-green-50/30">
+  1046→  1046→              <CardContent className="p-4 space-y-3">
+  1047→  1047→                <div className="flex items-center gap-2">
+  1048→  1048→                  <TrendingUp className="h-4 w-4 text-green-600" />
+  1049→  1049→                  <label className="text-sm font-semibold text-green-800">¿Se han realizado mejoras desde la última auditoría?</label>
+  1050→  1050→                </div>
+  1051→  1051→                <div className="flex gap-2">
+  1052→  1052→                  <button
+  1053→  1053→                    type="button"
+  1054→  1054→                    className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${
+  1055→  1055→                      haMejoras === true
+  1056→  1056→                        ? 'bg-green-600 text-white'
+  1057→  1057→                        : 'bg-white text-green-700 border border-green-300 hover:bg-green-50'
+  1058→  1058→                    }`}
+  1059→  1059→                    onClick={() => { setHaMejoras(true); if (mejoras.length === 0) setMejoras([{ id: Date.now().toString(), descripcion: '', responsable: '', fecha: '' }]); }}
+  1060→  1060→                  >
+  1061→  1061→                    Sí
+  1062→  1062→                  </button>
+  1063→  1063→                  <button
+  1064→  1064→                    type="button"
+  1065→  1065→                    className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${
+  1066→  1066→                      haMejoras === false
+  1067→  1067→                        ? 'bg-gray-600 text-white'
+  1068→  1068→                        : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
+  1069→  1069→                    }`}
+  1070→  1070→                    onClick={() => { setHaMejoras(false); setMejoras([]); }}
+  1071→  1071→                  >
+  1072→  1072→                    No
+  1073→  1073→                  </button>
+  1074→  1074→                </div>
+  1075→  1075→
+  1076→  1076→                {haMejoras && (
+  1077→  1077→                  <div className="space-y-3 pt-2">
+  1078→  1078→                    <div className="flex items-center justify-between">
+  1079→  1079→                      <p className="text-xs font-medium text-green-700">
+  1080→  1080→                        Mejoras realizadas ({mejoras.filter(m => m.descripcion.trim()).length})
+  1081→  1081→                      </p>
+  1082→  1082→                      <Button
+  1083→  1083→                        variant="outline"
+  1084→  1084→                        size="sm"
+  1085→  1085→                        className="text-xs border-green-300 text-green-700 hover:bg-green-50 h-7"
+  1086→  1086→                        onClick={() => setMejoras([...mejoras, { id: Date.now().toString(), descripcion: '', responsable: '', fecha: '' }])}
+  1087→  1087→                      >
+  1088→  1088→                        <Plus className="h-3 w-3 mr-1" /> Añadir mejora
+  1089→  1089→                      </Button>
+  1090→  1090→                    </div>
+  1091→  1091→                    {mejoras.map((mejora, idx) => (
+  1092→  1092→                      <div key={mejora.id} className="bg-white border border-green-200 rounded-lg p-3 space-y-2">
+  1093→  1093→                        <div className="flex items-center justify-between">
+  1094→  1094→                          <span className="text-xs font-semibold text-green-700">Mejora {idx + 1}</span>
+  1095→  1095→                          {mejoras.length > 1 && (
+  1096→  1096→                            <Button
+  1097→  1097→                              variant="ghost"
+  1098→  1098→                              size="sm"
+  1099→  1099→                              className="h-6 w-6 p-0 text-red-400 hover:text-red-600"
+  1100→  1100→                              onClick={() => setMejoras(mejoras.filter(m => m.id !== mejora.id))}
+  1101→  1101→                            >
+  1102→  1102→                              <Trash2 className="h-3 w-3" />
+  1103→  1103→                            </Button>
+  1104→  1104→                          )}
+  1105→  1105→                        </div>
+  1106→  1106→                        <div>
+  1107→  1107→                          <label className="text-[10px] font-medium text-muted-foreground">Descripción de la mejora *</label>
+  1108→  1108→                          <Textarea
+  1109→  1109→                            placeholder="Describa la mejora realizada..."
+  1110→  1110→                            value={mejora.descripcion}
+  1111→  1111→                            onChange={e => {
+  1112→  1112→                              const updated = [...mejoras];
+  1113→  1113→                              updated[idx] = { ...updated[idx], descripcion: e.target.value };
+  1114→  1114→                              setMejoras(updated);
+  1115→  1115→                            }}
+  1116→  1116→                            className="text-sm mt-0.5"
+  1117→  1117→                            rows={2}
+  1118→  1118→                          />
+  1119→  1119→                        </div>
+  1120→  1120→                        <div className="grid grid-cols-2 gap-2">
+  1121→  1121→                          <div>
+  1122→  1122→                            <label className="text-[10px] font-medium text-muted-foreground">Responsable</label>
+  1123→  1123→                            <Input
+  1124→  1124→                              placeholder="Nombre del responsable"
+  1125→  1125→                              value={mejora.responsable}
+  1126→  1126→                              onChange={e => {
+  1127→  1127→                                const updated = [...mejoras];
+  1128→  1128→                                updated[idx] = { ...updated[idx], responsable: e.target.value };
+  1129→  1129→                                setMejoras(updated);
+  1130→  1130→                              }}
+  1131→  1131→                              className="text-sm h-8 mt-0.5"
+  1132→  1132→                            />
+  1133→  1133→                          </div>
+  1134→  1134→                          <div>
+  1135→  1135→                            <label className="text-[10px] font-medium text-muted-foreground">Fecha</label>
+  1136→  1136→                            <Input
+  1137→  1137→                              type="date"
+  1138→  1138→                              value={mejora.fecha}
+  1139→  1139→                              onChange={e => {
+  1140→  1140→                                const updated = [...mejoras];
+  1141→  1141→                                updated[idx] = { ...updated[idx], fecha: e.target.value };
+  1142→  1142→                                setMejoras(updated);
+  1143→  1143→                              }}
+  1144→  1144→                              className="text-sm h-8 mt-0.5"
+  1145→  1145→                            />
+  1146→  1146→                          </div>
+  1147→  1147→                        </div>
+  1148→  1148→                      </div>
+  1149→  1149→                    ))}
+  1150→  1150→                  </div>
+  1151→  1151→                )}
+  1152→  1152→              </CardContent>
+  1153→  1153→            </Card>
+  1154→  1154→
+  1155→  1155→            {/* Observaciones */}
+  1156→  1156→            <Card>
+  1157→  1157→              <CardContent className="p-4">
+  1158→  1158→                <label className="text-sm font-medium">Observaciones del auditor</label>
+  1159→  1159→                <Textarea
+  1160→  1160→                  placeholder="Observaciones adicionales de la auditoría externa..."
+  1161→  1161→                  value={observaciones}
+  1162→  1162→                  onChange={e => setObservaciones(e.target.value)}
+  1163→  1163→                  className="mt-2"
+  1164→  1164→                  rows={3}
+  1165→  1165→                />
+  1166→  1166→              </CardContent>
+  1167→  1167→            </Card>
+  1168→  1168→
+  1169→  1169→            {/* Fotos de la auditoría */}
+  1170→  1170→            <Card>
+  1171→  1171→              <CardContent className="p-4 space-y-3">
+  1172→  1172→                <div className="flex items-center justify-between">
+  1173→  1173→                  <div className="flex items-center gap-2">
+  1174→  1174→                    <Camera className="h-4 w-4 text-muted-foreground" />
+  1175→  1175→                    <label className="text-sm font-medium">Fotos de la auditoría</label>
+  1176→  1176→                  </div>
+  1177→  1177→                  <span className="text-xs text-muted-foreground">{auditPhotos.length} foto{auditPhotos.length !== 1 ? 's' : ''}</span>
+  1178→  1178→                </div>
+  1179→  1179→                <p className="text-xs text-muted-foreground">
+  1180→  1180→                  Añade fotos de hallazgos o disfunciones detectadas. Se guardarán en la biblioteca con trazabilidad.
+  1181→  1181→                </p>
+  1182→  1182→                <input
+  1183→  1183→                  ref={photoInputRef}
+  1184→  1184→                  type="file"
+  1185→  1185→                  accept="image/*"
+  1186→  1186→                  multiple
+  1187→  1187→                  className="hidden"
+  1188→  1188→                  onChange={handleAuditPhotoSelect}
+  1189→  1189→                />
+  1190→  1190→                <button
+  1191→  1191→                  className="w-full border-2 border-dashed rounded-lg p-4 flex flex-col items-center gap-2 hover:border-primary/50 hover:bg-muted/30 transition-colors"
+  1192→  1192→                  onClick={() => photoInputRef.current?.click()}
+  1193→  1193→                >
+  1194→  1194→                  <Upload className="h-5 w-5 text-muted-foreground" />
+  1195→  1195→                  <span className="text-xs font-medium">Seleccionar fotos</span>
+  1196→  1196→                </button>
+  1197→  1197→                {auditPhotos.length > 0 && (
+  1198→  1198→                  <div className="grid grid-cols-4 gap-2">
+  1199→  1199→                    {auditPhotos.map((photo, idx) => (
+  1200→  1200→                      <div key={idx} className="relative group">
+  1201→  1201→                        <img src={photo.preview} alt={`Foto ${idx + 1}`} className="w-full h-20 object-cover rounded-lg border" />
+  1202→  1202→                        <button
+  1203→  1203→                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+  1204→  1204→                          onClick={() => removeAuditPhoto(idx)}
+  1205→  1205→                        >
+  1206→  1206→                          <X className="h-3 w-3" />
+  1207→  1207→                        </button>
+  1208→  1208→                      </div>
+  1209→  1209→                    ))}
+  1210→  1210→                  </div>
+  1211→  1211→                )}
+  1212→  1212→              </CardContent>
+  1213→  1213→            </Card>
+  1214→  1214→
+  1215→  1215→            {/* NOK incomplete warning */}
+  1216→  1216→            {nokItems.length > 0 && !allNokCompleted && (
+  1217→  1217→              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+  1218→  1218→                <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+  1219→  1219→                <p className="text-xs text-red-700">
+  1220→  1220→                  Debes completar <strong>"Referencia del hallazgo"</strong>, <strong>"Punto a Mejorar"</strong> y <strong>"Responsable de la acción"</strong> en todos los items NOK ({nokItems.filter(r => !(r.hallazgo || '').trim() || !(r.mejora || '').trim() || !(r.responsable || '').trim()).length} pendientes)
+  1221→  1221→                </p>
+  1222→  1222→              </div>
+  1223→  1223→            )}
+  1224→  1224→
+  1225→  1225→            {/* Submit button */}
+  1226→  1226→            <div className="flex justify-end">
+  1227→  1227→              <Button
+  1228→  1228→                onClick={handleSubmit}
+  1229→  1229→                disabled={!canSubmitFinal || isSubmitting}
+  1230→  1230→                style={canSubmitFinal ? { backgroundColor: sStepData?.color } : undefined}
+  1231→  1231→              >
+  1232→  1232→                {isSubmitting ? 'Enviando...' : `Registrar Auditoría Externa (${scoring.scorePercent}%)`}
+  1233→  1233→              </Button>
+  1234→  1234→            </div>
+  1235→  1235→          </div>
+  1236→  1236→        )}
+  1237→  1237→        </div>
+  1238→  1238→      </DialogContent>
+  1239→  1239→    </Dialog>
+  1240→  1240→  );
+  1241→  1241→}
+  1242→  1242→
