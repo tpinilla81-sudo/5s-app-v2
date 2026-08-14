@@ -162,7 +162,14 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
         console.log(`[FotosModal] processQueue: procesando foto #${index + 1} (id=${photoId}), quedan ${uploadQueueRef.current.length} en cola`);
 
         try {
-          const compressed = await compressImage(rawBase64);
+          // v2.58: si la compresión falla, usar el original sin comprimir
+          let compressed: string;
+          try {
+            compressed = await compressImage(rawBase64);
+          } catch (compressErr) {
+            console.warn('[FotosModal] Compression failed, using original:', compressErr);
+            compressed = rawBase64;
+          }
           const estimatedSize = estimateBase64Size(compressed);
 
           const newPhoto: PhotoItem = {

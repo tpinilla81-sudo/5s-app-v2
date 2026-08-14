@@ -642,7 +642,15 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
         reader.readAsDataURL(file);
       });
       const rawBase64 = await base64Promise;
-      const compressed = await compressImage(rawBase64);
+      // v2.58: si la compresión falla o produce un resultado sospechoso,
+      // usar el original sin comprimir antes que uno negro.
+      let compressed: string;
+      try {
+        compressed = await compressImage(rawBase64);
+      } catch (compressErr) {
+        console.warn('[handleAttachPhoto] Compression failed, using original:', compressErr);
+        compressed = rawBase64;
+      }
 
       // Upload to server
       const filename = generatePhotoFilename(currentProject.id, sStep, miniStep, Date.now());

@@ -10,17 +10,35 @@ const JPEG_QUALITY = 0.7; // 70% quality - good balance between size and visual 
 /**
  * Compress an image file or base64 data URL.
  * Returns a compressed JPEG base64 data URL.
+ *
+ * v2.58: FIX fotos negras — dos causas:
+ * 1) img.crossOrigin = 'anonymous' en data URLs podía taintar el canvas
+ *    y toDataURL('image/jpeg') devolvía una imagen completamente negra
+ *    silenciosamente (sin error). Ya no se setea crossOrigin para strings.
+ * 2) JPEG no soporta transpele — si el canvas tenía píxeles transparentes
+ *    (PNG con alpha, o canvas recién creado), se convertían a NEGRO.
+ *    Ahora llenamos el canvas con blanco antes de dibujar la imagen.
  */
 export async function compressImage(source: string | File): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+
+    // v2.58: NO setear crossOrigin para data URLs — provoca canvas taint
+    // y toDataURL devuelve negro. Solo necesario para URLs remotas (http/https).
+    if (typeof source !== 'string' || source.startsWith('http')) {
+      img.crossOrigin = 'anonymous';
+    }
 
     img.onload = () => {
       try {
-        // Calculate new dimensions maintaining aspect ratio
+        // v2.58: validar dimensiones — si son 0, el canvas sería vacío → negro
         let { width, height } = img;
+        if (!width || !height) {
+          reject(new Error('Image has zero dimensions'));
+          return;
+        }
 
+        // Calculate new dimensions maintaining aspect ratio
         if (width > MAX_WIDTH) {
           height = Math.round((height * MAX_WIDTH) / width);
           width = MAX_WIDTH;
@@ -41,6 +59,13 @@ export async function compressImage(source: string | File): Promise<string> {
           return;
         }
 
+        // v2.58: llenar el canvas con blanco ANTES de dibujar la imagen.
+        // JPEG no soporta transparencia — si el canvas tiene píxeles
+        // transparentes (PNG con alpha, o áreas no cubiertas por la imagen),
+        // se convierten a NEGRO al exportar como JPEG.
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+
         // Use high-quality downscaling
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
@@ -48,6 +73,25 @@ export async function compressImage(source: string | File): Promise<string> {
 
         // Convert to JPEG with compression
         const compressed = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+
+        // v2.58: sanity check — si el data URL es sospechosamente pequeño
+        // (menos de 1KB para una imagen de 1200x900), probablemente es negro.
+        // En ese caso, rechazar para que el caller use el original.
+        const base64Length = compressed.split(',')[1]?.length || 0;
+        const estimatedSize = (base64Length * 3) / 4;
+        if (estimatedSize < 1024 && width > 100 && height > 100) {
+          console.warn('[compressImage] Output suspiciously small (' + estimatedSize + ' bytes), likely black image. Using original.');
+          // Devolver el original sin comprimir antes que uno negro
+          if (typeof source === 'string') {
+            resolve(source);
+          } else {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(source);
+          }
+          return;
+        }
+
         resolve(compressed);
       } catch (err) {
         reject(err);
