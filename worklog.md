@@ -2503,3 +2503,74 @@ Stage Summary:
   * Click en Aviso de acción → abre Calendario
   * Click en 'Plan' en tarea del calendario → abre Plan de Acción
   * Flujo completo: Paso 3 → Aviso → Calendario → Plan → nuevas fechas
+
+---
+Task ID: v2.62
+Agent: Main
+Task: Eliminar Borrar Pasos + empleado no hace autoeval (solo la pide al responsable)
+
+Work Log:
+- Usuario: "eliminar el paso borrar, ya no vale. La autoevaluacion no la
+  puede hacer el empleado, es el Responsable. Poner en permisos. El
+  empleado lo que hace es pulsar para organizar cita con el responsable"
+- Usuario: "si se envia al responsable, el aviso no tiene que salir al
+  empleado, el aviso de que se ha enviado sale encima del globo 4 que
+  pone solicitar autoevaluacion, este cambiara a solicitado"
+
+CAMBIOS:
+
+1) ELIMINAR 'BORRAR PASOS':
+   - Eliminado botón 'Borrar Pasos' del menú móvil (línea 632)
+   - Eliminado botón 'Borrar' de la toolbar desktop (línea 678)
+   - Ya no se renderiza en ningún sitio. La API /api/progress/reset
+     sigue existiendo por si se necesita desde otros flujos.
+
+2) PERMISOS — empleado NO hace autoevaluación:
+   - DEFAULT_PERMISSIONS['empleado'] actualizado:
+     * Antes: steps 1-4 ejecutables (step4_a1=true)
+     * Ahora: steps 1-3 ejecutables, step4_a1=false (autoeval es del responsable)
+   - MIGRACIÓN AUTOMÁTICA en GET /api/permissions:
+     * Busca registros existentes role='empleado' + permission~/^s[1-5]_step4_a1$/
+       con allowed=true
+     * Los actualiza a allowed=false con updateMany
+     * Así se aplica a companies existentes sin requerir reset manual del gestor
+   - Responsable/admin/gestor/auditor mantienen sus permisos previos
+   - Empleado conserva 'notify_autoeval' para poder solicitar al responsable
+
+3) BOTÓN 'Solicitar autoeval' sobre paso 4 — fix de UX:
+   - ELIMINADA auto-notificación al propio empleado (type='autoeval_ready')
+     que antes llegaba al empleado como 'Solicitud enviada: S{X} — Autoevaluación'
+   - ELIMINADO el alert('Solicitud de autoevaluación enviada al responsable.')
+   - Nuevo estado 'Solicitado':
+     * Tras click exitoso, botón cambia de '🔔 Autoeval' (azul, pulsante)
+       a '✓ Solicitado' (verde, deshabilitado, sin animación)
+     * Estado persiste en localStorage (clave 'autoeval_requested_steps')
+       → array de S-step numbers solicitados
+     * Recuperado al recargar página (useState con initializer desde localStorage)
+     * Se borra automáticamente cuando el responsable completa el paso 4
+       (porque el render del botón comprueba !step4Done && !empStep4Done)
+   - title dinámico: 'Autoevaluación solicitada al responsable — pendiente
+     de realizar' cuando ya está solicitado
+   - Solo el responsable recibe la notificación 'autoeval_requested'
+
+4) Estado React:
+   - useState<Set<number>> autoevalRequested (inicializado desde localStorage)
+   - useCallback markAutoevalRequested(sStep) → actualiza state + localStorage
+
+Bump v2.61 → v2.62 (middleware.ts, page.tsx).
+Build Next.js: ✓ Compiled successfully (19.4s).
+Commit c4524bb + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- TRAS DEPLOY v2.62 (~1-2 min):
+  * Botón 'Borrar' eliminado de toolbar y menú móvil
+  * Empleado ya NO puede abrir AutoevaluacionModal (permiso step4_a1=false)
+    — al hacer click en el globo 4, verá candado/locked
+  * Empleado con steps 1-3 completados ve botón '🔔 Autoeval' sobre globo 4
+  * Click en botón:
+    - Solo notifica al responsable (type='autoeval_requested')
+    - NO envía aviso al empleado
+    - Botón cambia a '✓ Solicitado' (verde)
+    - Persiste al navegar entre tabs (localStorage)
+  * Responsable entra a Avisos → ve 'Solicitud autoevaluación: S{X}'
+  * Responsable completa paso 4 → botón desaparece (estado completado)
