@@ -31,7 +31,11 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get('projectId')
     const zoneId = searchParams.get('zoneId')
     const sStepRaw = searchParams.get('sStep')
-    const miniStep = Number(searchParams.get('miniStep') || '2')
+    const miniStepRaw = searchParams.get('miniStep')
+    // v2.36: ser robusto ante 'undefined' o NaN en miniStep (default 2).
+    // Antes `Number('undefined')` producía NaN y rompía la query del slot.
+    const miniStepParsed = miniStepRaw ? Number(miniStepRaw) : 2
+    const miniStep = Number.isFinite(miniStepParsed) ? miniStepParsed : 2
 
     if (!projectId || !zoneId || !sStepRaw) {
       return NextResponse.json(
@@ -56,26 +60,32 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Si la zona no tiene tablero asignado, no hay slot → fallback a 10
-    if (!zone.boardConfigId) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          minPhotos: DEFAULT_MIN_PHOTOS,
-          source: 'default',
-          templateId: null,
-          templateTitle: null,
-          boardSlotTemplateId: null,
-          baseMinPhotos: null,
-          overrideMinPhotos: null,
-        },
+    // v2.36: Si la zona no tiene tablero asignado, caer al tablero
+    // predeterminado del sistema (mismo comportamiento que /api/board-slots).
+    // Antes devolvíamos 10 directamente, lo que hacía que el admin editara
+    // el override en el tablero predeterminado (vía ZoneTemplatesSection)
+    // pero el empleado viera siempre 10 porque su zona no tenía boardConfigId.
+    let effectiveBoardConfigId = zone.boardConfigId
+    if (!effectiveBoardConfigId) {
+      let defaultConfig = await db.boardConfiguration.findFirst({
+        where: { isDefault: true },
       })
+      if (!defaultConfig) {
+        defaultConfig = await db.boardConfiguration.create({
+          data: {
+            name: 'Tablero 5S',
+            description: 'Tablero predeterminado del sistema',
+            isDefault: true,
+          },
+        })
+      }
+      effectiveBoardConfigId = defaultConfig.id
     }
 
-    // 2. Buscar el slot (S×Paso 2) del tablero de la zona
+    // 2. Buscar el slot (S×Paso 2) del tablero efectivo de la zona
     const slot = await db.boardSlot.findFirst({
       where: {
-        boardConfigId: zone.boardConfigId,
+        boardConfigId: effectiveBoardConfigId,
         sStep,
         miniStep,
       },
@@ -88,6 +98,15 @@ export async function GET(request: NextRequest) {
         },
       },
     })
+
+    console.log(
+      `[photo-limits] GET projectId=${projectId} zoneId=${zoneId} ` +
+        `zone.boardConfigId=${zone.boardConfigId ?? 'null'} ` +
+        `effectiveBoardConfigId=${effectiveBoardConfigId} ` +
+        `sStep=${sStep} miniStep=${miniStep} ` +
+        `slotFound=${!!slot} ` +
+        `fotosEntry=${slot?.templates.find(t => t.template?.type === 'fotos') ? 'yes' : 'no'}`
+    )
 
     if (!slot) {
       return NextResponse.json({
