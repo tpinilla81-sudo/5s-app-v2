@@ -2730,3 +2730,75 @@ Stage Summary:
   * LandingPage footer: logo sin círculo blanco, sobre bg-gray-50 del footer
   * Otras páginas (LoginPage, ProjectSelector, app header) ya estaban limpias
   * Badge versión muestra v2.67
+
+---
+Task ID: v2.68
+Agent: Main
+Task: Programar fecha de autoeval/auditoría + notificar + entrada en calendarios de responsable y empleado + toolbar reordenada
+
+Work Log:
+- Usuario: "el responsable, no sale nada para poder poner fecha de la auditoría y que salga en los calendarios de él y del empleado"
+- Usuario: "en la barra de herramientas después de avisos, calendario"
+
+CAMBIOS:
+
+1) TOOLBAR REORDENADA:
+   - Antes: Avisos → Plan Acc. → Calendario → ...
+   - Ahora: Avisos → Calendario → Plan Acc. → Fotos → Jaula → Activos → P. Limpio → Estándares
+   - Aplicado en page.tsx líneas 710-755
+
+2) PRISMA — EvaluationSchedule AMPLIADO:
+   - Añadidos campos: responsableId, empleadoId, createdBy, estado, notas
+   - Nuevos índices: responsableId, empleadoId
+   - prisma db push + generate aplicados
+
+3) API /api/evaluation-schedule:
+   - GET: nueva modalidad — si recibe userId+projectId, lista todas las
+     evaluaciones donde el user es responsable OR empleado (estado != cancelada)
+   - POST: ahora acepta responsableId, empleadoId, createdBy, estado, notas
+     y envía notificaciones automáticamente:
+     * Si createdBy != empleadoId → notifica al empleado (type=evaluation_scheduled)
+     * Si createdBy != responsableId → notifica al responsable
+     * Mensaje incluye S-step, fecha/hora programada y zona
+   - PATCH: nuevo — permite cambiar estado (realizada/cancelada/reprogramada)
+
+4) API /api/my-tasks:
+   - Ahora consulta también EvaluationSchedule donde el usuario es
+     responsableId OR empleadoId (estado != cancelada/realizada)
+   - Cada entrada se mapea a un TaskItem con:
+     * id: 'eval-{scheduleId}'
+     * itemDescription: 'Autoevaluación S3 (realizas)' o '(asistes)'
+     * source: 'evaluation_schedule'
+     * fechaLimite = fechaProgramada
+     * notas = 'Hora: HH:MM'
+   - Aparece en el calendario de ambos (responsable y empleado)
+   - Stats recalculadas para incluir estas entradas
+
+5) UI page.tsx — BOTÓN 'PROGRAMAR FECHA':
+   - Visible en notificaciones type=autoeval_requested o audit_requested (no leídas)
+   - Al hacer click:
+     * Marca la notif como leída
+     * Busca el empleado de la zona (si solo hay 1, lo autocompleta)
+     * Abre el diálogo modal con selectores de fecha (default mañana) y hora (default 10:00)
+   - Diálogo modal:
+     * Título: 'Programar Autoevaluación — S{X}' o 'Auditoría'
+     * Inputs: fecha (min=today) + hora
+     * Botón 'Programar' → POST /api/evaluation-schedule
+     * Tras éxito: toast, cierra diálogo, abre UserTaskCalendar
+     * Botón 'Cancelar'
+   - State nuevo: scheduleDialog, scheduleDate, scheduleTime, isSavingSchedule
+   - Imports: Calendar (lucide-react), toast (sonner)
+
+Bump v2.67 → v2.68 (middleware.ts, page.tsx).
+Build Next.js: ✓ Compiled successfully.
+Commit b2ef237 + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- TRAS DEPLOY v2.68 (~1-2 min):
+  * Toolbar: Avisos → Calendario → Plan Acc. → Fotos → Jaula → Activos → P. Limpio → Estándares
+  * Responsable recibe notif 'autoeval_requested' o 'audit_requested'
+  * En la notif ve botón azul '📅 Programar fecha'
+  * Click abre diálogo → elige fecha y hora → Programar
+  * Empleado recibe notif 'evaluation_scheduled' con fecha y hora
+  * Calendario del responsable y del empleado muestra la entrada
+  * Si pasa la fecha sin completar, se marca como vencida (rojo)
