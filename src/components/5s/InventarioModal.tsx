@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ClipboardList, Plus, CheckCircle, Download, Upload, FileSpreadsheet, BookOpen, ArrowRight, AlertTriangle, FileUp, Maximize2, Minimize2, File, PenTool, Eye, Loader2, MapPin, Tag, Camera, ZoomIn } from 'lucide-react';
+import { ClipboardList, CheckCircle, Download, Upload, FileSpreadsheet, BookOpen, ArrowRight, AlertTriangle, FileUp, Maximize2, Minimize2, File, PenTool, Eye, Loader2, MapPin, Tag, Camera, ZoomIn } from 'lucide-react';
 import { toast } from 'sonner';
 import { use5SStore } from '@/lib/store';
 import { S_STEPS, INVENTORY_CONFIGS, INVENTORY_CLASSIFY_THRESHOLD, DRAFT_NAME_BY_S, DRAFT_INSTRUCTIONS_BY_S } from '@/lib/5s-constants';
@@ -122,31 +122,10 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
   // se vuelva a disparar mientras la migración está en curso.
   const isMigratingRef = useRef(false);
 
-  // S1: default category is 'innecesario' since this template is for unnecessary items
-  const defaultCategory = sStep === 1 ? 'innecesario' : undefined;
-
-  const [newItem, setNewItem] = useState<Partial<InventoryItemData> & { extra?: Record<string, string | number> }>({
-    name: '',
-    location: '',
-    category: defaultCategory as string | undefined,
-    quantity: 1,
-    quantityNeeded: 0,
-    quantityUnneeded: 0,
-    price: null,
-    action: '',
-    zonaOrigen: currentZone?.name || null,
-    jaulaFechaEntrada: new Date().toISOString(),
-    extra: {},
-  });
-
-  // Update zonaOrigen and default category when zone/step changes
-  useEffect(() => {
-    setNewItem(prev => ({
-      ...prev,
-      zonaOrigen: currentZone?.name || prev.zonaOrigen,
-      category: sStep === 1 ? 'innecesario' : prev.category,
-    }));
-  }, [currentZone?.name, sStep]);
+  // v2.45: eliminado el state `newItem` y el form "Add item" — los items
+  // ahora se crean automáticamente como borradores al tomar fotos en el
+  // Paso 2 (FotosModal.handleSubmit). El usuario edita los borradores
+  // directamente en la tabla inferior.
 
   useEffect(() => {
     if (open) {
@@ -166,8 +145,6 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
       });
       // Load layouts for any S step that has layout support (S2 primarily, also S3/S4 for estandares)
       if (sStep === 2 || sStep === 3 || sStep === 4) loadLayouts();
-      // Reset zonaOrigen to current zone when opening
-      setNewItem(prev => ({ ...prev, zonaOrigen: currentZone?.name || null }));
       // Load Step 2 photos for this zone/project
       loadStep2Photos();
     }
@@ -705,78 +682,10 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
     }
   };
 
-  const handleAddItem = async () => {
-    if (!newItem.name || !newItem.category) {
-      toast.error('Completa el nombre y la categoría del elemento');
-      return;
-    }
-
-    if (!currentProject?.id) {
-      toast.error('No hay proyecto seleccionado. Selecciona un proyecto antes de agregar elementos.');
-      return;
-    }
-
-    // Auto-calculate quantityUnneeded/Needed based on category for S1
-    const qty = newItem.quantity || 1;
-    const isInnecesario = sStep === 1 && newItem.category === 'innecesario';
-    const isNecesario = sStep === 1 && newItem.category === 'necesario';
-    const qtyNeeded = isNecesario ? qty : (newItem.quantityNeeded || 0);
-    const qtyUnneeded = isInnecesario ? qty : (newItem.quantityUnneeded || 0);
-
-    // S1: auto-set decision to extra field (only for innecesario)
-    const extra = { ...(newItem.extra || {}) };
-    if (sStep === 1 && isInnecesario && !extra.decision) {
-      extra.decision = 'Jaula';
-    }
-    // S1: Determine zona destino based on decision
-    const getZonaDestino = (decision: string | undefined): string => {
-      if (decision === 'Tirar' || decision === 'Eliminar') return 'Residuo';
-      return 'Jaula'; // Default for Jaula or no decision
-    };
-    // S1: Keep all fields — user can fill in both necesario and innecesario fields
-    // No field deletion since all fields are now visible and editable
-
-    try {
-      const res = await fetch('/api/inventory', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sStep,
-          projectId: currentProject.id,
-          zoneId: currentZone?.id || null,
-          name: newItem.name,
-          location: newItem.location,
-          category: newItem.category || '',
-          quantity: qty,
-          quantityNeeded: qtyNeeded,
-          quantityUnneeded: qtyUnneeded,
-          price: newItem.price || null,
-          action: newItem.action || (isInnecesario ? (extra.decision || 'Jaula') : ''),
-          extra,
-          // Only Jaula items get jaula entry/quarantine; Eliminar/Tirar items go directly to Residuo
-          jaulaStatus: isInnecesario && extra.decision !== 'Eliminar' && extra.decision !== 'Tirar' ? 'en_jaula' : '',
-          jaulaFechaEntrada: isInnecesario && extra.decision !== 'Eliminar' && extra.decision !== 'Tirar' ? (newItem.jaulaFechaEntrada || new Date().toISOString()) : null,
-          jaulaOrigen: isInnecesario ? newItem.zonaOrigen || currentZone?.name || currentProject.name || '' : null,
-          zonaOrigen: newItem.zonaOrigen || currentZone?.name || null,
-          zonaDestino: isInnecesario ? getZonaDestino(extra.decision as string | undefined) : (newItem.zonaOrigen || currentZone?.name || null),
-        }),
-      });
-
-      const json = await res.json();
-      if (json.success) {
-        toast.success('Elemento agregado correctamente');
-        // v2.44: las fotos ya no se adjuntan manualmente desde aquí —
-        // se vinculan automáticamente al tomar la foto en el Paso 2.
-        await loadInventory();
-        setNewItem({ name: '', location: '', category: defaultCategory as string | undefined, quantity: 1, quantityNeeded: 0, quantityUnneeded: 0, price: null, action: '', zonaOrigen: currentZone?.name || null, jaulaFechaEntrada: new Date().toISOString(), extra: {} });
-      } else {
-        toast.error(`Error al agregar: ${json.error || 'Error desconocido'}`);
-      }
-    } catch (error) {
-      console.error('Error adding item:', error);
-      toast.error('Error de conexión al agregar el elemento');
-    }
-  };
+  // v2.45: eliminado handleAddItem — el form "Add item" ya no existe.
+  // Los items se crean automáticamente desde FotosModal.handleSubmit
+  // al tomar fotos en el Paso 2. Para añadir manualmente un item,
+  // el usuario puede usar "Importar Plantilla" o "Importar Archivo".
 
   const handleImportTemplate = async () => {
     if (!currentProject?.id) {
@@ -1702,389 +1611,6 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
               </Card>
             )}
 
-            {/* Add item form */}
-            <Card>
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  {/* Row 1: Name, Zona (read-only), Category (auto innecesario for S1), Quantity, Price */}
-                  <div className="grid grid-cols-1 gap-3 items-end sm:grid-cols-5">
-                    <div className="sm:col-span-2">
-                      <label className="text-xs font-medium">Elemento *</label>
-                      <Input
-                        placeholder="Nombre del elemento"
-                        value={newItem.name}
-                        onChange={e => setNewItem(prev => ({ ...prev, name: e.target.value }))}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' && newItem.name && newItem.category) {
-                            e.preventDefault();
-                            handleAddItem();
-                          }
-                        }}
-                      />
-                    </div>
-                    {sStep === 1 ? (
-                      /* S1: Zona selectable (allows changing if item belongs to different zone) */
-                      <div>
-                        <label className="text-xs font-medium flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          Zona origen
-                        </label>
-                        {currentProject?.zones && currentProject.zones.length > 0 ? (
-                          <Select
-                            value={newItem.zonaOrigen || currentZone?.name || undefined}
-                            onValueChange={val => setNewItem(prev => ({ ...prev, zonaOrigen: val }))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar zona" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {currentProject.zones.map(z => (
-                                <SelectItem key={z.id} value={z.name}>{z.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input
-                            value={newItem.zonaOrigen || currentZone?.name || ''}
-                            onChange={e => setNewItem(prev => ({ ...prev, zonaOrigen: e.target.value }))}
-                            placeholder="Zona origen"
-                          />
-                        )}
-                      </div>
-                    ) : (
-                      /* Non-S1: Zona selectable */
-                      <div>
-                        <label className="text-xs font-medium flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          Zona
-                        </label>
-                        {currentProject?.zones && currentProject.zones.length > 0 ? (
-                          <Select
-                            value={newItem.zonaOrigen || currentZone?.name || undefined}
-                            onValueChange={val => setNewItem(prev => ({ ...prev, zonaOrigen: val }))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar zona" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {currentProject.zones.map(z => (
-                                <SelectItem key={z.id} value={z.name}>{z.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input
-                            placeholder="Zona"
-                            value={newItem.zonaOrigen || currentZone?.name || ''}
-                            onChange={e => setNewItem(prev => ({ ...prev, zonaOrigen: e.target.value }))}
-                          />
-                        )}
-                      </div>
-                    )}
-                    {sStep === 1 ? (
-                      /* S1: Category is innecesario by default, shown as read-only badge */
-                      <div>
-                        <label className="text-xs font-medium">Categoría</label>
-                        <div className="h-9 flex items-center px-3 rounded-md border bg-red-50 text-red-700 text-sm font-medium">
-                          Innecesario
-                        </div>
-                      </div>
-                    ) : (
-                      /* Non-S1: Category selectable */
-                      <div>
-                        <label className="text-xs font-medium">Categoría *</label>
-                        <Select
-                          value={newItem.category || undefined}
-                          onValueChange={val => setNewItem(prev => ({ ...prev, category: val, extra: { ...(prev.extra || {}), subcategoria: '' as string } }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Categoría" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {config.categories.filter(cat => cat.value && cat.value.trim() !== '').map(cat => (
-                              <SelectItem key={cat.value} value={cat.value}>
-                                {cat.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                    <div>
-                      <label className="text-xs font-medium">{sStep === 1 ? 'Cantidad' : 'Total exist.'}</label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={newItem.quantity || 1}
-                        onChange={e => setNewItem(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' && newItem.name && newItem.category) {
-                            e.preventDefault();
-                            handleAddItem();
-                          }
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium">Precio (€)</label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={newItem.price ?? ''}
-                        onChange={e => setNewItem(prev => ({ ...prev, price: e.target.value ? parseFloat(e.target.value) : null }))}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' && newItem.name && newItem.category) {
-                            e.preventDefault();
-                            handleAddItem();
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* S1: All fields visible and editable — Innecesario + Necesario + Etiquetas */}
-                  {sStep === 1 ? (
-                    <>
-                      {/* S1: Section labels */}
-                      <div className="flex items-center gap-3 mt-1">
-                        <div className="flex items-center gap-1.5">
-                          <div className="h-2.5 w-2.5 rounded bg-red-500" />
-                          <span className="text-[10px] font-medium text-red-700">Campos de Innecesario</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="h-2.5 w-2.5 rounded bg-orange-500" />
-                          <span className="text-[10px] font-medium text-orange-700">Datos de Etiqueta</span>
-                        </div>
-                      </div>
-
-                      {/* S1: Innecesario fields — always visible and editable */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end p-2 rounded-lg border border-red-200 bg-red-50/30">
-                        {['estado', 'frecuenciaUso', 'decision'].map(key => {
-                          const field = config.extraFields.find(f => f.key === key);
-                          if (!field) return null;
-                          return (
-                            <div key={field.key}>
-                              <label className="text-xs font-medium text-red-700">{field.label}</label>
-                              {field.type === 'select' && field.options ? (
-                                <Select
-                                  value={newItem.extra?.[field.key] ? String(newItem.extra[field.key]) : undefined}
-                                  onValueChange={val =>
-                                    setNewItem(prev => {
-                                      const updated = { ...prev, extra: { ...(prev.extra || {}), [field.key]: val } };
-                                      // If decision is Eliminar/Tirar: clear quarantine/entry fields
-                                      if (field.key === 'decision' && (val === 'Eliminar' || val === 'Tirar')) {
-                                        updated.jaulaFechaEntrada = null;
-                                        delete updated.extra.diasCuarentena;
-                                      }
-                                      // If decision is Jaula: set default entry date and quarantine
-                                      if (field.key === 'decision' && val === 'Jaula') {
-                                        if (!updated.jaulaFechaEntrada) updated.jaulaFechaEntrada = new Date().toISOString();
-                                        if (!updated.extra.diasCuarentena) updated.extra.diasCuarentena = 40;
-                                      }
-                                      return updated;
-                                    })
-                                  }
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder={field.label} />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {field.options.filter(opt => opt && opt.trim() !== '').map(opt => (
-                                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <Input
-                                  placeholder={field.label}
-                                  value={String(newItem.extra?.[field.key] ?? '')}
-                                  onChange={e =>
-                                    setNewItem(prev => ({
-                                      ...prev,
-                                      extra: { ...(prev.extra || {}), [field.key]: e.target.value },
-                                    }))
-                                  }
-                                />
-                              )}
-                            </div>
-                          );
-                        })}
-                        <div className="col-span-full flex items-center gap-1">
-                          <div className="w-2 h-2 rounded-full bg-red-400" />
-                          <span className="text-[9px] text-red-600 font-medium">
-                            {newItem.extra?.decision === 'Eliminar' || newItem.extra?.decision === 'Tirar'
-                              ? `Decisión: ${newItem.extra.decision} → va a Residuo (sin etiqueta, sin cuarentena)`
-                              : 'Decisión: Jaula → etiqueta roja con cuarentena'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* S1: Etiqueta fields — ONLY for Jaula decision (Eliminar/Tirar go to Residuo, no tag/quarantine) */}
-                      {(!newItem.extra?.decision || newItem.extra.decision === 'Jaula') && (
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end p-2 rounded-lg border border-orange-200 bg-orange-50/30">
-                        <div>
-                          <label className="text-xs font-medium text-orange-700 flex items-center gap-1">
-                            <Tag className="h-3 w-3" />
-                            F. Entrada
-                          </label>
-                          <Input
-                            type="date"
-                            value={newItem.jaulaFechaEntrada ? new Date(newItem.jaulaFechaEntrada).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
-                            onChange={e => {
-                              const val = e.target.value ? new Date(e.target.value + 'T12:00:00').toISOString() : null;
-                              setNewItem(prev => ({ ...prev, jaulaFechaEntrada: val }));
-                            }}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-orange-700 flex items-center gap-1">
-                            <Tag className="h-3 w-3" />
-                            Días cuarentena
-                          </label>
-                          <Select
-                            value={String(newItem.extra?.diasCuarentena ?? 40)}
-                            onValueChange={val =>
-                              setNewItem(prev => ({
-                                ...prev,
-                                extra: { ...(prev.extra || {}), diasCuarentena: parseInt(val) || 40 },
-                              }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {[7, 15, 20, 30, 40, 60, 90].map(d => (
-                                <SelectItem key={d} value={String(d)}>{d} días</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-orange-700 flex items-center gap-1">
-                            <Tag className="h-3 w-3" />
-                            F. Revisión
-                          </label>
-                          <Input
-                            type="date"
-                            value={(() => {
-                              const base = newItem.jaulaFechaEntrada || new Date().toISOString();
-                              const dias = Number(newItem.extra?.diasCuarentena ?? 40);
-                              try {
-                                const d = new Date(base);
-                                d.setDate(d.getDate() + dias);
-                                return d.toISOString().split('T')[0];
-                              } catch { return ''; }
-                            })()}
-                            readOnly
-                            className="bg-orange-50"
-                          />
-                        </div>
-                        <div className="flex items-end">
-                          <div className="flex items-center gap-1">
-                            <div className="w-2 h-2 rounded-full bg-orange-500" />
-                            <span className="text-[9px] text-orange-600 font-medium">Datos para etiqueta roja</span>
-                          </div>
-                        </div>
-                      </div>
-                      )}
-                    </>
-                  ) : (
-                  /* Non-S1: Original extra fields */
-                  config.extraFields.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-                      {config.extraFields.map(field => {
-                        // Dynamic subcategoria: filter options based on selected category
-                        let effectiveOptions = field.type === 'select' ? field.options : undefined;
-                        if (field.key === 'subcategoria' && config.desplegables_jerarquicos) {
-                          const selectedCat = newItem.category;
-                          if (selectedCat) {
-                            const catLabel = config.categories.find(c => c.value === selectedCat)?.label;
-                            const hierEntry = catLabel && config.desplegables_jerarquicos[catLabel]
-                              ? config.desplegables_jerarquicos[catLabel]
-                              : config.desplegables_jerarquicos[selectedCat];
-                            if (hierEntry) {
-                              effectiveOptions = hierEntry.subcategorias;
-                            } else {
-                              effectiveOptions = [];
-                            }
-                          } else {
-                            effectiveOptions = Object.values(config.desplegables_jerarquicos).flatMap(h => h.subcategorias);
-                          }
-                        }
-                        return (
-                        <div key={field.key}>
-                          <label className="text-xs font-medium">{field.label}</label>
-                          {field.type === 'select' && effectiveOptions ? (
-                            <Select
-                              value={newItem.extra?.[field.key] ? String(newItem.extra[field.key]) : undefined}
-                              onValueChange={val =>
-                                setNewItem(prev => ({
-                                  ...prev,
-                                  extra: { ...(prev.extra || {}), [field.key]: val },
-                                }))
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder={field.label} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {effectiveOptions.filter(opt => opt && opt.trim() !== '').map(opt => (
-                                  <SelectItem key={opt} value={opt}>
-                                    {opt}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : field.type === 'number' ? (
-                            <Input
-                              type="number"
-                              min="0"
-                              max="100"
-                              placeholder={field.label}
-                              value={newItem.extra?.[field.key] ?? ''}
-                              onChange={e =>
-                                setNewItem(prev => ({
-                                  ...prev,
-                                  extra: { ...(prev.extra || {}), [field.key]: parseInt(e.target.value) || 0 },
-                                }))
-                              }
-                            />
-                          ) : (
-                            <Input
-                              placeholder={field.label}
-                              value={String(newItem.extra?.[field.key] ?? '')}
-                              onChange={e =>
-                                setNewItem(prev => ({
-                                  ...prev,
-                                  extra: { ...(prev.extra || {}), [field.key]: e.target.value },
-                                }))
-                              }
-                            />
-                          )}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  )
-                  )}
-
-                  {/* Add button — las fotos se vinculan automáticamente desde el Paso 2 */}
-                  <div className="flex justify-end items-center gap-2">
-                    <Button
-                      onClick={handleAddItem}
-                      disabled={!newItem.name || !newItem.category}
-                      size="sm"
-                      style={{ backgroundColor: sStepData?.color }}
-                    >
-                      <Plus className="h-4 w-4 mr-1" /> Agregar
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
             {/* ═══ S3: Plan de Limpieza e Inspección ═══ */}
             {sStep === 3 && (
@@ -2118,9 +1644,11 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
               </div>
             ) : items.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <ClipboardList className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <Camera className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No hay elementos en el inventario</p>
-                <p className="text-xs mt-1">Importe una plantilla o agregue elementos manualmente</p>
+                <p className="text-xs mt-1">
+                  Toma fotos en el Paso 2 (S{sStep} · {sStepData?.japaneseName} · Fotos) y se crearán aquí automáticamente.
+                </p>
               </div>
             ) : (
               <div className="max-h-80 overflow-y-auto rounded-lg border">
