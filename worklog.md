@@ -1575,3 +1575,52 @@ Stage Summary:
   FotosModal al reabrir el Paso 2 (p. ej. para añadir más fotos),
   iterar — aunque actualmente FotosModal solo opera sobre photos
   state local hasta que se ejecuta handleSubmit.
+
+---
+Task ID: v2.47
+Agent: Main
+Task: × en FotosModal (Paso 2) ahora borra de verdad
+
+Work Log:
+- Petición del usuario: "La x al lado de las fotos en paso 2, estan.
+  Se puede elimnar pero no se guarda."
+
+PROBLEMA: en FotosModal (Paso 2), el × al lado de cada foto solo
+filtraba el estado local 'photos' (setPhotos(prev => prev.filter...)).
+Las fotos que ya estaban en la biblioteca (savedToLibrary=true)
+seguían en la BD y al reabrir el modal volvían a aparecer. El
+borrado no persistía.
+
+FIX (FotosModal.tsx):
+- Añadido campo 'dbId' al interfaz PhotoItem — el id real en
+  PhotoLibrary (solo se setea si savedToLibrary=true).
+- Al cargar fotos existentes (loadExistingPhotos), set dbId=p.id.
+- removePhoto ahora es async:
+  * Si photo.savedToLibrary && photo.dbId → llama al backend
+    DELETE /api/photo-library?id=<dbId>. Si 409 (Paso 2 ya
+    completado), toast.error y NO quita del estado local. Si OK,
+    quita del estado local.
+  * Si no está en la biblioteca (foto recién capturada, no
+    submitida) → solo filtra el estado local (comportamiento
+    anterior).
+- Importado 'toast' de sonner.
+
+El backend guard de v2.46 (DELETE /api/photo-library devuelve 409
+si photo.miniStep=2 y Progress(sStep, miniStep=2, completed=true))
+sigue aplicando — así el usuario puede borrar fotos mientras esté
+en el Paso 2, pero una vez completado y pasado al Paso 3, no.
+
+Bump v2.47 en middleware.ts, page.tsx, LoginPage.tsx.
+Build Next.js: ✓ Compiled successfully in 20.6s.
+Commit + push a GitHub (2d49e40). Vercel deploy automático.
+
+Stage Summary:
+- En FotosModal (Paso 2):
+  * Foto recién capturada (no submitida) → × la quita del estado
+    local (igual que antes).
+  * Foto ya guardada en la biblioteca → × ahora llama al backend
+    DELETE y persiste el borrado.
+  * Si el Paso 2 ya está completado (Progress.completed=true), el
+    backend devuelve 409 y el × muestra toast.error explicando que
+    no se puede eliminar. La foto NO se quita del estado local.
+- Pendiente: usuario prueba en v2.47 tras deploy (~1-2 min).
