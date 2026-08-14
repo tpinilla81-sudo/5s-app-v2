@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ClipboardList, CheckCircle, Download, Upload, FileSpreadsheet, BookOpen, ArrowRight, AlertTriangle, FileUp, Maximize2, Minimize2, File, PenTool, Eye, Loader2, MapPin, Tag, Camera, ZoomIn } from 'lucide-react';
+import { ClipboardList, CheckCircle, Download, Upload, FileSpreadsheet, BookOpen, ArrowRight, AlertTriangle, FileUp, Maximize2, Minimize2, File, PenTool, Eye, Loader2, MapPin, Tag, Camera, ZoomIn, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { use5SStore } from '@/lib/store';
 import { S_STEPS, INVENTORY_CONFIGS, INVENTORY_CLASSIFY_THRESHOLD, DRAFT_NAME_BY_S, DRAFT_INSTRUCTIONS_BY_S } from '@/lib/5s-constants';
@@ -673,13 +673,16 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sStep,
-          miniStep,
+          // v2.57: forzar miniStep=2 para que la foto también aparezca en el
+          // Paso 2 (Fotos) y no solo en el inventario. Así se mantiene la
+          // trazabilidad completa: biblioteca de fotos + Paso 2 + inventario.
+          miniStep: 2,
           title: `S${sStep} ${sName} - ${zoneName} - ${itemLabel} - ${typeLabel} (${date})`,
           description: `Foto adjunta al elemento de inventario: ${itemLabel}`,
           photoUrl: uploadJson.url,
           photoType,
-          category: `inventario_s${sStep}`,
-          tags: JSON.stringify([`S${sStep}`, sName, zoneName, `inventario`, photoType, itemLabel]),
+          category: `paso2_s${sStep}`,
+          tags: JSON.stringify([`S${sStep}`, sName, zoneName, `paso2`, `inventario`, photoType, itemLabel]),
           projectId: currentProject.id,
           zoneId: currentZone?.id || null,
           uploadedBy: currentUser?.id || null,
@@ -719,6 +722,74 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
       toast.error('Error al adjuntar la foto');
     } finally {
       setUploadingPhotoForItem(null);
+    }
+  };
+
+  // v2.57: refMap para inputs de archivo ocultos — uno por cada item.
+  // Permite que el botón "+" de la columna Fotos dispare un click en su
+  // input file correspondiente sin necesidad de re-renderizar.
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const fileInputRefForItem = (itemId: string) => fileInputRefs.current[itemId];
+
+  // v2.57: handler para el input file oculto de cada item.
+  // Recibe el evento change del input, lee el archivo, y lo pasa a handleAttachPhoto.
+  const handleFileInputChange = (itemId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    handleAttachPhoto(itemId, file, 'antes');
+    // Reset para que se pueda volver a seleccionar el mismo archivo
+    e.target.value = '';
+  };
+
+  // v2.57: añadir una nueva línea al inventario.
+  // Crea un item vacío en DB y lo añade al state local.
+  const handleAddRow = async () => {
+    if (!currentProject?.id) {
+      toast.error('No hay proyecto seleccionado');
+      return;
+    }
+    try {
+      const sName = sStepData?.japaneseName || `S${sStep}`;
+      const zoneName = currentZone?.name || 'Zona';
+      const date = new Date().toLocaleDateString('es-ES');
+      const isInn = sStep === 1;
+      const newItemName = `Nuevo elemento (${date})`;
+
+      const res = await fetch('/api/inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sStep,
+          projectId: currentProject.id,
+          zoneId: currentZone?.id || null,
+          name: newItemName,
+          location: currentZone?.name || currentProject.name || '',
+          // v2.57: en S1 todos los items son innecesario por definición
+          category: isInn ? 'innecesario' : '',
+          quantity: 1,
+          quantityNeeded: 0,
+          quantityUnneeded: isInn ? 1 : 0,
+          price: null,
+          action: '',
+          extra: {},
+          jaulaStatus: '',
+          jaulaFechaEntrada: null,
+          jaulaOrigen: isInn ? (currentZone?.name || currentProject.name || '') : null,
+          zonaOrigen: currentZone?.name || null,
+          zonaDestino: null,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        // Recargar inventario para que el nuevo item aparezca con su ID real
+        await loadInventory();
+        toast.success('Línea añadida — rellena los datos del nuevo elemento');
+      } else {
+        toast.error(`Error al añadir línea: ${json.error || 'Error desconocido'}`);
+      }
+    } catch (e) {
+      console.error('Error adding row:', e);
+      toast.error('Error al añadir la línea');
     }
   };
 
@@ -1671,6 +1742,14 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
 
             {/* Action buttons — v2.39: bulk import/export hidden for empleado/auditor */}
             <div className="flex gap-2 flex-wrap items-center">
+              {/* v2.57: botón "Añadir línea" — visible para cualquier usuario editor.
+                  Crea un item vacío en DB y recarga el inventario. */}
+              {!isReadOnly && (
+                <Button variant="default" size="sm" onClick={handleAddRow}
+                  className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Plus className="h-4 w-4 mr-1" /> Añadir línea
+                </Button>
+              )}
               {canManageBulk && (
               <>
               <Button variant="outline" size="sm" onClick={handleImportTemplate}>
@@ -1698,55 +1777,8 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
               </a>
               </>
               )}
-              {/* S1: Print red label button — only for Jaula decision items */}
-              {sStep === 1 && items.length > 0 && (() => {
-                // Helper: compute revision date = entry date + diasCuarentena (default 40)
-                const withRevision = (i: InventoryItemData) => {
-                  let fechaRevision: string | null = null;
-                  const dias = Number(i.extra?.diasCuarentena ?? 40);
-                  if (i.jaulaFechaEntrada) {
-                    try {
-                      const d = new Date(i.jaulaFechaEntrada);
-                      d.setDate(d.getDate() + dias);
-                      fechaRevision = d.toISOString();
-                    } catch {}
-                  }
-                  return fechaRevision;
-                };
-                // v2.50: red tag only for items going to Jaula (Retirar; legacy 'Jaula').
-                const rojaItems = items
-                  .filter(i => i.category === 'innecesario' && isJaulaDecision(i.extra?.decision))
-                  .map(i => ({
-                    nombre: i.name,
-                    ubicacion: i.location,
-                    cantidad: i.quantityUnneeded || i.quantity,
-                    estado: String(i.extra?.estado ?? ''),
-                    frecuenciaUso: String(i.extra?.frecuenciaUso ?? ''),
-                    decision: 'Retirar' as string,
-                    categoria: String(i.category ?? 'Innecesario'),
-                    fechaEntrada: i.jaulaFechaEntrada,
-                    fechaRevision: withRevision(i),
-                    diasCuarentena: Number(i.extra?.diasCuarentena ?? 40),
-                    zonaOrigen: i.zonaOrigen || i.jaulaOrigen,
-                  }));
-                // v2.48: pasamos los itemIds alineados con rojaItems para que
-                // TagPrinter pueda persistir el snapshot de la etiqueta.
-                const rojaItemIds = items
-                  .filter(i => i.category === 'innecesario' && isJaulaDecision(i.extra?.decision))
-                  .map(i => i.id);
-                return (
-                  <div className="flex items-center gap-2 ml-2 pl-2 border-l border-red-300">
-                    <span className="text-[10px] text-muted-foreground font-medium">Etiquetas:</span>
-                    {rojaItems.length > 0 && (
-                      <TagPrinter
-                        items={rojaItems}
-                        itemIds={rojaItemIds}
-                        onAfterPrint={() => { /* recargar items para reflejar etiquetaGenerada */ loadInventory(); }}
-                      />
-                    )}
-                  </div>
-                );
-              })()}
+              {/* v2.57: eliminado botón global "Etiquetas rojas" — ya existe uno por
+                  línea en la columna Etiquetas, así que el global era redundante. */}
             </div>
 
             {/* TASK 7: CSV Import Preview */}
@@ -2292,10 +2324,26 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                           <div className="flex items-center gap-1 flex-wrap">
                             {(itemPhotos[item.id!] || item.photos || []).map(photo => (
                               <div key={photo.id} className="relative group">
-                                <img src={photo.photoUrl} alt={photo.title}
-                                  className="w-8 h-8 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                                <img
+                                  src={photo.photoUrl}
+                                  alt={photo.title}
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="w-8 h-8 object-cover rounded border border-gray-300 bg-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
                                   onClick={() => setShowPhotoLightbox(photo)}
-                                  title={`${photo.photoType === 'antes' ? 'Antes' : photo.photoType === 'despues' ? 'Después' : photo.photoType} — ${photo.title}`} />
+                                  onError={(e) => {
+                                    // v2.57: si la miniatura no carga, reemplazar por un icono
+                                    // en lugar de mostrar un recuadro negro. Pasamos a un SVG
+                                    // data URL con un icono de imagen gris.
+                                    const img = e.currentTarget;
+                                    if (img.src.indexOf('data:image/svg+xml') === -1) {
+                                      img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+                                        '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" fill="#f3f4f6"/><path d="M8 20l4-4 4 4 4-6 4 6v4H8z" fill="#d1d5db"/><circle cx="12" cy="11" r="2" fill="#d1d5db"/></svg>'
+                                      );
+                                    }
+                                  }}
+                                  title={`${photo.photoType === 'antes' ? 'Antes' : photo.photoType === 'despues' ? 'Después' : photo.photoType} — ${photo.title}`}
+                                />
                                 <Badge className={`absolute -top-1 -left-1 text-[7px] px-0.5 py-0 min-w-0 ${photo.photoType === 'antes' ? 'bg-amber-100 text-amber-800' : photo.photoType === 'despues' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                                   {photo.photoType === 'antes' ? 'A' : photo.photoType === 'despues' ? 'D' : 'R'}
                                 </Badge>
@@ -2305,6 +2353,16 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                 )}
                               </div>
                             ))}
+                            {/* v2.57: botón "+" para añadir foto a este item */}
+                            {canEdit && (
+                              <button
+                                className="w-8 h-8 flex items-center justify-center rounded border border-dashed border-gray-400 bg-gray-50 hover:bg-gray-100 hover:border-gray-500 text-gray-500 hover:text-gray-700 transition-colors"
+                                onClick={() => fileInputRefForItem(item.id!)?.click()}
+                                title="Adjuntar foto a este elemento (se guarda en Paso 2 y en la biblioteca)"
+                              >
+                                <span className="text-lg leading-none">+</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                         {/* Delete — v2.52: candado eliminado; cualquier item se puede borrar */}
@@ -2357,6 +2415,20 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
         onSave={() => { setShowLayoutEditor(false); loadLayouts() }}
         sStep={sStep}
       />
+
+      {/* v2.57: inputs de archivo ocultos — uno por cada item del inventario.
+          El botón "+" de la columna Fotos dispara un click en el input correspondiente. */}
+      {items.map(item => item.id && (
+        <input
+          key={`file-input-${item.id}`}
+          ref={el => { fileInputRefs.current[item.id!] = el; }}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => handleFileInputChange(item.id!, e)}
+        />
+      ))}
 
       {/* Color Code Table for S2 */}
       {sStep === 2 && (
