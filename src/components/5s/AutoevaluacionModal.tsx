@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { CheckSquare, CheckCircle, XCircle, Camera, ChevronDown, ChevronRight, Maximize2, Minimize2, AlertCircle, Upload, X, Image as ImageIcon, Calendar, UserCircle, CheckCheck, Paperclip } from 'lucide-react';
+import { CheckSquare, CheckCircle, XCircle, Camera, ChevronDown, ChevronRight, Maximize2, Minimize2, AlertCircle, Upload, X, Image as ImageIcon, Calendar, UserCircle, CheckCheck, Paperclip, Loader2, Sparkles } from 'lucide-react';
 import { use5SStore } from '@/lib/store';
 import {
   S_STEPS,
@@ -305,6 +305,11 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
 
   // v2.63: Per-NOK photo handlers — photos attached to a specific finding
   // (hallazgo) flow: paso 2 (capture) → paso 3 (action plan with photoRefs).
+  // v2.64: Al añadir una foto, se autocompletan:
+  //   1. Descripción del hallazgo con IA (VLM)
+  //   2. Punto de mejora sugerido con IA
+  //   3. Responsable: el responsable de la zona (si existe) o el currentUser
+  const [nokPhotoAnalyzing, setNokPhotoAnalyzing] = useState<Record<string, boolean>>({});
   const handleNokPhotoSelect = async (itemId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -318,6 +323,72 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
       [itemId]: [...(prev[itemId] || []), ...newPhotos],
     }));
     if (nokPhotoInputRef.current[itemId]) nokPhotoInputRef.current[itemId]!.value = '';
+
+    // v2.64: Autocompletar campos del NOK con IA + responsable de zona
+    // Solo autocompletar si el hallazgo está vacío (no sobreescribir)
+    const currentResult = results[itemId];
+    const shouldAutoDescribe = !(currentResult?.hallazgo || '').trim();
+    if (shouldAutoDescribe && newPhotos.length > 0) {
+      setNokPhotoAnalyzing(prev => ({ ...prev, [itemId]: true }));
+      try {
+        // Convertir primera foto a base64 data URL
+        const file = newPhotos[0].file;
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        // Llamar a la API de VLM
+        const descRes = await fetch('/api/photo-describe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageUrl: dataUrl, sStep }),
+        });
+        const descJson = await descRes.json();
+        if (descJson.success && descJson.description) {
+          // Autocompletar hallazgo con la descripción IA
+          setItemField(itemId, 'hallazgo', descJson.description);
+          // Autocompletar mejora sugerida (plantilla basada en la descripción)
+          const mejoraSuggested = `Aplicar 5S en ${sStepData?.japaneseName || 'S' + sStep}: corregir desviación detectada — ${descJson.description.slice(0, 100)}`;
+          setItemField(itemId, 'mejora', mejoraSuggested);
+          toast.success(`Descripción generada por IA para ${itemId}`);
+        }
+      } catch (err) {
+        console.error('[autoeval] Error describiendo foto con IA:', err);
+        // No mostrar error al usuario — la foto se sigue guardando
+      } finally {
+        setNokPhotoAnalyzing(prev => ({ ...prev, [itemId]: false }));
+      }
+    }
+
+    // Autocompletar responsable con el responsable de la zona (si está vacío)
+    const shouldAutoResponsable = !(currentResult?.responsable || '').trim();
+    if (shouldAutoResponsable) {
+      let responsableName: string | null = null;
+      // 1. Si la zona tiene responsableId, buscar su nombre en projectMembers
+      if (currentZone?.responsableId) {
+        const zoneResp = projectMembers.find(m => m.userId === currentZone.responsableId);
+        if (zoneResp?.user?.name) responsableName = zoneResp.user.name;
+      }
+      // 2. Si no, buscar el primer miembro con rol 'responsable' en la zona actual
+      if (!responsableName) {
+        const respMember = projectMembers.find(m =>
+          m.role === 'responsable' &&
+          // Si el miembro tiene zonas asignadas, que la actual esté entre ellas
+          (m as any).zones?.some?.((z: any) => z.id === currentZone?.id) !== false
+        );
+        if (respMember?.user?.name) responsableName = respMember.user.name;
+      }
+      // 3. Si no hay responsable, usar el usuario actual (empleado que hace la autoeval)
+      if (!responsableName && currentUser?.name) {
+        responsableName = currentUser.name;
+      }
+      if (responsableName) {
+        setItemField(itemId, 'responsable', responsableName);
+      }
+    }
   };
 
   const removeNokPhoto = (itemId: string, index: number) => {
@@ -333,6 +404,28 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
     });
   };
 
+  // v2.64: Auto-completar responsable para TODOS los NOKs a la vez
+  // (cuando se marca un item como NOK, autocompletar responsable si está vacío)
+  const autoFillResponsableForNok = (itemId: string) => {
+    const currentResult = results[itemId];
+    if ((currentResult?.responsable || '').trim()) return; // ya tiene
+    let responsableName: string | null = null;
+    if (currentZone?.responsableId) {
+      const zoneResp = projectMembers.find(m => m.userId === currentZone.responsableId);
+      if (zoneResp?.user?.name) responsableName = zoneResp.user.name;
+    }
+    if (!responsableName) {
+      const respMember = projectMembers.find(m => m.role === 'responsable');
+      if (respMember?.user?.name) responsableName = respMember.user.name;
+    }
+    if (!responsableName && currentUser?.name) {
+      responsableName = currentUser.name;
+    }
+    if (responsableName) {
+      setItemField(itemId, 'responsable', responsableName);
+    }
+  };
+
   const toggleSection = (sectionId: string) => {
     setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
   };
@@ -342,6 +435,11 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
       ...prev,
       [itemId]: { ...prev[itemId], itemId, status },
     }));
+    // v2.64: Si se marca como NOK, autocompletar el responsable automáticamente
+    if (status === 'nok') {
+      // Pequeño defer para que el state se actualice antes de leerlo
+      setTimeout(() => autoFillResponsableForNok(itemId), 0);
+    }
   };
 
   const setItemField = (itemId: string, field: 'hallazgo' | 'mejora' | 'otherText' | 'responsable', value: string) => {
@@ -1012,11 +1110,111 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                               />
                             )}
 
-                            {/* NOK details: hallazgo + mejora — OBLIGATORIOS */}
+                            {/* NOK details: PRIMERO foto (paso 2) → después hallazgo IA + mejora + responsable (paso 3) */}
                             {isNok && (
                               <div className="space-y-2 pl-6 border-l-2 border-red-200">
+                                {/* 1. FOTO PRIMERO — captura la evidencia, IA la describe */}
+                                <div className="space-y-2">
+                                  <label className="text-xs font-medium text-blue-700 flex items-center gap-1">
+                                    <Camera className="h-3 w-3" />
+                                    Foto del hallazgo (1º) — describe con IA el hallazgo
+                                  </label>
+                                  <input
+                                    ref={el => { nokPhotoInputRef.current[item.id] = el; }}
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    className="hidden"
+                                    onChange={e => handleNokPhotoSelect(item.id, e)}
+                                  />
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-xs"
+                                      onClick={() => nokPhotoInputRef.current[item.id]?.click()}
+                                    >
+                                      <Camera className="h-3 w-3 mr-1" /> Añadir foto
+                                    </Button>
+                                    {(nokPhotos[item.id] || []).length > 0 && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {(nokPhotos[item.id] || []).length} foto(s) adjunta(s)
+                                      </span>
+                                    )}
+                                    {nokPhotoAnalyzing[item.id] && (
+                                      <span className="text-[10px] text-purple-600 font-medium flex items-center gap-1">
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                        IA analizando…
+                                      </span>
+                                    )}
+                                  </div>
+                                  {(nokPhotos[item.id] || []).length > 0 && (
+                                    <div className="grid grid-cols-4 gap-2 mt-1">
+                                      {(nokPhotos[item.id] || []).map((photo, idx) => (
+                                        <div key={idx} className="relative group">
+                                          <img src={photo.preview} alt={`Hallazgo ${idx + 1}`} className="w-full h-16 object-cover rounded-lg border" />
+                                          <button
+                                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onClick={() => removeNokPhoto(item.id, idx)}
+                                            title="Quitar foto"
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <p className="text-[10px] text-muted-foreground">
+                                    Al añadir una foto, la IA autocompleta la descripción del hallazgo y la mejora sugerida.
+                                  </p>
+                                </div>
+
+                                {/* 2. Hallazgo — autocompletado por IA al subir foto, con botón para regenerar */}
                                 <div>
-                                  <label className="text-xs font-medium text-red-700">Referencia del hallazgo (desviación) *</label>
+                                  <label className="text-xs font-medium text-red-700 flex items-center justify-between">
+                                    <span>Referencia del hallazgo (desviación) *</span>
+                                    {(nokPhotos[item.id] || []).length > 0 && (
+                                      <button
+                                        type="button"
+                                        className="text-[10px] text-purple-600 hover:text-purple-800 underline flex items-center gap-1"
+                                        onClick={async () => {
+                                          const photos = nokPhotos[item.id] || [];
+                                          if (photos.length === 0) return;
+                                          setNokPhotoAnalyzing(prev => ({ ...prev, [item.id]: true }));
+                                          try {
+                                            const file = photos[0].file;
+                                            const dataUrl = await new Promise<string>((resolve, reject) => {
+                                              const reader = new FileReader();
+                                              reader.onload = () => resolve(reader.result as string);
+                                              reader.onerror = reject;
+                                              reader.readAsDataURL(file);
+                                            });
+                                            const descRes = await fetch('/api/photo-describe', {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ imageUrl: dataUrl, sStep }),
+                                            });
+                                            const descJson = await descRes.json();
+                                            if (descJson.success && descJson.description) {
+                                              setItemField(item.id, 'hallazgo', descJson.description);
+                                              const mejoraSuggested = `Aplicar 5S en ${sStepData?.japaneseName || 'S' + sStep}: corregir desviación detectada — ${descJson.description.slice(0, 100)}`;
+                                              setItemField(item.id, 'mejora', mejoraSuggested);
+                                              toast.success(`Descripción regenerada por IA`);
+                                            } else {
+                                              toast.error('No se pudo generar la descripción');
+                                            }
+                                          } catch (err) {
+                                            console.error('[autoeval] Error regenerando descripción IA:', err);
+                                            toast.error('Error al regenerar descripción');
+                                          } finally {
+                                            setNokPhotoAnalyzing(prev => ({ ...prev, [item.id]: false }));
+                                          }
+                                        }}
+                                      >
+                                        <Sparkles className="h-3 w-3" /> Regenerar con IA
+                                      </button>
+                                    )}
+                                  </label>
                                   <Textarea
                                     placeholder="Obligatorio: describa la desviación encontrada..."
                                     value={result?.hallazgo || ''}
@@ -1028,6 +1226,8 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                                     <p className="text-[10px] text-red-500 mt-0.5">Campo obligatorio</p>
                                   )}
                                 </div>
+
+                                {/* 3. Mejora sugerida */}
                                 <div>
                                   <label className="text-xs font-medium text-amber-700">Punto a Mejorar (sugerencia) *</label>
                                   <Textarea
@@ -1041,6 +1241,8 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                                     <p className="text-[10px] text-amber-500 mt-0.5">Campo obligatorio</p>
                                   )}
                                 </div>
+
+                                {/* 4. Responsable — autocompletado con responsable de zona */}
                                 <div>
                                   <label className="text-xs font-medium text-blue-700 flex items-center gap-1">
                                     <UserCircle className="h-3 w-3" />
@@ -1073,54 +1275,11 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                                   {!(result?.responsable || '').trim() && (
                                     <p className="text-[10px] text-blue-500 mt-0.5">Selecciona un responsable</p>
                                   )}
-                                </div>
-                                <div className="space-y-2">
-                                  <label className="text-xs font-medium text-blue-700 flex items-center gap-1">
-                                    <Camera className="h-3 w-3" />
-                                    Foto del hallazgo (paso 2 → paso 3 Plan de Acción)
-                                  </label>
-                                  <input
-                                    ref={el => { nokPhotoInputRef.current[item.id] = el; }}
-                                    type="file"
-                                    accept="image/*"
-                                    multiple
-                                    className="hidden"
-                                    onChange={e => handleNokPhotoSelect(item.id, e)}
-                                  />
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="text-xs"
-                                      onClick={() => nokPhotoInputRef.current[item.id]?.click()}
-                                    >
-                                      <Camera className="h-3 w-3 mr-1" /> Añadir foto
-                                    </Button>
-                                    {(nokPhotos[item.id] || []).length > 0 && (
-                                      <span className="text-[10px] text-muted-foreground">
-                                        {(nokPhotos[item.id] || []).length} foto(s) adjunta(s)
-                                      </span>
-                                    )}
-                                  </div>
-                                  {(nokPhotos[item.id] || []).length > 0 && (
-                                    <div className="grid grid-cols-4 gap-2 mt-1">
-                                      {(nokPhotos[item.id] || []).map((photo, idx) => (
-                                        <div key={idx} className="relative group">
-                                          <img src={photo.preview} alt={`Hallazgo ${idx + 1}`} className="w-full h-16 object-cover rounded-lg border" />
-                                          <button
-                                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                            onClick={() => removeNokPhoto(item.id, idx)}
-                                            title="Quitar foto"
-                                          >
-                                            <X className="h-3 w-3" />
-                                          </button>
-                                        </div>
-                                      ))}
-                                    </div>
+                                  {result?.responsable && (
+                                    <p className="text-[10px] text-green-600 mt-0.5">
+                                      ✓ Autocompletado — puedes cambiarlo si es necesario
+                                    </p>
                                   )}
-                                  <p className="text-[10px] text-muted-foreground">
-                                    Estas fotos se guardarán en la biblioteca y se enlazarán al hallazgo en el Plan de Acción.
-                                  </p>
                                 </div>
                               </div>
                             )}
