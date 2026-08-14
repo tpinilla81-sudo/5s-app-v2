@@ -2396,3 +2396,110 @@ Stage Summary:
   * Cambiar decisión a Retirar/Eliminar → sincroniza en background
   * Diario del Responsable: nueva sección con tareas pendientes
   * Fotos subidas → descripción automática con IA (VLM) en background
+
+---
+Task ID: v2.61
+Agent: Main
+Task: Calendario con entradas+cumplimientos + Avisos automáticos del Plan de Acción
+
+Work Log:
+- Usuario: "EN EL CALENDARIO INDIVIDUAL TIENEN QUE APARECER LAS FECHAS
+  DE ENTRADA DE HALLAZGOS ASI COMO LAS DE CUMPLIMIENTO QUE SE PONEN.
+  EN AVISOS LAS FECHAS CUMPLIDAS Y QUE NO SE HA HECHO NADA. ES DECIR,
+  SE PASA DEL PASO 3 LAS COSAS QUE HAY QUE HACER EN EL PLAN DE ACCION
+  CON EL RESPONSABLE Y A LA VEZ DE QUE EN EL CALENDARIO SE MARCAN ESAS
+  FECHAS CON LA TAREA Y EN AVISOS SALTA AVISO, LOS AVISOS SON LAS
+  LLAMADAS AL PLAN CALENDARIO Y DEL CALENDARIO AL PLAN DE ACCION. EL
+  RESPONSABLE ENTRA A AVISO Y VEO QUE AVISO ES. DE HAY PASA AL DIARIO
+  PARA VER LA FECHA Y DEL CALENDARIO AL PLAN DE ACCION PARA RELLENARLO
+  Y PONER OTRAS FECHAS. LOS AVISOS SON EN EL DIA QUE SE CUMPLE O ENTRA
+  EL HALLAZGO AL PLAN DE ACCION Y SE CALENDERIZA EN CALENDARIO, ESTO
+  POR INDIVIDUAL POR RESPONSABLE"
+
+CAMBIOS:
+
+1) NUEVO ENDPOINT /api/avisos/auto:
+   - Escanea ActionItems asignados al usuario (responsable, personaDemandada,
+     zonas donde es responsable, o gerente en su proyecto).
+   - Genera 3 tipos de Notification:
+     * 'new_action_item' → fechaEntrada == hoy (hallazgo nuevo)
+     * 'action_due_today' → fechaLimite == hoy (vence hoy)
+     * 'action_overdue' → fechaLimite < hoy (vencida)
+   - Dedupe por (userId, type, itemId-ref, día actual).
+   - Cada mensaje incluye [ref:actionItemId] para el dedupe.
+   - Body: { userId, projectId? } → retorna { created, skipped, totalScanned }
+
+2) /api/inventory/sync-actions:
+   - Al crear ActionItem desde inventario S1 (Retirar/Eliminar),
+     también crea Notification inmediata con type='new_action_item':
+     * Al responsable de la zona (si existe)
+     * A gerentes/admins del proyecto
+   - Mensaje incluye: zona, acción correctiva, fecha vencimiento
+   - Try/catch: si falla la notificación, no bloquea la creación del ActionItem.
+
+3) UserTaskCalendar v2.61 (componente principal):
+   - Agrupar tareas por DOS fechas:
+     * entradasByDate → Map<yyyy-MM-dd, TaskItem[]> usando fechaEntrada
+     * vencimientosByDate → Map<yyyy-MM-dd, TaskItem[]> usando fechaLimite
+   - Calendario con DOS marcadores por día:
+     * Punto azul = entrada de hallazgo
+     * Punto rojo (vencida) / naranja (hoy) / verde (próxima) = cumplimiento
+   - Al seleccionar un día, mostrar DOS secciones:
+     * 'Entradas de hallazgos' (fondo azul claro, borde azul)
+     * 'Cumplimientos / Vencimientos' (fondo naranja claro, borde naranja)
+   - TaskCard con parámetro 'highlight':
+     * 'entrada' → borde lateral izquierdo azul + texto '↓ Entró: d MMM'
+     * 'vencimiento' → borde lateral izquierdo naranja + texto fecha en color
+   - Badge 'Inventario' para items con source='inventario' o itemId empieza
+     con 'inv_'
+   - Botón 'Plan' (ExternalLink) en cada TaskCard → onOpenActionPlan(task.id)
+   - Leyenda visible al inicio: azul=entrada, rojo=vencida, naranja=hoy,
+     verde=próxima
+   - Props: añadido onOpenActionPlan?: (itemId?) => void
+
+4) page.tsx:
+   - En init(): tras /api/notifications/auto, también llama a
+     /api/avisos/auto con { userId: currentUser.id, projectId }.
+   - Renderizar avisos con nuevos tipos:
+     * 'new_action_item' → fondo azul, icono CalendarDays azul
+     * 'action_due_today' → fondo naranja, icono AlertTriangle naranja
+     * 'action_overdue' → fondo rojo, icono AlertTriangle rojo
+   - Click en aviso de acción (no leído) → marca leído + cierra dropdown +
+     abre UserTaskCalendar (setShowUserCalendar(true))
+   - Etiqueta '→ Calendario' visible en avisos de acción no leídos.
+   - UserTaskCalendar recibe onOpenActionPlan={() => {
+     setShowUserCalendar(false); setActiveTab('actionplan'); }}
+   - Button 'Aceptar reunión' con stopPropagation para no abrir calendario.
+
+5) Bump v2.60 → v2.61 (middleware.ts, page.tsx).
+   Build Next.js: ✓ Compiled successfully (21.3s).
+   Commit fcc00be + push a GitHub. Vercel deploy automático.
+
+FLUJO COMPLETO (Paso 3 → Plan → Calendario → Avisos → Diario → Plan):
+- Paso 3 inventario S1 → onDecisionChange → /api/inventory/sync-actions:
+  1. Crea ActionItem con fechaEntrada=hoy, fechaLimite calculada
+  2. Crea Notification 'new_action_item' al responsable
+- Usuario abre header → ve badge 'X avisos' → click → dropdown muestra
+  'Nuevo hallazgo: ...' (azul)
+- Click en aviso → marca leído → abre Mi Calendario
+- En calendario, día de hoy tiene marcador azul (entrada) + día de
+  vencimiento tendrá marcador rojo/naranja/verde
+- Al seleccionar día, ve tareas con sección 'Entradas' o 'Vencimientos'
+- Click botón 'Plan' en tarea → cierra calendario → abre tab Plan de
+  Acción para editar/poner nuevas fechas
+- Cada día al cargar la app, /api/avisos/auto genera avisos de
+  vencimientos (hoy o pasados) no notificados → avisan al responsable
+- Responsable entra a Avisos → ve 'Tarea para hoy' o 'Tarea vencida' →
+  click → calendario → plan
+
+Stage Summary:
+- TRAS DEPLOY v2.61 (~1-2 min):
+  * Inventariar Retirar/Eliminar en Paso 3 → responsable recibe Aviso
+    inmediato 'Nuevo hallazgo'
+  * Calendario individual muestra DOS tipos de marcadores por día:
+    entrada (azul) y cumplimiento (rojo/naranja/verde)
+  * Cada día, al cargar la app, se generan avisos de vencimientos
+    (hoy o pasados) para el responsable
+  * Click en Aviso de acción → abre Calendario
+  * Click en 'Plan' en tarea del calendario → abre Plan de Acción
+  * Flujo completo: Paso 3 → Aviso → Calendario → Plan → nuevas fechas
