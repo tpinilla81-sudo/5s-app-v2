@@ -575,3 +575,57 @@ Stage Summary:
 - Logo de la lima con colores fieles a la app (sin distorsión por sombras
   ni mezcla con el fondo verde).
 - Pendiente: verificar en Vercel que se ve correcto tras el deploy.
+
+---
+Task ID: v2.33
+Agent: Main
+Task: Fix bloqueo al subir varias fotos a la vez en FotosModal
+
+Work Log:
+- Usuario reportó: "No deja subir fotos a la vez, se bloquea".
+- Diagnóstico raíz:
+  1. La ruta /api/upload fue eliminada del proyecto el 22 jul (commit d07599d).
+     Cada intento de subida → 404 → catch silencioso → serverUrl vacío →
+     al hacer submit, los base64 (~150KB × N fotos) iban TODOS en el body
+     del POST /api/photo-library → JSON.stringify gigante → navegador colgado.
+  2. El handleFileSelect lanzaba FileReader + compressImage + fetch en paralelo
+     para todas las fotos a la vez → saturaba CPU/memoria en móvil → UI congelada.
+  3. addPhoto usaba `photos.length` capturado en el closure → índice stale
+     cuando varias llamadas paralelas pisaban el mismo valor.
+- Fix 1: Restaurada /api/upload/route.ts desde git history (última versión buena,
+  "refactor: upload API solo Neon"). Convierte el File a base64 y lo devuelve
+  como data URL — se almacena directamente en la columna photoUrl (text) de Neon.
+- Fix 2: Reescrito FotosModal con cola secuencial:
+  * uploadQueueRef: array de {rawBase64, photoType} pendientes.
+  * isProcessingRef: semáforo para que solo un processQueue() corra a la vez.
+  * photoCounterRef: contador siempre fresco (no stale como photos.length).
+  * processQueue(): loop while-queue-no-vacía, comprime UNA foto, sube,
+    actualiza estado por ID (no por índice), cede 30ms al event loop, repite.
+  * addPhoto() ahora solo encola (no procesa) — las llamadas paralelas
+    desde handleFileSelect solo llenan la cola baratamente.
+  * handleFileSelect/handleCameraCapture leen archivos en paralelo
+    (FileReader es I/O barato) y encolan; el procesamiento pesado es secuencial.
+  * PhotoItem ahora tiene `id` único para updates robustos (inmune a
+    reordenamientos / eliminaciones mientras la cola corre).
+  * Cuando se cargan fotos existentes de la DB, photoCounterRef se inicializa
+    con la cantidad existente para que los nuevos índices no colisionen.
+- Fix 3: UI feedback:
+  * Botón "Subir desde galería" se deshabilita y muestra spinner mientras la
+    cola está activa (isQueueBusy = queueLength>0 || uploadingCount>0).
+  * Banner azul "Procesando fotos una a una para evitar bloqueos".
+  * Contador "N en cola" / "Subiendo N..." en tiempo real.
+  * Icono rojo X si una foto falló al subir (uploaded=false, serverUrl='').
+  * Texto de ayuda actualizado: "Se procesan una a una para no saturar".
+- canSubmit ahora también requiere queueLength===0 (no solo uploadingCount===0)
+  para evitar submit con fotos a medio procesar.
+- Bump v2.33 en middleware.ts, page.tsx, LoginPage.tsx.
+- TypeScript check: sin errores nuevos en FotosModal.tsx ni upload/route.ts
+  (pre-existing error en MiniStepModal.tsx sigue, pero ignoreBuildErrors=true).
+- Next.js build: "✓ Compiled successfully in 21.5s" — ruta /api/upload aparece
+  en el listado de endpoints del build.
+
+Stage Summary:
+- Causa raíz del bloqueo: /api/upload faltante + subida paralela descontrolada.
+- Solución: ruta restaurada + cola secuencial en cliente + UI que deshabilita
+  el input mientras procesa.
+- Pendiente: commit + push a GitHub para deploy en Vercel.

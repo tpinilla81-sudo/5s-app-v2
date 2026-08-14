@@ -51,6 +51,7 @@ const BEFORE_PROMPT_BY_S: Record<number, string> = {
 };
 
 interface PhotoItem {
+  id: string; // ID único por foto — para actualizaciones de estado seguras en cola
   preview: string;
   serverUrl: string;
   uploaded: boolean;
@@ -100,6 +101,13 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
     return `S${sStep} ${sName} - ${zoneName} - ${typeLabel} ${index + 1} (${date})`
   }
 
+  // Refs para cola de subida secuencial — evita saturar CPU/memoria en móvil
+  // cuando se seleccionan varias fotos a la vez (era la causa del bloqueo).
+  const uploadQueueRef = useRef<{ rawBase64: string; photoType: string }[]>([]);
+  const isProcessingRef = useRef(false);
+  const photoCounterRef = useRef(0);
+  const [queueLength, setQueueLength] = useState(0);
+
   const uploadPhoto = async (base64Data: string, index: number): Promise<string | null> => {
     try {
       const projectId = currentProject?.id || 'unknown';
@@ -124,38 +132,78 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
     }
   };
 
-  const addPhoto = useCallback(async (rawBase64: string) => {
+  // Procesa la cola de fotos UNA A UNA. Así el canvas + toDataURL + fetch
+  // no compiten por CPU/memoria, y la UI del móvil no se congela.
+  const processQueue = useCallback(async () => {
+    if (isProcessingRef.current) return;
+    if (uploadQueueRef.current.length === 0) return;
+    isProcessingRef.current = true;
+
     try {
-      const compressed = await compressImage(rawBase64);
-      const estimatedSize = estimateBase64Size(compressed);
-      const photoType = defaultPhotoType;
+      while (uploadQueueRef.current.length > 0) {
+        const item = uploadQueueRef.current.shift()!;
+        setQueueLength(uploadQueueRef.current.length);
 
-      const newPhoto: PhotoItem = {
-        preview: compressed,
-        serverUrl: '',
-        uploaded: false,
-        uploading: true,
-        estimatedSize,
-        title: generatePhotoTitle(photos.length, photoType),
-        photoType,
-        savedToLibrary: false,
-      };
+        const { rawBase64, photoType } = item;
+        const index = photoCounterRef.current++;
+        const photoId = `photo_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`;
 
-      setPhotos(prev => [...prev, newPhoto]);
+        try {
+          const compressed = await compressImage(rawBase64);
+          const estimatedSize = estimateBase64Size(compressed);
 
-      const url = await uploadPhoto(compressed, photos.length);
+          const newPhoto: PhotoItem = {
+            id: photoId,
+            preview: compressed,
+            serverUrl: '',
+            uploaded: false,
+            uploading: true,
+            estimatedSize,
+            title: generatePhotoTitle(index, photoType),
+            photoType,
+            savedToLibrary: false,
+          };
 
-      setPhotos(prev =>
-        prev.map((p, i) =>
-          i === prev.length - 1 && p.uploading
-            ? { ...p, serverUrl: url || '', uploaded: !!url, uploading: false }
-            : p
-        )
-      );
-    } catch (error) {
-      console.error('Error processing photo:', error);
+          setPhotos(prev => [...prev, newPhoto]);
+
+          const url = await uploadPhoto(compressed, index);
+
+          // Actualiza por ID — robusto frente a reordenamientos/eliminaciones
+          setPhotos(prev =>
+            prev.map(p =>
+              p.id === photoId
+                ? { ...p, serverUrl: url || '', uploaded: !!url, uploading: false }
+                : p
+            )
+          );
+        } catch (err) {
+          console.error('Error processing queued photo:', err);
+          // Marcamos la foto como fallida (uploaded=false, uploading=false) para que el usuario la vea
+          setPhotos(prev =>
+            prev.map(p =>
+              p.id === photoId
+                ? { ...p, uploading: false, uploaded: false }
+                : p
+            )
+          );
+        }
+
+        // Cede al event loop para que el navegador pinte (evita congelar la UI)
+        await new Promise(r => setTimeout(r, 30));
+      }
+    } finally {
+      isProcessingRef.current = false;
+      setQueueLength(0);
     }
-  }, [sStep, miniStep, currentProject?.id, photos.length, defaultPhotoType]);
+  }, [sStep, miniStep, currentProject?.id]);
+
+  // Encolar (no procesa directamente). Múltiples llamadas paralelas solo llenan la cola,
+  // luego processQueue las consume de una en una.
+  const addPhoto = useCallback((rawBase64: string) => {
+    uploadQueueRef.current.push({ rawBase64, photoType: defaultPhotoType });
+    setQueueLength(uploadQueueRef.current.length);
+    processQueue();
+  }, [processQueue, defaultPhotoType]);
 
   const stopStream = useCallback(() => {
     if (stream) {
@@ -217,7 +265,8 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
         .then(res => res.json())
         .then(data => {
           if (data.success && data.data && data.data.length > 0) {
-            const existingPhotos: PhotoItem[] = data.data.map((p: any) => ({
+            const existingPhotos: PhotoItem[] = data.data.map((p: any, idx: number) => ({
+              id: `existing_${p.id || idx}_${Math.random().toString(36).slice(2, 8)}`,
               preview: p.photoUrl, // Use the stored URL as preview
               serverUrl: p.photoUrl,
               uploaded: true,
@@ -227,6 +276,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
               photoType: p.photoType || 'antes',
               savedToLibrary: true, // Already saved in DB
             }));
+            photoCounterRef.current = existingPhotos.length;
             setPhotos(existingPhotos);
             // If step was already completed, mark it
             const antesCount = existingPhotos.filter(p => p.photoType === 'antes').length;
@@ -253,32 +303,39 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
     }
   }, [open, stopStream]);
 
+  // Lee todos los archivos y los encola. NO procesa aquí (eso saturationa el hilo UI).
+  // El procesamiento pesado (compresión + upload) lo hace processQueue secuencialmente.
+  const readFileAsDataURL = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
-    for (const file of Array.from(files)) {
-      const reader = new FileReader();
-      reader.onloadend = async () => { await addPhoto(reader.result as string); };
-      reader.readAsDataURL(file);
-    }
+    if (!files || files.length === 0) return;
+    // Limpia el input inmediatamente para que el usuario pueda volver a seleccionar
     if (fileInputRef.current) fileInputRef.current.value = '';
+    // Lee todos los archivos en paralelo (FileReader es I/O barato) y encola
+    const fileArr = Array.from(files);
+    await Promise.all(fileArr.map(f => readFileAsDataURL(f).then(addPhoto).catch(err => console.error('Error leyendo archivo:', err))));
   };
 
   const handleCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
-    for (const file of Array.from(files)) {
-      const reader = new FileReader();
-      reader.onloadend = async () => { await addPhoto(reader.result as string); };
-      reader.readAsDataURL(file);
-    }
+    if (!files || files.length === 0) return;
     if (cameraInputRef.current) cameraInputRef.current.value = '';
+    const fileArr = Array.from(files);
+    await Promise.all(fileArr.map(f => readFileAsDataURL(f).then(addPhoto).catch(err => console.error('Error leyendo archivo de cámara:', err))));
   };
 
   const removePhoto = (index: number) => setPhotos(prev => prev.filter((_, i) => i !== index));
 
   const uploadingCount = photos.filter(p => p.uploading).length;
-  const canSubmit = photos.length >= MIN_PHOTOS && uploadingCount === 0;
+  const isQueueBusy = queueLength > 0 || uploadingCount > 0;
+  const canSubmit = photos.length >= MIN_PHOTOS && uploadingCount === 0 && queueLength === 0;
   const totalSize = photos.reduce((sum, p) => sum + p.estimatedSize, 0);
 
   const handleSubmit = async () => {
@@ -489,11 +546,17 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
 
                 {activeTab === 'upload' && (
                   <div>
-                    <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileSelect} />
-                    <button className="w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center gap-3 hover:border-primary/50 hover:bg-muted/30 transition-colors" onClick={() => fileInputRef.current?.click()}>
-                      <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: `${sStepData?.color}20` }}><Upload className="h-7 w-7" style={{ color: sStepData?.color }} /></div>
-                      <p className="text-sm font-semibold">Seleccionar fotos de la galería</p>
-                      <p className="text-xs text-muted-foreground">Soporta JPG, PNG, GIF — Se comprimen automáticamente al subir</p>
+                    <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileSelect} disabled={isQueueBusy} />
+                    <button
+                      className={`w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center gap-3 transition-colors ${isQueueBusy ? 'opacity-60 cursor-not-allowed border-muted' : 'hover:border-primary/50 hover:bg-muted/30'}`}
+                      onClick={() => { if (!isQueueBusy) fileInputRef.current?.click(); }}
+                      disabled={isQueueBusy}
+                    >
+                      <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: `${sStepData?.color}20` }}>
+                        {isQueueBusy ? <Loader2 className="h-7 w-7 animate-spin" style={{ color: sStepData?.color }} /> : <Upload className="h-7 w-7" style={{ color: sStepData?.color }} />}
+                      </div>
+                      <p className="text-sm font-semibold">{isQueueBusy ? 'Procesando fotos...' : 'Seleccionar fotos de la galería'}</p>
+                      <p className="text-xs text-muted-foreground">{isQueueBusy ? `${queueLength + uploadingCount} pendiente${(queueLength + uploadingCount) !== 1 ? 's' : ''} en cola` : 'Soporta JPG, PNG, GIF — Se procesan una a una para no saturar el dispositivo'}</p>
                     </button>
                   </div>
                 )}
@@ -524,9 +587,15 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
                   <h4 className="text-sm font-medium">Fotos capturadas</h4>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">{photos.length} foto{photos.length !== 1 ? 's' : ''}</span>
-                    {uploadingCount > 0 && <span className="text-xs text-blue-500 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Subiendo {uploadingCount}...</span>}
+                    {isQueueBusy && <span className="text-xs text-blue-500 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />{queueLength > 0 ? `${queueLength + uploadingCount} en cola` : `Subiendo ${uploadingCount}...`}</span>}
                   </div>
                 </div>
+                {isQueueBusy && (
+                  <div className="p-2 rounded-lg bg-blue-50 border border-blue-200 flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500 shrink-0" />
+                    <span className="text-xs text-blue-700">Procesando fotos una a una para evitar bloqueos. Espera a que termine para añadir más.</span>
+                  </div>
+                )}
                 <div className="space-y-2">
                   {photos.map((photo, index) => (
                     <div key={index} className="flex items-start gap-3 p-2 rounded-lg border bg-white group">
@@ -546,7 +615,8 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
                              photo.photoType === 'referencia' ? 'REF' : 'HALLAZGO'}
                           </Badge>
                           {photo.uploaded ? <CheckCircle className="h-3.5 w-3.5 text-green-500" /> :
-                           photo.uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" /> : null}
+                           photo.uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" /> :
+                           !photo.serverUrl ? <X className="h-3.5 w-3.5 text-red-400" /> : null}
                           <span className="text-[9px] text-muted-foreground">{formatBytes(photo.estimatedSize)}</span>
                         </div>
                         <input
