@@ -127,17 +127,27 @@ export async function POST(request: NextRequest) {
       if (!item.name) continue
 
       // Auto-calculate jaulaStatus for S1 innecesario items
+      // v2.50: 'Retirar' (→Jaula) replaces 'Jaula'; 'Tirar' merged into 'Eliminar'.
+      // Backward compat: legacy rows may still carry decision='Jaula' or 'Tirar'.
       const isInnecesario = sStep === 1 && (item.category === 'innecesario' || item.category === 'dudoso')
       const extraData = item.extra || {}
-      const decision = extraData.decision || 'Jaula'
+      const rawDecision = extraData.decision
+      const isJaulaDecision = !rawDecision || rawDecision === 'Retirar' || rawDecision === 'Jaula'
+      const isEliminarDecision = rawDecision === 'Eliminar' || rawDecision === 'Tirar'
+      const decision = rawDecision || 'Retirar'
       let computedJaulaStatus = item.jaulaStatus || ''
       let computedJaulaFechaEntrada = item.jaulaFechaEntrada || null
       let computedJaulaOrigen = item.jaulaOrigen || null
 
-      if (isInnecesario && !computedJaulaStatus && decision !== 'Eliminar' && decision !== 'Tirar') {
+      if (isInnecesario && !computedJaulaStatus && isJaulaDecision) {
         computedJaulaStatus = 'en_jaula'
         computedJaulaFechaEntrada = item.jaulaFechaEntrada || new Date().toISOString()
         computedJaulaOrigen = item.jaulaOrigen || item.zonaOrigen || null
+      }
+      // v2.50: ensure Eliminar/Tirar items don't keep en_jaula status
+      if (isInnecesario && isEliminarDecision) {
+        computedJaulaStatus = ''
+        computedJaulaFechaEntrada = null
       }
 
       // Calculate jaulaFechaLimite when jaulaStatus is 'en_jaula'

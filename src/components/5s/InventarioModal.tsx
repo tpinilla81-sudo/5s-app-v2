@@ -1906,11 +1906,18 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                             ) : <span className="text-[11px]">{item.name}</span>}
                           </div>
                         </td>
-                        {/* IDENTIFICACIÓN: Ubicación — v2.50: auto-fill desde la zona actual, read-only */}
+                        {/* IDENTIFICACIÓN: Ubicación — v2.50: en S1 auto-fill desde la zona actual (read-only); S2-S5 editable */}
                         <td className={`px-1 py-1 border ${idBg}`}>
-                          <span className="text-[11px] text-muted-foreground" title="Ubicación automática: derivada de la zona actual">
-                            {currentZone?.name || currentProject?.name || item.location || '—'}
-                          </span>
+                          {sStep === 1 ? (
+                            <span className="text-[11px] text-muted-foreground" title="Ubicación automática: derivada de la zona actual">
+                              {currentZone?.name || currentProject?.name || item.location || '—'}
+                            </span>
+                          ) : canEdit ? (
+                            <Input value={item.location || ''} className={inlineInput}
+                              onChange={e => setItems(prev => prev.map(it => it.id === item.id ? { ...it, location: e.target.value } : it))}
+                              onKeyDown={e => commitOnEnter(e, () => handleUpdateField(item.id!, 'location', (e.target as HTMLInputElement).value))}
+                              onBlur={e => handleUpdateField(item.id!, 'location', e.target.value)} />
+                          ) : <span className="text-[11px]">{item.location || '—'}</span>}
                         </td>
                         {/* IDENTIFICACIÓN: Categoría — v2.50: auto-default 'Innecesario' en S1, read-only */}
                         <td className={`px-1 py-1 border ${idBg} text-center`}>
@@ -2039,21 +2046,49 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                             </td>
                           ))
                         )}
-                        {/* UBICACIÓN: Z. Origen — v2.50: auto-fill desde la zona actual, read-only */}
+                        {/* UBICACIÓN: Z. Origen — v2.50: en S1 auto-fill desde la zona actual (read-only); S2-S5 editable */}
                         <td className={`px-1 py-1 border ${locBg} text-center`}>
-                          <span className="text-[11px] text-muted-foreground" title="Zona de origen automática: derivada de la zona actual">
-                            {item.zonaOrigen || currentZone?.name || currentProject?.name || '—'}
-                          </span>
+                          {sStep === 1 ? (
+                            <span className="text-[11px] text-muted-foreground" title="Zona de origen automática: derivada de la zona actual">
+                              {item.zonaOrigen || currentZone?.name || currentProject?.name || '—'}
+                            </span>
+                          ) : canEdit ? (
+                            currentProject?.zones && currentProject.zones.length > 0 ? (
+                              <Select value={item.zonaOrigen || undefined} onValueChange={val => handleUpdateField(item.id!, 'zonaOrigen', val)}>
+                                <SelectTrigger className={inlineSelect}><SelectValue placeholder="—" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="_clear_">—</SelectItem>
+                                  {currentProject.zones.map(z => <SelectItem key={z.id} value={z.name}>{z.name}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input value={item.zonaOrigen || ''} className={inlineInput} placeholder="—"
+                                onKeyDown={e => commitOnEnter(e, () => handleUpdateField(item.id!, 'zonaOrigen', (e.target as HTMLInputElement).value))}
+                                onBlur={e => handleUpdateField(item.id!, 'zonaOrigen', e.target.value)} />
+                            )
+                          ) : <span className="text-[11px] text-muted-foreground">{item.zonaOrigen || '—'}</span>}
                         </td>
-                        {/* UBICACIÓN: Z. Destino — v2.50: auto-determinada por decisión (Jaula o Residuo), read-only */}
+                        {/* UBICACIÓN: Z. Destino — v2.50: en S1 auto-determinada por decisión (Jaula/Residuo, read-only); S2-S5 editable */}
                         <td className={`px-1 py-1 border ${locBg} text-center`}>
                           {sStep === 1 && item.category === 'innecesario' ? (
                             <span className={`text-[11px] font-medium ${isEliminarDecision(item.extra?.decision) ? 'text-yellow-700' : 'text-red-600'}`}>
                               {isEliminarDecision(item.extra?.decision) ? 'Residuo' : 'Jaula'}
                             </span>
-                          ) : (
-                            <span className="text-[11px] text-muted-foreground">{item.zonaDestino || '—'}</span>
-                          )}
+                          ) : canEdit ? (
+                            <Select value={item.zonaDestino || undefined}
+                              onValueChange={val => {
+                                const targetZone = currentProject?.zones?.find(z => z.name === val);
+                                const updates: any = { zonaDestino: val };
+                                if (targetZone) updates.zoneId = targetZone.id;
+                                handleUpdateJaula(item.id!, updates);
+                              }}>
+                              <SelectTrigger className={inlineSelect}><SelectValue placeholder="—" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_clear_">—</SelectItem>
+                                {currentProject?.zones?.map(z => <SelectItem key={z.id} value={z.name}>{z.name}</SelectItem>) || []}
+                              </SelectContent>
+                            </Select>
+                          ) : <span className="text-[11px] text-muted-foreground">{item.zonaDestino || '—'}</span>}
                         </td>
                         {/* Fotos — v2.50: sin botón "añadir más fotos", click en la miniatura abre lightbox negro */}
                         <td className="px-1 py-1 border bg-gray-50">

@@ -429,14 +429,20 @@ export default function GlobalInventoryModal({ open, onClose }: GlobalInventoryM
                         <td className="px-2 py-1.5 text-center">{String(item.extra?.frecuenciaUso ?? '—')}</td>
                         <td className="px-2 py-1.5 text-center">
                           <Badge className={
-                            item.extra?.decision === 'Jaula' ? 'bg-red-100 text-red-800' :
-                            item.extra?.decision === 'Eliminar' ? 'bg-red-100 text-red-800' :
+                            // v2.50: 'Retirar' (legacy 'Jaula') → orange; 'Eliminar' (legacy 'Tirar') → red
+                            (!item.extra?.decision || item.extra.decision === 'Retirar' || item.extra.decision === 'Jaula') ? 'bg-orange-100 text-orange-800' :
+                            (item.extra?.decision === 'Eliminar' || item.extra?.decision === 'Tirar') ? 'bg-red-100 text-red-800' :
                             item.extra?.decision === 'Reubicar' ? 'bg-blue-100 text-blue-800' :
                             item.extra?.decision === 'Vender' ? 'bg-green-100 text-green-800' :
                             item.extra?.decision === 'Donar' ? 'bg-purple-100 text-purple-800' :
                             'bg-gray-100 text-gray-800'
                           }>
-                            {String(item.extra?.decision || item.action || '—')}
+                            {(() => {
+                              const d = item.extra?.decision;
+                              if (!d || d === 'Retirar' || d === 'Jaula') return 'Retirar';
+                              if (d === 'Tirar') return 'Eliminar';
+                              return d;
+                            })()}
                           </Badge>
                         </td>
                         <td className="px-2 py-1.5 text-center">

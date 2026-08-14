@@ -132,7 +132,7 @@ export default function TagPrinter({ items, itemIds, onAfterPrint }: TagPrinterP
         cantidad: item.cantidad,
         estado: item.estado ?? null,
         frecuenciaUso: item.frecuenciaUso ?? null,
-        decision: item.decision ?? 'Jaula',
+        decision: item.decision ?? 'Retirar', // v2.50: was 'Jaula'
         categoria: item.categoria ?? null,
         fechaEntrada: item.fechaEntrada ?? null,
         fechaRevision: item.fechaRevision ?? null,
@@ -185,7 +185,7 @@ export default function TagPrinter({ items, itemIds, onAfterPrint }: TagPrinterP
         `Cantidad: ${item.cantidad}`,
         item.estado ? `Estado: ${item.estado}` : '',
         item.frecuenciaUso ? `Frec. uso: ${item.frecuenciaUso}` : '',
-        `Decision: ${item.decision || 'Jaula'}`,
+        `Decision: ${(() => { const d = item.decision; if (!d || d === 'Retirar' || d === 'Jaula') return 'Retirar'; if (d === 'Tirar') return 'Eliminar'; return d; })() }`,
         item.zonaOrigen ? `Zona Origen: ${item.zonaOrigen}` : '',
         item.fechaEntrada ? `F. Entrada: ${formatDate(item.fechaEntrada)}` : '',
         fechaRevision ? `F. Revision: ${formatDate(fechaRevision)}` : '',
