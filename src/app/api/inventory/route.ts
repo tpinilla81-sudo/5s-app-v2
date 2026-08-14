@@ -247,6 +247,27 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 })
     }
 
+    // v2.43: si el item es un borrador (extra.isDraft=true) creado automáticamente
+    // desde una foto del Paso 2, eliminamos también la foto asociada para que no
+    // quede huérfana y la migración no la vuelva a convertir en borrador al recargar.
+    // Para items normales (ya clasificados por el usuario), mantenemos el comportamiento
+    // onDelete: SetNull del schema — la foto queda en la biblioteca sin item vinculado.
+    const item = await db.inventoryItem.findUnique({
+      where: { id },
+      include: { photos: true },
+    })
+    if (item) {
+      let extra: any = null
+      try { extra = item.extra ? JSON.parse(item.extra) : null } catch {}
+      const isDraft = extra?.isDraft === true
+      if (isDraft && item.photos.length > 0) {
+        // Eliminar las fotos asociadas al borrador
+        await db.photoLibrary.deleteMany({
+          where: { inventoryItemId: id },
+        })
+      }
+    }
+
     await db.inventoryItem.delete({ where: { id } })
     return NextResponse.json({ success: true })
   } catch (error) {

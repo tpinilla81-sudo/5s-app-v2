@@ -29,7 +29,7 @@ import {
 import { ClipboardList, Plus, CheckCircle, Download, Upload, FileSpreadsheet, BookOpen, ArrowRight, AlertTriangle, FileUp, Maximize2, Minimize2, File, PenTool, Image as ImageIcon, Eye, Loader2, MapPin, Tag, Camera, Link2, Unlink, X, ZoomIn } from 'lucide-react';
 import { toast } from 'sonner';
 import { use5SStore } from '@/lib/store';
-import { S_STEPS, INVENTORY_CONFIGS, INVENTORY_CLASSIFY_THRESHOLD } from '@/lib/5s-constants';
+import { S_STEPS, INVENTORY_CONFIGS, INVENTORY_CLASSIFY_THRESHOLD, DRAFT_NAME_BY_S, DRAFT_INSTRUCTIONS_BY_S } from '@/lib/5s-constants';
 import type { InventoryConfig } from '@/lib/5s-constants';
 import LayoutEditor from '@/components/5s/LayoutEditor';
 import ColorCodeTable from '@/components/5s/ColorCodeTable';
@@ -112,8 +112,6 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
   // Photo attachment state
   const [itemPhotos, setItemPhotos] = useState<Record<string, PhotoData[]>>({});
   const [step2Photos, setStep2Photos] = useState<PhotoData[]>([]);
-  const [showPhotoGallery, setShowPhotoGallery] = useState(false);
-  const [galleryTargetItemId, setGalleryTargetItemId] = useState<string | null>(null);
   const [uploadingPhotoForItem, setUploadingPhotoForItem] = useState<string | null>(null);
   const [uploadPhotoType, setUploadPhotoType] = useState<string>('antes');
   const [showPhotoLightbox, setShowPhotoLightbox] = useState<PhotoData | null>(null);
@@ -544,7 +542,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
             sStep,
             projectId: currentProject.id,
             zoneId: currentZone?.id || null,
-            name: `Pendiente de clasificar (${idx + 1})`,
+            name: DRAFT_NAME_BY_S[sStep]?.(idx + 1) || `Pendiente de clasificar (${idx + 1})`,
             location: null,
             category: '',
             quantity: 1,
@@ -684,69 +682,6 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
     }
   };
 
-  const handleLinkStep2Photo = async (photoId: string, itemId: string) => {
-    try {
-      const res = await fetch('/api/photo-library', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: photoId, inventoryItemId: itemId }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        // Update local state: move the photo to the item's photos
-        const photo = step2Photos.find(p => p.id === photoId);
-        if (photo) {
-          const linkedPhoto: PhotoData = { ...photo, inventoryItemId: itemId };
-          setItemPhotos(prev => ({
-            ...prev,
-            [itemId]: [...(prev[itemId] || []), linkedPhoto],
-          }));
-          setItems(prev => prev.map(it => it.id === itemId
-            ? { ...it, photos: [...(it.photos || []), linkedPhoto] }
-            : it
-          ));
-          // Remove from step2Photos since it's now linked
-          setStep2Photos(prev => prev.filter(p => p.id !== photoId));
-        }
-        toast.success('Foto vinculada al elemento');
-        setShowPhotoGallery(false);
-      } else {
-        toast.error(`Error al vincular foto: ${json.error || 'Error desconocido'}`);
-      }
-    } catch (e) {
-      console.error('Error linking photo:', e);
-      toast.error('Error al vincular la foto');
-    }
-  };
-
-  const handleUnlinkPhoto = async (photoId: string, itemId: string) => {
-    try {
-      const res = await fetch('/api/photo-library', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: photoId, inventoryItemId: null }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        // Remove from item's photos locally
-        setItemPhotos(prev => ({
-          ...prev,
-          [itemId]: (prev[itemId] || []).filter(p => p.id !== photoId),
-        }));
-        setItems(prev => prev.map(it => it.id === itemId
-          ? { ...it, photos: (it.photos || []).filter(p => p.id !== photoId) }
-          : it
-        ));
-        toast.success('Foto desvinculada del elemento');
-      } else {
-        toast.error(`Error al desvincular foto: ${json.error || 'Error desconocido'}`);
-      }
-    } catch (e) {
-      console.error('Error unlinking photo:', e);
-      toast.error('Error al desvincular la foto');
-    }
-  };
-
   const handleDeletePhoto = async (photoId: string, itemId: string) => {
     try {
       const res = await fetch(`/api/photo-library?id=${photoId}`, { method: 'DELETE' });
@@ -768,11 +703,6 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
       console.error('Error deleting photo:', e);
       toast.error('Error al eliminar la foto');
     }
-  };
-
-  const openPhotoGallery = (itemId: string) => {
-    setGalleryTargetItemId(itemId);
-    setShowPhotoGallery(true);
   };
 
   const handleAddItem = async () => {
@@ -1231,15 +1161,26 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
   // Helper: update a simple field on an item and persist
   const handleUpdateField = async (itemId: string, field: string, value: any) => {
     const cleanValue = value === '_clear_' ? null : value;
-    // v2.40: si el item era borrador y el usuario está cambiando el nombre
+    // v2.40/v2.43: si el item era borrador y el usuario está cambiando el nombre
     // (o la categoría) a un valor real, eliminamos la marca isDraft para
-    // que deje de contar como "pendiente de clasificar".
+    // que deje de contar como "pendiente". El borrador puede tener cualquiera
+    // de los prefijos por S: "Pendiente de clasificar", "Necesario pendiente",
+    // "Punto de suciedad pendiente", "Estándar pendiente", "Cumplimiento pendiente".
     const item = items.find(i => i.id === itemId);
     const wasDraft = (item?.extra as any)?.isDraft === true;
+    const DRAFT_PREFIXES = [
+      'pendiente de clasificar',
+      'necesario pendiente',
+      'punto de suciedad pendiente',
+      'estándar pendiente',
+      'cumplimiento pendiente',
+    ];
+    const isStillDraftName = (v: string) =>
+      DRAFT_PREFIXES.some(p => v.toLowerCase().startsWith(p));
     const nameChangedAwayFromDraft = field === 'name'
       && typeof cleanValue === 'string'
       && cleanValue.trim() !== ''
-      && !cleanValue.toLowerCase().startsWith('pendiente de clasificar');
+      && !isStillDraftName(cleanValue);
     const categoryChanged = field === 'category'
       && typeof cleanValue === 'string'
       && cleanValue.trim() !== '';
@@ -1514,77 +1455,31 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
             </div>
 
             {/* ═══ ELEMENTOS BORRADOR (creados automáticamente al tomar fotos en Paso 2) ═══ */}
-            {pendingDraftsCount > 0 && (
+            {pendingDraftsCount > 0 && (() => {
+              const instructions = DRAFT_INSTRUCTIONS_BY_S[sStep] || DRAFT_INSTRUCTIONS_BY_S[1];
+              return (
               <Card className="border-2 border-red-300 bg-red-50/40">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <AlertTriangle className="h-5 w-5 text-red-600" />
-                    <h4 className="font-semibold text-red-800">Elementos pendientes de clasificar</h4>
+                    <h4 className="font-semibold text-red-800">{instructions.title}</h4>
                     <Badge className="bg-red-100 text-red-800">{pendingDraftsCount} sin clasificar</Badge>
                   </div>
                   <p className="text-xs text-red-700 mb-2 font-medium">
-                    Cada foto que tomaste en el Paso 2 creó automáticamente un elemento en la tabla de abajo (marcado con badge rojo <span className="font-mono bg-red-500 text-white px-1 rounded">Pendiente</span>).
-                    La foto ya está vinculada a su elemento — solo tienes que rellenar los datos:
+                    {instructions.subtitle}
                   </p>
                   <ul className="text-xs text-red-700 mb-2 list-disc pl-5 space-y-0.5">
-                    <li><strong>Nombre del elemento</strong> (cámbialo por uno real, p. ej. «Carretilla» o «Estantería A3»)</li>
-                    <li><strong>Categoría</strong> (innecesario / necesario en S1, etc.)</li>
-                    {sStep === 1 && <li><strong>Decisión</strong> (Jaula / Tirar / Eliminar en S1)</li>}
+                    {instructions.fields.map((f, i) => (
+                      <li key={i}><strong>{f.split(':')[0]}</strong>{f.includes(':') ? `:${f.split(':').slice(1).join(':')}` : ''}</li>
+                    ))}
                   </ul>
                   <p className="text-xs text-muted-foreground">
                     Cuando rellenes el nombre o la categoría, el elemento deja de ser «pendiente» automáticamente. Hasta que no clasifiques todos los elementos, no podrás completar el inventario.
                   </p>
                 </CardContent>
               </Card>
-            )}
-
-            {/* ═══ FOTOS DEL PASO 2 (Fotos) ═══ */}
-            {step2Photos.length > 0 && (
-              <Card className="border-2 border-red-300 bg-red-50/40">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <ImageIcon className="h-5 w-5 text-red-600" />
-                    <h4 className="font-semibold text-red-800">Fotos del Paso 2 pendientes de clasificar</h4>
-                    <Badge className="bg-red-100 text-red-800">{step2Photos.length} sin clasificar</Badge>
-                  </div>
-                  <p className="text-xs text-red-700 mb-3 font-medium">
-                    Cada foto del Paso 2 debe vincularse a un elemento del inventario para saber qué hacer con ese elemento. Hasta que no clasifiques todas las fotos, no podrás completar el inventario.
-                  </p>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Para vincular: crea un elemento nuevo (o usa uno existente) y pulsa el botón 📷 «Vincular Foto del Paso 2» en su fila.
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
-                    {step2Photos.map(photo => (
-                      <div key={photo.id} className="relative group border-2 border-red-200 rounded-lg overflow-hidden bg-white">
-                        <img
-                          src={photo.photoUrl}
-                          alt={photo.title}
-                          className="w-full h-24 object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                          onClick={() => setShowPhotoLightbox(photo)}
-                        />
-                        <div className="px-1.5 py-1 flex items-center justify-between">
-                          <Badge className={`text-[9px] px-1 py-0 ${photo.photoType === 'antes' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}>
-                            {photo.photoType === 'antes' ? 'Antes' : 'Después'}
-                          </Badge>
-                          <button
-                            className="text-[9px] text-purple-600 hover:text-purple-800 font-medium flex items-center gap-0.5"
-                            onClick={() => {
-                              // If there are items, open a quick selector
-                              if (items.length > 0 && items[0]?.id) {
-                                toast.info('Haz clic en el botón 📷 de un elemento del inventario para vincular esta foto');
-                              }
-                            }}
-                            title="Vincular a un elemento"
-                          >
-                            <Link2 className="h-2.5 w-2.5" /> Vincular
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+              );
+            })()}
 
             {/* ═══ LAYOUT DE LA ZONA — S2 (Marcado de Suelo), S3 (Limpieza), S4 (Estándares) ═══ */}
             {(sStep === 2 || sStep === 3 || sStep === 4) && (
@@ -2744,19 +2639,11 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                               </div>
                             ))}
                             {!isReadOnly && item.id && (
-                              <div className="flex items-center gap-0.5">
-                                <label className="inline-flex items-center justify-center w-7 h-7 rounded border border-dashed border-gray-300 cursor-pointer hover:bg-gray-50 hover:border-gray-400 transition-colors" title="Adjuntar foto ANTES">
-                                  {uploadingPhotoForItem === item.id ? <Loader2 className="h-3 w-3 animate-spin text-gray-400" /> : <Camera className="h-3 w-3 text-gray-400" />}
-                                  <input type="file" accept="image/*" capture="environment" className="hidden"
-                                    onChange={e => { const file = e.target.files?.[0]; if (file) handleAttachPhoto(item.id!, file, 'antes'); e.target.value = ''; }} />
-                                </label>
-                                {step2Photos.length > 0 && (
-                                  <button className="inline-flex items-center justify-center w-7 h-7 rounded border border-dashed border-purple-300 cursor-pointer hover:bg-purple-50 hover:border-purple-400 transition-colors"
-                                    onClick={() => openPhotoGallery(item.id!)} title="Vincular foto del Paso 2">
-                                    <Link2 className="h-3 w-3 text-purple-400" />
-                                  </button>
-                                )}
-                              </div>
+                              <label className="inline-flex items-center justify-center w-7 h-7 rounded border border-dashed border-gray-300 cursor-pointer hover:bg-gray-50 hover:border-gray-400 transition-colors" title="Adjuntar foto ANTES">
+                                {uploadingPhotoForItem === item.id ? <Loader2 className="h-3 w-3 animate-spin text-gray-400" /> : <Camera className="h-3 w-3 text-gray-400" />}
+                                <input type="file" accept="image/*" capture="environment" className="hidden"
+                                  onChange={e => { const file = e.target.files?.[0]; if (file) handleAttachPhoto(item.id!, file, 'antes'); e.target.value = ''; }} />
+                              </label>
                             )}
                           </div>
                         </td>
@@ -2814,60 +2701,6 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
           onClose={() => setShowColorCodeTable(false)}
         />
       )}
-
-      {/* Photo Gallery Modal — Link Step 2 photos to inventory items */}
-      <Dialog open={showPhotoGallery} onOpenChange={() => setShowPhotoGallery(false)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Link2 className="h-5 w-5 text-purple-600" />
-              Vincular Foto del Paso 2
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Selecciona una foto del Paso 2 para vincularla a este elemento del inventario.
-            La foto mantendrá su tipo (Antes/Después) y será trazable.
-          </p>
-          {galleryTargetItemId && (
-            <div className="mb-2 text-xs text-muted-foreground">
-              Elemento destino: <strong>{items.find(i => i.id === galleryTargetItemId)?.name || '—'}</strong>
-            </div>
-          )}
-          {step2Photos.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No hay fotos del Paso 2 disponibles para vincular</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {step2Photos.map(photo => (
-                <div key={photo.id} className="border rounded-lg overflow-hidden bg-white group">
-                  <img
-                    src={photo.photoUrl}
-                    alt={photo.title}
-                    className="w-full h-32 object-cover"
-                  />
-                  <div className="p-2">
-                    <div className="flex items-center gap-1 mb-1">
-                      <Badge className={`text-[9px] px-1 py-0 ${photo.photoType === 'antes' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}>
-                        {photo.photoType === 'antes' ? 'Antes' : 'Después'}
-                      </Badge>
-                      <span className="text-[9px] text-muted-foreground truncate">{photo.title}</span>
-                    </div>
-                    <Button
-                      size="sm"
-                      className="w-full text-xs bg-purple-600 hover:bg-purple-700 text-white h-7"
-                      onClick={() => galleryTargetItemId && handleLinkStep2Photo(photo.id, galleryTargetItemId)}
-                    >
-                      <Link2 className="h-3 w-3 mr-1" /> Vincular
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Photo Lightbox — Full-size photo preview */}
       <Dialog open={!!showPhotoLightbox} onOpenChange={() => setShowPhotoLightbox(null)}>

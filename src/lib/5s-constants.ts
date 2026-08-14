@@ -712,3 +712,55 @@ export const QUARTERLY_AUDIT_TOTAL_ITEMS = QUARTERLY_AUDIT_CHECKLIST.reduce(
   (sum, section) => sum + section.items.length,
   0
 );
+
+/**
+ * v2.43: Nombres de los borradores de inventario según el S.
+ * Cada foto del Paso 2 crea automáticamente un borrador con su foto attached.
+ * El usuario lo renombra al clasificar el elemento (al cambiar el nombre o la
+ * categoría, el badge isDraft se elimina automáticamente).
+ *
+ * S1: Clasificación — separar innecesario / necesario / dudoso.
+ * S2: Orden — clasificar frecuencia de uso del elemento necesario.
+ * S3: Limpieza — identificar punto de suciedad y plan de limpieza.
+ * S4: Estandarizar — documentar el estándar visual o procedimiento.
+ * S5: Mantener — verificar cumplimiento del estándar.
+ */
+export const DRAFT_NAME_BY_S: Record<number, (index: number) => string> = {
+  1: (i) => `Pendiente de clasificar (${i})`,
+  2: (i) => `Necesario pendiente (${i})`,
+  3: (i) => `Punto de suciedad pendiente (${i})`,
+  4: (i) => `Estándar pendiente (${i})`,
+  5: (i) => `Cumplimiento pendiente (${i})`,
+};
+
+/**
+ * v2.43: Texto del card "pendientes" según el S — qué debe rellenar el
+ * usuario para clasificar cada borrador.
+ */
+export const DRAFT_INSTRUCTIONS_BY_S: Record<number, { title: string; subtitle: string; fields: string[] }> = {
+  1: {
+    title: 'Elementos pendientes de clasificar',
+    subtitle: 'Cada foto del Paso 2 (S1 — Seiri / Clasificación) creó un elemento. La foto ya está vinculada — rellena los datos para clasificarlo:',
+    fields: ['Nombre del elemento (p. ej. «Carretilla»)', 'Categoría: innecesario / dudoso / necesario', 'Decisión: Jaula / Tirar / Eliminar'],
+  },
+  2: {
+    title: 'Necesarios pendientes de clasificar',
+    subtitle: 'Cada foto del Paso 2 (S2 — Seiton / Orden) documentó un elemento necesario. La foto ya está vinculada — clasifica su frecuencia de uso:',
+    fields: ['Nombre del elemento necesario', 'Frecuencia de uso (muy frecuente / frecuente / ocasional / raro)', 'Ubicación y cantidad'],
+  },
+  3: {
+    title: 'Puntos de suciedad pendientes',
+    subtitle: 'Cada foto del Paso 2 (S3 — Seiso / Limpieza) documentó un punto de suciedad. La foto ya está vinculada — clasifica el tipo y plan de limpieza:',
+    fields: ['Nombre del punto de suciedad', 'Tipo de suciedad (polvo / grasa / mancha / óxido / etc.)', 'Frecuencia de limpieza y responsable'],
+  },
+  4: {
+    title: 'Estándares pendientes',
+    subtitle: 'Cada foto del Paso 2 (S4 — Seiketsu / Estandarizar) documentó un estándar visual. La foto ya está vinculada — describe el estándar a implantar:',
+    fields: ['Nombre del estándar', 'Tipo (visual / procedimiento / checklist)', 'Ubicación y responsable'],
+  },
+  5: {
+    title: 'Cumplimientos pendientes',
+    subtitle: 'Cada foto del Paso 2 (S5 — Shitsuke / Mantener) documentó el nivel de cumplimiento. La foto ya está vinculada — clasifica el estado:',
+    fields: ['Nombre del estándar evaluado', 'Cumplimiento (cumplido / parcial / incumplido)', 'Observaciones'],
+  },
+};

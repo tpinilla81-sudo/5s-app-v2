@@ -26,7 +26,7 @@ import {
   Minimize2,
 } from 'lucide-react';
 import { use5SStore } from '@/lib/store';
-import { S_STEPS, MIN_PHOTOS, MINI_STEPS } from '@/lib/5s-constants';
+import { S_STEPS, MIN_PHOTOS, MINI_STEPS, DRAFT_NAME_BY_S } from '@/lib/5s-constants';
 import {
   compressImage,
   generatePhotoFilename,
@@ -438,7 +438,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
               sStep,
               projectId: currentProject?.id,
               zoneId: currentZone?.id || null,
-              name: `Pendiente de clasificar (${idx + 1})`,
+              name: DRAFT_NAME_BY_S[sStep]?.(idx + 1) || `Pendiente de clasificar (${idx + 1})`,
               location: null,
               category: '', // API aplicará default según sStep; el usuario lo reescribirá
               quantity: 1,
@@ -555,10 +555,10 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
             <p className="text-muted-foreground">Ha guardado {photos.length} fotos como evidencia del estado inicial.</p>
             <p className="text-xs text-muted-foreground mt-2">Tamaño total optimizado: {formatBytes(totalSize)}</p>
             <div className="mt-4 p-4 rounded-lg bg-amber-50 border border-amber-300 text-amber-800 text-left">
-              <p className="text-sm font-semibold mb-1">→ Próximo paso: Clasificar cada foto en el Inventario</p>
+              <p className="text-sm font-semibold mb-1">→ Próximo paso: clasificar cada foto en el Inventario (S{sStep} · {sStepData?.japaneseName})</p>
               <p className="text-xs">
                 Cada foto que acabas de tomar se ha vinculado automáticamente a un elemento del inventario en estado <strong className="bg-red-500 text-white px-1 rounded">Pendiente</strong>.
-                En el siguiente paso deberás rellenar el nombre real del elemento, su categoría y la decisión a tomar.
+                En el siguiente paso verás cada foto ya adjunta a su elemento — solo tienes que rellenar el nombre, la categoría y los campos específicos de este paso (S{sStep}).
                 Hasta que no clasifiques todos los elementos, no podrás completar el inventario.
               </p>
             </div>
