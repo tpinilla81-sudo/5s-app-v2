@@ -209,7 +209,7 @@ export const MINI_STEPS: MiniStep[] = [
     icon: 'ClipboardList',
     description: 'Registra los elementos correspondientes a esta S',
     descriptionByS: {
-      1: 'Inventaria SOLO los elementos innecesarios. Incluye ubicación, cantidad, precio (€), estado y decisión (Jaula, Tirar o Eliminar)',
+      1: 'Inventaria SOLO los elementos innecesarios. Incluye ubicación, cantidad, precio (€), estado y decisión (Retirar o Eliminar)',
       2: 'Inventaria SOLO los elementos necesarios: ubicación, frecuencia de uso, cercanía y método de identificación',
       3: 'Inventaria los puntos de suciedad: tipo, nivel, fuente y método de limpieza',
       4: 'Inventaria los estándares implantados: tipo, estado, documentación y cumplimiento. Incluye la Biblioteca de Estándares',
@@ -266,7 +266,7 @@ export interface InventoryConfig {
 export const INVENTORY_CONFIGS: Record<number, InventoryConfig> = {
   1: {
     title: 'Inventario de Innecesarios (Clasificación)',
-    subtitle: 'SEIRI — Clasifica los elementos innecesarios y decide su destino (Jaula/Tirar/Eliminar)',
+    subtitle: 'SEIRI — Clasifica los elementos innecesarios y decide su destino (Retirar a Jaula o Eliminar a Residuo)',
     categories: [
       { value: 'innecesario', label: 'Innecesario', color: 'bg-red-100 text-red-800' },
     ],
@@ -274,7 +274,7 @@ export const INVENTORY_CONFIGS: Record<number, InventoryConfig> = {
       // === Campos de Innecesario (rojo) ===
       { key: 'estado', label: 'Estado', type: 'select', options: ['Bueno', 'Regular', 'Malo'] },
       { key: 'frecuenciaUso', label: 'Frecuencia uso', type: 'select', options: ['Diario', 'Semanal', 'Quincenal', 'Mensual', 'Trimestral', 'Anual', 'Nunca'] },
-      { key: 'decision', label: 'Decisión', type: 'select', options: ['Jaula', 'Tirar', 'Eliminar'] },
+      { key: 'decision', label: 'Decisión', type: 'select', options: ['Retirar', 'Eliminar'] },
       // === Datos de Etiqueta (naranja) ===
       { key: 'diasCuarentena', label: 'Días cuarentena', type: 'select', options: ['7', '15', '20', '30', '40', '60', '90'] },
     ],
@@ -741,7 +741,7 @@ export const DRAFT_INSTRUCTIONS_BY_S: Record<number, { title: string; subtitle: 
   1: {
     title: 'Elementos pendientes de clasificar',
     subtitle: 'Cada foto del Paso 2 (S1 — Seiri / Clasificación) creó un elemento. La foto ya está vinculada — rellena los datos para clasificarlo:',
-    fields: ['Nombre del elemento (p. ej. «Carretilla»)', 'Categoría: innecesario / dudoso / necesario', 'Decisión: Jaula / Tirar / Eliminar'],
+    fields: ['Nombre del elemento (p. ej. «Carretilla»)', 'Categoría: innecesario / dudoso / necesario', 'Decisión: Retirar (va a Jaula) / Eliminar (va a Residuo)'],
   },
   2: {
     title: 'Necesarios pendientes de clasificar',

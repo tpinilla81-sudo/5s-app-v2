@@ -42,6 +42,18 @@ import {
   base64toFile,
 } from '@/lib/image-utils';
 
+// v2.50: Decision helpers — 'Retirar' (→Jaula) replaces 'Jaula'; 'Eliminar' absorbs 'Tirar'.
+// Backward compat: legacy DB rows may still carry decision='Jaula' or 'Tirar'.
+const isJaulaDecision = (d?: string | null) =>
+  !d || d === 'Retirar' || d === 'Jaula';
+const isEliminarDecision = (d?: string | null) =>
+  d === 'Eliminar' || d === 'Tirar';
+const displayDecision = (d?: string | null): string => {
+  if (!d || d === 'Retirar' || d === 'Jaula') return 'Retirar';
+  if (d === 'Tirar') return 'Eliminar';
+  return d;
+};
+
 interface InventoryItemData {
   id?: string;
   name: string;
@@ -179,7 +191,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
         const qty = item.quantity || 1;
         const extra = { ...(item.extra || {}) };
         if (sStep === 1 && isInnecesario && !extra.decision) {
-          extra.decision = 'Jaula';
+          extra.decision = 'Retirar'; // v2.50: was 'Jaula'
         }
 
         await fetch('/api/inventory', {
@@ -196,13 +208,13 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
             quantityNeeded: isNecesario ? qty : (item.quantityNeeded || 0),
             quantityUnneeded: isInnecesario ? qty : (item.quantityUnneeded || 0),
             price: item.price ?? null,
-            action: item.action || (isInnecesario ? (extra.decision || 'Jaula') : ''),
+            action: item.action || (isInnecesario ? (extra.decision || 'Retirar') : ''),
             extra,
-            jaulaStatus: isInnecesario && extra.decision !== 'Eliminar' && extra.decision !== 'Tirar' ? 'en_jaula' : '',
-            jaulaFechaEntrada: isInnecesario && extra.decision !== 'Eliminar' && extra.decision !== 'Tirar' ? new Date().toISOString() : null,
+            jaulaStatus: isInnecesario && isJaulaDecision(extra.decision) ? 'en_jaula' : '',
+            jaulaFechaEntrada: isInnecesario && isJaulaDecision(extra.decision) ? new Date().toISOString() : null,
             jaulaOrigen: isInnecesario ? (currentZone?.name || currentProject.name || '') : null,
             zonaOrigen: currentZone?.name || null,
-            zonaDestino: isInnecesario ? (extra.decision === 'Tirar' || extra.decision === 'Eliminar' ? 'Residuo' : 'Jaula') : null,
+            zonaDestino: isInnecesario ? (isEliminarDecision(extra.decision) ? 'Residuo' : 'Jaula') : null,
           }),
         });
       }
@@ -884,20 +896,19 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
           if (colMap.estado >= 0) item.extra!['estado'] = getVal(colMap.estado);
           if (colMap.frecuenciaUso >= 0) item.extra!['frecuenciaUso'] = getVal(colMap.frecuenciaUso);
           // Map classification/decision columns
+          // v2.50: 'Retirar' replaces 'Jaula'; 'Tirar' merged into 'Eliminar'.
           const decisionVal = getVal(colMap.category) || getVal(colMap.action, '');
           if (decisionVal) {
             const lower = decisionVal.toLowerCase();
-            if (lower.includes('jaula') || lower.includes('red') || lower.includes('etiqueta')) {
-              item.extra!['decision'] = 'Jaula';
-            } else if (lower.includes('tirar') || lower.includes('residuo') || lower.includes('basura')) {
-              item.extra!['decision'] = 'Tirar';
-            } else if (lower.includes('elimin')) {
+            if (lower.includes('retirar') || lower.includes('jaula') || lower.includes('red') || lower.includes('etiqueta')) {
+              item.extra!['decision'] = 'Retirar';
+            } else if (lower.includes('elimin') || lower.includes('tirar') || lower.includes('residuo') || lower.includes('basura')) {
               item.extra!['decision'] = 'Eliminar';
             } else {
-              item.extra!['decision'] = 'Jaula'; // Default for S1
+              item.extra!['decision'] = 'Retirar'; // Default for S1
             }
           }
-          if (!item.extra!['decision']) item.extra!['decision'] = 'Jaula';
+          if (!item.extra!['decision']) item.extra!['decision'] = 'Retirar';
         } else if (sStep === 2) {
           if (colMap.ubicacionAsignada >= 0) item.extra!['ubicacionAsignada'] = getVal(colMap.ubicacionAsignada);
           if (colMap.metodoIdentificacion >= 0) item.extra!['metodoIdentificacion'] = getVal(colMap.metodoIdentificacion);
@@ -970,12 +981,12 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
             price: item.price || null,
             action: item.action || '',
             extra: item.extra || {},
-            // Only Jaula decision items get jaula entry/quarantine; Eliminar/Tirar go to Residuo directly
-            jaulaStatus: sStep === 1 && item.category === 'innecesario' && item.extra?.decision !== 'Eliminar' && item.extra?.decision !== 'Tirar' ? 'en_jaula' : '',
-            jaulaFechaEntrada: sStep === 1 && item.category === 'innecesario' && item.extra?.decision !== 'Eliminar' && item.extra?.decision !== 'Tirar' ? new Date().toISOString() : null,
-            jaulaOrigen: sStep === 1 && item.category === 'innecesario' && item.extra?.decision !== 'Eliminar' && item.extra?.decision !== 'Tirar' ? item.zonaOrigen || currentZone?.name || currentProject!.name || '' : null,
+            // v2.50: Retirar (legacy 'Jaula') → en_jaula; Eliminar (legacy 'Tirar') → Residuo.
+            jaulaStatus: sStep === 1 && item.category === 'innecesario' && isJaulaDecision(item.extra?.decision) ? 'en_jaula' : '',
+            jaulaFechaEntrada: sStep === 1 && item.category === 'innecesario' && isJaulaDecision(item.extra?.decision) ? new Date().toISOString() : null,
+            jaulaOrigen: sStep === 1 && item.category === 'innecesario' && isJaulaDecision(item.extra?.decision) ? item.zonaOrigen || currentZone?.name || currentProject!.name || '' : null,
             zonaOrigen: item.zonaOrigen || currentZone?.name || null,
-            zonaDestino: sStep === 1 && item.category === 'innecesario' ? (item.extra?.decision === 'Tirar' || item.extra?.decision === 'Eliminar' ? 'Residuo' : 'Jaula') : (item.zonaOrigen || currentZone?.name || null),
+            zonaDestino: sStep === 1 && item.category === 'innecesario' ? (isEliminarDecision(item.extra?.decision) ? 'Residuo' : 'Jaula') : (item.zonaOrigen || currentZone?.name || null),
           }))
         ),
       });
@@ -1598,16 +1609,16 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                   }
                   return fechaRevision;
                 };
-                // Only Jaula decision items get a red tag (Eliminar/Tirar go to Residuo directly, no tag)
+                // v2.50: red tag only for items going to Jaula (Retirar; legacy 'Jaula').
                 const rojaItems = items
-                  .filter(i => i.category === 'innecesario' && (!i.extra?.decision || i.extra.decision === 'Jaula'))
+                  .filter(i => i.category === 'innecesario' && isJaulaDecision(i.extra?.decision))
                   .map(i => ({
                     nombre: i.name,
                     ubicacion: i.location,
                     cantidad: i.quantityUnneeded || i.quantity,
                     estado: String(i.extra?.estado ?? ''),
                     frecuenciaUso: String(i.extra?.frecuenciaUso ?? ''),
-                    decision: 'Jaula' as string,
+                    decision: 'Retirar' as string,
                     categoria: String(i.category ?? 'Innecesario'),
                     fechaEntrada: i.jaulaFechaEntrada,
                     fechaRevision: withRevision(i),
@@ -1617,7 +1628,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                 // v2.48: pasamos los itemIds alineados con rojaItems para que
                 // TagPrinter pueda persistir el snapshot de la etiqueta.
                 const rojaItemIds = items
-                  .filter(i => i.category === 'innecesario' && (!i.extra?.decision || i.extra.decision === 'Jaula'))
+                  .filter(i => i.category === 'innecesario' && isJaulaDecision(i.extra?.decision))
                   .map(i => i.id);
                 return (
                   <div className="flex items-center gap-2 ml-2 pl-2 border-l border-red-300">
@@ -1895,25 +1906,25 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                             ) : <span className="text-[11px]">{item.name}</span>}
                           </div>
                         </td>
-                        {/* IDENTIFICACIÓN: Ubicación */}
+                        {/* IDENTIFICACIÓN: Ubicación — v2.50: auto-fill desde la zona actual, read-only */}
                         <td className={`px-1 py-1 border ${idBg}`}>
-                          {canEdit ? (
-                            <Input value={item.location || ''} className={inlineInput}
-                              onChange={e => setItems(prev => prev.map(it => it.id === item.id ? { ...it, location: e.target.value } : it))}
-                              onKeyDown={e => commitOnEnter(e, () => handleUpdateField(item.id!, 'location', (e.target as HTMLInputElement).value))}
-                              onBlur={e => handleUpdateField(item.id!, 'location', e.target.value)} />
-                          ) : <span className="text-[11px]">{item.location || '—'}</span>}
+                          <span className="text-[11px] text-muted-foreground" title="Ubicación automática: derivada de la zona actual">
+                            {currentZone?.name || currentProject?.name || item.location || '—'}
+                          </span>
                         </td>
-                        {/* IDENTIFICACIÓN: Categoría */}
+                        {/* IDENTIFICACIÓN: Categoría — v2.50: auto-default 'Innecesario' en S1, read-only */}
                         <td className={`px-1 py-1 border ${idBg} text-center`}>
-                          {canEdit && sStep === 1 ? (
+                          {sStep === 1 ? (
+                            <Badge className="text-[9px] px-1 py-0 bg-red-100 text-red-800 whitespace-nowrap" title="En S1 (Seiri) todos los elementos inventariados son innecesarios por definición">
+                              Innecesario
+                            </Badge>
+                          ) : canEdit ? (
                             <Select value={item.category || undefined}
                               onValueChange={val => {
                                 const isInn = val === 'innecesario';
                                 const isNec = val === 'necesario';
                                 const qty = item.quantity || 1;
-                                const updates: any = { category: val, quantityNeeded: isNec ? qty : 0, quantityUnneeded: isInn ? qty : 0, jaulaStatus: isInn ? 'en_jaula' : '', jaulaFechaEntrada: isInn ? (item.jaulaFechaEntrada || new Date().toISOString()) : null };
-                                // v2.40: si el item era borrador, al asignar categoría real se quita isDraft
+                                const updates: any = { category: val, quantityNeeded: isNec ? qty : 0, quantityUnneeded: isInn ? qty : 0 };
                                 const wasDraft = (item.extra as any)?.isDraft === true;
                                 if (wasDraft) {
                                   const newExtra = { ...(item.extra || {}) };
@@ -1966,34 +1977,28 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                 </Select>
                               ) : <span className="text-[11px]">{String(item.extra?.estado ?? '—')}</span>}
                             </td>
-                            {/* CLASIFICACIÓN: Frecuencia uso */}
+                            {/* CLASIFICACIÓN: Frecuencia uso — v2.50: 'No aplica' para innecesarios (S1) */}
                             <td className={`px-1 py-1 border ${specBg} text-center`}>
-                              {canEdit ? (
-                                <Select value={item.extra?.frecuenciaUso ? String(item.extra.frecuenciaUso) : undefined} onValueChange={val => handleUpdateExtra(item.id!, 'frecuenciaUso', val)}>
-                                  <SelectTrigger className={inlineSelect}><SelectValue placeholder="—" /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="_clear_">—</SelectItem>
-                                    {['Diario', 'Semanal', 'Quincenal', 'Mensual', 'Trimestral', 'Anual', 'Nunca'].map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                                  </SelectContent>
-                                </Select>
-                              ) : <span className="text-[11px]">{String(item.extra?.frecuenciaUso ?? '—')}</span>}
+                              <span className="text-[11px] text-muted-foreground" title="No aplica: el elemento es innecesario y se retirará">
+                                No aplica
+                              </span>
                             </td>
-                            {/* CLASIFICACIÓN: Decisión */}
+                            {/* CLASIFICACIÓN: Decisión — v2.50: Retirar (→Jaula) o Eliminar (→Residuo) */}
                             <td className={`px-1 py-1 border ${specBg} text-center`}>
                               {canEdit ? (
-                                <Select value={item.extra?.decision ? String(item.extra.decision) : undefined}
+                                <Select value={displayDecision(item.extra?.decision)}
                                   onValueChange={val => {
                                     handleUpdateExtra(item.id!, 'decision', val);
                                     const isInn = item.category === 'innecesario';
                                     if (isInn) {
                                       handleUpdateField(item.id!, 'action', val);
-                                      const newDestino = (val === 'Tirar' || val === 'Eliminar') ? 'Residuo' : 'Jaula';
+                                      const newDestino = val === 'Eliminar' ? 'Residuo' : 'Jaula';
                                       handleUpdateField(item.id!, 'zonaDestino', newDestino);
-                                      if (val === 'Tirar' || val === 'Eliminar') {
+                                      if (val === 'Eliminar') {
                                         handleUpdateField(item.id!, 'jaulaStatus', '');
                                         handleUpdateField(item.id!, 'jaulaFechaEntrada', null);
                                         handleUpdateExtra(item.id!, 'diasCuarentena', '_clear_');
-                                      } else if (val === 'Jaula') {
+                                      } else if (val === 'Retirar') {
                                         handleUpdateField(item.id!, 'jaulaStatus', 'en_jaula');
                                         if (!item.jaulaFechaEntrada) handleUpdateField(item.id!, 'jaulaFechaEntrada', new Date().toISOString());
                                         if (!item.extra?.diasCuarentena) handleUpdateExtra(item.id!, 'diasCuarentena', 40);
@@ -2002,22 +2007,20 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                   }}>
                                   <SelectTrigger className={inlineSelect}><SelectValue placeholder="—" /></SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="_clear_">—</SelectItem>
-                                    <SelectItem value="Jaula">Jaula</SelectItem>
-                                    <SelectItem value="Tirar">Tirar</SelectItem>
+                                    <SelectItem value="Retirar">Retirar</SelectItem>
                                     <SelectItem value="Eliminar">Eliminar</SelectItem>
                                   </SelectContent>
                                 </Select>
                               ) : item.extra?.decision ? (
                                 <div className="flex flex-col items-center gap-0.5">
-                                  <Badge className={`text-[9px] px-1 ${item.extra.decision === 'Jaula' ? 'bg-orange-100 text-orange-800' : item.extra.decision === 'Tirar' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>{String(item.extra.decision)}</Badge>
+                                  <Badge className={`text-[9px] px-1 ${isJaulaDecision(item.extra.decision) ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800'}`}>{displayDecision(item.extra.decision)}</Badge>
                                   {getEtiquetaBadge(item)}
                                 </div>
                               ) : <span className="text-[11px] text-muted-foreground">—</span>}
                             </td>
-                            {/* ETIQUETA: Días cuarentena */}
+                            {/* ETIQUETA: Días cuarentena — v2.50: solo si decisión = Retirar (va a jaula) */}
                             <td className="px-1 py-1 border bg-orange-50 text-center">
-                              {item.extra?.decision === 'Eliminar' || item.extra?.decision === 'Tirar' ? (
+                              {isEliminarDecision(item.extra?.decision) ? (
                                 <span className="text-muted-foreground">—</span>
                               ) : canEdit ? (
                                 <Select value={String(item.extra?.diasCuarentena ?? 40)} onValueChange={val => handleUpdateExtra(item.id!, 'diasCuarentena', parseInt(val) || 40)}>
@@ -2036,45 +2039,23 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                             </td>
                           ))
                         )}
-                        {/* UBICACIÓN: Z. Origen */}
+                        {/* UBICACIÓN: Z. Origen — v2.50: auto-fill desde la zona actual, read-only */}
                         <td className={`px-1 py-1 border ${locBg} text-center`}>
-                          {canEdit ? (
-                            currentProject?.zones && currentProject.zones.length > 0 ? (
-                              <Select value={item.zonaOrigen || undefined} onValueChange={val => handleUpdateField(item.id!, 'zonaOrigen', val)}>
-                                <SelectTrigger className={inlineSelect}><SelectValue placeholder="—" /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="_clear_">—</SelectItem>
-                                  {currentProject.zones.map(z => <SelectItem key={z.id} value={z.name}>{z.name}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <Input value={item.zonaOrigen || ''} className={inlineInput} placeholder="—"
-                                onKeyDown={e => commitOnEnter(e, () => handleUpdateField(item.id!, 'zonaOrigen', (e.target as HTMLInputElement).value))}
-                                onBlur={e => handleUpdateField(item.id!, 'zonaOrigen', e.target.value)} />
-                            )
-                          ) : <span className="text-[11px] text-muted-foreground">{item.zonaOrigen || '—'}</span>}
+                          <span className="text-[11px] text-muted-foreground" title="Zona de origen automática: derivada de la zona actual">
+                            {item.zonaOrigen || currentZone?.name || currentProject?.name || '—'}
+                          </span>
                         </td>
-                        {/* UBICACIÓN: Z. Destino */}
+                        {/* UBICACIÓN: Z. Destino — v2.50: auto-determinada por decisión (Jaula o Residuo), read-only */}
                         <td className={`px-1 py-1 border ${locBg} text-center`}>
                           {sStep === 1 && item.category === 'innecesario' ? (
-                            <span className={`text-[11px] font-medium ${(item.extra?.decision === 'Tirar' || item.extra?.decision === 'Eliminar') ? 'text-yellow-700' : 'text-red-600'}`}>{(item.extra?.decision === 'Tirar' || item.extra?.decision === 'Eliminar') ? 'Residuo' : 'Jaula'}</span>
-                          ) : canEdit ? (
-                            <Select value={item.zonaDestino || undefined}
-                              onValueChange={val => {
-                                const targetZone = currentProject?.zones?.find(z => z.name === val);
-                                const updates: any = { zonaDestino: val };
-                                if (targetZone) updates.zoneId = targetZone.id;
-                                handleUpdateJaula(item.id!, updates);
-                              }}>
-                              <SelectTrigger className={inlineSelect}><SelectValue placeholder="—" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="_clear_">—</SelectItem>
-                                {currentProject?.zones?.map(z => <SelectItem key={z.id} value={z.name}>{z.name}</SelectItem>) || []}
-                              </SelectContent>
-                            </Select>
-                          ) : <span className="text-[11px] text-muted-foreground">{item.zonaDestino || '—'}</span>}
+                            <span className={`text-[11px] font-medium ${isEliminarDecision(item.extra?.decision) ? 'text-yellow-700' : 'text-red-600'}`}>
+                              {isEliminarDecision(item.extra?.decision) ? 'Residuo' : 'Jaula'}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground">{item.zonaDestino || '—'}</span>
+                          )}
                         </td>
-                        {/* Fotos */}
+                        {/* Fotos — v2.50: sin botón "añadir más fotos", click en la miniatura abre lightbox negro */}
                         <td className="px-1 py-1 border bg-gray-50">
                           <div className="flex items-center gap-1 flex-wrap">
                             {(itemPhotos[item.id!] || item.photos || []).map(photo => (
@@ -2092,13 +2073,6 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                 )}
                               </div>
                             ))}
-                            {!isReadOnly && item.id && (
-                              <label className="inline-flex items-center justify-center w-7 h-7 rounded border border-dashed border-gray-300 cursor-pointer hover:bg-gray-50 hover:border-gray-400 transition-colors" title="Adjuntar foto ANTES">
-                                {uploadingPhotoForItem === item.id ? <Loader2 className="h-3 w-3 animate-spin text-gray-400" /> : <Camera className="h-3 w-3 text-gray-400" />}
-                                <input type="file" accept="image/*" capture="environment" className="hidden"
-                                  onChange={e => { const file = e.target.files?.[0]; if (file) handleAttachPhoto(item.id!, file, 'antes'); e.target.value = ''; }} />
-                              </label>
-                            )}
                           </div>
                         </td>
                         {/* Delete — v2.46: oculto si el item viene de una foto del Paso 2 (sourcePhotoId) */}
@@ -2161,26 +2135,27 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
       )}
 
       {/* Photo Lightbox — Full-size photo preview */}
+      {/* v2.50: Lightbox con fondo negro — al pulsar la foto sale sobre un overlay oscuro */}
       <Dialog open={!!showPhotoLightbox} onOpenChange={() => setShowPhotoLightbox(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] p-2">
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0 bg-black border-0 [&>button]:text-white [&>button]:hover:bg-white/10">
           {showPhotoLightbox && (
-            <div className="space-y-2">
+            <div className="flex flex-col">
               <div className="relative">
                 <img
                   src={showPhotoLightbox.photoUrl}
                   alt={showPhotoLightbox.title}
-                  className="w-full max-h-[70vh] object-contain rounded-lg"
+                  className="w-full max-h-[80vh] object-contain bg-black"
                 />
                 <Badge className={`absolute top-2 left-2 ${showPhotoLightbox.photoType === 'antes' ? 'bg-amber-100 text-amber-800' : showPhotoLightbox.photoType === 'despues' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                   {showPhotoLightbox.photoType === 'antes' ? 'Antes' : showPhotoLightbox.photoType === 'despues' ? 'Después' : showPhotoLightbox.photoType}
                 </Badge>
               </div>
-              <div className="px-2 pb-2">
+              <div className="px-3 py-2 bg-black text-white">
                 <h4 className="text-sm font-medium">{showPhotoLightbox.title}</h4>
                 {showPhotoLightbox.description && (
-                  <p className="text-xs text-muted-foreground">{showPhotoLightbox.description}</p>
+                  <p className="text-xs text-gray-300">{showPhotoLightbox.description}</p>
                 )}
-                <p className="text-[10px] text-muted-foreground mt-1">
+                <p className="text-[10px] text-gray-400 mt-1">
                   {new Date(showPhotoLightbox.createdAt).toLocaleString('es-ES')}
                 </p>
               </div>

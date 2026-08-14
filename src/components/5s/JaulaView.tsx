@@ -200,7 +200,7 @@ export default function JaulaView() {
           extra: JSON.stringify({
             estado: '',
             frecuenciaUso: '',
-            decision: 'Jaula',
+            decision: 'Retirar', // v2.50: was 'Jaula'
             diasCuarentena: '40',
           }),
         }),
@@ -273,9 +273,17 @@ export default function JaulaView() {
     return <Badge className={`text-[10px] px-1.5 py-0 ${opt.color}`}>{opt.label}</Badge>;
   };
 
+  // v2.50: helper para normalizar decision (legacy 'Jaula' → 'Retirar', 'Tirar' → 'Eliminar')
+  const displayDecision = (d?: string | null): string => {
+    if (!d || d === 'Retirar' || d === 'Jaula') return 'Retirar';
+    if (d === 'Tirar') return 'Eliminar';
+    return d;
+  };
+  const isJaulaDecision = (d?: string | null) => !d || d === 'Retirar' || d === 'Jaula';
+
   // Tag data for printing
   const tagItemsAndIds = filteredJaulaItems
-    .filter(i => !i.extra?.decision || i.extra.decision === 'Jaula')
+    .filter(i => isJaulaDecision(i.extra?.decision))
     .map(i => {
       const dias = Number(i.extra?.diasCuarentena ?? 40);
       let fechaRevision: string | null = null;
@@ -294,7 +302,7 @@ export default function JaulaView() {
           cantidad: i.quantityUnneeded || i.quantity,
           estado: String(i.extra?.estado ?? ''),
           frecuenciaUso: String(i.extra?.frecuenciaUso ?? ''),
-          decision: 'Jaula' as string,
+          decision: 'Retirar' as string,
           fechaEntrada: i.jaulaFechaEntrada,
           fechaRevision,
           diasCuarentena: dias,
@@ -459,14 +467,14 @@ export default function JaulaView() {
                           </Select>
                         </td>
                         <td className="px-1 py-1 border bg-amber-50 text-center">
-                          <Select value={String(item.extra?.decision || 'Jaula')} onValueChange={v => handleUpdateField(item.id, 'extra.decision', v)}>
+                          <Select value={displayDecision(item.extra?.decision)} onValueChange={v => handleUpdateField(item.id, 'extra.decision', v)}>
                             <SelectTrigger className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent w-16">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {(config.extraFields.find(f => f.key === 'decision')?.options || ['Jaula', 'Tirar', 'Eliminar', 'Reubicar']).map(o => (
-                                <SelectItem key={o} value={o} className="text-xs">{o}</SelectItem>
-                              ))}
+                              <SelectItem value="Retirar" className="text-xs">Retirar</SelectItem>
+                              <SelectItem value="Eliminar" className="text-xs">Eliminar</SelectItem>
+                              <SelectItem value="Reubicar" className="text-xs">Reubicar</SelectItem>
                             </SelectContent>
                           </Select>
                         </td>
@@ -557,11 +565,10 @@ export default function JaulaView() {
                       <span className="text-xs font-medium truncate flex-1">{item.name || 'Sin nombre'}</span>
                       {getStatusBadge(item.jaulaStatus)}
                       <Badge className={`text-[10px] px-1.5 py-0 ${
-                        item.extra?.decision === 'Jaula' ? 'bg-orange-100 text-orange-800'
-                        : item.extra?.decision === 'Eliminar' ? 'bg-red-100 text-red-800'
-                        : 'bg-gray-100 text-gray-800'
+                        isJaulaDecision(item.extra?.decision) ? 'bg-orange-100 text-orange-800'
+                        : 'bg-red-100 text-red-800'
                       }`}>
-                        {String(item.extra?.decision || 'Jaula')}
+                        {displayDecision(item.extra?.decision)}
                       </Badge>
                     </div>
                     <div className="px-3 pb-2 text-[11px] text-muted-foreground flex items-center gap-3">
