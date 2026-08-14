@@ -1866,3 +1866,44 @@ Stage Summary:
   en JaulaView, JaulaModal, GlobalInventoryModal.
 - Foto: al pulsar la miniatura se abre en grande sobre fondo negro.
 - Pendiente: usuario prueba en v2.50 tras deploy (~1-2 min).
+
+---
+Task ID: v2.51
+Agent: Main
+Task: Añadir columna "Etiquetas" dedicada para S1 (etiqueta roja si Retirar→Jaula)
+
+Work Log:
+- Petición del usuario: "al poner retirar y jaula tiene que salir otra
+  columna con la etiqueta roja para la jaula".
+- Reglas confirmadas:
+  * Eliminar → no aplica cuarentena, Z Destino = Residuo.
+  * Retirar → Z Destino = Jaula, y debe mostrar etiqueta roja.
+
+CAMBIOS InventarioModal.tsx (solo S1):
+- Nueva columna "Etiquetas" entre "Días cuar." y "Z. Origen".
+- Header: bg-rose-500, texto blanco, "Etiquetas".
+- Cell bg-rose-50.
+- Lógica:
+  * isEliminarDecision → "—" (no aplica, va a residuo).
+  * isJaulaDecision (Retirar/Jaula/null):
+    - Si extra.etiquetaGenerada=true → getEtiquetaBadge (badge verde
+      "Impresa DD/MM/YY").
+    - Si no → badge rosa "🔴 Pendiente" con tooltip indicando que use
+      el botón "Etiquetas" superior para imprimir.
+- Movido getEtiquetaBadge fuera de la celda Decisión (ya tiene su
+  propia columna).
+- colSpan "CLASIFICACIÓN INNECESARIO" actualizado de 4 → 5.
+- S2-S5: sin cambios (sigue usando extraFields.slice(0,2)).
+
+Version bump: v2.50 → v2.51 (middleware, page.tsx, LoginPage).
+Build Next.js: ✓ Compiled successfully in 21.0s.
+Commit 70bcc36 + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- Tabla S1 ahora tiene 13 columnas:
+  Elemento | Ubicación | Categoría | Cantidad | Precio |
+  Estado | Frec. uso | Decisión | Días cuar. | Etiquetas |
+  Z. Origen | Z. Destino | Fotos | (delete)
+- El usuario ve de un vistazo qué items van a Jaula y si ya tienen
+  etiqueta impresa o están pendientes.
+- Pendiente: usuario prueba en v2.51 tras deploy (~1-2 min).
