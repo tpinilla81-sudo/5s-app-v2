@@ -1,0 +1,1382 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import { useState, useEffect, useMemo, useRef } from 'react';
+     4→     4→import {
+     5→     5→  Dialog,
+     6→     6→  DialogContent,
+     7→     7→  DialogHeader,
+     8→     8→  DialogTitle,
+     9→     9→} from '@/components/ui/dialog';
+    10→    10→import { Button } from '@/components/ui/button';
+    11→    11→import { Card, CardContent } from '@/components/ui/card';
+    12→    12→import { Badge } from '@/components/ui/badge';
+    13→    13→import { Input } from '@/components/ui/input';
+    14→    14→import { Textarea } from '@/components/ui/textarea';
+    15→    15→import { Label } from '@/components/ui/label';
+    16→    16→import { CheckSquare, CheckCircle, XCircle, Camera, ChevronDown, ChevronRight, Maximize2, Minimize2, AlertCircle, Upload, X, Image as ImageIcon, Calendar, UserCircle, CheckCheck, Paperclip, Loader2, Sparkles } from 'lucide-react';
+    17→    17→import { use5SStore } from '@/lib/store';
+    18→    18→import {
+    19→    19→  S_STEPS,
+    20→    20→  SELF_EVAL_THRESHOLD,
+    21→    21→} from '@/lib/5s-constants';
+    22→    22→import type { AuditSection, AuditItemResult } from '@/lib/5s-constants';
+    23→    23→import { useChecklistTemplate } from '@/lib/checklist-templates';
+    24→    24→import {
+    25→    25→  Select,
+    26→    26→  SelectContent,
+    27→    27→  SelectItem,
+    28→    28→  SelectTrigger,
+    29→    29→  SelectValue,
+    30→    30→} from '@/components/ui/select';
+    31→    31→import { toast } from 'sonner';
+    32→    32→
+    33→    33→interface AutoevaluacionModalProps {
+    34→    34→  open: boolean;
+    35→    35→  onClose: () => void;
+    36→    36→  sStep: number;
+    37→    37→  miniStep: number;
+    38→    38→}
+    39→    39→
+    40→    40→
+    41→    41→
+    42→    42→export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: AutoevaluacionModalProps) {
+    43→    43→  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission, openModal } = use5SStore();
+    44→    44→  const sStepData = S_STEPS.find(s => s.id === sStep);
+    45→    45→  const canSkipSteps = hasPermission('skip_steps');
+    46→    46→  const canPerformStep = canPerform(sStep, miniStep);
+    47→    47→  const canViewStep = canView(sStep, miniStep);
+    48→    48→  // Permission-driven: read-only if no execute perm OR if candado closed for skip_steps users
+    49→    49→  const isReadOnly = !canPerformStep || (canSkipSteps && !adminFreeNavigation);
+    50→    50→  const canPerformAutoeval = canPerformStep;
+    51→    51→
+    52→    52→  const [isFullscreen, setIsFullscreen] = useState(true);
+    53→    53→  const [results, setResults] = useState<Record<string, AuditItemResult>>({});
+    54→    54→  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+    55→    55→  const [observaciones, setObservaciones] = useState('');
+    56→    56→  const [isSubmitting, setIsSubmitting] = useState(false);
+    57→    57→  const [isCompleted, setIsCompleted] = useState(false);
+    58→    58→  const [finalScore, setFinalScore] = useState(0);
+    59→    59→  // Track which (open, sStep, sections-signature) we've already initialized for,
+    60→    60→  // so we don't reset user edits if `sections` ref changes mid-session.
+    61→    61→  const initializedFor = useRef<string>('');
+    62→    62→  const [notaMinima, setNotaMinima] = useState(70);
+    63→    63→  const [autoevalPhotos, setAutoevalPhotos] = useState<{ file: File; preview: string; uploading?: boolean; serverUrl?: string }[]>([]);
+    64→    64→  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+    65→    65→  const photoInputRef = useRef<HTMLInputElement>(null);
+    66→    66→  // v2.63: Per-NOK-finding photos — each NOK item can have its own photos
+    67→    67→  // that will be linked to the corresponding ActionItem via photoRefs.
+    68→    68→  const [nokPhotos, setNokPhotos] = useState<Record<string, { file: File; preview: string }[]>>({});
+    69→    69→  const nokPhotoInputRef = useRef<Record<string, HTMLInputElement | null>>({});
+    70→    70→  const [activeNokItemId, setActiveNokItemId] = useState<string | null>(null);
+    71→    71→
+    72→    72→  // Project members for responsable selector on NOK items
+    73→    73→  const [projectMembers, setProjectMembers] = useState<Array<{ id: string; userId: string; role: string; user: { id: string; name: string; email: string; role: string; active: boolean } }>>([]);
+    74→    74→
+    75→    75→  // Date/Time for scheduling and recording the evaluation
+    76→    76→  const [fechaAutoevaluacion, setFechaAutoevaluacion] = useState('');
+    77→    77→  const [horaAutoevaluacion, setHoraAutoevaluacion] = useState('');
+    78→    78→  const [fechaProgramada, setFechaProgramada] = useState('');
+    79→    79→  const [horaProgramada, setHoraProgramada] = useState('');
+    80→    80→  // Track auditoría schedule (miniStep 5) — employee sees this as read-only (auditor sets it)
+    81→    81→  const [auditFechaProgramada, setAuditFechaProgramada] = useState('');
+    82→    82→  const [auditHoraProgramada, setAuditHoraProgramada] = useState('');
+    83→    83→
+    84→    84→  // Load template from API (uses board config if zone has one)
+    85→    85→  const { sections, isLoading: isLoadingTemplate, notaMinima: templateNotaMinima } = useChecklistTemplate('autoevaluacion', sStep, open, currentZone?.boardConfigId);
+    86→    86→
+    87→    87→  // Apply template notaMinima when loaded
+    88→    88→  useEffect(() => {
+    89→    89→    if (templateNotaMinima !== null) setNotaMinima(templateNotaMinima);
+    90→    90→  }, [templateNotaMinima]);
+    91→    91→
+    92→    92→  // Load project members (for responsable selector on NOK items)
+    93→    93→  useEffect(() => {
+    94→    94→    if (open && currentProject?.id) {
+    95→    95→      fetch(`/api/projects/${currentProject.id}/members`)
+    96→    96→        .then(r => r.json())
+    97→    97→        .then(data => setProjectMembers(data?.members || []))
+    98→    98→        .catch(err => console.error('Error loading project members:', err));
+    99→    99→    } else {
+   100→   100→      setProjectMembers([]);
+   101→   101→    }
+   102→   102→  }, [open, currentProject?.id]);
+   103→   103→
+   104→   104→
+   105→   105→
+   106→   106→  // Fetch dynamic threshold (overrides template if present)
+   107→   107→  useEffect(() => {
+   108→   108→    if (open && currentProject?.id) {
+   109→   109→      const fetchThreshold = async () => {
+   110→   110→        try {
+   111→   111→          const params = new URLSearchParams({ projectId: currentProject.id });
+   112→   112→          if (currentZone?.id) params.set('zoneId', currentZone.id);
+   113→   113→          const res = await fetch(`/api/audit-targets?${params}`);
+   114→   114→          const json = await res.json();
+   115→   115→          if (json.success && json.data) {
+   116→   116→            const zoneTarget = json.data.find((t: any) => t.sStep === sStep && t.miniStep === 4 && t.zoneId === currentZone?.id);
+   117→   117→            const projectTarget = json.data.find((t: any) => t.sStep === sStep && t.miniStep === 4 && t.zoneId === null);
+   118→   118→            const target = zoneTarget || projectTarget;
+   119→   119→            if (target?.notaMinima) setNotaMinima(target.notaMinima);
+   120→   120→          }
+   121→   121→        } catch (e) { console.error('Error fetching threshold:', e); }
+   122→   122→      };
+   123→   123→      fetchThreshold();
+   124→   124→    }
+   125→   125→  }, [open, sStep, currentProject?.id, currentZone?.id]);
+   126→   126→
+   127→   127→  // ─────────────────────────────────────────────────────────────
+   128→   128→  // ROBUST PRE-TICK: Merge missing items as 'ok' whenever sections change.
+   129→   129→  // This replaces the fragile one-shot pre-tick. Instead of setting results
+   130→   130→  // once and praying the effect fires after sections loads, we continuously
+   131→   131→  // MERGE missing items as 'ok' into `results` without overwriting user
+   132→   132→  // edits. This guarantees that every visible item always has an 'ok' entry
+   133→   133→  // unless the user explicitly marks it NOK/N/A.
+   134→   134→  // ─────────────────────────────────────────────────────────────
+   135→   135→  useEffect(() => {
+   136→   136→    if (!open || sections.length === 0) return;
+   137→   137→    setResults(prev => {
+   138→   138→      const next = { ...prev };
+   139→   139→      let changed = false;
+   140→   140→      sections.forEach(s => s.items.forEach(item => {
+   141→   141→        if (!next[item.id]) {
+   142→   142→          next[item.id] = { itemId: item.id, status: 'ok' };
+   143→   143→          changed = true;
+   144→   144→        }
+   145→   145→      }));
+   146→   146→      return changed ? next : prev;
+   147→   147→    });
+   148→   148→  }, [open, sections]);
+   149→   149→
+   150→   150→  // Initialize expanded sections + reset form state once per (sStep + sections signature)
+   151→   151→  useEffect(() => {
+   152→   152→    if (!open || sections.length === 0) return;
+   153→   153→    const sig = `${sStep}:${sections.map(s => s.items.map(i => i.id).join(',')).join('|')}`;
+   154→   154→    if (initializedFor.current === sig) return;
+   155→   155→    initializedFor.current = sig;
+   156→   156→
+   157→   157→    const expanded: Record<string, boolean> = {};
+   158→   158→    sections.forEach(s => { expanded[s.id] = true; });
+   159→   159→    setExpandedSections(expanded);
+   160→   160→    setObservaciones('');
+   161→   161→    setIsCompleted(false);
+   162→   162→    setFinalScore(0);
+   163→   163→    setAutoevalPhotos([]);
+   164→   164→    setNokPhotos({});
+   165→   165→    // Auto-fill current date/time for the evaluation
+   166→   166→    const now = new Date();
+   167→   167→    setFechaAutoevaluacion(now.toISOString().split('T')[0]);
+   168→   168→    setHoraAutoevaluacion(now.toTimeString().slice(0, 5));
+   169→   169→    // Load scheduled date if available
+   170→   170→    loadScheduledDate();
+   171→   171→    // Load previously saved results (so user can see what was saved before)
+   172→   172→    loadSavedResults();
+   173→   173→  }, [open, sStep, sections]);
+   174→   174→
+   175→   175→  // Load previously saved audit results from the backend so the user can see
+   176→   176→  // what was actually persisted. This makes the save behavior verifiable.
+   177→   177→  const loadSavedResults = async () => {
+   178→   178→    if (!currentProject?.id) return;
+   179→   179→    try {
+   180→   180→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}&projectId=${currentProject.id}${currentZone?.id ? `&zoneId=${currentZone.id}` : ''}`);
+   181→   181→      const json = await res.json();
+   182→   182→      if (json.success && json.data?.notes) {
+   183→   183→        try {
+   184→   184→          const notes = typeof json.data.notes === 'string' ? JSON.parse(json.data.notes) : json.data.notes;
+   185→   185→          if (notes?.results && Array.isArray(notes.results)) {
+   186→   186→            const loaded: Record<string, AuditItemResult> = {};
+   187→   187→            notes.results.forEach((r: any) => {
+   188→   188→              if (r?.itemId) loaded[r.itemId] = r;
+   189→   189→            });
+   190→   190→            // Only set if there's at least one real entry (don't overwrite with empty)
+   191→   191→            if (Object.keys(loaded).length > 0) {
+   192→   192→              setResults(loaded);
+   193→   193→              if (notes.observaciones) setObservaciones(notes.observaciones);
+   194→   194→              if (notes.fechaAutoevaluacion) setFechaAutoevaluacion(notes.fechaAutoevaluacion);
+   195→   195→              if (notes.horaAutoevaluacion) setHoraAutoevaluacion(notes.horaAutoevaluacion);
+   196→   196→            }
+   197→   197→          }
+   198→   198→        } catch (e) {
+   199→   199→          console.error('Error parsing saved notes:', e);
+   200→   200→        }
+   201→   201→      }
+   202→   202→    } catch (e) {
+   203→   203→      console.error('Error loading saved results:', e);
+   204→   204→    }
+   205→   205→  };
+   206→   206→
+   207→   207→  // Reset the init guard when modal closes, so next open re-initializes
+   208→   208→  useEffect(() => {
+   209→   209→    if (!open) {
+   210→   210→      initializedFor.current = '';
+   211→   211→      // Also clear results on close so next open starts fresh (then loads saved)
+   212→   212→      setResults({});
+   213→   213→    }
+   214→   214→  }, [open]);
+   215→   215→
+   216→   216→  // Load scheduled date/time for this autoevaluación AND the auditoría schedule
+   217→   217→  const loadScheduledDate = async () => {
+   218→   218→    if (!currentProject?.id || !currentZone?.id) return;
+   219→   219→    try {
+   220→   220→      // Load autoevaluación schedule (miniStep 4)
+   221→   221→      const res = await fetch(`/api/evaluation-schedule?sStep=${sStep}&miniStep=4&projectId=${currentProject.id}&zoneId=${currentZone.id}`);
+   222→   222→      const json = await res.json();
+   223→   223→      if (json.success && json.data) {
+   224→   224→        setFechaProgramada(json.data.fechaProgramada || '');
+   225→   225→        setHoraProgramada(json.data.horaProgramada || '');
+   226→   226→      }
+   227→   227→      // Also load auditoría schedule (miniStep 5) — employee sees if auditor has set a date
+   228→   228→      const auditRes = await fetch(`/api/evaluation-schedule?sStep=${sStep}&miniStep=5&projectId=${currentProject.id}&zoneId=${currentZone.id}`);
+   229→   229→      const auditJson = await auditRes.json();
+   230→   230→      if (auditJson.success && auditJson.data) {
+   231→   231→        setAuditFechaProgramada(auditJson.data.fechaProgramada || '');
+   232→   232→        setAuditHoraProgramada(auditJson.data.horaProgramada || '');
+   233→   233→      }
+   234→   234→    } catch (e) {
+   235→   235→      console.error('Error loading scheduled date:', e);
+   236→   236→    }
+   237→   237→  };
+   238→   238→
+   239→   239→  // Save scheduled date/time
+   240→   240→  const handleSaveSchedule = async () => {
+   241→   241→    if (!currentProject?.id || !currentZone?.id) return;
+   242→   242→    try {
+   243→   243→      await fetch('/api/evaluation-schedule', {
+   244→   244→        method: 'POST',
+   245→   245→        headers: { 'Content-Type': 'application/json' },
+   246→   246→        body: JSON.stringify({
+   247→   247→          sStep,
+   248→   248→          miniStep: 4,
+   249→   249→          projectId: currentProject.id,
+   250→   250→          zoneId: currentZone.id,
+   251→   251→          fechaProgramada,
+   252→   252→          horaProgramada,
+   253→   253→        }),
+   254→   254→      });
+   255→   255→      toast.success('Fecha programada guardada');
+   256→   256→    } catch (e) {
+   257→   257→      console.error('Error saving schedule:', e);
+   258→   258→      toast.error('Error al guardar la fecha programada');
+   259→   259→    }
+   260→   260→  };
+   261→   261→
+   262→   262→  const totalItems = sections.reduce((sum, s) => sum + s.items.length, 0) || 26;
+   263→   263→
+   264→   264→  // SCORING: Treat missing results as 'ok' (default).
+   265→   265→  // This is bulletproof — does NOT depend on useEffect timing.
+   266→   266→  // Every visible item that hasn't been explicitly marked NOK/N/A counts as OK.
+   267→   267→  const scoring = useMemo(() => {
+   268→   268→    let okCount = 0;
+   269→   269→    let nokCount = 0;
+   270→   270→    sections.forEach(s => s.items.forEach(item => {
+   271→   271→      const status = results[item.id]?.status ?? 'ok';
+   272→   272→      if (status === 'ok') okCount++;
+   273→   273→      else if (status === 'nok') nokCount++;
+   274→   274→    }));
+   275→   275→    const answeredCount = okCount + nokCount;
+   276→   276→    const scorePercent = totalItems > 0 ? Math.min(Math.round((okCount / totalItems) * 100), 100) : 0;
+   277→   277→    return { okCount, nokCount, answeredCount, scorePercent };
+   278→   278→  }, [results, sections, totalItems]);
+   279→   279→
+   280→   280→  // Check that all NOK items have hallazgo, mejora and responsable filled
+   281→   281→  const nokItems = Object.values(results).filter(r => r.status === 'nok');
+   282→   282→  const allNokCompleted = nokItems.length === 0 || nokItems.every(r => (r.hallazgo || '').trim() !== '' && (r.mejora || '').trim() !== '' && (r.responsable || '').trim() !== '');
+   283→   283→
+   284→   284→  const passed = scoring.scorePercent >= notaMinima;
+   285→   285→  const canSubmit = canPerformAutoeval && scoring.answeredCount > 0 && allNokCompleted;
+   286→   286→
+   287→   287→  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   288→   288→    const files = e.target.files;
+   289→   289→    if (!files) return;
+   290→   290→    for (const file of Array.from(files)) {
+   291→   291→      const preview = URL.createObjectURL(file);
+   292→   292→      setAutoevalPhotos(prev => [...prev, { file, preview }]);
+   293→   293→    }
+   294→   294→    // Reset input
+   295→   295→    if (photoInputRef.current) photoInputRef.current.value = '';
+   296→   296→  };
+   297→   297→
+   298→   298→  const removeAutoevalPhoto = (index: number) => {
+   299→   299→    setAutoevalPhotos(prev => {
+   300→   300→      const photo = prev[index];
+   301→   301→      if (photo.preview) URL.revokeObjectURL(photo.preview);
+   302→   302→      return prev.filter((_, i) => i !== index);
+   303→   303→    });
+   304→   304→  };
+   305→   305→
+   306→   306→  // v2.63: Per-NOK photo handlers — photos attached to a specific finding
+   307→   307→  // (hallazgo) flow: paso 2 (capture) → paso 3 (action plan with photoRefs).
+   308→   308→  // v2.64: Al añadir una foto, se autocompletan:
+   309→   309→  //   1. Descripción del hallazgo con IA (VLM)
+   310→   310→  //   2. Punto de mejora sugerido con IA
+   311→   311→  //   3. Responsable: el responsable de la zona (si existe) o el currentUser
+   312→   312→  const [nokPhotoAnalyzing, setNokPhotoAnalyzing] = useState<Record<string, boolean>>({});
+   313→   313→  const handleNokPhotoSelect = async (itemId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+   314→   314→    const files = e.target.files;
+   315→   315→    if (!files) return;
+   316→   316→    const newPhotos: { file: File; preview: string }[] = [];
+   317→   317→    for (const file of Array.from(files)) {
+   318→   318→      const preview = URL.createObjectURL(file);
+   319→   319→      newPhotos.push({ file, preview });
+   320→   320→    }
+   321→   321→    setNokPhotos(prev => ({
+   322→   322→      ...prev,
+   323→   323→      [itemId]: [...(prev[itemId] || []), ...newPhotos],
+   324→   324→    }));
+   325→   325→    if (nokPhotoInputRef.current[itemId]) nokPhotoInputRef.current[itemId]!.value = '';
+   326→   326→
+   327→   327→    // v2.64: Autocompletar campos del NOK con IA + responsable de zona
+   328→   328→    // Solo autocompletar si el hallazgo está vacío (no sobreescribir)
+   329→   329→    const currentResult = results[itemId];
+   330→   330→    const shouldAutoDescribe = !(currentResult?.hallazgo || '').trim();
+   331→   331→    if (shouldAutoDescribe && newPhotos.length > 0) {
+   332→   332→      setNokPhotoAnalyzing(prev => ({ ...prev, [itemId]: true }));
+   333→   333→      try {
+   334→   334→        // Convertir primera foto a base64 data URL
+   335→   335→        const file = newPhotos[0].file;
+   336→   336→        const dataUrl = await new Promise<string>((resolve, reject) => {
+   337→   337→          const reader = new FileReader();
+   338→   338→          reader.onload = () => resolve(reader.result as string);
+   339→   339→          reader.onerror = reject;
+   340→   340→          reader.readAsDataURL(file);
+   341→   341→        });
+   342→   342→
+   343→   343→        // Llamar a la API de VLM
+   344→   344→        const descRes = await fetch('/api/photo-describe', {
+   345→   345→          method: 'POST',
+   346→   346→          headers: { 'Content-Type': 'application/json' },
+   347→   347→          body: JSON.stringify({ imageUrl: dataUrl, sStep }),
+   348→   348→        });
+   349→   349→        const descJson = await descRes.json();
+   350→   350→        if (descJson.success && descJson.description) {
+   351→   351→          // Autocompletar hallazgo con la descripción IA
+   352→   352→          setItemField(itemId, 'hallazgo', descJson.description);
+   353→   353→          // Autocompletar mejora sugerida (plantilla basada en la descripción)
+   354→   354→          const mejoraSuggested = `Aplicar 5S en ${sStepData?.japaneseName || 'S' + sStep}: corregir desviación detectada — ${descJson.description.slice(0, 100)}`;
+   355→   355→          setItemField(itemId, 'mejora', mejoraSuggested);
+   356→   356→          toast.success(`Descripción generada por IA para ${itemId}`);
+   357→   357→        }
+   358→   358→      } catch (err) {
+   359→   359→        console.error('[autoeval] Error describiendo foto con IA:', err);
+   360→   360→        // No mostrar error al usuario — la foto se sigue guardando
+   361→   361→      } finally {
+   362→   362→        setNokPhotoAnalyzing(prev => ({ ...prev, [itemId]: false }));
+   363→   363→      }
+   364→   364→    }
+   365→   365→
+   366→   366→    // Autocompletar responsable con el responsable de la zona (si está vacío)
+   367→   367→    const shouldAutoResponsable = !(currentResult?.responsable || '').trim();
+   368→   368→    if (shouldAutoResponsable) {
+   369→   369→      let responsableName: string | null = null;
+   370→   370→      // 1. Si la zona tiene responsableId, buscar su nombre en projectMembers
+   371→   371→      if (currentZone?.responsableId) {
+   372→   372→        const zoneResp = projectMembers.find(m => m.userId === currentZone.responsableId);
+   373→   373→        if (zoneResp?.user?.name) responsableName = zoneResp.user.name;
+   374→   374→      }
+   375→   375→      // 2. Si no, buscar el primer miembro con rol 'responsable' en la zona actual
+   376→   376→      if (!responsableName) {
+   377→   377→        const respMember = projectMembers.find(m =>
+   378→   378→          m.role === 'responsable' &&
+   379→   379→          // Si el miembro tiene zonas asignadas, que la actual esté entre ellas
+   380→   380→          (m as any).zones?.some?.((z: any) => z.id === currentZone?.id) !== false
+   381→   381→        );
+   382→   382→        if (respMember?.user?.name) responsableName = respMember.user.name;
+   383→   383→      }
+   384→   384→      // 3. Si no hay responsable, usar el usuario actual (empleado que hace la autoeval)
+   385→   385→      if (!responsableName && currentUser?.name) {
+   386→   386→        responsableName = currentUser.name;
+   387→   387→      }
+   388→   388→      if (responsableName) {
+   389→   389→        setItemField(itemId, 'responsable', responsableName);
+   390→   390→      }
+   391→   391→    }
+   392→   392→  };
+   393→   393→
+   394→   394→  const removeNokPhoto = (itemId: string, index: number) => {
+   395→   395→    setNokPhotos(prev => {
+   396→   396→      const photos = prev[itemId] || [];
+   397→   397→      const photo = photos[index];
+   398→   398→      if (photo?.preview) URL.revokeObjectURL(photo.preview);
+   399→   399→      const updated = photos.filter((_, i) => i !== index);
+   400→   400→      const next = { ...prev };
+   401→   401→      if (updated.length === 0) delete next[itemId];
+   402→   402→      else next[itemId] = updated;
+   403→   403→      return next;
+   404→   404→    });
+   405→   405→  };
+   406→   406→
+   407→   407→  // v2.64: Auto-completar responsable para TODOS los NOKs a la vez
+   408→   408→  // (cuando se marca un item como NOK, autocompletar responsable si está vacío)
+   409→   409→  const autoFillResponsableForNok = (itemId: string) => {
+   410→   410→    const currentResult = results[itemId];
+   411→   411→    if ((currentResult?.responsable || '').trim()) return; // ya tiene
+   412→   412→    let responsableName: string | null = null;
+   413→   413→    if (currentZone?.responsableId) {
+   414→   414→      const zoneResp = projectMembers.find(m => m.userId === currentZone.responsableId);
+   415→   415→      if (zoneResp?.user?.name) responsableName = zoneResp.user.name;
+   416→   416→    }
+   417→   417→    if (!responsableName) {
+   418→   418→      const respMember = projectMembers.find(m => m.role === 'responsable');
+   419→   419→      if (respMember?.user?.name) responsableName = respMember.user.name;
+   420→   420→    }
+   421→   421→    if (!responsableName && currentUser?.name) {
+   422→   422→      responsableName = currentUser.name;
+   423→   423→    }
+   424→   424→    if (responsableName) {
+   425→   425→      setItemField(itemId, 'responsable', responsableName);
+   426→   426→    }
+   427→   427→  };
+   428→   428→
+   429→   429→  const toggleSection = (sectionId: string) => {
+   430→   430→    setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+   431→   431→  };
+   432→   432→
+   433→   433→  const setItemStatus = (itemId: string, status: 'ok' | 'nok' | 'na') => {
+   434→   434→    setResults(prev => ({
+   435→   435→      ...prev,
+   436→   436→      [itemId]: { ...prev[itemId], itemId, status },
+   437→   437→    }));
+   438→   438→    // v2.64: Si se marca como NOK, autocompletar el responsable automáticamente
+   439→   439→    if (status === 'nok') {
+   440→   440→      // Pequeño defer para que el state se actualice antes de leerlo
+   441→   441→      setTimeout(() => autoFillResponsableForNok(itemId), 0);
+   442→   442→    }
+   443→   443→  };
+   444→   444→
+   445→   445→  const setItemField = (itemId: string, field: 'hallazgo' | 'mejora' | 'otherText' | 'responsable', value: string) => {
+   446→   446→    setResults(prev => ({
+   447→   447→      ...prev,
+   448→   448→      [itemId]: { ...prev[itemId], itemId, [field]: value },
+   449→   449→    }));
+   450→   450→  };
+   451→   451→
+   452→   452→  const handleSubmit = async () => {
+   453→   453→    if (!canSubmit) return;
+   454→   454→    if (!canPerformAutoeval) return; // Only responsable/admin for S4, or any employee for S1/S2/S3/S5
+   455→   455→    setIsSubmitting(true);
+   456→   456→    try {
+   457→   457→      // Build effective results: merge missing items as 'ok' (default) before sending to backend
+   458→   458→      const effectiveResults = sections.flatMap(s => s.items).map(item => {
+   459→   459→        const r = results[item.id];
+   460→   460→        return r ?? { itemId: item.id, status: 'ok' as const };
+   461→   461→      });
+   462→   462→      // Only mark as completed if score meets notaMinima threshold
+   463→   463→      // If not passed, still save results but step stays available for retry
+   464→   464→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+   465→   465→        method: 'PUT',
+   466→   466→        headers: { 'Content-Type': 'application/json' },
+   467→   467→        body: JSON.stringify({
+   468→   468→          completed: passed,
+   469→   469→          score: scoring.scorePercent,
+   470→   470→          notes: JSON.stringify({
+   471→   471→            type: 'autoevaluacion',
+   472→   472→            passed,
+   473→   473→            notaMinima,
+   474→   474→            results: effectiveResults,
+   475→   475→            observaciones,
+   476→   476→            fechaAutoevaluacion,
+   477→   477→            horaAutoevaluacion,
+   478→   478→            fechaProgramada: fechaProgramada || null,
+   479→   479→            horaProgramada: horaProgramada || null,
+   480→   480→          }),
+   481→   481→          projectId: currentProject?.id,
+   482→   482→          zoneId: currentZone?.id || null,
+   483→   483→        }),
+   484→   484→      });
+   485→   485→      const json = await res.json();
+   486→   486→      if (!res.ok || !json.success) {
+   487→   487→        toast.error(`Error del servidor: ${json.error || res.statusText || 'Error desconocido'}`);
+   488→   488→        return;
+   489→   489→      }
+   490→   490→      if (json.success) {
+   491→   491→        // Feedback visible al usuario
+   492→   492→        toast.success(`Autoevaluación guardada: ${effectiveResults.length} items (${scoring.okCount} OK, ${scoring.nokCount} NOK, score ${scoring.scorePercent}%)`);
+   493→   493→        setIsCompleted(true);
+   494→   494→        setFinalScore(scoring.scorePercent);
+   495→   495→        await fetchProgress();
+   496→   496→
+   497→   497→        // ─── Create EmployeeProgress record for individual step 4 (autoevaluación) ───
+   498→   498→        // Step 4 is individual for S1/S2/S3/S5 (done by employees) and for S4 (done by responsable)
+   499→   499→        // We need to track individual completion so the gating system unlocks step 5
+   500→   500→        if (passed && currentUser?.id && currentProject?.id && currentZone?.id) {
+   501→   501→          try {
+   502→   502→            await fetch('/api/employee-progress', {
+   503→   503→              method: 'POST',
+   504→   504→              headers: { 'Content-Type': 'application/json' },
+   505→   505→              body: JSON.stringify({
+   506→   506→                sStep,
+   507→   507→                miniStep: 4,
+   508→   508→                completed: true,
+   509→   509→                score: scoring.scorePercent,
+   510→   510→                projectId: currentProject.id,
+   511→   511→                zoneId: currentZone.id,
+   512→   512→                userId: currentUser.id,
+   513→   513→              }),
+   514→   514→            });
+   515→   515→            // Also refresh employee progress so step 5 unlocks immediately
+   516→   516→            const { fetchEmployeeProgress } = use5SStore.getState();
+   517→   517→            await fetchEmployeeProgress(currentProject.id, currentZone.id);
+   518→   518→          } catch (empErr) {
+   519→   519→            console.error('Error creating employee progress for autoeval:', empErr);
+   520→   520→          }
+   521→   521→        }
+   522→   522→
+   523→   523→        // ─── Upload photos to library with traceability ───
+   524→   524→        if (autoevalPhotos.length > 0) {
+   525→   525→          setIsUploadingPhotos(true);
+   526→   526→          for (let idx = 0; idx < autoevalPhotos.length; idx++) {
+   527→   527→            const photo = autoevalPhotos[idx];
+   528→   528→            try {
+   529→   529→              // Step 1: Upload the file to get a server URL
+   530→   530→              const formData = new FormData();
+   531→   531→              formData.append('file', photo.file);
+   532→   532→              formData.append('filename', `S${sStep}_autoeval_${currentZone?.name || 'zona'}_${idx + 1}_${Date.now()}.jpg`);
+   533→   533→
+   534→   534→              const uploadRes = await fetch('/api/upload', {
+   535→   535→                method: 'POST',
+   536→   536→                body: formData,
+   537→   537→              });
+   538→   538→              const uploadData = await uploadRes.json();
+   539→   539→
+   540→   540→              if (uploadData.success && uploadData.url) {
+   541→   541→                // Step 2: Save to photo library with full traceability
+   542→   542→                await fetch('/api/photo-library', {
+   543→   543→                  method: 'POST',
+   544→   544→                  headers: { 'Content-Type': 'application/json' },
+   545→   545→                  body: JSON.stringify({
+   546→   546→                    sStep,
+   547→   547→                    miniStep: 4,
+   548→   548→                    title: `Autoeval S${sStep} - Foto ${idx + 1}`,
+   549→   549→                    description: `${sStepData?.japaneseName || 'S' + sStep} - ${currentZone?.name || 'Zona'} - Paso 4 Autoevaluación - Subida por ${currentUser?.name || 'Usuario'}`,
+   550→   550→                    photoUrl: uploadData.url,
+   551→   551→                    photoType: 'hallazgo',
+   552→   552→                    category: `paso4_s${sStep}`,
+   553→   553→                    tags: JSON.stringify([`S${sStep}`, sStepData?.japaneseName || '', currentZone?.name || '', 'paso4', 'autoevaluacion', 'hallazgo']),
+   554→   554→                    projectId: currentProject?.id,
+   555→   555→                    zoneId: currentZone?.id || null,
+   556→   556→                    uploadedBy: currentUser?.id || null,
+   557→   557→                  }),
+   558→   558→                });
+   559→   559→              }
+   560→   560→            } catch (photoErr) {
+   561→   561→              console.error('Error uploading autoeval photo:', photoErr);
+   562→   562→            }
+   563→   563→          }
+   564→   564→          setIsUploadingPhotos(false);
+   565→   565→        }
+   566→   566→
+   567→   567→        // ─── Create Action Items for NOK (disfunciones) ───
+   568→   568→        // v2.63: Para cada NOK, primero subimos sus fotos a la biblioteca
+   569→   569→        // (con photoType='hallazgo' y tags que incluyan el itemId), y luego
+   570→   570→        // creamos el ActionItem con photoRefs = JSON.stringify([urls]).
+   571→   571→        // Así el flujo sigue el patrón S1: foto (paso 2) → plan de acción (paso 3).
+   572→   572→        const nokResults = Object.values(results).filter((r: any) => r.status === 'nok');
+   573→   573→        for (const nok of nokResults) {
+   574→   574→          if (!nok.hallazgo && !nok.mejora) continue; // Skip items without description
+   575→   575→          try {
+   576→   576→            // 1. Subir fotos del hallazgo a la biblioteca (si las hay)
+   577→   577→            const photoUrls: string[] = [];
+   578→   578→            const itemPhotos = nokPhotos[nok.itemId] || [];
+   579→   579→            if (itemPhotos.length > 0) {
+   580→   580→              for (let pIdx = 0; pIdx < itemPhotos.length; pIdx++) {
+   581→   581→                const photo = itemPhotos[pIdx];
+   582→   582→                try {
+   583→   583→                  const formData = new FormData();
+   584→   584→                  formData.append('file', photo.file);
+   585→   585→                  formData.append('filename', `S${sStep}_autoeval_nok_${nok.itemId}_${currentZone?.name || 'zona'}_${pIdx + 1}_${Date.now()}.jpg`);
+   586→   586→                  const uploadRes = await fetch('/api/upload', {
+   587→   587→                    method: 'POST',
+   588→   588→                    body: formData,
+   589→   589→                  });
+   590→   590→                  const uploadData = await uploadRes.json();
+   591→   591→                  if (uploadData.success && uploadData.url) {
+   592→   592→                    photoUrls.push(uploadData.url);
+   593→   593→                    // Guardar en biblioteca con trazabilidad completa
+   594→   594→                    await fetch('/api/photo-library', {
+   595→   595→                      method: 'POST',
+   596→   596→                      headers: { 'Content-Type': 'application/json' },
+   597→   597→                      body: JSON.stringify({
+   598→   598→                        sStep,
+   599→   599→                        miniStep: 4,
+   600→   600→                        title: `Hallazgo S${sStep} - ${nok.itemId} - Foto ${pIdx + 1}`,
+   601→   601→                        description: `Hallazgo autoeval S${sStep} (${sStepData?.japaneseName || ''}) · Zona: ${currentZone?.name || '—'} · Item: ${nok.itemId}\nHallazgo: ${(nok.hallazgo || '').slice(0, 200)}\nSubida por ${currentUser?.name || 'Usuario'}`,
+   602→   602→                        photoUrl: uploadData.url,
+   603→   603→                        photoType: 'hallazgo',
+   604→   604→                        category: `autoeval_nok_s${sStep}`,
+   605→   605→                        tags: JSON.stringify([
+   606→   606→                          `S${sStep}`, sStepData?.japaneseName || '',
+   607→   607→                          currentZone?.name || '', 'paso4', 'autoevaluacion',
+   608→   608→                          'hallazgo', 'nok', `item:${nok.itemId}`,
+   609→   609→                        ]),
+   610→   610→                        projectId: currentProject?.id,
+   611→   611→                        zoneId: currentZone?.id || null,
+   612→   612→                        uploadedBy: currentUser?.id || null,
+   613→   613→                      }),
+   614→   614→                    });
+   615→   615→                  }
+   616→   616→                } catch (photoErr) {
+   617→   617→                  console.error(`[autoeval] Error subiendo foto ${pIdx + 1} del NOK ${nok.itemId}:`, photoErr);
+   618→   618→                }
+   619→   619→              }
+   620→   620→            }
+   621→   621→
+   622→   622→            // 2. Crear ActionItem con photoRefs (JSON array de URLs)
+   623→   623→            const actionRes = await fetch('/api/actions', {
+   624→   624→              method: 'POST',
+   625→   625→              headers: { 'Content-Type': 'application/json' },
+   626→   626→              body: JSON.stringify({
+   627→   627→                sStep,
+   628→   628→                miniStep: 4,
+   629→   629→                itemId: nok.itemId,
+   630→   630→                itemDescription: `Disfunción detectada en autoevaluación: ${nok.itemId}`,
+   631→   631→                hallazgo: nok.hallazgo || nok.itemId,
+   632→   632→                mejora: nok.mejora || '',
+   633→   633→                responsable: nok.responsable || null,
+   634→   634→                prioridad: 'media',
+   635→   635→                estado: 'abierta',
+   636→   636→                source: 'autoevaluacion',
+   637→   637→                auditor: null,
+   638→   638→                projectId: currentProject?.id,
+   639→   639→                zoneId: currentZone?.id || null,
+   640→   640→                // v2.63: enlazar fotos del hallazgo al ActionItem
+   641→   641→                photoRefs: photoUrls.length > 0 ? JSON.stringify(photoUrls) : undefined,
+   642→   642→              }),
+   643→   643→            });
+   644→   644→            const actionJson = await actionRes.json();
+   645→   645→            const actionItemId = actionJson?.data?.id;
+   646→   646→
+   647→   647→            // 3. Si se creó el ActionItem y hay fotos, notificar al responsable
+   648→   648→            // con referencia a las fotos, para que entre al Plan de Acción
+   649→   649→            if (actionItemId && photoUrls.length > 0 && nok.responsable) {
+   650→   650→              try {
+   651→   651→                // Buscar userId del responsable por nombre
+   652→   652→                const member = projectMembers.find(m => m.user?.name === nok.responsable);
+   653→   653→                if (member?.userId) {
+   654→   654→                  await fetch('/api/notifications', {
+   655→   655→                    method: 'POST',
+   656→   656→                    headers: { 'Content-Type': 'application/json' },
+   657→   657→                    body: JSON.stringify({
+   658→   658→                      userId: member.userId,
+   659→   659→                      type: 'new_action_item',
+   660→   660→                      title: `Hallazgo con foto: S${sStep} - ${nok.itemId}`,
+   661→   661→                      message: `Se ha detectado un hallazgo en la autoevaluación de S${sStep} (${sStepData?.japaneseName || ''}) en la zona "${currentZone?.name || '—'}" con ${photoUrls.length} foto(s) de evidencia.\n\nHallazgo: ${(nok.hallazgo || '').slice(0, 150)}\n\nRevisa el Plan de Acción para ver la evidencia fotográfica.\n\n[ref:${actionItemId}]`,
+   662→   662→                      sStep,
+   663→   663→                      zoneId: currentZone?.id || null,
+   664→   664→                      projectId: currentProject?.id,
+   665→   665→                    }),
+   666→   666→                  });
+   667→   667→                }
+   668→   668→              } catch (notifErr) {
+   669→   669→                console.error('[autoeval] Error notificando hallazgo con foto:', notifErr);
+   670→   670→              }
+   671→   671→            }
+   672→   672→          } catch (actionError) {
+   673→   673→            console.error('Error creating action item from autoevaluación:', actionError);
+   674→   674→          }
+   675→   675→        }
+   676→   676→
+   677→   677→        // ─── Notify responsables of NOK disfunciones ───
+   678→   678→        if (nokResults.length > 0 && currentProject?.id && currentZone?.id) {
+   679→   679→          try {
+   680→   680→            const membersRes = await fetch(`/api/projects/${currentProject.id}/members`);
+   681→   681→            const membersData = await membersRes.json();
+   682→   682→            const allMembers = membersData?.members || [];
+   683→   683→
+   684→   684→            const sStepData = S_STEPS.find(s => s.id === sStep);
+   685→   685→            const disfuncionMessage = `Se han detectado ${nokResults.length} disfunción(es) en la autoevaluación de S${sStep} (${sStepData?.japaneseName || ''}) en la zona "${currentZone.name}". Revisa el Plan de Acción.`;
+   686→   686→
+   687→   687→            // Notify zone responsable
+   688→   688→            const responsableIds = new Set<string>();
+   689→   689→            if (currentZone.responsableId) responsableIds.add(currentZone.responsableId);
+   690→   690→            const responsables = allMembers.filter((m: any) => m.role === 'responsable');
+   691→   691→            for (const resp of responsables) responsableIds.add(resp.userId);
+   692→   692→
+   693→   693→            for (const respId of responsableIds) {
+   694→   694→              await fetch('/api/notifications', {
+   695→   695→                method: 'POST',
+   696→   696→                headers: { 'Content-Type': 'application/json' },
+   697→   697→                body: JSON.stringify({
+   698→   698→                  userId: respId,
+   699→   699→                  type: 'disfuncion',
+   700→   700→                  title: `Disfunciones detectadas: S${sStep} — ${sStepData?.japaneseName || ''}`,
+   701→   701→                  message: disfuncionMessage,
+   702→   702→                  sStep,
+   703→   703→                  zoneId: currentZone.id,
+   704→   704→                  projectId: currentProject.id,
+   705→   705→                }),
+   706→   706→              });
+   707→   707→            }
+   708→   708→          } catch (notifError) {
+   709→   709→            console.error('Error notifying responsables of disfunciones:', notifError);
+   710→   710→          }
+   711→   711→        }
+   712→   712→
+   713→   713→        // Check if Steps 1-4 are now all completed for this S-step in the zone
+   714→   714→        // If so, notify auditor(s) that they can perform Step 5
+   715→   715→        if (currentProject?.id && currentZone?.id) {
+   716→   716→          try {
+   717→   717→            // Fetch all progress for this zone and S-step
+   718→   718→            const progRes = await fetch(`/api/progress?projectId=${currentProject.id}`);
+   719→   719→            const progData = await progRes.json();
+   720→   720→            const allProgress = progData?.data || [];
+   721→   721→
+   722→   722→            // Also fetch employee progress for individual steps (formación = step 1)
+   723→   723→            const empProgRes = await fetch(`/api/employee-progress?projectId=${currentProject.id}&zoneId=${currentZone.id}`);
+   724→   724→            const empProgData = await empProgRes.json();
+   725→   725→            const allEmpProgress = empProgData?.data || [];
+   726→   726→
+   727→   727→            // Check steps 1-4 completed (both zone-level progress AND employee progress)
+   728→   728→            let allStepsCompleted = true;
+   729→   729→            for (let ms = 1; ms <= 4; ms++) {
+   730→   730→              const zoneStep = allProgress.find((p: any) =>
+   731→   731→                p.sStep === sStep &&
+   732→   732→                p.miniStep === ms &&
+   733→   733→                (p.zoneId === currentZone.id || p.zoneId === null) &&
+   734→   734→                p.completed
+   735→   735→              );
+   736→   736→              if (zoneStep) continue; // Zone-level completed
+   737→   737→
+   738→   738→              // Also check employee progress for individual steps
+   739→   739→              const empStep = allEmpProgress.some((ep: any) =>
+   740→   740→                ep.sStep === sStep &&
+   741→   741→                ep.miniStep === ms &&
+   742→   742→                ep.zoneId === currentZone.id &&
+   743→   743→                ep.completed
+   744→   744→              );
+   745→   745→              if (empStep) continue; // Some employee completed this step
+   746→   746→
+   747→   747→              allStepsCompleted = false;
+   748→   748→              break;
+   749→   749→            }
+   750→   750→
+   751→   751→            if (allStepsCompleted) {
+   752→   752→              // Find auditor and responsable users for this project and notify them
+   753→   753→              const membersRes = await fetch(`/api/projects/${currentProject.id}/members`);
+   754→   754→              const membersData = await membersRes.json();
+   755→   755→              const allMembers = membersData?.members || [];
+   756→   756→
+   757→   757→              const sStepData = S_STEPS.find(s => s.id === sStep);
+   758→   758→              const notifMessage = `Los pasos 1-4 de S${sStep} (${sStepData?.japaneseName || ''}) en la zona "${currentZone.name}" han sido completados. La auditoría (Paso 5) está lista para realizarse.`;
+   759→   759→
+   760→   760→              // Notify auditors
+   761→   761→              const auditors = allMembers.filter((m: any) => m.role === 'auditor');
+   762→   762→              for (const auditor of auditors) {
+   763→   763→                await fetch('/api/notifications', {
+   764→   764→                  method: 'POST',
+   765→   765→                  headers: { 'Content-Type': 'application/json' },
+   766→   766→                  body: JSON.stringify({
+   767→   767→                    userId: auditor.userId,
+   768→   768→                    type: 'audit_ready',
+   769→   769→                    title: `Auditoría lista: S${sStep} — ${sStepData?.japaneseName || ''}`,
+   770→   770→                    message: notifMessage,
+   771→   771→                    sStep,
+   772→   772→                    zoneId: currentZone.id,
+   773→   773→                    projectId: currentProject.id,
+   774→   774→                  }),
+   775→   775→                });
+   776→   776→              }
+   777→   777→
+   778→   778→              // Notify responsable of the zone (from zone.responsableId OR from project members)
+   779→   779→              const responsableIds = new Set<string>();
+   780→   780→              if (currentZone.responsableId) responsableIds.add(currentZone.responsableId);
+   781→   781→              const responsables = allMembers.filter((m: any) => m.role === 'responsable');
+   782→   782→              for (const resp of responsables) responsableIds.add(resp.userId);
+   783→   783→              for (const respId of responsableIds) {
+   784→   784→                await fetch('/api/notifications', {
+   785→   785→                  method: 'POST',
+   786→   786→                  headers: { 'Content-Type': 'application/json' },
+   787→   787→                  body: JSON.stringify({
+   788→   788→                    userId: respId,
+   789→   789→                    type: 'audit_ready',
+   790→   790→                    title: `Auditoría lista: S${sStep} — ${sStepData?.japaneseName || ''}`,
+   791→   791→                    message: notifMessage,
+   792→   792→                    sStep,
+   793→   793→                    zoneId: currentZone.id,
+   794→   794→                    projectId: currentProject.id,
+   795→   795→                  }),
+   796→   796→                });
+   797→   797→              }
+   798→   798→            }
+   799→   799→          } catch (notifError) {
+   800→   800→            console.error('Error sending notification to auditor:', notifError);
+   801→   801→          }
+   802→   802→        }
+   803→   803→      }
+   804→   804→    } catch (error) {
+   805→   805→      console.error('Error submitting self-evaluation:', error);
+   806→   806→      toast.error('No se pudo guardar la autoevaluación. Inténtalo de nuevo en unos minutos.');
+   807→   807→    } finally {
+   808→   808→      setIsSubmitting(false);
+   809→   809→    }
+   810→   810→  };
+   811→   811→
+   812→   812→  const handleAdminSkip = async () => {
+   813→   813→    try {
+   814→   814→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+   815→   815→        method: 'PUT',
+   816→   816→        headers: { 'Content-Type': 'application/json' },
+   817→   817→        body: JSON.stringify({ completed: true, score: 100, notes: 'Completado por administrador (skip)', skipMissingTemplate: true, projectId: currentProject?.id, zoneId: currentZone?.id || null }),
+   818→   818→      });
+   819→   819→      const json = await res.json();
+   820→   820→      if (json.success) {
+   821→   821→        await fetchProgress();
+   822→   822→        onClose();
+   823→   823→      }
+   824→   824→    } catch (error) {
+   825→   825→      console.error('Error admin skip:', error);
+   826→   826→    }
+   827→   827→  };
+   828→   828→
+   829→   829→  return (
+   830→   830→    <Dialog open={open} onOpenChange={() => onClose()}>
+   831→   831→      <DialogContent size={isFullscreen ? "fullscreen" : "xl"} className="flex flex-col overflow-hidden p-0">
+   832→   832→        <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
+   833→   833→          <DialogTitle className="flex items-center gap-2">
+   834→   834→            <CheckSquare className="h-5 w-5" style={{ color: sStepData?.color }} />
+   835→   835→            <span>Autoevaluación Interna</span>
+   836→   836→            <Badge variant="outline" style={{ borderColor: sStepData?.color, color: sStepData?.color }}>
+   837→   837→              {sStepData?.japaneseName} — {sStepData?.spanishName}
+   838→   838→            </Badge>
+   839→   839→            <button
+   840→   840→              onClick={() => setIsFullscreen(!isFullscreen)}
+   841→   841→              className="ml-auto p-1 rounded hover:bg-muted transition-colors"
+   842→   842→              title={isFullscreen ? "Reducir ventana" : "Pantalla completa"}
+   843→   843→            >
+   844→   844→              {isFullscreen ? <Minimize2 className="h-4 w-4 text-muted-foreground" /> : <Maximize2 className="h-4 w-4 text-muted-foreground" />}
+   845→   845→            </button>
+   846→   846→          </DialogTitle>
+   847→   847→        </DialogHeader>
+   848→   848→
+   849→   849→        {canSkipSteps && !isCompleted && (
+   850→   850→          <div className="flex items-center gap-2 p-2 mx-6 flex-shrink-0 bg-amber-50 border border-amber-200 rounded-lg">
+   851→   851→            <span className="text-xs text-amber-700 font-medium">Modo Admin:</span>
+   852→   852→            <Button
+   853→   853→              variant="outline"
+   854→   854→              size="sm"
+   855→   855→              className="text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
+   856→   856→              onClick={handleAdminSkip}
+   857→   857→            >
+   858→   858→              Completar paso sin autoevaluación
+   859→   859→            </Button>
+   860→   860→          </div>
+   861→   861→        )}
+   862→   862→
+   863→   863→        {isReadOnly && !isCompleted && (
+   864→   864→          <div className="flex items-center gap-2 p-2 mx-6 flex-shrink-0 bg-blue-50 border border-blue-200 rounded-lg">
+   865→   865→            <span className="text-xs text-blue-700 font-medium">Solo lectura: {canSkipSteps ? 'Activa el candado para poder realizar pasos.' : 'Puedes ver pero no modificar.'}</span>
+   866→   866→          </div>
+   867→   867→        )}
+   868→   868→
+   869→   869→        {/* Barra FIJA con acciones rápidas — siempre visible, fuera del scroll */}
+   870→   870→        {!isCompleted && sections.length > 0 && (
+   871→   871→          <div className="flex items-center gap-2 flex-wrap px-6 py-2 flex-shrink-0 bg-green-50 border-b border-green-200">
+   872→   872→            <CheckCheck className="h-4 w-4 text-green-700 shrink-0" />
+   873→   873→            <span className="text-xs text-green-800 font-medium">Estado actual:</span>
+   874→   874→            <span className="ml-auto text-[10px] text-muted-foreground font-mono">
+   875→   875→              {scoring.okCount} OK · {scoring.nokCount} NOK · {scoring.scorePercent}%
+   876→   876→            </span>
+   877→   877→          </div>
+   878→   878→        )}
+   879→   879→
+   880→   880→        <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
+   881→   881→        {isLoadingTemplate ? (
+   882→   882→          <div className="flex items-center justify-center py-12">
+   883→   883→            <div className="h-8 w-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+   884→   884→          </div>
+   885→   885→        ) : sections.length === 0 ? (
+   886→   886→          <div className="text-center py-12">
+   887→   887→            <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-3" />
+   888→   888→            <h3 className="text-lg font-bold mb-2">No hay checklist configurado</h3>
+   889→   889→            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+   890→   890→              No se encontró una plantilla de autoevaluación para S{sStep}. 
+   891→   891→              Crea una plantilla en <strong>Administración → Plantillas → Auditoría Interna</strong> 
+   892→   892→              o pulsa el botón &quot;Crear plantillas por defecto&quot;.
+   893→   893→            </p>
+   894→   894→          </div>
+   895→   895→        ) : isCompleted ? (
+   896→   896→          <div className="text-center py-8">
+   897→   897→            {passed ? (
+   898→   898→              <>
+   899→   899→                <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-3" />
+   900→   900→                <h3 className="text-xl font-bold mb-2 text-green-700">¡Autoevaluación Aprobada!</h3>
+   901→   901→              </>
+   902→   902→            ) : (
+   903→   903→              <>
+   904→   904→                <XCircle className="h-16 w-16 text-red-500 mx-auto mb-3" />
+   905→   905→                <h3 className="text-xl font-bold mb-2 text-red-700">Autoevaluación No Aprobada</h3>
+   906→   906→              </>
+   907→   907→            )}
+   908→   908→            <p className="text-lg mb-1">Puntuación: <strong>{finalScore}%</strong></p>
+   909→   909→            <p className="text-sm text-muted-foreground">
+   910→   910→              {scoring.okCount} OK / {scoring.nokCount} NOK de {totalItems} puntos de verificación
+   911→   911→            </p>
+   912→   912→            <p className="text-xs text-muted-foreground mt-1">
+   913→   913→              Mínimo requerido: {notaMinima}%
+   914→   914→            </p>
+   915→   915→            {!passed && (
+   916→   916→              <p className="text-sm text-amber-600 mt-3">
+   917→   917→                Debes obtener al menos {notaMinima}% para desbloquear el Paso 5 (Auditoría). 
+   918→   918→                Corrige las disfunciones y vuelve a realizar la autoevaluación.
+   919→   919→              </p>
+   920→   920→            )}
+   921→   921→            {passed && (
+   922→   922→              <div>
+   923→   923→              <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
+   924→   924→                <p className="text-sm font-semibold">→ Próximo paso: Auditoría (Paso 5)</p>
+   925→   925→                <p className="text-xs mt-1">Pulsa 🔔 Auditar en el pentágono para notificar al auditor. El auditor programará la fecha.</p>
+   926→   926→                {auditFechaProgramada ? (
+   927→   927→                  <p className="text-xs mt-1 text-green-700 font-medium">
+   928→   928→                    ✅ Auditoría programada: {auditFechaProgramada} a las {auditHoraProgramada}
+   929→   929→                  </p>
+   930→   930→                ) : (
+   931→   931→                  <p className="text-xs mt-1 text-amber-700 font-medium">
+   932→   932→                    ⏳ Pendiente de programar — el auditor asignará fecha y hora
+   933→   933→                  </p>
+   934→   934→                )}
+   935→   935→              </div>
+   936→   936→              <div className="mt-3 flex justify-center">
+   937→   937→                <Button
+   938→   938→                  onClick={() => { onClose(); openModal('auditoria', 5); }}
+   939→   939→                  style={{ backgroundColor: sStepData?.color }}
+   940→   940→                  className="text-white"
+   941→   941→                >
+   942→   942→                  Continuar al paso 5: Auditoría →
+   943→   943→                </Button>
+   944→   944→              </div>
+   945→   945→              </div>
+   946→   946→            )}
+   947→   947→          </div>
+   948→   948→        ) : (
+   949→   949→          <div className="space-y-4">
+   950→   950→            {/* Info banner */}
+   951→   951→            <div className="p-3 rounded-lg border-l-4" style={{ borderColor: sStepData?.color, backgroundColor: `${sStepData?.color}08` }}>
+   952→   952→              <p className="text-sm font-medium" style={{ color: sStepData?.color }}>
+   953→   953→                Autoevaluación Interna — {sStepData?.japaneseName}
+   954→   954→              </p>
+   955→   955→              <p className="text-sm text-muted-foreground mt-1">
+   956→   956→                Evalúa cada punto de verificación. Marca OK si cumple, NOK si hay desviación. 
+   957→   957→                Los NOKs generan hallazgos y puntos de mejora como plan de acción.
+   958→   958→              </p>
+   959→   959→            </div>
+   960→   960→
+   961→   961→            {/* Date/Time: Programación y Registro */}
+   962→   962→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+   963→   963→              <div className="space-y-2">
+   964→   964→                <p className="text-xs font-semibold text-blue-700 flex items-center gap-1">
+   965→   965→                  <Calendar className="h-3.5 w-3.5" />
+   966→   966→                  Programar Autoevaluación
+   967→   967→                </p>
+   968→   968→                <div className="grid grid-cols-2 gap-2">
+   969→   969→                  <div>
+   970→   970→                    <Label htmlFor="fechaProgramada" className="text-[10px] text-blue-600">Fecha programada</Label>
+   971→   971→                    <Input id="fechaProgramada" type="date" value={fechaProgramada}
+   972→   972→                      onChange={e => setFechaProgramada(e.target.value)}
+   973→   973→                      className="h-7 text-xs" />
+   974→   974→                  </div>
+   975→   975→                  <div>
+   976→   976→                    <Label htmlFor="horaProgramada" className="text-[10px] text-blue-600">Hora programada</Label>
+   977→   977→                    <Input id="horaProgramada" type="time" value={horaProgramada}
+   978→   978→                      onChange={e => setHoraProgramada(e.target.value)}
+   979→   979→                      className="h-7 text-xs" />
+   980→   980→                  </div>
+   981→   981→                </div>
+   982→   982→                {fechaProgramada && (
+   983→   983→                  <Button size="sm" variant="outline" className="h-6 text-[10px] border-blue-300 text-blue-700"
+   984→   984→                    onClick={handleSaveSchedule}>
+   985→   985→                    Guardar programación
+   986→   986→                  </Button>
+   987→   987→                )}
+   988→   988→              </div>
+   989→   989→              <div className="space-y-2">
+   990→   990→                <p className="text-xs font-semibold text-blue-700 flex items-center gap-1">
+   991→   991→                  <CheckSquare className="h-3.5 w-3.5" />
+   992→   992→                  Registro de Autoevaluación
+   993→   993→                </p>
+   994→   994→                <div className="grid grid-cols-2 gap-2">
+   995→   995→                  <div>
+   996→   996→                    <Label htmlFor="fechaAutoeval" className="text-[10px] text-blue-600">Fecha realización</Label>
+   997→   997→                    <Input id="fechaAutoeval" type="date" value={fechaAutoevaluacion}
+   998→   998→                      onChange={e => setFechaAutoevaluacion(e.target.value)}
+   999→   999→                      className="h-7 text-xs" />
+  1000→  1000→                  </div>
+  1001→  1001→                  <div>
+  1002→  1002→                    <Label htmlFor="horaAutoeval" className="text-[10px] text-blue-600">Hora realización</Label>
+  1003→  1003→                    <Input id="horaAutoeval" type="time" value={horaAutoevaluacion}
+  1004→  1004→                      onChange={e => setHoraAutoevaluacion(e.target.value)}
+  1005→  1005→                      className="h-7 text-xs" />
+  1006→  1006→                  </div>
+  1007→  1007→                </div>
+  1008→  1008→              </div>
+  1009→  1009→            </div>
+  1010→  1010→
+  1011→  1011→            {/* Score indicator */}
+  1012→  1012→            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+  1013→  1013→              <div>
+  1014→  1014→                <span className="text-sm font-medium">Puntuación</span>
+  1015→  1015→                <p className="text-xs text-muted-foreground">
+  1016→  1016→                  {scoring.okCount} OK / {scoring.nokCount} NOK de {totalItems} puntos
+  1017→  1017→                </p>
+  1018→  1018→              </div>
+  1019→  1019→              <div className="flex items-center gap-2">
+  1020→  1020→                <Badge className="bg-green-100 text-green-800">OK: {scoring.okCount}</Badge>
+  1021→  1021→                <Badge className="bg-red-100 text-red-800">NOK: {scoring.nokCount}</Badge>
+  1022→  1022→                <Badge variant={scoring.scorePercent >= notaMinima ? 'default' : 'secondary'}>
+  1023→  1023→                  {scoring.scorePercent}% (mín. {notaMinima}%)
+  1024→  1024→                </Badge>
+  1025→  1025→              </div>
+  1026→  1026→            </div>
+  1027→  1027→
+  1028→  1028→            {/* Checklist sections */}
+  1029→  1029→            <div className="space-y-3">
+  1030→  1030→              {sections.map(section => (
+  1031→  1031→                <Card key={section.id} className="overflow-hidden">
+  1032→  1032→                  {/* Section header */}
+  1033→  1033→                  <button
+  1034→  1034→                    className="w-full p-3 flex items-center gap-2 hover:bg-muted/50 transition-colors text-left"
+  1035→  1035→                    onClick={() => toggleSection(section.id)}
+  1036→  1036→                  >
+  1037→  1037→                    {expandedSections[section.id] ? (
+  1038→  1038→                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+  1039→  1039→                    ) : (
+  1040→  1040→                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+  1041→  1041→                    )}
+  1042→  1042→                    <Badge variant="outline" className="text-xs font-mono">{section.id}</Badge>
+  1043→  1043→                    <span className="font-semibold text-sm">{section.title}</span>
+  1044→  1044→                    <span className="ml-auto text-xs text-muted-foreground">
+  1045→  1045→                      {section.items.length} puntos
+  1046→  1046→                    </span>
+  1047→  1047→                  </button>
+  1048→  1048→
+  1049→  1049→                  {/* Section items */}
+  1050→  1050→                  {expandedSections[section.id] && (
+  1051→  1051→                    <CardContent className="px-4 pb-4 pt-0 space-y-3">
+  1052→  1052→                      {section.items.map(item => {
+  1053→  1053→                        // BULLETPROOF DEFAULT 'ok': if no result entry exists, treat as 'ok'.
+  1054→  1054→                        // This is the source of truth — does NOT depend on useEffect timing or MERGE.
+  1055→  1055→                        // The MERGE effect above is just a secondary safety net.
+  1056→  1056→                        const hasResult = !!results[item.id];
+  1057→  1057→                        const result = results[item.id];
+  1058→  1058→                        const status = hasResult ? (result?.status ?? 'ok') : 'ok';
+  1059→  1059→                        const isNok = status === 'nok';
+  1060→  1060→
+  1061→  1061→                        return (
+  1062→  1062→                          <div key={item.id} className="border rounded-lg p-3 space-y-2">
+  1063→  1063→                            {/* Item header: description + status buttons */}
+  1064→  1064→                            <div className="flex items-start gap-3">
+  1065→  1065→                              <span className="text-xs font-mono text-muted-foreground shrink-0 mt-0.5">
+  1066→  1066→                                {item.id}
+  1067→  1067→                              </span>
+  1068→  1068→                              <p className="text-sm flex-1">{item.description}</p>
+  1069→  1069→                              <div className="flex gap-1 shrink-0">
+  1070→  1070→                                <button
+  1071→  1071→                                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+  1072→  1072→                                    status === 'ok'
+  1073→  1073→                                      ? 'bg-green-500 text-white'
+  1074→  1074→                                      : 'bg-green-50 text-green-700 hover:bg-green-100'
+  1075→  1075→                                  }`}
+  1076→  1076→                                  onClick={() => setItemStatus(item.id, 'ok')}
+  1077→  1077→                                >
+  1078→  1078→                                  OK
+  1079→  1079→                                </button>
+  1080→  1080→                                <button
+  1081→  1081→                                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+  1082→  1082→                                    status === 'nok'
+  1083→  1083→                                      ? 'bg-red-500 text-white'
+  1084→  1084→                                      : 'bg-red-50 text-red-700 hover:bg-red-100'
+  1085→  1085→                                  }`}
+  1086→  1086→                                  onClick={() => setItemStatus(item.id, 'nok')}
+  1087→  1087→                                >
+  1088→  1088→                                  NOK
+  1089→  1089→                                </button>
+  1090→  1090→                                <button
+  1091→  1091→                                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+  1092→  1092→                                    status === 'na'
+  1093→  1093→                                      ? 'bg-gray-500 text-white'
+  1094→  1094→                                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+  1095→  1095→                                  }`}
+  1096→  1096→                                  onClick={() => setItemStatus(item.id, 'na')}
+  1097→  1097→                                >
+  1098→  1098→                                  N/A
+  1099→  1099→                                </button>
+  1100→  1100→                              </div>
+  1101→  1101→                            </div>
+  1102→  1102→
+  1103→  1103→                            {/* "Otros" text field */}
+  1104→  1104→                            {item.hasOther && (
+  1105→  1105→                              <Input
+  1106→  1106→                                placeholder="Especificar..."
+  1107→  1107→                                value={result?.otherText || ''}
+  1108→  1108→                                onChange={e => setItemField(item.id, 'otherText', e.target.value)}
+  1109→  1109→                                className="text-sm"
+  1110→  1110→                              />
+  1111→  1111→                            )}
+  1112→  1112→
+  1113→  1113→                            {/* NOK details: PRIMERO foto (paso 2) → después hallazgo IA + mejora + responsable (paso 3) */}
+  1114→  1114→                            {isNok && (
+  1115→  1115→                              <div className="space-y-2 pl-6 border-l-2 border-red-200">
+  1116→  1116→                                {/* 1. FOTO PRIMERO — captura la evidencia, IA la describe */}
+  1117→  1117→                                <div className="space-y-2">
+  1118→  1118→                                  <label className="text-xs font-medium text-blue-700 flex items-center gap-1">
+  1119→  1119→                                    <Camera className="h-3 w-3" />
+  1120→  1120→                                    Foto del hallazgo (1º) — describe con IA el hallazgo
+  1121→  1121→                                  </label>
+  1122→  1122→                                  <input
+  1123→  1123→                                    ref={el => { nokPhotoInputRef.current[item.id] = el; }}
+  1124→  1124→                                    type="file"
+  1125→  1125→                                    accept="image/*"
+  1126→  1126→                                    multiple
+  1127→  1127→                                    className="hidden"
+  1128→  1128→                                    onChange={e => handleNokPhotoSelect(item.id, e)}
+  1129→  1129→                                  />
+  1130→  1130→                                  <div className="flex items-center gap-2 flex-wrap">
+  1131→  1131→                                    <Button
+  1132→  1132→                                      variant="outline"
+  1133→  1133→                                      size="sm"
+  1134→  1134→                                      className="text-xs"
+  1135→  1135→                                      onClick={() => nokPhotoInputRef.current[item.id]?.click()}
+  1136→  1136→                                    >
+  1137→  1137→                                      <Camera className="h-3 w-3 mr-1" /> Añadir foto
+  1138→  1138→                                    </Button>
+  1139→  1139→                                    {(nokPhotos[item.id] || []).length > 0 && (
+  1140→  1140→                                      <span className="text-[10px] text-muted-foreground">
+  1141→  1141→                                        {(nokPhotos[item.id] || []).length} foto(s) adjunta(s)
+  1142→  1142→                                      </span>
+  1143→  1143→                                    )}
+  1144→  1144→                                    {nokPhotoAnalyzing[item.id] && (
+  1145→  1145→                                      <span className="text-[10px] text-purple-600 font-medium flex items-center gap-1">
+  1146→  1146→                                        <Loader2 className="h-3 w-3 animate-spin" />
+  1147→  1147→                                        IA analizando…
+  1148→  1148→                                      </span>
+  1149→  1149→                                    )}
+  1150→  1150→                                  </div>
+  1151→  1151→                                  {(nokPhotos[item.id] || []).length > 0 && (
+  1152→  1152→                                    <div className="grid grid-cols-4 gap-2 mt-1">
+  1153→  1153→                                      {(nokPhotos[item.id] || []).map((photo, idx) => (
+  1154→  1154→                                        <div key={idx} className="relative group">
+  1155→  1155→                                          <img src={photo.preview} alt={`Hallazgo ${idx + 1}`} className="w-full h-16 object-cover rounded-lg border" />
+  1156→  1156→                                          <button
+  1157→  1157→                                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+  1158→  1158→                                            onClick={() => removeNokPhoto(item.id, idx)}
+  1159→  1159→                                            title="Quitar foto"
+  1160→  1160→                                          >
+  1161→  1161→                                            <X className="h-3 w-3" />
+  1162→  1162→                                          </button>
+  1163→  1163→                                        </div>
+  1164→  1164→                                      ))}
+  1165→  1165→                                    </div>
+  1166→  1166→                                  )}
+  1167→  1167→                                  <p className="text-[10px] text-muted-foreground">
+  1168→  1168→                                    Al añadir una foto, la IA autocompleta la descripción del hallazgo y la mejora sugerida.
+  1169→  1169→                                  </p>
+  1170→  1170→                                </div>
+  1171→  1171→
+  1172→  1172→                                {/* 2. Hallazgo — autocompletado por IA al subir foto, con botón para regenerar */}
+  1173→  1173→                                <div>
+  1174→  1174→                                  <label className="text-xs font-medium text-red-700 flex items-center justify-between">
+  1175→  1175→                                    <span>Referencia del hallazgo (desviación) *</span>
+  1176→  1176→                                    {(nokPhotos[item.id] || []).length > 0 && (
+  1177→  1177→                                      <button
+  1178→  1178→                                        type="button"
+  1179→  1179→                                        className="text-[10px] text-purple-600 hover:text-purple-800 underline flex items-center gap-1"
+  1180→  1180→                                        onClick={async () => {
+  1181→  1181→                                          const photos = nokPhotos[item.id] || [];
+  1182→  1182→                                          if (photos.length === 0) return;
+  1183→  1183→                                          setNokPhotoAnalyzing(prev => ({ ...prev, [item.id]: true }));
+  1184→  1184→                                          try {
+  1185→  1185→                                            const file = photos[0].file;
+  1186→  1186→                                            const dataUrl = await new Promise<string>((resolve, reject) => {
+  1187→  1187→                                              const reader = new FileReader();
+  1188→  1188→                                              reader.onload = () => resolve(reader.result as string);
+  1189→  1189→                                              reader.onerror = reject;
+  1190→  1190→                                              reader.readAsDataURL(file);
+  1191→  1191→                                            });
+  1192→  1192→                                            const descRes = await fetch('/api/photo-describe', {
+  1193→  1193→                                              method: 'POST',
+  1194→  1194→                                              headers: { 'Content-Type': 'application/json' },
+  1195→  1195→                                              body: JSON.stringify({ imageUrl: dataUrl, sStep }),
+  1196→  1196→                                            });
+  1197→  1197→                                            const descJson = await descRes.json();
+  1198→  1198→                                            if (descJson.success && descJson.description) {
+  1199→  1199→                                              setItemField(item.id, 'hallazgo', descJson.description);
+  1200→  1200→                                              const mejoraSuggested = `Aplicar 5S en ${sStepData?.japaneseName || 'S' + sStep}: corregir desviación detectada — ${descJson.description.slice(0, 100)}`;
+  1201→  1201→                                              setItemField(item.id, 'mejora', mejoraSuggested);
+  1202→  1202→                                              toast.success(`Descripción regenerada por IA`);
+  1203→  1203→                                            } else {
+  1204→  1204→                                              toast.error('No se pudo generar la descripción');
+  1205→  1205→                                            }
+  1206→  1206→                                          } catch (err) {
+  1207→  1207→                                            console.error('[autoeval] Error regenerando descripción IA:', err);
+  1208→  1208→                                            toast.error('Error al regenerar descripción');
+  1209→  1209→                                          } finally {
+  1210→  1210→                                            setNokPhotoAnalyzing(prev => ({ ...prev, [item.id]: false }));
+  1211→  1211→                                          }
+  1212→  1212→                                        }}
+  1213→  1213→                                      >
+  1214→  1214→                                        <Sparkles className="h-3 w-3" /> Regenerar con IA
+  1215→  1215→                                      </button>
+  1216→  1216→                                    )}
+  1217→  1217→                                  </label>
+  1218→  1218→                                  <Textarea
+  1219→  1219→                                    placeholder="Obligatorio: describa la desviación encontrada..."
+  1220→  1220→                                    value={result?.hallazgo || ''}
+  1221→  1221→                                    onChange={e => setItemField(item.id, 'hallazgo', e.target.value)}
+  1222→  1222→                                    className={`text-sm mt-1 ${!(result?.hallazgo || '').trim() ? 'border-red-400 focus:border-red-500' : ''}`}
+  1223→  1223→                                    rows={2}
+  1224→  1224→                                  />
+  1225→  1225→                                  {!(result?.hallazgo || '').trim() && (
+  1226→  1226→                                    <p className="text-[10px] text-red-500 mt-0.5">Campo obligatorio</p>
+  1227→  1227→                                  )}
+  1228→  1228→                                </div>
+  1229→  1229→
+  1230→  1230→                                {/* 3. Mejora sugerida */}
+  1231→  1231→                                <div>
+  1232→  1232→                                  <label className="text-xs font-medium text-amber-700">Punto a Mejorar (sugerencia) *</label>
+  1233→  1233→                                  <Textarea
+  1234→  1234→                                    placeholder="Obligatorio: sugiera una mejora..."
+  1235→  1235→                                    value={result?.mejora || ''}
+  1236→  1236→                                    onChange={e => setItemField(item.id, 'mejora', e.target.value)}
+  1237→  1237→                                    className={`text-sm mt-1 ${!(result?.mejora || '').trim() ? 'border-amber-400 focus:border-amber-500' : ''}`}
+  1238→  1238→                                    rows={2}
+  1239→  1239→                                  />
+  1240→  1240→                                  {!(result?.mejora || '').trim() && (
+  1241→  1241→                                    <p className="text-[10px] text-amber-500 mt-0.5">Campo obligatorio</p>
+  1242→  1242→                                  )}
+  1243→  1243→                                </div>
+  1244→  1244→
+  1245→  1245→                                {/* 4. Responsable — autocompletado con responsable de zona */}
+  1246→  1246→                                <div>
+  1247→  1247→                                  <label className="text-xs font-medium text-blue-700 flex items-center gap-1">
+  1248→  1248→                                    <UserCircle className="h-3 w-3" />
+  1249→  1249→                                    Responsable de la acción *
+  1250→  1250→                                  </label>
+  1251→  1251→                                  <Select
+  1252→  1252→                                    value={result?.responsable || ''}
+  1253→  1253→                                    onValueChange={val => setItemField(item.id, 'responsable', val)}
+  1254→  1254→                                  >
+  1255→  1255→                                    <SelectTrigger className={`text-sm mt-1 ${!(result?.responsable || '').trim() ? 'border-blue-400 focus:border-blue-500' : ''}`}>
+  1256→  1256→                                      <SelectValue placeholder="Selecciona quien debe resolverlo..." />
+  1257→  1257→                                    </SelectTrigger>
+  1258→  1258→                                    <SelectContent>
+  1259→  1259→                                      {projectMembers.length === 0 ? (
+  1260→  1260→                                        <SelectItem value="__none__" disabled>No hay miembros en el proyecto</SelectItem>
+  1261→  1261→                                      ) : (
+  1262→  1262→                                        projectMembers
+  1263→  1263→                                          .filter(m => m.user?.active !== false)
+  1264→  1264→                                          .map(m => (
+  1265→  1265→                                            <SelectItem key={m.id} value={m.user.name}>
+  1266→  1266→                                              <div className="flex items-center gap-2">
+  1267→  1267→                                                <span>{m.user.name}</span>
+  1268→  1268→                                                <span className="text-[10px] text-muted-foreground">({m.role})</span>
+  1269→  1269→                                              </div>
+  1270→  1270→                                            </SelectItem>
+  1271→  1271→                                          ))
+  1272→  1272→                                      )}
+  1273→  1273→                                    </SelectContent>
+  1274→  1274→                                  </Select>
+  1275→  1275→                                  {!(result?.responsable || '').trim() && (
+  1276→  1276→                                    <p className="text-[10px] text-blue-500 mt-0.5">Selecciona un responsable</p>
+  1277→  1277→                                  )}
+  1278→  1278→                                  {result?.responsable && (
+  1279→  1279→                                    <p className="text-[10px] text-green-600 mt-0.5">
+  1280→  1280→                                      ✓ Autocompletado — puedes cambiarlo si es necesario
+  1281→  1281→                                    </p>
+  1282→  1282→                                  )}
+  1283→  1283→                                </div>
+  1284→  1284→                              </div>
+  1285→  1285→                            )}
+  1286→  1286→                          </div>
+  1287→  1287→                        );
+  1288→  1288→                      })}
+  1289→  1289→                    </CardContent>
+  1290→  1290→                  )}
+  1291→  1291→                </Card>
+  1292→  1292→              ))}
+  1293→  1293→            </div>
+  1294→  1294→
+  1295→  1295→            {/* Observaciones */}
+  1296→  1296→            <Card>
+  1297→  1297→              <CardContent className="p-4">
+  1298→  1298→                <label className="text-sm font-medium">Observaciones generales</label>
+  1299→  1299→                <Textarea
+  1300→  1300→                  placeholder="Observaciones adicionales de la autoevaluación..."
+  1301→  1301→                  value={observaciones}
+  1302→  1302→                  onChange={e => setObservaciones(e.target.value)}
+  1303→  1303→                  className="mt-2"
+  1304→  1304→                  rows={3}
+  1305→  1305→                />
+  1306→  1306→              </CardContent>
+  1307→  1307→            </Card>
+  1308→  1308→
+  1309→  1309→            {/* Fotos de la autoevaluación */}
+  1310→  1310→            <Card>
+  1311→  1311→              <CardContent className="p-4 space-y-3">
+  1312→  1312→                <div className="flex items-center justify-between">
+  1313→  1313→                  <div className="flex items-center gap-2">
+  1314→  1314→                    <Camera className="h-4 w-4 text-muted-foreground" />
+  1315→  1315→                    <label className="text-sm font-medium">Fotos de la autoevaluación</label>
+  1316→  1316→                  </div>
+  1317→  1317→                  <span className="text-xs text-muted-foreground">{autoevalPhotos.length} foto{autoevalPhotos.length !== 1 ? 's' : ''}</span>
+  1318→  1318→                </div>
+  1319→  1319→                <p className="text-xs text-muted-foreground">
+  1320→  1320→                  Añade fotos de hallazgos o disfunciones detectadas. Se guardarán en la biblioteca con trazabilidad.
+  1321→  1321→                </p>
+  1322→  1322→                <input
+  1323→  1323→                  ref={photoInputRef}
+  1324→  1324→                  type="file"
+  1325→  1325→                  accept="image/*"
+  1326→  1326→                  multiple
+  1327→  1327→                  className="hidden"
+  1328→  1328→                  onChange={handlePhotoSelect}
+  1329→  1329→                />
+  1330→  1330→                <button
+  1331→  1331→                  className="w-full border-2 border-dashed rounded-lg p-4 flex flex-col items-center gap-2 hover:border-primary/50 hover:bg-muted/30 transition-colors"
+  1332→  1332→                  onClick={() => photoInputRef.current?.click()}
+  1333→  1333→                >
+  1334→  1334→                  <Upload className="h-5 w-5 text-muted-foreground" />
+  1335→  1335→                  <span className="text-xs font-medium">Seleccionar fotos</span>
+  1336→  1336→                </button>
+  1337→  1337→                {autoevalPhotos.length > 0 && (
+  1338→  1338→                  <div className="grid grid-cols-4 gap-2">
+  1339→  1339→                    {autoevalPhotos.map((photo, idx) => (
+  1340→  1340→                      <div key={idx} className="relative group">
+  1341→  1341→                        <img src={photo.preview} alt={`Foto ${idx + 1}`} className="w-full h-20 object-cover rounded-lg border" />
+  1342→  1342→                        <button
+  1343→  1343→                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+  1344→  1344→                          onClick={() => removeAutoevalPhoto(idx)}
+  1345→  1345→                        >
+  1346→  1346→                          <X className="h-3 w-3" />
+  1347→  1347→                        </button>
+  1348→  1348→                      </div>
+  1349→  1349→                    ))}
+  1350→  1350→                  </div>
+  1351→  1351→                )}
+  1352→  1352→              </CardContent>
+  1353→  1353→            </Card>
+  1354→  1354→
+  1355→  1355→            {/* NOK incomplete warning */}
+  1356→  1356→            {nokItems.length > 0 && !allNokCompleted && (
+  1357→  1357→              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+  1358→  1358→                <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+  1359→  1359→                <p className="text-xs text-red-700">
+  1360→  1360→                  Debes completar <strong>"Referencia del hallazgo"</strong>, <strong>"Punto a Mejorar"</strong> y <strong>"Responsable de la acción"</strong> en todos los items NOK ({nokItems.filter(r => !(r.hallazgo || '').trim() || !(r.mejora || '').trim() || !(r.responsable || '').trim()).length} pendientes)
+  1361→  1361→                </p>
+  1362→  1362→              </div>
+  1363→  1363→            )}
+  1364→  1364→
+  1365→  1365→            {/* Submit button */}
+  1366→  1366→            <div className="flex justify-end">
+  1367→  1367→              <Button
+  1368→  1368→                onClick={handleSubmit}
+  1369→  1369→                disabled={!canSubmit || isSubmitting}
+  1370→  1370→                style={canSubmit ? { backgroundColor: passed ? sStepData?.color : '#dc2626' } : undefined}
+  1371→  1371→              >
+  1372→  1372→                {isSubmitting ? 'Enviando...' : passed ? `Completar Autoevaluación (${scoring.scorePercent}% - Apto)` : `Enviar Autoevaluación (${scoring.scorePercent}% - No Apto, mín. ${notaMinima}%)`}
+  1373→  1373→              </Button>
+  1374→  1374→            </div>
+  1375→  1375→          </div>
+  1376→  1376→        )}
+  1377→  1377→        </div>
+  1378→  1378→      </DialogContent>
+  1379→  1379→    </Dialog>
+  1380→  1380→  );
+  1381→  1381→}
+  1382→  1382→
