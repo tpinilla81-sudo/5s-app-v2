@@ -1442,3 +1442,69 @@ Stage Summary:
 - Pendiente: usuario prueba en v2.44 tras deploy (~1-2 min). Si
   quiere eliminar también el botón Camera de la tabla (dejar la
   columna como solo-lectura), iterar.
+
+---
+Task ID: v2.45
+Agent: Main
+Task: Eliminar el formulario 'Add item' completo del InventarioModal
+
+Work Log:
+- Petición del usuario: "pUES SE SIGUE VIENDO EL FORMULARIO QEU DIJIMOS
+  QEU LO QUITAVAMOS Y QUE RELLENAVAMOS DE LA TABLA INFERIOR, RECUERDAS?"
+- En v2.44 solo quité el bloque "Adjuntar Foto" pero dejé intacto el
+  formulario completo de "Add item" (Card con Elemento, Zona origen,
+  Categoría, Cantidad, Precio, extras, F. Entrada, Días cuarentena,
+  F. Revisión y botón "+ Agregar"). Ese era el formulario que el
+  usuario quería eliminar.
+
+Ese formulario ya no tiene sentido porque:
+- Los items se crean automáticamente como borradores al tomar fotos
+  en el Paso 2 (FotosModal.handleSubmit v2.40).
+- Las fotos huérfanas pre-v2.40 se migran automáticamente
+  (migrateOrphanPhotos v2.42).
+- El usuario rellena los datos directamente en la tabla inferior.
+
+CAMBIOS:
+- Eliminado el Card "Add item form" completo (383 líneas de JSX
+  entre el comentario '{/* Add item form */}' y su '</Card>'
+  cerrando). Script persistente en scripts/remove_add_form.py.
+- Eliminado el state 'newItem' y su useEffect de sincronización de
+  zonaOrigen.
+- Eliminada la función 'handleAddItem' (POST /api/inventory desde
+  el form). Quedan FotosModal.handleSubmit y migrateOrphanPhotos
+  para crear items desde fotos, y handleImportTemplate /
+  handleFileImport para crear items desde plantillas.
+- Actualizado el empty-state:
+    Antes: "Importe una plantilla o agregue elementos manualmente"
+    Ahora: "Toma fotos en el Paso 2 (S{sStep} · {japaneseName} ·
+           Fotos) y se crearán aquí automáticamente."
+  Icono cambiado de ClipboardList a Camera para reflejar el flujo.
+- Limpiados imports sin usar: Plus (lucide-react), defaultCategory.
+
+LO QUE SE MANTIENE (no es obsoleto):
+- Botones "Importar Plantilla", "Exportar CSV", "Importar Archivo",
+  "Descargar Plantilla Excel" — para añadir items en bloque desde
+  plantillas o archivos. Si el usuario quiere eliminarlos también,
+  iterar.
+- Card rojo "Elementos pendientes de clasificar" (solo si hay drafts).
+- Layout de la Zona (S2/S3/S4).
+- Tabla de items (con edición inline y todas las columnas).
+- Columna "Fotos" de la tabla con botón Camera para adjuntar
+  adicionales y lightbox.
+
+Bump v2.45 en middleware.ts, page.tsx, LoginPage.tsx.
+Build Next.js: ✓ Compiled successfully in 21.2s.
+Commit + push a GitHub (25c0093). Vercel deploy automático.
+
+Stage Summary:
+- InventarioModal ya NO tiene el formulario "Add item". La única
+  manera de crear items es:
+  1. Tomar fotos en el Paso 2 (crea borradores automáticamente).
+  2. Importar plantilla CSV/Excel.
+- El usuario rellena los datos de cada borrador directamente en
+  la tabla inferior (edición inline — nombre, ubicación, categoría,
+  cantidad, precio, extras, decisión, días cuarentena, Z. Origen,
+  Z. Destino).
+- Pendiente: usuario prueba en v2.45 tras deploy (~1-2 min). Si
+  quiere eliminar también los botones "Importar Plantilla / Archivo",
+  iterar.
