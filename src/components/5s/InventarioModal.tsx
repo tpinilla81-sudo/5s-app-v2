@@ -2099,36 +2099,60 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                               {canEdit ? (
                                 <Select value={displayDecision(item.extra?.decision)}
                                   onValueChange={val => {
-                                    handleUpdateExtra(item.id!, 'decision', val);
-                                    // v2.54: en S1 todos son innecesario aunque category sea ''
+                                    // v2.55: FIX race condition — antes se hacían varios
+                                    // handleUpdateExtra/handleUpdateField en secuencia, cada
+                                    // uno con su propio closure stale de `items`. El 2º
+                                    // handleUpdateExtra (diasCuarentena='_clear_') pisaba
+                                    // el decision='Eliminar' que el 1º acababa de guardar,
+                                    // haciendo que el dropdown rebotara a 'Retirar'.
+                                    //
+                                    // Ahora construimos el extra final y los campos top-level
+                                    // finales EN UN SOLO PASO, con un único setItems y un
+                                    // único PUT, evitando cualquier carrera.
                                     const isInn = sStep === 1 || item.category === 'innecesario';
-                                    if (isInn) {
-                                      handleUpdateField(item.id!, 'action', val);
-                                      const newDestino = val === 'Eliminar' ? 'Residuo' : 'Jaula';
-                                      handleUpdateField(item.id!, 'zonaDestino', newDestino);
-                                      if (val === 'Eliminar') {
-                                        handleUpdateField(item.id!, 'jaulaStatus', '');
-                                        handleUpdateField(item.id!, 'jaulaFechaEntrada', null);
-                                        handleUpdateExtra(item.id!, 'diasCuarentena', '_clear_');
-                                        // v2.52: limpiar snapshot de etiqueta si existía
-                                        const extra = { ...(item.extra || {}) };
-                                        delete (extra as any).etiquetaGenerada;
-                                        delete (extra as any).etiquetaFecha;
-                                        delete (extra as any).etiquetaData;
-                                      } else if (val === 'Retirar') {
-                                        // v2.52: asegurar jaulaStatus + fecha entrada
-                                        const updatedItem: InventoryItemData = {
-                                          ...item,
-                                          jaulaStatus: 'en_jaula',
-                                          jaulaFechaEntrada: item.jaulaFechaEntrada || new Date().toISOString(),
-                                          extra: { ...(item.extra || {}), decision: 'Retirar', diasCuarentena: item.extra?.diasCuarentena ?? 40 },
-                                        };
-                                        handleUpdateField(item.id!, 'jaulaStatus', 'en_jaula');
-                                        if (!item.jaulaFechaEntrada) handleUpdateField(item.id!, 'jaulaFechaEntrada', new Date().toISOString());
-                                        if (!item.extra?.diasCuarentena) handleUpdateExtra(item.id!, 'diasCuarentena', 40);
-                                        // v2.52: generar snapshot de etiqueta automáticamente
-                                        setTimeout(() => handleAutoGenerateEtiqueta(updatedItem), 50);
-                                      }
+                                    if (!isInn || !item.id) {
+                                      // S2-S5 o sin id: comportamiento simple, sin side-effects
+                                      handleUpdateExtra(item.id!, 'decision', val);
+                                      return;
+                                    }
+                                    // 1) Construir extra final
+                                    const newExtra: any = { ...(item.extra || {}), decision: val };
+                                    // 2) Construir updates top-level
+                                    const topLevel: any = { action: val };
+                                    if (val === 'Eliminar') {
+                                      topLevel.zonaDestino = 'Residuo';
+                                      topLevel.jaulaStatus = '';
+                                      topLevel.jaulaFechaEntrada = null;
+                                      delete newExtra.diasCuarentena;
+                                      delete newExtra.etiquetaGenerada;
+                                      delete newExtra.etiquetaFecha;
+                                      delete newExtra.etiquetaData;
+                                    } else if (val === 'Retirar') {
+                                      topLevel.zonaDestino = 'Jaula';
+                                      topLevel.jaulaStatus = 'en_jaula';
+                                      if (!item.jaulaFechaEntrada) topLevel.jaulaFechaEntrada = new Date().toISOString();
+                                      if (!newExtra.diasCuarentena) newExtra.diasCuarentena = 40;
+                                    }
+                                    // 3) setItems optimista (un único update para evitar carreras)
+                                    setItems(prev => prev.map(it => it.id === item.id ? {
+                                      ...it,
+                                      ...topLevel,
+                                      extra: newExtra,
+                                    } : it));
+                                    // 4) Único PUT con todos los campos
+                                    fetch(`/api/inventory?id=${item.id}`, {
+                                      method: 'PUT',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ ...topLevel, extra: newExtra }),
+                                    }).catch(e => console.error('Error updating decision:', e));
+                                    // 5) Si Retirar → generar etiqueta (snapshot) en background
+                                    if (val === 'Retirar') {
+                                      const updatedItem: InventoryItemData = {
+                                        ...item,
+                                        ...topLevel,
+                                        extra: newExtra,
+                                      };
+                                      setTimeout(() => handleAutoGenerateEtiqueta(updatedItem), 50);
                                     }
                                   }}>
                                   <SelectTrigger className={inlineSelect}><SelectValue placeholder="—" /></SelectTrigger>
