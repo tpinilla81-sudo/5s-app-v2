@@ -2054,3 +2054,50 @@ Stage Summary:
   * Etiquetas auto-generadas también disparan para items con Retirar.
   * jaulaStatus='en_jaula' + jaulaFechaEntrada se setean al elegir Retirar.
 - Futuros drafts creados desde Paso 2 ya nacen con category='innecesario'.
+
+---
+Task ID: v2.55
+Agent: Main
+Task: Fix Decisión no dejaba poner Eliminar
+
+Work Log:
+- Usuario: "decision no deja poner eliminar"
+- ROOT CAUSE: Race condition en onValueChange del Select de Decisión.
+  El handler llamaba en secuencia:
+    1) handleUpdateExtra(id, 'decision', 'Eliminar')
+       → setItems aplica decision='Eliminar'
+       → PUT /api/inventory con extra={..., decision:'Eliminar'}
+    2) handleUpdateExtra(id, 'diasCuarentena', '_clear_')
+       → usa CLOSURE STALE de `items` (aún con decision='Retirar')
+       → construye newExtra desde item.extra (sin decision='Eliminar')
+       → setItems aplica este extra → PISA decision='Eliminar'
+       → PUT /api/inventario con extra sin decision='Eliminar'
+  Neto: DB y state terminan con decision='Retirar' → dropdown rebota.
+  Bug silencioso adicional: el bloque que borraba etiquetaGenerada/
+  etiquetaFecha/etiquetaData construía un objeto `extra` pero nunca
+  lo persistía (perdido desde v2.52).
+
+FIX:
+- Refactor onValueChange para S1 (innecesario):
+  1) Construir newExtra (con decision=val) y topLevel updates una sola vez
+  2) Si Eliminar: topLevel.zonaDestino='Residuo', jaulaStatus='',
+     jaulaFechaEntrada=null; delete newExtra.diasCuarentena,
+     etiquetaGenerada, etiquetaFecha, etiquetaData
+  3) Si Retirar: topLevel.zonaDestino='Jaula', jaulaStatus='en_jaula',
+     jaulaFechaEntrada si no tenía; newExtra.diasCuarentena=40 default
+  4) Único setItems(prev => map con {...it, ...topLevel, extra:newExtra})
+  5) Único PUT /api/inventory con {...topLevel, extra:newExtra}
+  6) Si Retirar: setTimeout(handleAutoGenerateEtiqueta(updatedItem), 50)
+- S2-S5: comportamiento simple, solo handleUpdateExtra (sin side-effects).
+
+Bump v2.54 → v2.55 (middleware, page.tsx, LoginPage).
+Build Next.js: ✓ Compiled successfully.
+Commit 596ec95 + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- TRAS DEPLOY v2.55 (~1-2 min):
+  * Seleccionar "Eliminar" ahora SÍ se queda puesto (no rebota a Retirar)
+  * Al elegir Eliminar: Z Destino=Residuo, Días cuar.=—, Etiquetas=—,
+    jaulaStatus='', jaulaFechaEntrada=null, etiquetaData borrada
+  * Al elegir Retirar: Z Destino=Jaula, etiqueta auto-generada, etc.
+- Ya no hay race conditions entre los updates.
