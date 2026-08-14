@@ -193,9 +193,11 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
         const isNecesario = sStep === 1 && item.category === 'necesario';
         const qty = item.quantity || 1;
         const extra = { ...(item.extra || {}) };
-        if (sStep === 1 && isInnecesario && !extra.decision) {
-          extra.decision = 'Retirar'; // v2.50: was 'Jaula'
-        }
+        // v2.56: NO forzar decision='Retirar' por defecto. El usuario debe elegir
+        // activamente entre Retirar y Eliminar para que dispare onValueChange,
+        // lo que genera la etiqueta automáticamente. Si pre-seteamos 'Retirar',
+        // el Select lo muestra pero onValueChange nunca fire → etiqueta nunca se genera.
+        // (Solo conservamos decision si el template ya lo traía.)
 
         await fetch('/api/inventory', {
           method: 'POST',
@@ -206,18 +208,18 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
             zoneId: currentZone?.id || null,
             name: item.name,
             location: item.location || '',
-            category: item.category || '',
+            category: sStep === 1 ? 'innecesario' : (item.category || ''),
             quantity: qty,
             quantityNeeded: isNecesario ? qty : (item.quantityNeeded || 0),
             quantityUnneeded: isInnecesario ? qty : (item.quantityUnneeded || 0),
             price: item.price ?? null,
-            action: item.action || (isInnecesario ? (extra.decision || 'Retirar') : ''),
+            action: item.action || '',
             extra,
             jaulaStatus: isInnecesario && isJaulaDecision(extra.decision) ? 'en_jaula' : '',
             jaulaFechaEntrada: isInnecesario && isJaulaDecision(extra.decision) ? new Date().toISOString() : null,
             jaulaOrigen: isInnecesario ? (currentZone?.name || currentProject.name || '') : null,
             zonaOrigen: currentZone?.name || null,
-            zonaDestino: isInnecesario ? (isEliminarDecision(extra.decision) ? 'Residuo' : 'Jaula') : null,
+            zonaDestino: isInnecesario && extra.decision ? (isEliminarDecision(extra.decision) ? 'Residuo' : 'Jaula') : null,
           }),
         });
       }
@@ -2097,7 +2099,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                             {/* CLASIFICACIÓN: Decisión — v2.50: Retirar (→Jaula) o Eliminar (→Residuo) */}
                             <td className={`px-1 py-1 border ${specBg} text-center`}>
                               {canEdit ? (
-                                <Select value={displayDecision(item.extra?.decision)}
+                                <Select value={item.extra?.decision ? displayDecision(item.extra.decision) : undefined}
                                   onValueChange={val => {
                                     // v2.55: FIX race condition — antes se hacían varios
                                     // handleUpdateExtra/handleUpdateField en secuencia, cada
@@ -2166,8 +2168,11 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                               ) : <span className="text-[11px] text-muted-foreground">—</span>}
                             </td>
                             {/* ETIQUETA: Días cuarentena — v2.50: solo si decisión = Retirar (va a jaula) */}
+                            {/* v2.56: si no hay decisión, mostrar — (no Select con default 40) */}
                             <td className="px-1 py-1 border bg-orange-50 text-center">
-                              {isEliminarDecision(item.extra?.decision) ? (
+                              {!item.extra?.decision ? (
+                                <span className="text-muted-foreground">—</span>
+                              ) : isEliminarDecision(item.extra?.decision) ? (
                                 <span className="text-muted-foreground">—</span>
                               ) : canEdit ? (
                                 <Select value={String(item.extra?.diasCuarentena ?? 40)} onValueChange={val => handleUpdateExtra(item.id!, 'diasCuarentena', parseInt(val) || 40)}>
@@ -2179,8 +2184,11 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                               ) : <span className="text-[11px]">{item.extra?.diasCuarentena ?? 40}d</span>}
                             </td>
                             {/* ETIQUETA ROJA — v2.52: botón impresión individual al seleccionar Retirar */}
+                            {/* v2.56: si no hay decisión, mostrar — (no 'Pendiente') */}
                             <td className="px-1 py-1 border bg-rose-50 text-center">
-                              {isEliminarDecision(item.extra?.decision) ? (
+                              {!item.extra?.decision ? (
+                                <span className="text-[11px] text-muted-foreground">—</span>
+                              ) : isEliminarDecision(item.extra?.decision) ? (
                                 <span className="text-muted-foreground text-[10px]" title="No aplica: el elemento va a residuo">—</span>
                               ) : isJaulaDecision(item.extra?.decision) ? (
                                 <div className="flex flex-col items-center gap-0.5">
@@ -2256,10 +2264,13 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                         {/* UBICACIÓN: Z. Destino — v2.50: en S1 auto-determinada por decisión (Jaula/Residuo, read-only); S2-S5 editable */}
                         <td className={`px-1 py-1 border ${locBg} text-center`}>
                           {/* v2.54: en S1 todos los items son innecesario — no exigir item.category === 'innecesario' */}
+                          {/* v2.56: si no hay decisión, mostrar — (no 'Jaula') */}
                           {sStep === 1 && item.category !== 'necesario' ? (
-                            <span className={`text-[11px] font-medium ${isEliminarDecision(item.extra?.decision) ? 'text-yellow-700' : 'text-red-600'}`}>
-                              {isEliminarDecision(item.extra?.decision) ? 'Residuo' : 'Jaula'}
-                            </span>
+                            item.extra?.decision ? (
+                              <span className={`text-[11px] font-medium ${isEliminarDecision(item.extra?.decision) ? 'text-yellow-700' : 'text-red-600'}`}>
+                                {isEliminarDecision(item.extra?.decision) ? 'Residuo' : 'Jaula'}
+                              </span>
+                            ) : <span className="text-[11px] text-muted-foreground">—</span>
                           ) : canEdit ? (
                             <Select value={item.zonaDestino || undefined}
                               onValueChange={val => {
@@ -2356,27 +2367,41 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
       )}
 
       {/* Photo Lightbox — Full-size photo preview */}
-      {/* v2.50: Lightbox con fondo negro — al pulsar la foto sale sobre un overlay oscuro */}
+      {/* v2.56: Lightbox con fondo gris oscuro (no negro puro) + manejo de error
+          si la foto no carga. Antes era bg-black y si la imagen fallaba, se veía
+          todo negro sin feedback para el usuario. */}
       <Dialog open={!!showPhotoLightbox} onOpenChange={() => setShowPhotoLightbox(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] p-0 bg-black border-0 [&>button]:text-white [&>button]:hover:bg-white/10">
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0 bg-zinc-900 border border-zinc-700 [&>button]:text-white [&>button]:hover:bg-white/10">
           {showPhotoLightbox && (
             <div className="flex flex-col">
               <div className="relative">
                 <img
                   src={showPhotoLightbox.photoUrl}
                   alt={showPhotoLightbox.title}
-                  className="w-full max-h-[80vh] object-contain bg-black"
+                  className="w-full max-h-[80vh] object-contain"
+                  onError={(e) => {
+                    // v2.56: si la foto no carga, mostrar mensaje en lugar de caja negra
+                    const img = e.currentTarget;
+                    img.style.display = 'none';
+                    const parent = img.parentElement;
+                    if (parent && !parent.querySelector('.photo-error')) {
+                      const div = document.createElement('div');
+                      div.className = 'photo-error flex flex-col items-center justify-center w-full h-[60vh] text-zinc-400';
+                      div.innerHTML = '<div style="font-size:48px;margin-bottom:12px">🖼️</div><div style="font-size:14px;font-weight:500">No se pudo cargar la imagen</div><div style="font-size:11px;margin-top:4px;color:#71717a">La foto puede estar corrupta o no estar disponible</div>';
+                      parent.appendChild(div);
+                    }
+                  }}
                 />
                 <Badge className={`absolute top-2 left-2 ${showPhotoLightbox.photoType === 'antes' ? 'bg-amber-100 text-amber-800' : showPhotoLightbox.photoType === 'despues' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                   {showPhotoLightbox.photoType === 'antes' ? 'Antes' : showPhotoLightbox.photoType === 'despues' ? 'Después' : showPhotoLightbox.photoType}
                 </Badge>
               </div>
-              <div className="px-3 py-2 bg-black text-white">
+              <div className="px-3 py-2 bg-zinc-900 text-white border-t border-zinc-700">
                 <h4 className="text-sm font-medium">{showPhotoLightbox.title}</h4>
                 {showPhotoLightbox.description && (
-                  <p className="text-xs text-gray-300">{showPhotoLightbox.description}</p>
+                  <p className="text-xs text-zinc-300">{showPhotoLightbox.description}</p>
                 )}
-                <p className="text-[10px] text-gray-400 mt-1">
+                <p className="text-[10px] text-zinc-400 mt-1">
                   {new Date(showPhotoLightbox.createdAt).toLocaleString('es-ES')}
                 </p>
               </div>
