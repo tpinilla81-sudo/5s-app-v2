@@ -1,0 +1,691 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import { useState, useRef, useCallback, useEffect } from 'react';
+     4→     4→import {
+     5→     5→  Dialog,
+     6→     6→  DialogContent,
+     7→     7→  DialogHeader,
+     8→     8→  DialogTitle,
+     9→     9→} from '@/components/ui/dialog';
+    10→    10→import { Button } from '@/components/ui/button';
+    11→    11→import { Card, CardContent } from '@/components/ui/card';
+    12→    12→import { Badge } from '@/components/ui/badge';
+    13→    13→import {
+    14→    14→  Camera,
+    15→    15→  Upload,
+    16→    16→  X,
+    17→    17→  CheckCircle,
+    18→    18→  Image as ImageIcon,
+    19→    19→  SwitchCamera,
+    20→    20→  Video,
+    21→    21→  VideoOff,
+    22→    22→  Zap,
+    23→    23→  GalleryHorizontalEnd,
+    24→    24→  Loader2,
+    25→    25→  Maximize2,
+    26→    26→  Minimize2,
+    27→    27→} from 'lucide-react';
+    28→    28→import { use5SStore } from '@/lib/store';
+    29→    29→import { S_STEPS, MIN_PHOTOS, MINI_STEPS } from '@/lib/5s-constants';
+    30→    30→import {
+    31→    31→  compressImage,
+    32→    32→  generatePhotoFilename,
+    33→    33→  base64toFile,
+    34→    34→  estimateBase64Size,
+    35→    35→  formatBytes,
+    36→    36→} from '@/lib/image-utils';
+    37→    37→
+    38→    38→interface FotosModalProps {
+    39→    39→  open: boolean;
+    40→    40→  onClose: () => void;
+    41→    41→  sStep: number;
+    42→    42→  miniStep: number;
+    43→    43→}
+    44→    44→
+    45→    45→const BEFORE_PROMPT_BY_S: Record<number, string> = {
+    46→    46→  1: 'Fotografía los elementos innecesarios que hay en la zona. Esto servirá como referencia "ANTES" de la clasificación.',
+    47→    47→  2: 'Fotografía cómo está organizada la zona actualmente. Esto servirá como referencia "ANTES" de la reorganización.',
+    48→    48→  3: 'Fotografía los puntos de suciedad de la zona. Esto servirá como referencia "ANTES" de la limpieza.',
+    49→    49→  4: 'Fotografía el estado actual de la zona. Esto servirá como referencia "ANTES" de la estandarización.',
+    50→    50→  5: 'Fotografía el nivel de cumplimiento de los estándares. Esto servirá como referencia "ANTES" de la disciplina.',
+    51→    51→};
+    52→    52→
+    53→    53→interface PhotoItem {
+    54→    54→  id: string; // ID único por foto — para actualizaciones de estado seguras en cola
+    55→    55→  preview: string;
+    56→    56→  serverUrl: string;
+    57→    57→  uploaded: boolean;
+    58→    58→  uploading: boolean;
+    59→    59→  estimatedSize: number;
+    60→    60→  title: string; // Título descriptivo de la foto
+    61→    61→  photoType: string; // "antes", "despues", "referencia", "hallazgo"
+    62→    62→  savedToLibrary: boolean; // Si ya se guardó en la biblioteca
+    63→    63→}
+    64→    64→
+    65→    65→export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModalProps) {
+    66→    66→  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission, openModal } = use5SStore();
+    67→    67→  const sStepData = S_STEPS.find(s => s.id === sStep);
+    68→    68→  const miniStepData = MINI_STEPS.find(m => m.id === miniStep);
+    69→    69→
+    70→    70→  const fileInputRef = useRef<HTMLInputElement>(null);
+    71→    71→  const cameraInputRef = useRef<HTMLInputElement>(null);
+    72→    72→  const videoRef = useRef<HTMLVideoElement>(null);
+    73→    73→  const canvasRef = useRef<HTMLCanvasElement>(null);
+    74→    74→
+    75→    75→  const canSkipSteps = hasPermission('skip_steps');
+    76→    76→  const canPerformStep = canPerform(sStep, miniStep);
+    77→    77→  const canViewStep = canView(sStep, miniStep);
+    78→    78→  // Permission-driven: read-only if no execute perm OR if candado closed for skip_steps users
+    79→    79→  const isReadOnly = !canPerformStep || (canSkipSteps && !adminFreeNavigation);
+    80→    80→
+    81→    81→  const [isFullscreen, setIsFullscreen] = useState(true);
+    82→    82→  const [photos, setPhotos] = useState<PhotoItem[]>([]);
+    83→    83→  const [isSubmitting, setIsSubmitting] = useState(false);
+    84→    84→  const [isCompleted, setIsCompleted] = useState(false);
+    85→    85→  const [cameraMode, setCameraMode] = useState<'idle' | 'streaming' | 'capturing'>('idle');
+    86→    86→  const [stream, setStream] = useState<MediaStream | null>(null);
+    87→    87→  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+    88→    88→  const [cameraError, setCameraError] = useState<string | null>(null);
+    89→    89→  const [captureFlash, setCaptureFlash] = useState(false);
+    90→    90→  const [activeTab, setActiveTab] = useState<'camera' | 'upload'>('camera');
+    91→    91→  const [defaultPhotoType, setDefaultPhotoType] = useState<string>('antes');
+    92→    92→
+    93→    93→  // v2.35: límite dinámico de fotos configurable por plantilla / override por zona.
+    94→    94→  // Por defecto 10 (MIN_PHOTOS). Se actualiza al abrir el modal.
+    95→    95→  const [minPhotos, setMinPhotos] = useState<number>(MIN_PHOTOS);
+    96→    96→  const [photoLimitSource, setPhotoLimitSource] = useState<'override' | 'template' | 'default'>('default');
+    97→    97→
+    98→    98→  const beforePrompt = BEFORE_PROMPT_BY_S[sStep] || 'Fotografía la zona para documentar su estado actual.';
+    99→    99→
+   100→   100→  // Generate auto title with traceability
+   101→   101→  const generatePhotoTitle = (index: number, photoType: string): string => {
+   102→   102→    const sName = sStepData?.japaneseName || `S${sStep}`
+   103→   103→    const zoneName = currentZone?.name || 'Zona'
+   104→   104→    const typeLabel = photoType === 'antes' ? 'ANTES' : photoType === 'despues' ? 'DESPUÉS' : photoType === 'referencia' ? 'Referencia' : 'Hallazgo'
+   105→   105→    const date = new Date().toLocaleDateString('es-ES')
+   106→   106→    return `S${sStep} ${sName} - ${zoneName} - ${typeLabel} ${index + 1} (${date})`
+   107→   107→  }
+   108→   108→
+   109→   109→  // Refs para cola de subida secuencial — evita saturar CPU/memoria en móvil
+   110→   110→  // cuando se seleccionan varias fotos a la vez (era la causa del bloqueo).
+   111→   111→  const uploadQueueRef = useRef<{ rawBase64: string; photoType: string }[]>([]);
+   112→   112→  const isProcessingRef = useRef(false);
+   113→   113→  const photoCounterRef = useRef(0);
+   114→   114→  const [queueLength, setQueueLength] = useState(0);
+   115→   115→
+   116→   116→  const uploadPhoto = async (base64Data: string, index: number): Promise<string | null> => {
+   117→   117→    try {
+   118→   118→      const projectId = currentProject?.id || 'unknown';
+   119→   119→      const filename = generatePhotoFilename(projectId, sStep, miniStep, index);
+   120→   120→      const file = base64toFile(base64Data, filename);
+   121→   121→
+   122→   122→      const formData = new FormData();
+   123→   123→      formData.append('file', file);
+   124→   124→      formData.append('filename', filename);
+   125→   125→
+   126→   126→      const res = await fetch('/api/upload', {
+   127→   127→        method: 'POST',
+   128→   128→        body: formData,
+   129→   129→      });
+   130→   130→
+   131→   131→      const data = await res.json();
+   132→   132→      if (data.success && data.url) return data.url;
+   133→   133→      return null;
+   134→   134→    } catch (error) {
+   135→   135→      console.error('Upload error:', error);
+   136→   136→      return null;
+   137→   137→    }
+   138→   138→  };
+   139→   139→
+   140→   140→  // Procesa la cola de fotos UNA A UNA. Así el canvas + toDataURL + fetch
+   141→   141→  // no compiten por CPU/memoria, y la UI del móvil no se congela.
+   142→   142→  const processQueue = useCallback(async () => {
+   143→   143→    if (isProcessingRef.current) return;
+   144→   144→    if (uploadQueueRef.current.length === 0) return;
+   145→   145→    isProcessingRef.current = true;
+   146→   146→    console.log(`[FotosModal] processQueue: iniciando procesamiento de ${uploadQueueRef.current.length} foto(s)`);
+   147→   147→
+   148→   148→    try {
+   149→   149→      while (uploadQueueRef.current.length > 0) {
+   150→   150→        const item = uploadQueueRef.current.shift()!;
+   151→   151→        setQueueLength(uploadQueueRef.current.length);
+   152→   152→
+   153→   153→        const { rawBase64, photoType } = item;
+   154→   154→        const index = photoCounterRef.current++;
+   155→   155→        const photoId = `photo_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`;
+   156→   156→        console.log(`[FotosModal] processQueue: procesando foto #${index + 1} (id=${photoId}), quedan ${uploadQueueRef.current.length} en cola`);
+   157→   157→
+   158→   158→        try {
+   159→   159→          const compressed = await compressImage(rawBase64);
+   160→   160→          const estimatedSize = estimateBase64Size(compressed);
+   161→   161→
+   162→   162→          const newPhoto: PhotoItem = {
+   163→   163→            id: photoId,
+   164→   164→            preview: compressed,
+   165→   165→            serverUrl: '',
+   166→   166→            uploaded: false,
+   167→   167→            uploading: true,
+   168→   168→            estimatedSize,
+   169→   169→            title: generatePhotoTitle(index, photoType),
+   170→   170→            photoType,
+   171→   171→            savedToLibrary: false,
+   172→   172→          };
+   173→   173→
+   174→   174→          setPhotos(prev => [...prev, newPhoto]);
+   175→   175→
+   176→   176→          const url = await uploadPhoto(compressed, index);
+   177→   177→
+   178→   178→          // Actualiza por ID — robusto frente a reordenamientos/eliminaciones
+   179→   179→          setPhotos(prev =>
+   180→   180→            prev.map(p =>
+   181→   181→              p.id === photoId
+   182→   182→                ? { ...p, serverUrl: url || '', uploaded: !!url, uploading: false }
+   183→   183→                : p
+   184→   184→            )
+   185→   185→          );
+   186→   186→        } catch (err) {
+   187→   187→          console.error('Error processing queued photo:', err);
+   188→   188→          // Marcamos la foto como fallida (uploaded=false, uploading=false) para que el usuario la vea
+   189→   189→          setPhotos(prev =>
+   190→   190→            prev.map(p =>
+   191→   191→              p.id === photoId
+   192→   192→                ? { ...p, uploading: false, uploaded: false }
+   193→   193→                : p
+   194→   194→            )
+   195→   195→          );
+   196→   196→        }
+   197→   197→
+   198→   198→        // Cede al event loop para que el navegador pinte (evita congelar la UI)
+   199→   199→        await new Promise(r => setTimeout(r, 30));
+   200→   200→      }
+   201→   201→    } finally {
+   202→   202→      isProcessingRef.current = false;
+   203→   203→      setQueueLength(0);
+   204→   204→    }
+   205→   205→  }, [sStep, miniStep, currentProject?.id]);
+   206→   206→
+   207→   207→  // Encolar (no procesa directamente). Múltiples llamadas paralelas solo llenan la cola,
+   208→   208→  // luego processQueue las consume de una en una.
+   209→   209→  const addPhoto = useCallback((rawBase64: string) => {
+   210→   210→    uploadQueueRef.current.push({ rawBase64, photoType: defaultPhotoType });
+   211→   211→    setQueueLength(uploadQueueRef.current.length);
+   212→   212→    processQueue();
+   213→   213→  }, [processQueue, defaultPhotoType]);
+   214→   214→
+   215→   215→  const stopStream = useCallback(() => {
+   216→   216→    if (stream) {
+   217→   217→      stream.getTracks().forEach(track => track.stop());
+   218→   218→      setStream(null);
+   219→   219→    }
+   220→   220→    setCameraMode('idle');
+   221→   221→  }, [stream]);
+   222→   222→
+   223→   223→  const startCamera = useCallback(async () => {
+   224→   224→    setCameraError(null);
+   225→   225→    try {
+   226→   226→      const mediaStream = await navigator.mediaDevices.getUserMedia({
+   227→   227→        video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
+   228→   228→        audio: false,
+   229→   229→      });
+   230→   230→      setStream(mediaStream);
+   231→   231→      setCameraMode('streaming');
+   232→   232→      if (videoRef.current) {
+   233→   233→        videoRef.current.srcObject = mediaStream;
+   234→   234→        await videoRef.current.play();
+   235→   235→      }
+   236→   236→    } catch (err: any) {
+   237→   237→      if (err.name === 'NotAllowedError') setCameraError('Permiso denegado. Permite el acceso a la cámara.');
+   238→   238→      else if (err.name === 'NotFoundError') setCameraError('No se encontró ninguna cámara.');
+   239→   239→      else setCameraError('Error al acceder a la cámara. Intenta subir una foto desde tu galería.');
+   240→   240→    }
+   241→   241→  }, [facingMode]);
+   242→   242→
+   243→   243→  const switchCamera = useCallback(async () => {
+   244→   244→    stopStream();
+   245→   245→    setFacingMode(prev => (prev === 'environment' ? 'user' : 'environment'));
+   246→   246→  }, [stopStream]);
+   247→   247→
+   248→   248→  const capturePhoto = useCallback(() => {
+   249→   249→    if (!videoRef.current || !canvasRef.current) return;
+   250→   250→    const video = videoRef.current;
+   251→   251→    const canvas = canvasRef.current;
+   252→   252→    canvas.width = video.videoWidth;
+   253→   253→    canvas.height = video.videoHeight;
+   254→   254→    const ctx = canvas.getContext('2d');
+   255→   255→    if (!ctx) return;
+   256→   256→    if (facingMode === 'user') { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
+   257→   257→    ctx.drawImage(video, 0, 0);
+   258→   258→    const base64 = canvas.toDataURL('image/jpeg', 0.9);
+   259→   259→    setCaptureFlash(true);
+   260→   260→    setTimeout(() => setCaptureFlash(false), 300);
+   261→   261→    addPhoto(base64);
+   262→   262→  }, [facingMode, addPhoto]);
+   263→   263→
+   264→   264→  // Load existing photos from DB when modal opens
+   265→   265→  const [loadingPhotos, setLoadingPhotos] = useState(false);
+   266→   266→
+   267→   267→  // v2.35: cargar límite dinámico de fotos al abrir el modal.
+   268→   268→  // Llama a /api/photo-limits que resuelve override > template > 10.
+   269→   269→  useEffect(() => {
+   270→   270→    if (!open || !currentProject?.id || !currentZone?.id) return;
+   271→   271→    const url = `/api/photo-limits?projectId=${currentProject.id}&zoneId=${currentZone.id}&sStep=${sStep}&miniStep=${miniStep}`;
+   272→   272→    fetch(url)
+   273→   273→      .then(r => r.json())
+   274→   274→      .then(data => {
+   275→   275→        if (data.success && data.data && typeof data.data.minPhotos === 'number') {
+   276→   276→          setMinPhotos(data.data.minPhotos);
+   277→   277→          setPhotoLimitSource(data.data.source);
+   278→   278→          console.log(`[FotosModal] minPhotos resuelto: ${data.data.minPhotos} (origen: ${data.data.source})`);
+   279→   279→        }
+   280→   280→      })
+   281→   281→      .catch(err => console.error('[FotosModal] Error al cargar photo-limits:', err));
+   282→   282→  }, [open, currentProject?.id, currentZone?.id, sStep, miniStep]);
+   283→   283→
+   284→   284→  useEffect(() => {
+   285→   285→    if (open && currentProject?.id) {
+   286→   286→      setLoadingPhotos(true);
+   287→   287→      const zoneIdParam = currentZone?.id ? `&zoneId=${currentZone.id}` : ''
+   288→   288→      fetch(`/api/photo-library?projectId=${currentProject.id}&sStep=${sStep}&miniStep=2${zoneIdParam}`)
+   289→   289→        .then(res => res.json())
+   290→   290→        .then(data => {
+   291→   291→          if (data.success && data.data && data.data.length > 0) {
+   292→   292→            const existingPhotos: PhotoItem[] = data.data.map((p: any, idx: number) => ({
+   293→   293→              id: `existing_${p.id || idx}_${Math.random().toString(36).slice(2, 8)}`,
+   294→   294→              preview: p.photoUrl, // Use the stored URL as preview
+   295→   295→              serverUrl: p.photoUrl,
+   296→   296→              uploaded: true,
+   297→   297→              uploading: false,
+   298→   298→              estimatedSize: 0,
+   299→   299→              title: p.title || '',
+   300→   300→              photoType: p.photoType || 'antes',
+   301→   301→              savedToLibrary: true, // Already saved in DB
+   302→   302→            }));
+   303→   303→            photoCounterRef.current = existingPhotos.length;
+   304→   304→            setPhotos(existingPhotos);
+   305→   305→            // If step was already completed, mark it
+   306→   306→            const antesCount = existingPhotos.filter(p => p.photoType === 'antes').length;
+   307→   307→            const despuesCount = existingPhotos.filter(p => p.photoType === 'despues').length;
+   308→   308→            if (antesCount >= minPhotos) setIsCompleted(true);
+   309→   309→          }
+   310→   310→          setLoadingPhotos(false);
+   311→   311→        })
+   312→   312→        .catch(err => {
+   313→   313→          console.error('Error loading existing photos:', err);
+   314→   314→          setLoadingPhotos(false);
+   315→   315→        });
+   316→   316→    }
+   317→   317→  }, [open, currentProject?.id, sStep, currentZone?.id]);
+   318→   318→
+   319→   319→  useEffect(() => {
+   320→   320→    if (!open) {
+   321→   321→      stopStream();
+   322→   322→      // Don't clear photos on close — they should persist
+   323→   323→      // Only clear transient UI state
+   324→   324→      setCameraError(null);
+   325→   325→      setCameraMode('idle');
+   326→   326→      setActiveTab('camera');
+   327→   327→    }
+   328→   328→  }, [open, stopStream]);
+   329→   329→
+   330→   330→  // Lee todos los archivos y los encola. NO procesa aquí (eso saturationa el hilo UI).
+   331→   331→  // El procesamiento pesado (compresión + upload) lo hace processQueue secuencialmente.
+   332→   332→  const readFileAsDataURL = (file: File): Promise<string> =>
+   333→   333→    new Promise((resolve, reject) => {
+   334→   334→      const reader = new FileReader();
+   335→   335→      reader.onloadend = () => resolve(reader.result as string);
+   336→   336→      reader.onerror = () => reject(reader.error);
+   337→   337→      reader.readAsDataURL(file);
+   338→   338→    });
+   339→   339→
+   340→   340→  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   341→   341→    const files = e.target.files;
+   342→   342→    if (!files || files.length === 0) return;
+   343→   343→    // Captura el snapshot del FileList ANTES de limpiar el input.
+   344→   344→    // Si limpiamos antes, el navegador vacía el FileList y Array.from(files) da [].
+   345→   345→    const fileArr = Array.from(files);
+   346→   346→    if (fileInputRef.current) fileInputRef.current.value = '';
+   347→   347→    console.log(`[FotosModal] handleFileSelect: ${fileArr.length} archivo(s) seleccionado(s)`);
+   348→   348→    await Promise.all(fileArr.map(f => readFileAsDataURL(f).then(addPhoto).catch(err => console.error('Error leyendo archivo:', err))));
+   349→   349→  };
+   350→   350→
+   351→   351→  const handleCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   352→   352→    const files = e.target.files;
+   353→   353→    if (!files || files.length === 0) return;
+   354→   354→    const fileArr = Array.from(files);
+   355→   355→    if (cameraInputRef.current) cameraInputRef.current.value = '';
+   356→   356→    console.log(`[FotosModal] handleCameraCapture: ${fileArr.length} archivo(s) capturado(s)`);
+   357→   357→    await Promise.all(fileArr.map(f => readFileAsDataURL(f).then(addPhoto).catch(err => console.error('Error leyendo archivo de cámara:', err))));
+   358→   358→  };
+   359→   359→
+   360→   360→  const removePhoto = (index: number) => setPhotos(prev => prev.filter((_, i) => i !== index));
+   361→   361→
+   362→   362→  const uploadingCount = photos.filter(p => p.uploading).length;
+   363→   363→  const isQueueBusy = queueLength > 0 || uploadingCount > 0;
+   364→   364→  const canSubmit = photos.length >= minPhotos && uploadingCount === 0 && queueLength === 0;
+   365→   365→  const totalSize = photos.reduce((sum, p) => sum + p.estimatedSize, 0);
+   366→   366→
+   367→   367→  const handleSubmit = async () => {
+   368→   368→    if (!canSubmit) return;
+   369→   369→    setIsSubmitting(true);
+   370→   370→    try {
+   371→   371→      const urls = photos.map(p => p.serverUrl || p.preview).join(',');
+   372→   372→
+   373→   373→      // Save each photo to the PhotoLibrary with full traceability
+   374→   374→      // Use serverUrl if available, otherwise use preview (base64) as the photoUrl
+   375→   375→      const libraryPromises = photos
+   376→   376→        .filter(p => !p.savedToLibrary)
+   377→   377→        .map((p, idx) => {
+   378→   378→          const allUploadedBefore = photos.slice(0, idx).filter(pp => pp.serverUrl || pp.preview).length;
+   379→   379→          const photoUrlForDb = p.serverUrl || p.preview; // Use base64 as fallback if upload failed
+   380→   380→          return fetch('/api/photo-library', {
+   381→   381→            method: 'POST',
+   382→   382→            headers: { 'Content-Type': 'application/json' },
+   383→   383→            body: JSON.stringify({
+   384→   384→              sStep,
+   385→   385→              miniStep: 2,
+   386→   386→              title: p.title || generatePhotoTitle(allUploadedBefore, p.photoType),
+   387→   387→              description: `${sStepData?.japaneseName || 'S' + sStep} - ${currentZone?.name || 'Zona'} - Paso 2 Fotos - Subida por ${currentUser?.name || 'Usuario'}`,
+   388→   388→              photoUrl: photoUrlForDb,
+   389→   389→              photoType: p.photoType || 'antes',
+   390→   390→              category: `paso2_s${sStep}`,
+   391→   391→              tags: JSON.stringify([`S${sStep}`, sStepData?.japaneseName || '', currentZone?.name || '', `paso2`, p.photoType]),
+   392→   392→              projectId: currentProject?.id,
+   393→   393→              zoneId: currentZone?.id || null,
+   394→   394→              uploadedBy: currentUser?.id || null,
+   395→   395→            }),
+   396→   396→          });
+   397→   397→        });
+   398→   398→      
+   399→   399→      // Wait for ALL photo library saves to complete before proceeding
+   400→   400→      const libraryResults = await Promise.allSettled(libraryPromises);
+   401→   401→      const savedCount = libraryResults.filter(r => r.status === 'fulfilled').length;
+   402→   402→      const failedCount = libraryResults.filter(r => r.status === 'rejected').length;
+   403→   403→      if (failedCount > 0) console.warn(`[FotosModal] ${failedCount} photos failed to save to library`);
+   404→   404→      else if (savedCount > 0) console.log(`[FotosModal] ${savedCount} photos saved to library`);
+   405→   405→      
+   406→   406→      // Mark all photos as saved in local state
+   407→   407→      setPhotos(prev => prev.map(p => ({ ...p, savedToLibrary: true })));
+   408→   408→
+   409→   409→      // Save progress
+   410→   410→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+   411→   411→        method: 'PUT',
+   412→   412→        headers: { 'Content-Type': 'application/json' },
+   413→   413→        body: JSON.stringify({ completed: true, photoUrls: urls, score: 100, projectId: currentProject?.id, zoneId: currentZone?.id || null }),
+   414→   414→      });
+   415→   415→      const json = await res.json();
+   416→   416→      if (json.success) { setIsCompleted(true); stopStream(); await fetchProgress(); }
+   417→   417→    } catch (error) {
+   418→   418→      console.error('Error submitting photos:', error);
+   419→   419→    } finally {
+   420→   420→      setIsSubmitting(false);
+   421→   421→    }
+   422→   422→  };
+   423→   423→
+   424→   424→  const handleAdminSkip = async () => {
+   425→   425→    try {
+   426→   426→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+   427→   427→        method: 'PUT',
+   428→   428→        headers: { 'Content-Type': 'application/json' },
+   429→   429→        body: JSON.stringify({ completed: true, score: 100, notes: 'Completado por administrador (skip)', skipMissingTemplate: true, projectId: currentProject?.id, zoneId: currentZone?.id || null }),
+   430→   430→      });
+   431→   431→      const json = await res.json();
+   432→   432→      if (json.success) { await fetchProgress(); onClose(); }
+   433→   433→    } catch (error) { console.error('Error admin skip:', error); }
+   434→   434→  };
+   435→   435→
+   436→   436→  const isMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+   437→   437→
+   438→   438→  return (
+   439→   439→    <Dialog open={open} onOpenChange={() => { stopStream(); onClose(); }}>
+   440→   440→      <DialogContent size={isFullscreen ? "fullscreen" : "xl"} className="flex flex-col overflow-hidden p-0">
+   441→   441→        <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
+   442→   442→          <DialogTitle className="flex items-center gap-2">
+   443→   443→            <Camera className="h-5 w-5" style={{ color: sStepData?.color }} />
+   444→   444→            <span>Fotografías (Antes)</span>
+   445→   445→            <Badge variant="outline" style={{ borderColor: sStepData?.color, color: sStepData?.color }}>
+   446→   446→              {sStepData?.name}
+   447→   447→            </Badge>
+   448→   448→            <button
+   449→   449→              onClick={() => setIsFullscreen(!isFullscreen)}
+   450→   450→              className="ml-auto p-1 rounded hover:bg-muted transition-colors"
+   451→   451→              title={isFullscreen ? "Reducir ventana" : "Pantalla completa"}
+   452→   452→            >
+   453→   453→              {isFullscreen ? <Minimize2 className="h-4 w-4 text-muted-foreground" /> : <Maximize2 className="h-4 w-4 text-muted-foreground" />}
+   454→   454→            </button>
+   455→   455→          </DialogTitle>
+   456→   456→        </DialogHeader>
+   457→   457→
+   458→   458→        {canSkipSteps && !isCompleted && (
+   459→   459→          <div className="flex items-center gap-2 p-2 mx-6 flex-shrink-0 bg-amber-50 border border-amber-200 rounded-lg">
+   460→   460→            <span className="text-xs text-amber-700 font-medium">Modo Admin:</span>
+   461→   461→            <Button variant="outline" size="sm" className="text-xs border-amber-300 text-amber-700 hover:bg-amber-100" onClick={handleAdminSkip}>
+   462→   462→              Completar paso sin subir fotos
+   463→   463→            </Button>
+   464→   464→          </div>
+   465→   465→        )}
+   466→   466→
+   467→   467→        {isReadOnly && (
+   468→   468→          <div className="flex items-center gap-2 p-2 mx-6 flex-shrink-0 bg-blue-50 border border-blue-200 rounded-lg">
+   469→   469→            <span className="text-xs text-blue-700 font-medium">Solo lectura: {canSkipSteps ? 'Activa el candado para poder realizar pasos.' : 'Puedes ver pero no modificar.'}</span>
+   470→   470→          </div>
+   471→   471→        )}
+   472→   472→
+   473→   473→        <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
+   474→   474→        {isCompleted ? (
+   475→   475→          <div className="text-center py-8">
+   476→   476→            <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-3" />
+   477→   477→            <h3 className="text-xl font-bold mb-2">Fotografías del ANTES Guardadas</h3>
+   478→   478→            <p className="text-muted-foreground">Ha guardado {photos.length} fotos como evidencia del estado inicial.</p>
+   479→   479→            <p className="text-xs text-muted-foreground mt-2">Tamaño total optimizado: {formatBytes(totalSize)}</p>
+   480→   480→            <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
+   481→   481→              <p className="text-sm font-semibold">→ Próximo paso: Inventario (Clasificar elementos)</p>
+   482→   482→            </div>
+   483→   483→            <div className="mt-4 flex justify-center">
+   484→   484→              <Button
+   485→   485→                onClick={() => { onClose(); openModal('inventario', 3); }}
+   486→   486→                style={{ backgroundColor: sStepData?.color }}
+   487→   487→                className="text-white"
+   488→   488→              >
+   489→   489→                Continuar al Inventario →
+   490→   490→              </Button>
+   491→   491→            </div>
+   492→   492→          </div>
+   493→   493→        ) : (
+   494→   494→          <div className="space-y-4">
+   495→   495→            <div className="p-3 rounded-lg border-l-4" style={{ borderColor: sStepData?.color, backgroundColor: `${sStepData?.color}08` }}>
+   496→   496→              <p className="text-sm font-medium" style={{ color: sStepData?.color }}>{sStepData?.japaneseName} — {sStepData?.spanishName}</p>
+   497→   497→              <p className="text-sm text-muted-foreground mt-1">{beforePrompt}</p>
+   498→   498→            </div>
+   499→   499→
+   500→   500→            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+   501→   501→              <span className="text-sm font-medium">Fotos del ANTES</span>
+   502→   502→              <div className="flex items-center gap-2">
+   503→   503→                <Badge variant={photos.length >= minPhotos ? 'default' : 'secondary'}>{photos.length} / {minPhotos} mínimo</Badge>
+   504→   504→                {totalSize > 0 && <span className="text-xs text-muted-foreground">({formatBytes(totalSize)})</span>}
+   505→   505→              </div>
+   506→   506→            </div>
+   507→   507→
+   508→   508→            <Card>
+   509→   509→              <CardContent className="p-4 space-y-4">
+   510→   510→                <div className="flex gap-1 p-1 bg-muted rounded-lg">
+   511→   511→                  <button className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all ${activeTab === 'camera' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} onClick={() => setActiveTab('camera')}>
+   512→   512→                    <Camera className="h-4 w-4" />Hacer foto
+   513→   513→                  </button>
+   514→   514→                  <button className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all ${activeTab === 'upload' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`} onClick={() => { setActiveTab('upload'); stopStream(); }}>
+   515→   515→                    <GalleryHorizontalEnd className="h-4 w-4" />Subir desde galería
+   516→   516→                  </button>
+   517→   517→                </div>
+   518→   518→
+   519→   519→                {activeTab === 'camera' && (
+   520→   520→                  <div className="space-y-3">
+   521→   521→                    <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleCameraCapture} />
+   522→   522→                    {isMobile && cameraMode === 'idle' && (
+   523→   523→                      <div className="space-y-3">
+   524→   524→                        <button className="w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center gap-3 hover:border-primary/50 hover:bg-muted/30 transition-colors" onClick={() => cameraInputRef.current?.click()}>
+   525→   525→                          <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: `${sStepData?.color}20` }}><Zap className="h-7 w-7" style={{ color: sStepData?.color }} /></div>
+   526→   526→                          <p className="text-sm font-semibold">Abrir cámara del dispositivo</p>
+   527→   527→                          <p className="text-xs text-muted-foreground">Toma fotos directamente con la cámara de tu móvil</p>
+   528→   528→                        </button>
+   529→   529→                        <button className="w-full flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors" onClick={() => { if (cameraInputRef.current) { cameraInputRef.current.setAttribute('capture', 'user'); cameraInputRef.current.click(); setTimeout(() => { if (cameraInputRef.current) cameraInputRef.current.setAttribute('capture', 'environment'); }, 500); } }}>
+   530→   530→                          <SwitchCamera className="h-3 w-3" />Usar cámara frontal
+   531→   531→                        </button>
+   532→   532→                      </div>
+   533→   533→                    )}
+   534→   534→                    {!isMobile && (
+   535→   535→                      <div className="space-y-3">
+   536→   536→                        {cameraMode === 'idle' && (
+   537→   537→                          <button className="w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center gap-3 hover:border-primary/50 hover:bg-muted/30 transition-colors" onClick={startCamera}>
+   538→   538→                            <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: `${sStepData?.color}20` }}><Video className="h-7 w-7" style={{ color: sStepData?.color }} /></div>
+   539→   539→                            <p className="text-sm font-semibold">Activar cámara</p>
+   540→   540→                            <p className="text-xs text-muted-foreground">Conecta tu cámara para tomar fotos directamente</p>
+   541→   541→                          </button>
+   542→   542→                        )}
+   543→   543→                        {cameraError && <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-sm text-destructive">{cameraError}</div>}
+   544→   544→                        {(cameraMode === 'streaming' || cameraMode === 'capturing') && (
+   545→   545→                          <div className="relative rounded-xl overflow-hidden bg-black">
+   546→   546→                            {captureFlash && <div className="absolute inset-0 bg-white z-20 animate-pulse" />}
+   547→   547→                            <video ref={videoRef} className="w-full aspect-video object-cover" playsInline muted style={facingMode === 'user' ? { transform: 'scaleX(-1)' } : {}} />
+   548→   548→                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+   549→   549→                              <div className="flex items-center justify-center gap-4">
+   550→   550→                                <button className="w-10 h-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center hover:bg-white/30 transition-colors" onClick={switchCamera} title="Cambiar cámara"><SwitchCamera className="h-5 w-5 text-white" /></button>
+   551→   551→                                <button className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform" style={{ backgroundColor: sStepData?.color || '#3b82f6' }} onClick={capturePhoto}><div className="w-12 h-12 rounded-full bg-white" /></button>
+   552→   552→                                <button className="w-10 h-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center hover:bg-white/30 transition-colors" onClick={stopStream} title="Cerrar cámara"><VideoOff className="h-5 w-5 text-white" /></button>
+   553→   553→                              </div>
+   554→   554→                            </div>
+   555→   555→                            <div className="absolute top-3 left-3 flex items-center gap-2">
+   556→   556→                              <div className="flex items-center gap-1.5 bg-red-500/80 backdrop-blur px-2 py-1 rounded-full"><div className="w-2 h-2 bg-white rounded-full animate-pulse" /><span className="text-xs text-white font-medium">EN VIVO</span></div>
+   557→   557→                              <span className="text-xs text-white/80 bg-black/40 backdrop-blur px-2 py-1 rounded-full">{facingMode === 'user' ? 'Frontal' : 'Trasera'}</span>
+   558→   558→                            </div>
+   559→   559→                          </div>
+   560→   560→                        )}
+   561→   561→                        <canvas ref={canvasRef} className="hidden" />
+   562→   562→                        {cameraError && <Button variant="outline" size="sm" onClick={startCamera} className="w-full"><Video className="h-4 w-4 mr-2" />Reintentar conexión con cámara</Button>}
+   563→   563→                      </div>
+   564→   564→                    )}
+   565→   565→                  </div>
+   566→   566→                )}
+   567→   567→
+   568→   568→                {activeTab === 'upload' && (
+   569→   569→                  <div>
+   570→   570→                    <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileSelect} disabled={isQueueBusy} />
+   571→   571→                    <button
+   572→   572→                      className={`w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center gap-3 transition-colors ${isQueueBusy ? 'opacity-60 cursor-not-allowed border-muted' : 'hover:border-primary/50 hover:bg-muted/30'}`}
+   573→   573→                      onClick={() => { if (!isQueueBusy) fileInputRef.current?.click(); }}
+   574→   574→                      disabled={isQueueBusy}
+   575→   575→                    >
+   576→   576→                      <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: `${sStepData?.color}20` }}>
+   577→   577→                        {isQueueBusy ? <Loader2 className="h-7 w-7 animate-spin" style={{ color: sStepData?.color }} /> : <Upload className="h-7 w-7" style={{ color: sStepData?.color }} />}
+   578→   578→                      </div>
+   579→   579→                      <p className="text-sm font-semibold">{isQueueBusy ? 'Procesando fotos...' : 'Seleccionar fotos de la galería'}</p>
+   580→   580→                      <p className="text-xs text-muted-foreground">{isQueueBusy ? `${queueLength + uploadingCount} pendiente${(queueLength + uploadingCount) !== 1 ? 's' : ''} en cola` : 'Soporta JPG, PNG, GIF — Se procesan una a una para no saturar el dispositivo'}</p>
+   581→   581→                    </button>
+   582→   582→                  </div>
+   583→   583→                )}
+   584→   584→              </CardContent>
+   585→   585→            </Card>
+   586→   586→
+   587→   587→            {/* Photo type selector */}
+   588→   588→            <div className="flex items-center gap-2 flex-wrap">
+   589→   589→              <span className="text-xs text-muted-foreground font-medium">Tipo de foto:</span>
+   590→   590→              {[
+   591→   591→                { value: 'antes', label: 'ANTES', color: 'bg-red-100 text-red-800 border-red-300' },
+   592→   592→                { value: 'despues', label: 'DESPUÉS', color: 'bg-green-100 text-green-800 border-green-300' },
+   593→   593→                { value: 'referencia', label: 'Referencia', color: 'bg-blue-100 text-blue-800 border-blue-300' },
+   594→   594→                { value: 'hallazgo', label: 'Hallazgo', color: 'bg-amber-100 text-amber-800 border-amber-300' },
+   595→   595→              ].map(t => (
+   596→   596→                <button key={t.value} onClick={() => setDefaultPhotoType(t.value)}
+   597→   597→                  className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border-2 transition-all ${
+   598→   598→                    defaultPhotoType === t.value ? t.color + ' shadow-sm scale-105' : 'bg-gray-50 text-gray-400 border-gray-200'
+   599→   599→                  }`}>
+   600→   600→                  {t.label}
+   601→   601→                </button>
+   602→   602→              ))}
+   603→   603→            </div>
+   604→   604→
+   605→   605→            {photos.length > 0 && (
+   606→   606→              <div className="space-y-2">
+   607→   607→                <div className="flex items-center justify-between">
+   608→   608→                  <h4 className="text-sm font-medium">Fotos capturadas</h4>
+   609→   609→                  <div className="flex items-center gap-2">
+   610→   610→                    <span className="text-xs text-muted-foreground">{photos.length} foto{photos.length !== 1 ? 's' : ''}</span>
+   611→   611→                    {isQueueBusy && <span className="text-xs text-blue-500 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />{queueLength > 0 ? `${queueLength + uploadingCount} en cola` : `Subiendo ${uploadingCount}...`}</span>}
+   612→   612→                  </div>
+   613→   613→                </div>
+   614→   614→                {isQueueBusy && (
+   615→   615→                  <div className="p-2 rounded-lg bg-blue-50 border border-blue-200 flex items-center gap-2">
+   616→   616→                    <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500 shrink-0" />
+   617→   617→                    <span className="text-xs text-blue-700">Procesando fotos una a una para evitar bloqueos. Espera a que termine para añadir más.</span>
+   618→   618→                  </div>
+   619→   619→                )}
+   620→   620→                <div className="space-y-2">
+   621→   621→                  {photos.map((photo, index) => (
+   622→   622→                    <div key={index} className="flex items-start gap-3 p-2 rounded-lg border bg-white group">
+   623→   623→                      <div className="w-16 h-16 rounded-lg overflow-hidden border shrink-0">
+   624→   624→                        <img src={photo.preview} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" />
+   625→   625→                      </div>
+   626→   626→                      <div className="flex-1 min-w-0 space-y-1.5">
+   627→   627→                        <div className="flex items-center gap-2">
+   628→   628→                          <Badge className={`text-[9px] px-1.5 py-0 ${
+   629→   629→                            photo.photoType === 'antes' ? 'bg-red-100 text-red-700' :
+   630→   630→                            photo.photoType === 'despues' ? 'bg-green-100 text-green-700' :
+   631→   631→                            photo.photoType === 'referencia' ? 'bg-blue-100 text-blue-700' :
+   632→   632→                            'bg-amber-100 text-amber-700'
+   633→   633→                          }`}>
+   634→   634→                            {photo.photoType === 'antes' ? 'ANTES' :
+   635→   635→                             photo.photoType === 'despues' ? 'DESPUÉS' :
+   636→   636→                             photo.photoType === 'referencia' ? 'REF' : 'HALLAZGO'}
+   637→   637→                          </Badge>
+   638→   638→                          {photo.uploaded ? <CheckCircle className="h-3.5 w-3.5 text-green-500" /> :
+   639→   639→                           photo.uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" /> :
+   640→   640→                           !photo.serverUrl ? <X className="h-3.5 w-3.5 text-red-400" /> : null}
+   641→   641→                          <span className="text-[9px] text-muted-foreground">{formatBytes(photo.estimatedSize)}</span>
+   642→   642→                        </div>
+   643→   643→                        <input
+   644→   644→                          type="text"
+   645→   645→                          value={photo.title}
+   646→   646→                          onChange={e => setPhotos(prev => prev.map((p, i) => i === index ? { ...p, title: e.target.value } : p))}
+   647→   647→                          className="w-full text-xs border rounded px-2 py-1 h-7 focus:outline-none focus:ring-1 focus:ring-teal-400"
+   648→   648→                          placeholder="Título de la foto..."
+   649→   649→                        />
+   650→   650→                      </div>
+   651→   651→                      <button className="shrink-0 w-6 h-6 rounded-full bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+   652→   652→                        onClick={() => removePhoto(index)} title="Eliminar foto">
+   653→   653→                        <X className="h-3 w-3" />
+   654→   654→                      </button>
+   655→   655→                    </div>
+   656→   656→                  ))}
+   657→   657→                  <button className="w-full py-3 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center gap-2 hover:border-primary/50 hover:bg-muted/20 transition-colors text-sm text-muted-foreground"
+   658→   658→                    onClick={() => { if (isMobile) { cameraInputRef.current?.click(); } else { setActiveTab('camera'); if (cameraMode === 'idle') startCamera(); } }}>
+   659→   659→                    <Camera className="h-4 w-4" />
+   660→   660→                    <span className="text-xs font-medium">Añadir foto ({defaultPhotoType === 'antes' ? 'ANTES' : defaultPhotoType === 'despues' ? 'DESPUÉS' : defaultPhotoType === 'referencia' ? 'Referencia' : 'Hallazgo'})</span>
+   661→   661→                  </button>
+   662→   662→                </div>
+   663→   663→              </div>
+   664→   664→            )}
+   665→   665→
+   666→   666→            {photos.length === 0 && (
+   667→   667→              <div className="text-center py-4 text-muted-foreground">
+   668→   668→                <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+   669→   669→                <p className="text-sm">No hay fotos del ANTES aún</p>
+   670→   670→                <p className="text-xs mt-1">Usa la cámara o sube fotos de tu galería</p>
+   671→   671→              </div>
+   672→   672→            )}
+   673→   673→
+   674→   674→            <div className="text-xs text-muted-foreground space-y-1">
+   675→   675→              <p>• Mínimo {minPhotos} fotos del estado ANTES de la zona</p>
+   676→   676→              <p>• Incluya diferentes ángulos y perspectivas de la zona</p>
+   677→   677→            </div>
+   678→   678→
+   679→   679→            <div className="flex justify-end">
+   680→   680→              <Button onClick={handleSubmit} disabled={!canSubmit || isSubmitting || isReadOnly} style={canSubmit && !isReadOnly ? { backgroundColor: sStepData?.color } : undefined} className="gap-2">
+   681→   681→                {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" />Guardando...</> : <><CheckCircle className="h-4 w-4" />Guardar Fotos ANTES ({photos.length} foto{photos.length !== 1 ? 's' : ''})</>}
+   682→   682→              </Button>
+   683→   683→            </div>
+   684→   684→          </div>
+   685→   685→        )}
+   686→   686→        </div>
+   687→   687→      </DialogContent>
+   688→   688→    </Dialog>
+   689→   689→  );
+   690→   690→}
+   691→   691→
