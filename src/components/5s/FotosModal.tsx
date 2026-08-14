@@ -262,13 +262,34 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
+    // v2.60: validar que el video tiene un frame listo (videoWidth > 0).
+    // Si el stream acaba de iniciar o está en transición, videoWidth puede
+    // ser 0 y el canvas resultante sería 0x0 → imagen negra al comprimir.
+    if (!video.videoWidth || !video.videoHeight || video.videoWidth < 2 || video.videoHeight < 2) {
+      console.warn('[FotosModal] Video not ready (dimensions:', video.videoWidth, 'x', video.videoHeight, '). Skipping capture.');
+      toast.error('La cámara aún no está lista. Espera un instante e inténtalo de nuevo.');
+      return;
+    }
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    // v2.60: llenar el canvas con blanco antes de dibujar (igual que compressImage)
+    // para evitar píxeles negros si la imagen tuviera transparencia.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (facingMode === 'user') { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
     ctx.drawImage(video, 0, 0);
     const base64 = canvas.toDataURL('image/jpeg', 0.9);
+    // v2.60: sanity check — si la captura es sospechosamente pequeña,
+    // no la añadimos a la cola (sería una foto negra).
+    const base64Len = base64.split(',')[1]?.length || 0;
+    const estimatedSize = (base64Len * 3) / 4;
+    if (estimatedSize < 1024) {
+      console.error('[FotosModal] Capture produced empty image (' + estimatedSize + ' bytes). Skipping.');
+      toast.error('La captura salió vacía. Inténtalo de nuevo.');
+      return;
+    }
     setCaptureFlash(true);
     setTimeout(() => setCaptureFlash(false), 300);
     addPhoto(base64);
@@ -519,6 +540,34 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
           } catch (err) {
             console.error(`[FotosModal] Error vinculando foto ${idx + 1} al item ${newItemId}:`, err);
           }
+        }
+
+        // v2.60: pedir descripción automática al VLM en background.
+        // No bloquea el submit — si falla, la foto ya está guardada con
+        // la descripción genérica. Si funciona, actualizamos la descripción
+        // en la biblioteca. La descripción se verá al abrir la foto en el
+        // lightbox del inventario o en la biblioteca de fotos.
+        if (photoId && photoUrlForDb) {
+          (async () => {
+            try {
+              const describeRes = await fetch('/api/photo-describe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ imageUrl: photoUrlForDb, sStep }),
+              });
+              const describeJson = await describeRes.json();
+              if (describeJson.success && describeJson.description) {
+                await fetch('/api/photo-library', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ id: photoId, description: describeJson.description }),
+                });
+                console.log(`[FotosModal] AI description applied to photo ${idx + 1}:`, describeJson.description);
+              }
+            } catch (describeErr) {
+              console.warn(`[FotosModal] VLM description failed for photo ${idx + 1} (non-blocking):`, describeErr);
+            }
+          })();
         }
       }
 

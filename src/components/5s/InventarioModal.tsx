@@ -496,6 +496,29 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
               // Pequeño stagger para no disparar todos los PUT en paralelo
               setTimeout(() => handleAutoGenerateEtiqueta(enriched), 50);
             }
+
+            // v2.60: backfill de jaulaStatus — items S1 con decision='Retirar'
+            // pero jaulaStatus='' (creados antes de v2.60 o migrados desde fotos
+            // sin pasar por el handler de decision) deben tener jaulaStatus='en_jaula'
+            // para aparecer en el JaulaView.
+            if (isRetirar && it.id && (!it.jaulaStatus || it.jaulaStatus === '')) {
+              const updates: any = {
+                jaulaStatus: 'en_jaula',
+                jaulaFechaEntrada: it.jaulaFechaEntrada || new Date().toISOString(),
+                jaulaOrigen: it.jaulaOrigen || it.zonaOrigen || currentZone?.name || currentProject?.name || '',
+              };
+              if (!it.zonaOrigen) {
+                updates.zonaOrigen = currentZone?.name || currentProject?.name || '';
+              }
+              // Normalizar en state local
+              setItems(prev => prev.map(x => x.id === it.id ? { ...x, ...updates } : x));
+              // Persistir en DB (background)
+              fetch(`/api/inventory?id=${it.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+              }).catch(e => console.error('Error normalizando jaulaStatus:', e));
+            }
           });
         }
       } else {
@@ -698,6 +721,48 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
         }),
       });
 
+      // v2.60: pedir descripción automática al VLM en background.
+      // No bloquea el flujo — si falla, la foto ya está guardada con la
+      // descripción genérica. Si funciona, actualizamos la descripción
+      // en la biblioteca y en el estado local.
+      (async () => {
+        try {
+          const describeRes = await fetch('/api/photo-describe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageUrl: uploadJson.url, sStep }),
+          });
+          const describeJson = await describeRes.json();
+          if (describeJson.success && describeJson.description) {
+            const aiDescription = describeJson.description;
+            // Actualizar la descripción en la biblioteca
+            const photoJson2 = await photoRes.json();
+            const photoDbId = photoJson2.data?.id;
+            if (photoDbId) {
+              await fetch('/api/photo-library', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: photoDbId, description: aiDescription }),
+              });
+              // Actualizar estado local para que se vea en la UI
+              setItemPhotos(prev => ({
+                ...prev,
+                [itemId]: (prev[itemId] || []).map(p =>
+                  p.id === photoDbId ? { ...p, description: aiDescription } : p
+                ),
+              }));
+              setItems(prev => prev.map(it => it.id === itemId
+                ? { ...it, photos: (it.photos || []).map(p => p.id === photoDbId ? { ...p, description: aiDescription } : p) }
+                : it
+              ));
+              console.log('[handleAttachPhoto] AI description applied:', aiDescription);
+            }
+          }
+        } catch (describeErr) {
+          console.warn('[handleAttachPhoto] VLM description failed (non-blocking):', describeErr);
+        }
+      })();
+
       const photoJson = await photoRes.json();
       if (photoJson.success) {
         const newPhoto: PhotoData = {
@@ -802,29 +867,52 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
   };
 
   const handleDeletePhoto = async (photoId: string, itemId: string) => {
-    // v2.46: las fotos del Paso 2 (miniStep=2) están bloqueadas una vez
-    // completado el Paso 2 — no se pueden borrar desde el Inventario.
+    // v2.60: ya NO bloqueamos las fotos del Paso 2 aquí. El backend decidirá
+    // si se pueden eliminar (si el Paso 2 está completado, devolverá 409).
+    // El usuario ve el error y puede decidir si reinicia el paso o no.
     const photo = (itemPhotos[itemId] || []).find(p => p.id === photoId)
       || (items.find(i => i.id === itemId)?.photos || []).find(p => p.id === photoId);
-    if (photo && (photo as any).miniStep === 2 && miniStep >= 3) {
-      toast.error('Esta foto se tomó en el Paso 2 y no se puede eliminar. Es obligatoria para completar el inventario.');
-      return;
-    }
     try {
       const res = await fetch(`/api/photo-library?id=${photoId}`, { method: 'DELETE' });
       const json = await res.json();
       if (json.success) {
+        // v2.60: actualizar TODOS los estados locales para sincronización bidireccional:
+        // 1) itemPhotos (caché local de fotos por item)
         setItemPhotos(prev => ({
           ...prev,
           [itemId]: (prev[itemId] || []).filter(p => p.id !== photoId),
         }));
+        // 2) items[].photos (array de fotos embebido en el item)
         setItems(prev => prev.map(it => it.id === itemId
           ? { ...it, photos: (it.photos || []).filter(p => p.id !== photoId) }
           : it
         ));
-        toast.success('Foto eliminada');
+        // 3) step2Photos (lista de fotos del Paso 2 — si la foto era del Paso 2)
+        if (photo && (photo as any).miniStep === 2) {
+          setStep2Photos(prev => prev.filter(p => p.id !== photoId));
+        }
+        // 4) photoUrl principal del item (si era la foto principal)
+        const item = items.find(i => i.id === itemId);
+        if (item && item.photoUrl === photo?.photoUrl) {
+          // Buscar otra foto para usar como principal, o limpiar
+          const remainingPhotos = (item.photos || []).filter(p => p.id !== photoId);
+          const newMainPhoto = remainingPhotos[0]?.photoUrl || null;
+          setItems(prev => prev.map(it => it.id === itemId
+            ? { ...it, photoUrl: newMainPhoto }
+            : it
+          ));
+          if (item.id) {
+            fetch(`/api/inventory?id=${item.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ photoUrl: newMainPhoto }),
+            }).catch(e => console.error('Error updating main photoUrl:', e));
+          }
+        }
+        toast.success('Foto eliminada del inventario, Paso 2 y biblioteca');
       } else {
-        toast.error(`Error al eliminar foto: ${json.error || 'Error desconocido'}`);
+        // v2.60: mostrar error del backend (p.ej. 409 si Paso 2 completado)
+        toast.error(json.error || 'No se pudo eliminar la foto.');
       }
     } catch (e) {
       console.error('Error deleting photo:', e);
@@ -1388,6 +1476,38 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
       if (json.success) {
         setIsCompleted(true);
         await fetchProgress();
+
+        // v2.60: Sincronizar inventario S1 → Plan de Acción + Diario del Responsable.
+        // Para cada item con decisión Retirar/Eliminar, se crea un ActionItem
+        // (si no existe ya) con la tarea correspondiente. Así el responsable
+        // ve en su diario y en el plan de acción qué debe retirar a jaula
+        // o eliminar a residuo.
+        if (sStep === 1) {
+          try {
+            const syncRes = await fetch('/api/inventory/sync-actions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                projectId: currentProject?.id,
+                zoneId: currentZone?.id || undefined,
+              }),
+            });
+            const syncJson = await syncRes.json();
+            if (syncJson.success) {
+              const { created, skipped } = syncJson;
+              if (created > 0) {
+                toast.success(`Plan de Acción actualizado: ${created} tarea(s) nueva(s) para el responsable (${skipped} ya existían).`);
+              } else if (skipped > 0) {
+                console.log(`[handleComplete] ${skipped} acción(es) ya estaban sincronizadas`);
+              }
+            } else {
+              console.error('[handleComplete] Error sincronizando acciones:', syncJson.error);
+            }
+          } catch (syncErr) {
+            console.error('[handleComplete] Error llamando a sync-actions:', syncErr);
+            // No bloqueamos el completado si la sincronización falla
+          }
+        }
       }
     } catch (error) {
       console.error('Error completing inventory:', error);
@@ -2174,6 +2294,14 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                       topLevel.jaulaStatus = 'en_jaula';
                                       if (!item.jaulaFechaEntrada) topLevel.jaulaFechaEntrada = new Date().toISOString();
                                       if (!newExtra.diasCuarentena) newExtra.diasCuarentena = 40;
+                                      // v2.60: asegurar jaulaOrigen y zonaOrigen
+                                      // para que el item aparezca en el JaulaView
+                                      if (!item.jaulaOrigen) {
+                                        topLevel.jaulaOrigen = item.zonaOrigen || currentZone?.name || currentProject?.name || '';
+                                      }
+                                      if (!item.zonaOrigen) {
+                                        topLevel.zonaOrigen = currentZone?.name || currentProject?.name || '';
+                                      }
                                     }
                                     // 3) setItems optimista (un único update para evitar carreras)
                                     setItems(prev => prev.map(it => it.id === item.id ? {
@@ -2195,6 +2323,19 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                         extra: newExtra,
                                       };
                                       setTimeout(() => handleAutoGenerateEtiqueta(updatedItem), 50);
+                                    }
+                                    // v2.60: sincronizar con Plan de Acción en background.
+                                    // No esperamos al completado del paso para crear el
+                                    // ActionItem — así el responsable ve la tarea cuanto antes.
+                                    if (sStep === 1 && currentProject?.id) {
+                                      fetch('/api/inventory/sync-actions', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          projectId: currentProject.id,
+                                          zoneId: currentZone?.id || undefined,
+                                        }),
+                                      }).catch(e => console.error('Error syncing action:', e));
                                     }
                                   }}>
                                   <SelectTrigger className={inlineSelect}><SelectValue placeholder="—" /></SelectTrigger>
@@ -2355,9 +2496,29 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                 <Badge className={`absolute -top-1 -left-1 text-[7px] px-0.5 py-0 min-w-0 ${photo.photoType === 'antes' ? 'bg-amber-100 text-amber-800' : photo.photoType === 'despues' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                                   {photo.photoType === 'antes' ? 'A' : photo.photoType === 'despues' ? 'D' : 'R'}
                                 </Badge>
-                                {!isReadOnly && (photo as any).miniStep !== 2 && (
-                                  <button className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={(e) => { e.stopPropagation(); handleDeletePhoto(photo.id, item.id!); }} title="Eliminar foto">×</button>
+                                {/* v2.60: botón × SIEMPRE visible (también para fotos del Paso 2).
+                                    Si la foto es del Paso 2 y el paso está completado, el backend
+                                    devolverá 409 y mostraremos el error. Si no está completado,
+                                    se elimina correctamente y se actualiza biblioteca + Paso 2 + inventario. */}
+                                {!isReadOnly && (
+                                  <button
+                                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 hover:scale-110 shadow-sm z-10"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // v2.60: confirmación si es foto del Paso 2
+                                      const isPaso2 = (photo as any).miniStep === 2;
+                                      const msg = isPaso2
+                                        ? '¿Eliminar esta foto? Se quitará del inventario, del Paso 2 y de la biblioteca de fotos.'
+                                        : '¿Eliminar esta foto del inventario y de la biblioteca?';
+                                      if (!confirm(msg)) return;
+                                      handleDeletePhoto(photo.id, item.id!);
+                                    }}
+                                    title="Eliminar foto"
+                                  >
+                                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M1 1L7 7M7 1L1 7" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                                    </svg>
+                                  </button>
                                 )}
                               </div>
                             ))}

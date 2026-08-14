@@ -13,8 +13,10 @@ import {
   MapPin, Users, TrendingUp, CheckCircle2, Clock, AlertTriangle,
   ChevronDown, ChevronUp, ShieldCheck, BarChart3, Eye,
   ClipboardList, Camera, BookOpen, Award, FileCheck,
+  Calendar, ListTodo, Package, Trash2, ArrowRight,
 } from 'lucide-react'
 import { S_STEPS } from '@/lib/5s-constants'
+import { toast } from 'sonner'
 
 // ═══════════════════════════════════════════════════════
 // TYPES
@@ -51,6 +53,25 @@ interface ZoneProgress {
   zoneName: string
   steps: StepProgress[]
   overallPercent: number
+}
+
+// v2.60: Tarea del diario del responsable — proviene del Plan de Acción
+// y se crea automáticamente cuando se completa el inventario S1 con
+// decisiones de Retirar/Eliminar.
+interface DiarioTask {
+  id: string
+  numeroEntrada: number
+  hallazgo: string
+  accionCorrectiva: string
+  clienteZona: string
+  responsable: string | null
+  estado: string
+  prioridad: string
+  fechaLimite: string | null
+  fechaEntrada: string
+  porcentaje: number
+  source: string
+  sStep: number
 }
 
 const S_COLORS: Record<number, string> = {
@@ -90,11 +111,74 @@ export default function ResponsablePanel() {
   const [zoneProgressMap, setZoneProgressMap] = useState<Record<string, ZoneProgress>>({})
   const [zoneMembers, setZoneMembers] = useState<Record<string, MemberInfo[]>>({})
   const [isLoading, setIsLoading] = useState(true)
+  // v2.60: tareas del diario del responsable (action items pendientes)
+  const [diarioTasks, setDiarioTasks] = useState<DiarioTask[]>([])
+  const [diarioFilter, setDiarioFilter] = useState<string>('all') // all, pendientes, en_proceso, resueltas
+  const [isLoadingDiario, setIsLoadingDiario] = useState(false)
 
   // Load data on mount
   useEffect(() => {
     loadData()
+    loadDiarioTasks()
   }, [currentUser, currentProject])
+
+  // v2.60: cargar tareas del Plan de Acción para el diario del responsable.
+  // Filtra por rol: el responsable solo ve las de sus zonas asignadas.
+  const loadDiarioTasks = async () => {
+    if (!currentUser || !currentProject) return
+    setIsLoadingDiario(true)
+    try {
+      const params = new URLSearchParams()
+      params.set('projectId', currentProject.id)
+      params.set('userId', currentUser.id)
+      params.set('userRole', currentUser.role)
+      const res = await fetch(`/api/actions?${params.toString()}`)
+      const json = await res.json()
+      if (json.success && json.data) {
+        const tasks: DiarioTask[] = json.data.map((a: any) => ({
+          id: a.id,
+          numeroEntrada: a.numeroEntrada || 0,
+          hallazgo: a.hallazgo || a.itemDescription || '',
+          accionCorrectiva: a.accionCorrectiva || a.mejora || '',
+          clienteZona: a.clienteZona || a.zone?.name || '',
+          responsable: a.responsable || null,
+          estado: a.estado || 'abierta',
+          prioridad: a.prioridad || 'media',
+          fechaLimite: a.fechaLimite ? new Date(a.fechaLimite).toISOString().split('T')[0] : null,
+          fechaEntrada: a.fechaEntrada ? new Date(a.fechaEntrada).toISOString().split('T')[0] : (a.createdAt ? new Date(a.createdAt).toISOString().split('T')[0] : ''),
+          porcentaje: a.porcentaje || 0,
+          source: a.source || 'actionplan',
+          sStep: a.sStep || 1,
+        }))
+        setDiarioTasks(tasks)
+      }
+    } catch (e) {
+      console.error('Error loading diario tasks:', e)
+    } finally {
+      setIsLoadingDiario(false)
+    }
+  }
+
+  // v2.60: actualizar el estado de una tarea del diario
+  const handleUpdateTaskStatus = async (taskId: string, newEstado: string) => {
+    try {
+      const res = await fetch(`/api/actions?id=${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: newEstado }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        setDiarioTasks(prev => prev.map(t => t.id === taskId ? { ...t, estado: newEstado } : t))
+        toast.success(`Tarea marcada como "${newEstado}"`)
+      } else {
+        toast.error('Error al actualizar la tarea')
+      }
+    } catch (e) {
+      console.error('Error updating task:', e)
+      toast.error('Error de conexión')
+    }
+  }
 
   const loadData = async () => {
     if (!currentUser || !currentProject) return
@@ -446,6 +530,199 @@ export default function ResponsablePanel() {
             </Card>
           )
         })}
+      </div>
+
+      {/* v2.60: Diario del Responsable — tareas del Plan de Acción pendientes.
+          Se alimenta automáticamente del inventario S1 (Retirar/Eliminar)
+          y de cualquier otra acción creada en el Plan de Acción. */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Diario del Responsable
+            <Badge variant="outline" className="text-[10px]">
+              {diarioTasks.filter(t => t.estado !== 'cerrada' && t.estado !== 'resuelta').length} pendientes
+            </Badge>
+          </h3>
+          <Select value={diarioFilter} onValueChange={setDiarioFilter}>
+            <SelectTrigger className="h-7 w-40 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="pendientes">Pendientes</SelectItem>
+              <SelectItem value="en_proceso">En proceso</SelectItem>
+              <SelectItem value="resueltas">Resueltas</SelectItem>
+              <SelectItem value="inventario">Desde inventario</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {isLoadingDiario ? (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <div className="h-6 w-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <p className="text-xs text-muted-foreground">Cargando tareas...</p>
+            </CardContent>
+          </Card>
+        ) : (() => {
+          let filtered = diarioTasks
+          if (diarioFilter === 'pendientes') {
+            filtered = diarioTasks.filter(t => t.estado === 'abierta')
+          } else if (diarioFilter === 'en_proceso') {
+            filtered = diarioTasks.filter(t => t.estado === 'en_proceso')
+          } else if (diarioFilter === 'resueltas') {
+            filtered = diarioTasks.filter(t => t.estado === 'resuelta' || t.estado === 'cerrada')
+          } else if (diarioFilter === 'inventario') {
+            filtered = diarioTasks.filter(t => t.source === 'inventario')
+          }
+
+          if (filtered.length === 0) {
+            return (
+              <Card className="border-dashed">
+                <CardContent className="py-8 text-center">
+                  <ListTodo className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">No hay tareas en el diario.</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Las tareas se crean automáticamente al completar el inventario S1
+                    con decisiones de Retirar o Eliminar.
+                  </p>
+                </CardContent>
+              </Card>
+            )
+          }
+
+          return (
+            <div className="space-y-2">
+              {filtered.map(task => {
+            const isFromInventory = task.source === 'inventario'
+            const isRetirar = task.accionCorrectiva?.toLowerCase().includes('jaula')
+            const isEliminar = task.accionCorrectiva?.toLowerCase().includes('residuo') || task.accionCorrectiva?.toLowerCase().includes('eliminar')
+            const isUrgent = task.prioridad === 'alta' && task.estado !== 'resuelta' && task.estado !== 'cerrada'
+            const isVencido = task.fechaLimite && new Date(task.fechaLimite) < new Date() && task.estado !== 'resuelta' && task.estado !== 'cerrada'
+
+            const estadoConfig: Record<string, { label: string; color: string }> = {
+              abierta: { label: 'Pendiente', color: 'bg-red-100 text-red-800' },
+              en_proceso: { label: 'En proceso', color: 'bg-yellow-100 text-yellow-800' },
+              resuelta: { label: 'Resuelta', color: 'bg-green-100 text-green-800' },
+              cerrada: { label: 'Cerrada', color: 'bg-gray-100 text-gray-600' },
+            }
+            const estadoInfo = estadoConfig[task.estado] || estadoConfig.abierta
+
+            return (
+              <Card
+                key={task.id}
+                className={`border-l-4 ${isVencido ? 'border-red-500 bg-red-50/30' : isUrgent ? 'border-orange-500 bg-orange-50/30' : 'border-blue-300'}`}
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-3">
+                    {/* Icono según tipo de acción */}
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                      isRetirar ? 'bg-orange-100' : isEliminar ? 'bg-red-100' : 'bg-blue-100'
+                    }`}>
+                      {isRetirar ? <Package className="h-4 w-4 text-orange-600" /> :
+                       isEliminar ? <Trash2 className="h-4 w-4 text-red-600" /> :
+                       <ListTodo className="h-4 w-4 text-blue-600" />}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-xs font-bold text-gray-700">#{task.numeroEntrada}</span>
+                        <Badge className={`text-[9px] px-1.5 py-0 ${estadoInfo.color}`}>{estadoInfo.label}</Badge>
+                        {isFromInventory && (
+                          <Badge className="text-[9px] px-1.5 py-0 bg-violet-100 text-violet-800" title="Creada automáticamente desde el inventario S1">
+                            Inventario S1
+                          </Badge>
+                        )}
+                        {isUrgent && !isVencido && (
+                          <Badge className="text-[9px] px-1.5 py-0 bg-orange-100 text-orange-800">
+                            <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />Urgente
+                          </Badge>
+                        )}
+                        {isVencido && (
+                          <Badge className="text-[9px] px-1.5 py-0 bg-red-100 text-red-800">
+                            <Clock className="h-2.5 w-2.5 mr-0.5" />Vencida
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-900 font-medium leading-snug">{task.hallazgo}</p>
+                      {task.accionCorrectiva && (
+                        <p className="text-xs text-gray-600 mt-1 flex items-center gap-1">
+                          <ArrowRight className="h-3 w-3 shrink-0" />
+                          {task.accionCorrectiva}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-3 mt-2 text-[10px] text-gray-500 flex-wrap">
+                        <span className="flex items-center gap-0.5">
+                          <MapPin className="h-2.5 w-2.5" />
+                          {task.clienteZona || 'Sin zona'}
+                        </span>
+                        {task.responsable && (
+                          <span className="flex items-center gap-0.5">
+                            <Users className="h-2.5 w-2.5" />
+                            {task.responsable}
+                          </span>
+                        )}
+                        {task.fechaLimite && (
+                          <span className={`flex items-center gap-0.5 ${isVencido ? 'text-red-600 font-semibold' : ''}`}>
+                            <Calendar className="h-2.5 w-2.5" />
+                            Límite: {task.fechaLimite.split('-').reverse().join('/')}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-0.5">
+                          <Clock className="h-2.5 w-2.5" />
+                          Entrada: {task.fechaEntrada.split('-').reverse().join('/')}
+                        </span>
+                      </div>
+                      {task.porcentaje > 0 && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <Progress value={task.porcentaje} className="h-1 flex-1" />
+                          <span className="text-[10px] text-gray-500">{task.porcentaje}%</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Acciones rápidas */}
+                    <div className="flex flex-col gap-1 shrink-0">
+                      {task.estado === 'abierta' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-2 border-yellow-300 text-yellow-700 hover:bg-yellow-50"
+                          onClick={() => handleUpdateTaskStatus(task.id, 'en_proceso')}
+                        >
+                          Iniciar
+                        </Button>
+                      )}
+                      {task.estado === 'en_proceso' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-2 border-green-300 text-green-700 hover:bg-green-50"
+                          onClick={() => handleUpdateTaskStatus(task.id, 'resuelta')}
+                        >
+                          Resolver
+                        </Button>
+                      )}
+                      {task.estado !== 'cerrada' && task.estado !== 'resuelta' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-[10px] px-2 text-gray-500 hover:bg-gray-100"
+                          onClick={() => handleUpdateTaskStatus(task.id, 'cerrada')}
+                        >
+                          Cerrar
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+            </div>
+          )
+        })()}
       </div>
 
       {/* Quick S-Step Overview (all zones) */}

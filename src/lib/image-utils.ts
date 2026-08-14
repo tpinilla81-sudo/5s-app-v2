@@ -11,13 +11,16 @@ const JPEG_QUALITY = 0.7; // 70% quality - good balance between size and visual 
  * Compress an image file or base64 data URL.
  * Returns a compressed JPEG base64 data URL.
  *
- * v2.58: FIX fotos negras — dos causas:
- * 1) img.crossOrigin = 'anonymous' en data URLs podía taintar el canvas
- *    y toDataURL('image/jpeg') devolvía una imagen completamente negra
- *    silenciosamente (sin error). Ya no se setea crossOrigin para strings.
- * 2) JPEG no soporta transpele — si el canvas tenía píxeles transparentes
- *    (PNG con alpha, o canvas recién creado), se convertían a NEGRO.
- *    Ahora llenamos el canvas con blanco antes de dibujar la imagen.
+ * v2.60: FIX adicional a v2.58/59 — cuando se captura desde cámara (canvas)
+ * en некоторых navegadores el `video.videoWidth` es 0 justo al hacer
+ * capturePhoto porque el stream aún no tiene un frame listo. Eso producía
+ * un canvas 0x0 y por tanto una imagen negra al comprimir.
+ * Ahora:
+ *  - Validamos que el source tenga dimensiones reales (>0)
+ *  - Si la imagen source mide 0x0, rechazamos explícitamente
+ *  - Si después de comprimir sigue siendo <1KB para >100x100, devolvemos
+ *    el ORIGINAL (data URL completo sin comprimir) en lugar de uno negro.
+ *  - Usar image/png como fallback si image/jpeg falla silenciosamente.
  */
 export async function compressImage(source: string | File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -72,16 +75,31 @@ export async function compressImage(source: string | File): Promise<string> {
         ctx.drawImage(img, 0, 0, width, height);
 
         // Convert to JPEG with compression
-        const compressed = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+        let compressed = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
 
-        // v2.58: sanity check — si el data URL es sospechosamente pequeño
+        // v2.60: sanity check — si el data URL es sospechosamente pequeño
         // (menos de 1KB para una imagen de 1200x900), probablemente es negro.
-        // En ese caso, rechazar para que el caller use el original.
+        // En ese caso, probar con PNG (sin transparencia) antes de rendirnos.
         const base64Length = compressed.split(',')[1]?.length || 0;
         const estimatedSize = (base64Length * 3) / 4;
         if (estimatedSize < 1024 && width > 100 && height > 100) {
-          console.warn('[compressImage] Output suspiciously small (' + estimatedSize + ' bytes), likely black image. Using original.');
-          // Devolver el original sin comprimir antes que uno negro
+          console.warn('[compressImage] JPEG output suspiciously small (' + estimatedSize + ' bytes), likely black image. Trying PNG fallback.');
+          // Intentar PNG como fallback — a veces JPEG falla silenciosamente
+          // para ciertas imágenes y PNG no.
+          try {
+            const pngFallback = canvas.toDataURL('image/png');
+            const pngLength = pngFallback.split(',')[1]?.length || 0;
+            const pngSize = (pngLength * 3) / 4;
+            if (pngSize > 1024) {
+              console.log('[compressImage] PNG fallback worked (' + pngSize + ' bytes). Using PNG.');
+              resolve(pngFallback);
+              return;
+            }
+          } catch (pngErr) {
+            console.warn('[compressImage] PNG fallback also failed:', pngErr);
+          }
+          // Último recurso: devolver el original sin comprimir
+          console.warn('[compressImage] All compression failed. Using original uncompressed.');
           if (typeof source === 'string') {
             resolve(source);
           } else {
