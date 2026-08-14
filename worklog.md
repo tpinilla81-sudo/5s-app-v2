@@ -2101,3 +2101,60 @@ Stage Summary:
     jaulaStatus='', jaulaFechaEntrada=null, etiquetaData borrada
   * Al elegir Retirar: Z Destino=Jaula, etiqueta auto-generada, etc.
 - Ya no hay race conditions entre los updates.
+
+---
+Task ID: v2.56
+Agent: Main
+Task: Foto lightbox negro + Decisión vacío por defecto
+
+Work Log:
+- Usuario: "faltaría poder ver la foto, sale en negro. En decision, de
+  primeras poner en blanco para poder elegir del despegable eliminar o
+  retirar para que salga la etiqueta, si está como ahora de primeras
+  retirar, no sale etiqueta"
+
+FIX 1 — Foto lightbox en negro:
+- DialogContent: bg-black → bg-zinc-900 (gris oscuro, no negro puro)
+- img: quitado bg-black del className, añadido onError handler que
+  oculta el img y muestra un div con '🖼️ No se pudo cargar la imagen'
+  en su lugar. Antes, si la foto fallaba o tardaba en cargar, el
+  usuario veía una caja negra sin feedback.
+- Footer: bg-black → bg-zinc-900 con border-zinc-700
+
+FIX 2 — Decisión pre-seleccionada a Retirar (causaba que etiqueta
+no se auto-generara):
+- ROOT CAUSE: displayDecision(undefined) devolvía 'Retirar'. Así que
+  el Select siempre mostraba 'Retirar' incluso para items nuevos sin
+  decisión. Pero como el valor ya era 'Retirar', onValueChange NUNCA
+  disparaba al abrir el modal → handleAutoGenerateEtiqueta nunca se
+  llamaba → etiqueta nunca se generaba.
+- FIX:
+  1) Select value ahora: item.extra?.decision ? displayDecision(...) : undefined
+     → Si no hay decisión, Select está vacío (placeholder '—')
+  2) Z Destino: si no hay decisión → '—' (antes mostraba 'Jaula')
+  3) Días cuarentena: si no hay decisión → '—' (antes mostraba Select con 40)
+  4) Etiquetas: si no hay decisión → '—' (antes mostraba 'Pendiente')
+  5) importTemplateItems: ya NO fuerza decision='Retirar' por defecto.
+     Solo conservamos decision si el template lo trae.
+- Backfill v2.53 sigue funcionando para items legacy con decision='Retirar'
+  + sin etiquetaGenerada (los auto-genera al cargar).
+
+Bump v2.55 → v2.56 (middleware, page.tsx, LoginPage).
+Build Next.js: ✓ Compiled successfully.
+Commit 05240fe + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- TRAS DEPLOY v2.56 (~1-2 min):
+  * Al abrir InventarioModal S1 con items nuevos:
+    - Decisión: Select vacío con placeholder '—'
+    - Z Destino: '—'
+    - Días cuarentena: '—'
+    - Etiquetas: '—'
+  * Al seleccionar 'Retirar' en el Select:
+    - onValueChange dispara (porque cambió de undefined a 'Retirar')
+    - etiqueta se auto-genera
+    - Z Destino = 'Jaula', Días cuar. = 40, Etiquetas = 'Impresa' + 🖨️
+  * Al seleccionar 'Eliminar':
+    - Z Destino = 'Residuo', Días cuar. = '—', Etiquetas = '—'
+  * Al clickar en una foto: lightbox gris oscuro, si la foto carga
+    se ve; si no carga, mensaje '🖼️ No se pudo cargar la imagen'
