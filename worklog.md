@@ -2707,3 +2707,26 @@ Stage Summary:
 - Page backgrounds: loading, no-projects, main app container and header all switched to solid bg-green-50
 - Manual regenerated with all v2.55-v2.65 changes documented in detail (17 sections, 14 tables, 30+ glossary terms, 14 FAQ entries)
 - Commits: 33b3871 (toolbar reorder), then v2.65 logo+green-bg commit, then 2e99018 (manual update)
+
+---
+Task ID: v2.67
+Agent: Main
+Task: Eliminar halo blanco del logo en LandingPage (punto 3)
+
+Work Log:
+- Usuario reportó "punto 3 sigue igual" con screenshot del LandingPage
+- VLM confirmó: logo envuelto en círculo blanco grueso sobre fondo verde
+- Inspección del PNG /public/5s-logo.png: limpio (sin pixels blancos, alpha=0 en esquinas)
+- Causa raíz: LandingPage.tsx línea 168 tenía `rounded-full bg-white` wrapper alrededor del <img>
+- LandingPage.tsx línea 573 (footer) tenía el mismo patrón `rounded-full bg-white`
+- Removido `rounded-full bg-white shadow-sm` de ambos wrappers en LandingPage.tsx
+- Logo ahora se renderiza directo sobre el fondo verde, sin envoltorio blanco
+- Bump v2.66 → v2.67 (middleware.ts, page.tsx)
+- Commit 8b6024c + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- TRAS DEPLOY v2.67 (~1-2 min):
+  * LandingPage hero: logo sin círculo blanco, sobre fondo verde del hero
+  * LandingPage footer: logo sin círculo blanco, sobre bg-gray-50 del footer
+  * Otras páginas (LoginPage, ProjectSelector, app header) ya estaban limpias
+  * Badge versión muestra v2.67
