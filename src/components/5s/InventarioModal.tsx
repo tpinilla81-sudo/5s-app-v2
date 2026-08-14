@@ -1008,13 +1008,13 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
   };
 
   const handleDeleteItem = async (id: string) => {
-    // v2.46: los items creados desde fotos del Paso 2 (extra.sourcePhotoId)
-    // no se pueden eliminar desde el Inventario — son obligatorios.
+    // v2.52: el candado 🔒 se eliminó. Cualquier item se puede borrar.
+    // Si el item viene de una foto del Paso 2 (extra.sourcePhotoId),
+    // también se limpia el campo inventoryItemId en la foto para que
+    // reaparezca como "pendiente de clasificar" en el Paso 2.
     const item = items.find(i => i.id === id);
-    if (item && (item.extra as any)?.sourcePhotoId && miniStep >= 3) {
-      toast.error('Este elemento viene de una foto del Paso 2 y no se puede eliminar. Rellena sus datos para clasificarlo.');
-      return;
-    }
+    if (!item) return;
+    if (!confirm(`¿Eliminar "${item.name}"?${(item.extra as any)?.sourcePhotoId ? ' La foto del Paso 2 quedará como pendiente de clasificar.' : ''}`)) return;
     try {
       const res = await fetch(`/api/inventory?id=${id}`, { method: 'DELETE' });
       const json = await res.json();
@@ -1046,6 +1046,57 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
     } catch (error) {
       console.error('Error updating jaula:', error);
       toast.error('Error de conexión al actualizar');
+    }
+  };
+
+  // v2.52: auto-generar snapshot de etiqueta roja cuando decisión = Retirar (→Jaula).
+  // No imprime nada; solo deja el snapshot listo en extra.etiquetaData y marca
+  // extra.etiquetaGenerada=true para que la columna "Etiquetas" muestre "Impresa"
+  // y permita al usuario imprimir después con un solo click.
+  const handleAutoGenerateEtiqueta = async (item: InventoryItemData) => {
+    if (!item.id) return;
+    const dias = Number(item.extra?.diasCuarentena ?? 40);
+    let fechaRevision: string | null = null;
+    if (item.jaulaFechaEntrada) {
+      try {
+        const d = new Date(item.jaulaFechaEntrada);
+        d.setDate(d.getDate() + dias);
+        fechaRevision = d.toISOString();
+      } catch {}
+    }
+    const snapshot = {
+      nombre: item.name,
+      ubicacion: item.location || currentZone?.name || currentProject?.name || '',
+      cantidad: item.quantityUnneeded || item.quantity || 1,
+      estado: String(item.extra?.estado ?? ''),
+      frecuenciaUso: String(item.extra?.frecuenciaUso ?? ''),
+      decision: 'Retirar',
+      categoria: String(item.category ?? 'Innecesario'),
+      fechaEntrada: item.jaulaFechaEntrada,
+      fechaRevision,
+      diasCuarentena: dias,
+      zonaOrigen: item.zonaOrigen || item.jaulaOrigen || currentZone?.name || '',
+      observaciones: null,
+    };
+    const fecha = new Date().toISOString();
+    const newExtra = {
+      ...(item.extra || {}),
+      decision: 'Retirar',
+      diasCuarentena: dias,
+      etiquetaGenerada: true,
+      etiquetaFecha: fecha,
+      etiquetaData: snapshot,
+    };
+    delete (newExtra as any).isDraft;
+    setItems(prev => prev.map(it => it.id === item.id ? { ...it, extra: newExtra } : it));
+    try {
+      await fetch(`/api/inventory?id=${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ extra: newExtra }),
+      });
+    } catch (e) {
+      console.error('Error auto-generating etiqueta:', e);
     }
   };
 
@@ -2006,10 +2057,24 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                         handleUpdateField(item.id!, 'jaulaStatus', '');
                                         handleUpdateField(item.id!, 'jaulaFechaEntrada', null);
                                         handleUpdateExtra(item.id!, 'diasCuarentena', '_clear_');
+                                        // v2.52: limpiar snapshot de etiqueta si existía
+                                        const extra = { ...(item.extra || {}) };
+                                        delete (extra as any).etiquetaGenerada;
+                                        delete (extra as any).etiquetaFecha;
+                                        delete (extra as any).etiquetaData;
                                       } else if (val === 'Retirar') {
+                                        // v2.52: asegurar jaulaStatus + fecha entrada
+                                        const updatedItem: InventoryItemData = {
+                                          ...item,
+                                          jaulaStatus: 'en_jaula',
+                                          jaulaFechaEntrada: item.jaulaFechaEntrada || new Date().toISOString(),
+                                          extra: { ...(item.extra || {}), decision: 'Retirar', diasCuarentena: item.extra?.diasCuarentena ?? 40 },
+                                        };
                                         handleUpdateField(item.id!, 'jaulaStatus', 'en_jaula');
                                         if (!item.jaulaFechaEntrada) handleUpdateField(item.id!, 'jaulaFechaEntrada', new Date().toISOString());
                                         if (!item.extra?.diasCuarentena) handleUpdateExtra(item.id!, 'diasCuarentena', 40);
+                                        // v2.52: generar snapshot de etiqueta automáticamente
+                                        setTimeout(() => handleAutoGenerateEtiqueta(updatedItem), 50);
                                       }
                                     }
                                   }}>
@@ -2036,15 +2101,46 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                 </Select>
                               ) : <span className="text-[11px]">{item.extra?.diasCuarentena ?? 40}d</span>}
                             </td>
-                            {/* ETIQUETA ROJA — v2.51: columna dedicada; solo aplica si decisión = Retirar (→Jaula) */}
+                            {/* ETIQUETA ROJA — v2.52: botón impresión individual al seleccionar Retirar */}
                             <td className="px-1 py-1 border bg-rose-50 text-center">
                               {isEliminarDecision(item.extra?.decision) ? (
                                 <span className="text-muted-foreground text-[10px]" title="No aplica: el elemento va a residuo">—</span>
                               ) : isJaulaDecision(item.extra?.decision) ? (
                                 <div className="flex flex-col items-center gap-0.5">
-                                  {getEtiquetaBadge(item) || (
-                                    <Badge className="bg-rose-100 text-rose-800 text-[8px] px-1 py-0 whitespace-nowrap" title="Etiqueta roja pendiente de imprimir (usa el botón 'Etiquetas' arriba)">
-                                      🔴 Pendiente
+                                  {item.extra?.etiquetaGenerada ? (
+                                    <>
+                                      {getEtiquetaBadge(item)}
+                                      {item.id && (
+                                        <TagPrinter
+                                          items={[{
+                                            nombre: item.name,
+                                            ubicacion: item.location || currentZone?.name || currentProject?.name || '',
+                                            cantidad: item.quantityUnneeded || item.quantity || 1,
+                                            estado: String(item.extra?.estado ?? ''),
+                                            frecuenciaUso: String(item.extra?.frecuenciaUso ?? ''),
+                                            decision: 'Retirar',
+                                            categoria: String(item.category ?? 'Innecesario'),
+                                            fechaEntrada: item.jaulaFechaEntrada,
+                                            fechaRevision: (() => {
+                                              const dias = Number(item.extra?.diasCuarentena ?? 40);
+                                              if (!item.jaulaFechaEntrada) return null;
+                                              try {
+                                                const d = new Date(item.jaulaFechaEntrada);
+                                                d.setDate(d.getDate() + dias);
+                                                return d.toISOString();
+                                              } catch { return null; }
+                                            })(),
+                                            diasCuarentena: Number(item.extra?.diasCuarentena ?? 40),
+                                            zonaOrigen: item.zonaOrigen || item.jaulaOrigen || currentZone?.name || '',
+                                          }]}
+                                          itemIds={[item.id]}
+                                          onAfterPrint={() => loadInventory()}
+                                        />
+                                      )}
+                                    </>
+                                  ) : (
+                                    <Badge className="bg-rose-100 text-rose-800 text-[8px] px-1 py-0 whitespace-nowrap" title="La etiqueta se generará automáticamente al guardar">
+                                      Pendiente
                                     </Badge>
                                   )}
                                 </div>
@@ -2122,13 +2218,13 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                             ))}
                           </div>
                         </td>
-                        {/* Delete — v2.46: oculto si el item viene de una foto del Paso 2 (sourcePhotoId) */}
+                        {/* Delete — v2.52: candado eliminado; cualquier item se puede borrar */}
                         <td className="px-1 py-1 border bg-gray-50">
-                          {isReadOnly || (item.extra as any)?.sourcePhotoId ? (
-                            <span className="text-[10px] text-muted-foreground" title={item.extra?.sourcePhotoId ? 'Elemento obligatorio vinculado al Paso 2' : ''}>🔒</span>
+                          {isReadOnly ? (
+                            <span className="text-[10px] text-muted-foreground">—</span>
                           ) : (
                             <Button variant="ghost" size="sm" className="h-7 text-destructive"
-                              onClick={() => item.id && handleDeleteItem(item.id)}>×</Button>
+                              onClick={() => item.id && handleDeleteItem(item.id)} title="Eliminar elemento">×</Button>
                           )}
                         </td>
                       </tr>
