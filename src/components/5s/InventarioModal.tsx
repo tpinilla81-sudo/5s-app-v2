@@ -450,6 +450,25 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
         });
         setItems(mappedItems);
         setItemPhotos(photosMap);
+
+        // v2.53: backfill — items S1 con decisión Retirar (o legacy 'Jaula')
+        // pero sin etiquetaGenerada, se auto-generan al cargar el modal.
+        // Esto cubre items creados antes de v2.52 que ya tenían Retirar seleccionado.
+        if (sStep === 1) {
+          mappedItems.forEach((it: any) => {
+            const dec = it.extra?.decision;
+            const isRetirar = dec === 'Retirar' || dec === 'Jaula';
+            if (isRetirar && !it.extra?.etiquetaGenerada && it.id) {
+              const enriched = {
+                ...it,
+                jaulaStatus: it.jaulaStatus || 'en_jaula',
+                jaulaFechaEntrada: it.jaulaFechaEntrada || new Date().toISOString(),
+              };
+              // Pequeño stagger para no disparar todos los PUT en paralelo
+              setTimeout(() => handleAutoGenerateEtiqueta(enriched), 50);
+            }
+          });
+        }
       } else {
         console.error('Error loading inventory:', json.error);
       }
