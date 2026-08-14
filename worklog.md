@@ -1708,3 +1708,70 @@ Stage Summary:
   + etiquetaFecha + etiquetaData). La tabla muestra '🏷️ Impresa
   <fecha>' bajo la decisión del item.
 - Pendiente: usuario prueba en v2.48 tras deploy (~1-2 min).
+
+---
+Task ID: v2.49
+Agent: Main
+Task: Botón "Reiniciar Paso 2 y 3 desde cero" con cleanup profundo
+
+Work Log:
+- Petición del usuario: "vamos a dar un paso atrás y cerrar pasos 2 y 3
+  para comenzar de nuevo".
+
+PROBLEMA: la × admin (roja, arriba-derecha del círculo del paso)
+solo borraba el Progress record. Las fotos del Paso 2 y los items
+del inventario seguían en la BD y al reabrir los modales reaparecían.
+El usuario no podía empezar de cero de verdad.
+
+FIX DELETE /api/progress/step:
+- Nuevo query param ?cleanup=true.
+- Si cleanup=true Y miniStep=2:
+  * Borra Inventory items (sStep/project/zone) — drafts del Paso 2
+    + clasificados del Paso 3.
+  * Borra Photos(miniStep=2) del sStep/project/zone.
+  * Borra Progress(miniStep=3) — cascada porque el Paso 3 depende
+    de los drafts creados en Paso 2.
+  * Finalmente borra Progress(miniStep=2).
+  * Orden: items → photos → progress (evita problemas de FK; el FK
+    photoLibrary.inventoryItemId tiene onDelete: SetNull).
+- miniStep=3 con cleanup=true: NO toca items ni fotos. Solo borra
+  Progress(3). Las fotos del Paso 2 y los items siguen disponibles
+  para reclasificar.
+
+FIX page.tsx (× admin):
+- Ahora pasa cleanup=true siempre.
+- Mensaje de confirmación específico según miniStep:
+  * msId=2: explica que borrará progreso 2+3, fotos e items.
+  * msId=3: explica que solo borra progreso del 3.
+
+FIX FotosModal + InventarioModal:
+- Nuevo botón visible 'Reiniciar Paso 2 y 3 desde cero' en cabecera
+  (banner rojo). Más fácil de encontrar que la × diminuta.
+- Solo admin con candado abierto (canSkipSteps && adminFreeNavigation).
+- FotosModal: solo se muestra si isCompleted (no interrumpe edición
+  si el usuario está a mitad).
+- InventarioModal: siempre visible (puede querer reiniciar a mitad
+  del Paso 3).
+- Confirm muestra cuántas fotos/items se eliminarán dinámicamente.
+- Tras éxito: fetchProgress + clear state (setPhotos([])/setItems([]))
+  + toast.success + onClose.
+
+Bump v2.49 en middleware.ts, page.tsx, LoginPage.tsx.
+Build Next.js: ✓ Compiled successfully en 19.9s.
+Resolve merge conflicts durante rebase (auto-commit externo de
+conversation-id chocó con bump de versión).
+Commit + push a GitHub (941d76d). Vercel deploy automático.
+
+Stage Summary:
+- Para "empezar de cero desde el Paso 2":
+  1. Activa el candado (Navegación libre) si no lo está.
+  2. Abre FotosModal (Paso 2) — verás banner rojo "Reiniciar:
+     Reiniciar Paso 2 y 3 desde cero".
+  3. Click → confirm → se borran: Progress(2), Progress(3),
+     Photos(miniStep=2), Inventory items del sStep/project/zone.
+  4. Modal se cierra. Estado: Paso 2 y 3 disponibles (no completados).
+  5. Abre Paso 2 → vacío → toma fotos → submits → drafts creados.
+  6. Abre Paso 3 → clasifica → completa.
+- Alternativa: × admin en el círculo del paso (también hace cleanup
+  profundo si es el paso 2).
+- Pendiente: usuario prueba en v2.49 tras deploy (~1-2 min).
