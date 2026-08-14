@@ -904,3 +904,58 @@ Stage Summary:
 - Pendiente: usuario prueba en v2.37 tras deploy (~1-2 min). Si detecta
   más info técnica en otros puntos de la app, reportar y se aplica otra
   iteración de limpieza.
+
+---
+Task ID: v2.38
+Agent: Main
+Task: Rediseñar la sección 'Ciclo 5S' de la landing page con visual pentágono tipo tablero
+
+Work Log:
+- Usuario reportó: "la zona marcada, el ciclo, que sea como el tablero
+  pero indicando las S, como está en la explicación" (con captura de
+  la sección 'El ciclo 5S' de la landing page marcada en rojo).
+- Sección afectada: <section id="ciclo"> en src/components/auth/LandingPage.tsx
+  (líneas 196-293). Es la sección de marketing que explica el ciclo 5S
+  a usuarios potenciales antes de entrar a la app.
+- Antes: la sección tenía un SVG pequeño (200×200 viewBox) con 5 nodos
+  circulares (S1-S5) dispuestos en pentágono, conectados por líneas
+  punteadas grises, con un círculo central verde claro con 'CICLO 5S'.
+- Ahora: SVG más grande (400×400 viewBox, container 280px móvil /
+  360px desktop) con:
+  * Pentágono dividido en 5 gajos coloreados (uno por S), con
+    gradiente lineal del color de cada S (igual que Board5S).
+  * Borde blanco de 3px entre gajos para separación visual.
+  * Cada gajo muestra 'S1' a 'S5' en blanco, font-weight 900, con
+    text-shadow para legibilidad.
+  * Gajo activo (seleccionado): halo translúcido del color de la S
+    alrededor, fuente mayor (22 vs 18), y muestra el nombre español
+    debajo del número (REVISAR, ORDENAR, LIMPIAR, ESTANDARIZAR,
+    MANTENER) en blanco con sombra.
+  * Click en cualquier gajo → setActiveS(i) → actualiza el panel
+    lateral con descripción, resultado y dots de progreso.
+  * Círculo central (radius 60) con gradiente radial verde claro y
+    borde gris, mostrando 'CICLO' / '5S' en verde (#059669).
+  * Sombra sutil (feDropShadow) bajo el pentágono para destacar
+    del fondo blanco/verde-claro de la sección.
+- Funciones helper replicadas de Board5S.tsx adaptadas a 400×400:
+  * pentagonVertex(angle, radius)
+  * getPentagonSlice(index, oR, iR)
+  * getPentagonOutline(r)
+  * getSliceLabelPos(i)
+- El panel lateral derecho (detail panel) se mantiene idéntico:
+  badge 'S{num}' coloreado + label en español + name japonés italic
+  + descripción + resultado (bg-green-50) + dots de progreso.
+- Bump v2.38 en middleware.ts, page.tsx, LoginPage.tsx.
+- Build Next.js: ✓ Compiled successfully in 21.0s.
+- Commit + push a GitHub (87c0b2c). Vercel deploy automático.
+
+Stage Summary:
+- La landing page ahora muestra el ciclo 5S con el mismo lenguaje
+  visual que el tablero de la app, reforzando la identidad de marca.
+- El usuario puede hacer click en cada gajo del pentágono para
+  explorar las 5 S antes de registrarse.
+- El visual es responsive (280px móvil / 360px desktop) y conserva
+  la interactividad (hover opacity, click para activar).
+- Pendiente: usuario prueba en v2.38 tras deploy (~1-2 min). Si
+  quiere ajustar tamaños, colores o disposición del panel lateral,
+  iterar.
