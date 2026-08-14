@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
           else prioridad = 'media'
         }
 
-        await db.actionItem.create({
+        const newAction = await db.actionItem.create({
           data: {
             sStep: 1,
             miniStep: 3,
@@ -182,6 +182,57 @@ export async function POST(request: NextRequest) {
             semanaReal: null,
           },
         })
+
+        // v2.61: Crear Aviso inmediato (Notification) para el responsable
+        // indicando que entra un nuevo hallazgo al Plan de Acción.
+        try {
+          // Notificar al responsable de la zona si existe
+          if (item.zone?.responsableId) {
+            await db.notification.create({
+              data: {
+                userId: item.zone.responsableId,
+                type: 'new_action_item',
+                title: `Nuevo hallazgo: ${hallazgo.slice(0, 60)}${hallazgo.length > 60 ? '…' : ''}`,
+                message: `Entra al Plan de Acción un nuevo hallazgo en ${zoneName}.\n` +
+                  `Acción: ${accionCorrectiva}\n` +
+                  (fechaLimite ? `Vence: ${fechaLimite.toLocaleDateString('es-ES')}\n` : '') +
+                  `\n[ref:${newAction.id}]`,
+                sStep: 1,
+                zoneId: item.zoneId || null,
+                projectId,
+              },
+            })
+          }
+          // También notificar a gerentes/admins del proyecto
+          const projectAdmins = await db.projectMember.findMany({
+            where: {
+              projectId,
+              role: { in: ['gerente', 'admin'] },
+            },
+            select: { userId: true },
+          })
+          for (const admin of projectAdmins) {
+            if (admin.userId === item.zone?.responsableId) continue // evitar duplicado
+            await db.notification.create({
+              data: {
+                userId: admin.userId,
+                type: 'new_action_item',
+                title: `Nuevo hallazgo: ${hallazgo.slice(0, 60)}${hallazgo.length > 60 ? '…' : ''}`,
+                message: `Entra al Plan de Acción un nuevo hallazgo en ${zoneName}.\n` +
+                  `Acción: ${accionCorrectiva}\n` +
+                  (fechaLimite ? `Vence: ${fechaLimite.toLocaleDateString('es-ES')}\n` : '') +
+                  `Responsable: ${responsableName || '—'}\n` +
+                  `\n[ref:${newAction.id}]`,
+                sStep: 1,
+                zoneId: item.zoneId || null,
+                projectId,
+              },
+            })
+          }
+        } catch (notifErr) {
+          console.error('[sync-actions] Notification creation error:', notifErr)
+          // No bloquear el flujo si falla la notificación
+        }
         created++
       } catch (itemErr: any) {
         console.error(`[sync-actions] Error processing item ${item.id}:`, itemErr)

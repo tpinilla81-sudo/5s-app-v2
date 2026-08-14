@@ -16,6 +16,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ListTodo,
+  ArrowDownToLine,
+  ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -35,6 +37,7 @@ interface TaskItem {
   fechaCompromiso: string | null
   fechaResolucion: string | null
   fechaReal: string | null
+  fechaEntrada: string | null
   porcentaje: number | null
   source: string
   sStep: number
@@ -59,6 +62,7 @@ interface UserTaskCalendarProps {
   userId: string
   projectId?: string
   userName?: string
+  onOpenActionPlan?: (itemId?: string) => void
 }
 
 export function UserTaskCalendar({
@@ -67,6 +71,7 @@ export function UserTaskCalendar({
   userId,
   projectId,
   userName,
+  onOpenActionPlan,
 }: UserTaskCalendarProps) {
   const [tasks, setTasks] = React.useState<TaskItem[]>([])
   const [stats, setStats] = React.useState<Stats | null>(null)
@@ -100,8 +105,19 @@ export function UserTaskCalendar({
     if (open) fetchData()
   }, [open, fetchData])
 
-  // Group tasks by date for calendar markers
-  const tasksByDate = React.useMemo(() => {
+  // v2.61: Group by BOTH fechaEntrada (when hallazgo entered) AND fechaLimite (cumplimiento)
+  const entradasByDate = React.useMemo(() => {
+    const map = new Map<string, TaskItem[]>()
+    for (const t of tasks) {
+      if (!t.fechaEntrada) continue
+      const key = format(parseISO(t.fechaEntrada), 'yyyy-MM-dd')
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(t)
+    }
+    return map
+  }, [tasks])
+
+  const vencimientosByDate = React.useMemo(() => {
     const map = new Map<string, TaskItem[]>()
     for (const t of tasks) {
       if (!t.fechaLimite) continue
@@ -117,12 +133,15 @@ export function UserTaskCalendar({
   const proximas = tasks.filter((t) => t._status === 'proxima')
   const sinFecha = tasks.filter((t) => t._status === 'sin_fecha')
 
-  // Tasks for selected date in calendar view
+  // Tasks for selected date in calendar view — split into entradas / vencimientos
   const tasksForSelectedDate = React.useMemo(() => {
-    if (!selectedDate) return []
+    if (!selectedDate) return { entradas: [], vencimientos: [] }
     const key = format(selectedDate, 'yyyy-MM-dd')
-    return tasksByDate.get(key) || []
-  }, [selectedDate, tasksByDate])
+    return {
+      entradas: entradasByDate.get(key) || [],
+      vencimientos: vencimientosByDate.get(key) || [],
+    }
+  }, [selectedDate, entradasByDate, vencimientosByDate])
 
   // Update task status
   async function updateTask(id: string, estado: string) {
@@ -144,19 +163,17 @@ export function UserTaskCalendar({
     }
   }
 
-  // Custom day render to show markers
+  // Custom day render — show TWO markers per day:
+  //  ▼ blue  = fecha de entrada (hallazgo entered Plan)
+  //  ● red   = fecha de cumplimiento (deadline, color by status)
   const modifiers = {
-    hasTasks: (date: Date) => tasksByDate.has(format(date, 'yyyy-MM-dd')),
-    overdue: (date: Date) => {
-      const key = format(date, 'yyyy-MM-dd')
-      const items = tasksByDate.get(key)
-      return !!items?.some((t) => t._status === 'vencida')
-    },
+    hasEntrada: (date: Date) => entradasByDate.has(format(date, 'yyyy-MM-dd')),
+    hasVencimiento: (date: Date) => vencimientosByDate.has(format(date, 'yyyy-MM-dd')),
   }
 
   const modifiersClassNames = {
-    hasTasks: 'relative font-medium',
-    overdue: 'relative text-red-600 font-bold',
+    hasEntrada: 'relative font-medium',
+    hasVencimiento: 'relative font-medium',
   }
 
   return (
@@ -169,9 +186,28 @@ export function UserTaskCalendar({
           </SheetTitle>
           <SheetDescription>
             {userName
-              ? `Acciones asignadas a ${userName} provenientes del Plan de Acción general.`
-              : 'Acciones programadas provenientes del Plan de Acción general.'}
+              ? `Hallazgos y cumplimientos asignados a ${userName}.`
+              : 'Hallazgos y cumplimientos del Plan de Acción.'}
           </SheetDescription>
+          {/* Leyenda v2.61 */}
+          <div className="flex flex-wrap items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
+              Entrada de hallazgo
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-red-500" />
+              Vencida
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-orange-500" />
+              Vence hoy
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+              Próxima
+            </span>
+          </div>
         </SheetHeader>
 
         {/* Stats */}
@@ -254,15 +290,20 @@ export function UserTaskCalendar({
                 components={{
                   DayButton: (props: any) => {
                     const date = props?.day?.date
-                    let items: TaskItem[] = []
-                    let hasOverdue = false
-                    let hasToday = false
+                    let entradas: TaskItem[] = []
+                    let vencimientos: TaskItem[] = []
+                    let hasVencida = false
+                    let hasHoy = false
+                    let hasProxima = false
                     if (date instanceof Date && !isNaN(date.getTime())) {
                       const key = format(date, 'yyyy-MM-dd')
-                      items = tasksByDate.get(key) || []
-                      hasOverdue = items.some((t) => t._status === 'vencida')
-                      hasToday = isToday(date)
+                      entradas = entradasByDate.get(key) || []
+                      vencimientos = vencimientosByDate.get(key) || []
+                      hasVencida = vencimientos.some((t) => t._status === 'vencida')
+                      hasHoy = vencimientos.some((t) => t._status === 'hoy')
+                      hasProxima = vencimientos.some((t) => t._status === 'proxima')
                     }
+                    const hasAny = entradas.length > 0 || vencimientos.length > 0
                     return (
                       <span className="relative inline-flex w-full h-full items-center justify-center">
                         <button
@@ -272,13 +313,21 @@ export function UserTaskCalendar({
                             props.className
                           )}
                         />
-                        {items.length > 0 && (
-                          <span
-                            className={cn(
-                              'pointer-events-none absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1.5 w-1.5 rounded-full',
-                              hasOverdue ? 'bg-red-500' : hasToday ? 'bg-orange-500' : 'bg-blue-500'
+                        {hasAny && (
+                          <span className="pointer-events-none absolute bottom-0.5 left-1/2 -translate-x-1/2 flex items-center gap-0.5">
+                            {entradas.length > 0 && (
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" title={`${entradas.length} entrada(s)`} />
                             )}
-                          />
+                            {vencimientos.length > 0 && (
+                              <span
+                                className={cn(
+                                  'inline-block w-1.5 h-1.5 rounded-full',
+                                  hasVencida ? 'bg-red-500' : hasHoy ? 'bg-orange-500' : hasProxima ? 'bg-green-500' : 'bg-gray-400'
+                                )}
+                                title={`${vencimientos.length} cumplimiento(s)`}
+                              />
+                            )}
+                          </span>
                         )}
                       </span>
                     )
@@ -287,25 +336,66 @@ export function UserTaskCalendar({
               />
             </div>
 
-            {/* Tasks for selected date */}
-            <div className="space-y-2">
+            {/* Tasks for selected date — split into Entradas and Vencimientos */}
+            <div className="space-y-3">
               <h4 className="text-sm font-semibold flex items-center gap-2">
                 {selectedDate ? format(selectedDate, "EEEE d 'de' MMMM", { locale: es }) : 'Selecciona una fecha'}
-                <Badge variant="outline" className="text-xs">{tasksForSelectedDate.length}</Badge>
+                <Badge variant="outline" className="text-xs">
+                  {tasksForSelectedDate.entradas.length + tasksForSelectedDate.vencimientos.length}
+                </Badge>
               </h4>
-              {tasksForSelectedDate.length === 0 ? (
+
+              {/* ENTRADAS del día */}
+              {tasksForSelectedDate.entradas.length > 0 && (
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 mb-2">
+                    <ArrowDownToLine className="h-3 w-3" />
+                    Entradas de hallazgos
+                    <Badge variant="outline" className="text-[10px]">{tasksForSelectedDate.entradas.length}</Badge>
+                  </div>
+                  <div className="space-y-2">
+                    {tasksForSelectedDate.entradas.map((t) => (
+                      <TaskCard
+                        key={`ent-${t.id}`}
+                        task={t}
+                        highlight="entrada"
+                        onUpdate={updateTask}
+                        updating={updatingId === t.id}
+                        onOpenActionPlan={onOpenActionPlan}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* VENCIMIENTOS del día */}
+              {tasksForSelectedDate.vencimientos.length > 0 && (
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-50 text-orange-700 mb-2">
+                    <Clock className="h-3 w-3" />
+                    Cumplimientos / Vencimientos
+                    <Badge variant="outline" className="text-[10px]">{tasksForSelectedDate.vencimientos.length}</Badge>
+                  </div>
+                  <div className="space-y-2">
+                    {tasksForSelectedDate.vencimientos.map((t) => (
+                      <TaskCard
+                        key={`venc-${t.id}`}
+                        task={t}
+                        highlight="vencimiento"
+                        onUpdate={updateTask}
+                        updating={updatingId === t.id}
+                        onOpenActionPlan={onOpenActionPlan}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {tasksForSelectedDate.entradas.length === 0 && tasksForSelectedDate.vencimientos.length === 0 && (
                 <p className="text-xs text-muted-foreground italic py-2">
-                  No hay acciones programadas para este día.
+                  No hay entradas ni cumplimientos programados para este día.
                 </p>
-              ) : (
-                tasksForSelectedDate.map((t) => (
-                  <TaskCard
-                    key={t.id}
-                    task={t}
-                    onUpdate={updateTask}
-                    updating={updatingId === t.id}
-                  />
-                ))
               )}
             </div>
           </div>
@@ -320,6 +410,7 @@ export function UserTaskCalendar({
                 tasks={vencidas}
                 onUpdate={updateTask}
                 updatingId={updatingId}
+                onOpenActionPlan={onOpenActionPlan}
               />
             )}
             {hoy.length > 0 && (
@@ -331,6 +422,7 @@ export function UserTaskCalendar({
                 tasks={hoy}
                 onUpdate={updateTask}
                 updatingId={updatingId}
+                onOpenActionPlan={onOpenActionPlan}
               />
             )}
             {proximas.length > 0 && (
@@ -342,6 +434,7 @@ export function UserTaskCalendar({
                 tasks={proximas}
                 onUpdate={updateTask}
                 updatingId={updatingId}
+                onOpenActionPlan={onOpenActionPlan}
               />
             )}
             {sinFecha.length > 0 && (
@@ -353,6 +446,7 @@ export function UserTaskCalendar({
                 tasks={sinFecha}
                 onUpdate={updateTask}
                 updatingId={updatingId}
+                onOpenActionPlan={onOpenActionPlan}
               />
             )}
             {tasks.length === 0 && (
@@ -406,6 +500,7 @@ function TaskSection({
   tasks,
   onUpdate,
   updatingId,
+  onOpenActionPlan,
 }: {
   title: string
   count: number
@@ -414,6 +509,7 @@ function TaskSection({
   tasks: TaskItem[]
   onUpdate: (id: string, estado: string) => void
   updatingId: string | null
+  onOpenActionPlan?: (itemId?: string) => void
 }) {
   const colors = {
     red: 'text-red-700 bg-red-50',
@@ -435,6 +531,7 @@ function TaskSection({
             task={t}
             onUpdate={onUpdate}
             updating={updatingId === t.id}
+            onOpenActionPlan={onOpenActionPlan}
           />
         ))}
       </div>
@@ -446,10 +543,14 @@ function TaskCard({
   task,
   onUpdate,
   updating,
+  highlight,
+  onOpenActionPlan,
 }: {
   task: TaskItem
   onUpdate: (id: string, estado: string) => void
   updating: boolean
+  highlight?: 'entrada' | 'vencimiento'
+  onOpenActionPlan?: (itemId?: string) => void
 }) {
   const prioridadColors: Record<string, string> = {
     alta: 'bg-red-100 text-red-700',
@@ -463,12 +564,15 @@ function TaskCard({
     cerrada: 'Cerrada',
   }
   const isResolved = ['resuelta', 'cerrada'].includes(task.estado)
+  const isFromInventory = task.source === 'inventario' || (task.itemId || '').startsWith('inv_')
 
   return (
     <div className={cn(
       'border rounded-md p-3 text-sm bg-card',
       task._status === 'vencida' && 'border-red-300 bg-red-50/30',
       task._status === 'hoy' && 'border-orange-300 bg-orange-50/30',
+      highlight === 'entrada' && 'border-l-4 border-l-blue-400',
+      highlight === 'vencimiento' && 'border-l-4 border-l-orange-400',
     )}>
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="flex-1 min-w-0">
@@ -482,6 +586,11 @@ function TaskCard({
             <Badge variant="outline" className="text-[10px] px-1.5 py-0">
               {estadoLabels[task.estado] || task.estado}
             </Badge>
+            {isFromInventory && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-50 text-purple-700 border-purple-200">
+                Inventario
+              </Badge>
+            )}
             {task.zone && (
               <span className="text-[10px] text-muted-foreground">📍 {task.zone.name}</span>
             )}
@@ -490,7 +599,23 @@ function TaskCard({
           <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{task.hallazgo}</p>
         </div>
         <div className="text-right shrink-0">
-          {task.fechaLimite && (
+          {/* v2.61: show fechaEntrada if highlighted as entrada */}
+          {highlight === 'entrada' && task.fechaEntrada && (
+            <div className="text-[10px] text-blue-600 font-medium">
+              ↓ Entró: {format(parseISO(task.fechaEntrada), "d MMM", { locale: es })}
+            </div>
+          )}
+          {/* v2.61: show fechaLimite if highlighted as vencimiento */}
+          {highlight === 'vencimiento' && task.fechaLimite && (
+            <div className={cn(
+              'text-xs font-medium',
+              task._status === 'vencida' ? 'text-red-600' : task._status === 'hoy' ? 'text-orange-600' : 'text-muted-foreground'
+            )}>
+              {format(parseISO(task.fechaLimite), "d MMM", { locale: es })}
+            </div>
+          )}
+          {/* Default: show fechaLimite when not highlighted */}
+          {!highlight && task.fechaLimite && (
             <div className={cn(
               'text-xs font-medium',
               task._status === 'vencida' ? 'text-red-600' : task._status === 'hoy' ? 'text-orange-600' : 'text-muted-foreground'
@@ -509,38 +634,53 @@ function TaskCard({
         </p>
       )}
 
-      {!isResolved && (
-        <div className="flex gap-2 mt-2">
+      <div className="flex gap-2 mt-2">
+        {!isResolved && (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs flex-1"
+              disabled={updating}
+              onClick={() => onUpdate(task.id, 'en_proceso')}
+            >
+              {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Loader2 className="h-3 w-3" />}
+              En proceso
+            </Button>
+            <Button
+              size="sm"
+              variant="default"
+              className="h-7 text-xs flex-1 bg-green-600 hover:bg-green-700"
+              disabled={updating}
+              onClick={() => onUpdate(task.id, 'resuelta')}
+            >
+              {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+              Resuelta
+            </Button>
+          </>
+        )}
+        {isResolved && (
+          <div className="flex items-center gap-1 text-xs text-green-600 flex-1">
+            <CheckCircle2 className="h-3 w-3" />
+            {task.fechaResolucion
+              ? `Resuelta el ${format(parseISO(task.fechaResolucion), "d MMM yyyy", { locale: es })}`
+              : 'Resuelta'}
+          </div>
+        )}
+        {/* v2.61: botón Abrir en Plan de Acción */}
+        {onOpenActionPlan && (
           <Button
             size="sm"
-            variant="outline"
-            className="h-7 text-xs flex-1"
-            disabled={updating}
-            onClick={() => onUpdate(task.id, 'en_proceso')}
+            variant="ghost"
+            className="h-7 text-xs px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            onClick={() => onOpenActionPlan(task.id)}
+            title="Abrir en Plan de Acción para editar fechas y rellenar"
           >
-            {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Loader2 className="h-3 w-3" />}
-            En proceso
+            <ExternalLink className="h-3 w-3" />
+            <span className="hidden sm:inline">Plan</span>
           </Button>
-          <Button
-            size="sm"
-            variant="default"
-            className="h-7 text-xs flex-1 bg-green-600 hover:bg-green-700"
-            disabled={updating}
-            onClick={() => onUpdate(task.id, 'resuelta')}
-          >
-            {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-            Resuelta
-          </Button>
-        </div>
-      )}
-      {isResolved && (
-        <div className="flex items-center gap-1 text-xs text-green-600 mt-2">
-          <CheckCircle2 className="h-3 w-3" />
-          {task.fechaResolucion
-            ? `Resuelta el ${format(parseISO(task.fechaResolucion), "d MMM yyyy", { locale: es })}`
-            : 'Resuelta'}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

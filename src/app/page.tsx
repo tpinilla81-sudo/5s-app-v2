@@ -167,6 +167,15 @@ export default function HomePage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ projectId: currentProject.id }),
               }).catch(e => console.error('Auto-notification error:', e));
+              // v2.61: Auto-generate avisos from ActionItems (new_action_item,
+              // action_due_today, action_overdue) for the current user
+              if (currentUser?.id) {
+                fetch('/api/avisos/auto', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId: currentUser.id, projectId: currentProject.id }),
+                }).catch(e => console.error('Auto-avisos error:', e));
+              }
             }
           } else {
             setIsSeeding(true);
@@ -378,7 +387,7 @@ export default function HomePage() {
               <h1 className="text-sm font-black text-gray-900 leading-tight tracking-wide">5S</h1>
               <div className="flex items-center gap-1">
                 <span className="text-[10px] font-semibold text-green-600">by Método</span>
-                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.60</span>
+                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.61</span>
                 {isGestor && <span className="text-[10px] font-semibold text-red-500">· Gestor</span>}
                 {!isGestor && currentProject && <span className="text-[10px] text-muted-foreground">· {currentProject.name}</span>}
                 {!isGestor && currentZone && <span className="text-[10px] font-medium" style={{ color: currentZone.color || '#3B82F6' }}>· {currentZone.name}</span>}
@@ -902,22 +911,56 @@ export default function HomePage() {
             <div className="p-4 text-center text-sm text-muted-foreground">No hay notificaciones</div>
           ) : (
             <div className="divide-y">
-              {notifs.map((n: any) => (
-                <div key={n.id} className={`p-3 ${n.read ? 'bg-white' : n.type === 'audit_requested' ? 'bg-orange-50' : 'bg-blue-50'}`}>
+              {notifs.map((n: any) => {
+                // v2.61: Avisos relacionados con ActionItems → click abre calendario
+                const isActionAviso = ['new_action_item', 'action_due_today', 'action_overdue'].includes(n.type);
+                const handleActionAvisoClick = async () => {
+                  if (!isActionAviso) return;
+                  // Marcar como leído
+                  try {
+                    await fetch('/api/notifications', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ notificationId: n.id, read: true }),
+                    });
+                  } catch (e) { /* ignore */ }
+                  setNotifs(notifs.map((nn: any) => nn.id === n.id ? { ...nn, read: true } : nn));
+                  setUnreadNotifs(prev => Math.max(0, prev - 1));
+                  setShowNotifs(false);
+                  setShowUserCalendar(true);
+                };
+                return (
+                <div
+                  key={n.id}
+                  className={`p-3 ${n.read ? 'bg-white' :
+                    n.type === 'audit_requested' ? 'bg-orange-50' :
+                    n.type === 'new_action_item' ? 'bg-blue-50' :
+                    n.type === 'action_due_today' ? 'bg-orange-50' :
+                    n.type === 'action_overdue' ? 'bg-red-50' :
+                    'bg-blue-50'} ${isActionAviso && !n.read ? 'cursor-pointer hover:bg-blue-100/50' : ''}`}
+                  onClick={isActionAviso && !n.read ? handleActionAvisoClick : undefined}
+                >
                   <div className="flex items-center gap-1.5 mb-0.5">
                     {n.type === 'audit_requested' && <BellRing className="h-3 w-3 text-orange-500 shrink-0" />}
                     {n.type === 'audit_ready' && <ShieldCheck className="h-3 w-3 text-green-500 shrink-0" />}
                     {n.type === 'audit_meeting_accepted' && <CheckSquare className="h-3 w-3 text-green-600 shrink-0" />}
-                    <p className="text-xs font-semibold">{n.title}</p>
+                    {n.type === 'new_action_item' && <CalendarDays className="h-3 w-3 text-blue-500 shrink-0" />}
+                    {n.type === 'action_due_today' && <AlertTriangle className="h-3 w-3 text-orange-500 shrink-0" />}
+                    {n.type === 'action_overdue' && <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />}
+                    <p className="text-xs font-semibold flex-1">{n.title}</p>
+                    {isActionAviso && !n.read && (
+                      <span className="text-[9px] text-blue-600 font-semibold">→ Calendario</span>
+                    )}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{n.message}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-line">{n.message}</p>
                   <div className="flex items-center justify-between mt-1.5">
                     <p className="text-[9px] text-muted-foreground">{new Date(n.createdAt).toLocaleString('es-ES')}</p>
                     {/* Accept audit meeting button — only for audit_requested notifications and users with accept_audit_meeting permission */}
                     {n.type === 'audit_requested' && !n.read && canAcceptAuditMeeting && (
                       <button
                         className="text-[10px] font-semibold text-green-700 bg-green-100 hover:bg-green-200 px-2 py-0.5 rounded border border-green-300 transition-colors"
-                        onClick={async () => {
+                        onClick={async (e) => {
+                          e.stopPropagation();
                           try {
                             // Mark this notification as read
                             await fetch('/api/notifications', {
@@ -965,7 +1008,8 @@ export default function HomePage() {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1571,6 +1615,11 @@ export default function HomePage() {
           userId={currentUser.id}
           projectId={currentProject?.id}
           userName={currentUser.name}
+          onOpenActionPlan={() => {
+            // v2.61: cierra el calendario y abre el Plan de Acción (tab)
+            setShowUserCalendar(false);
+            setActiveTab('actionplan');
+          }}
         />
       )}
     </div>
