@@ -1151,3 +1151,52 @@ Stage Summary:
 - Pendiente: usuario prueba en v2.40 tras deploy (~1-2 min). Si
   quiere ajustar el umbral de "clasificación" (p. ej. requerir
   también decisión o ubicación), el punto está en handleUpdateField.
+
+---
+Task ID: v2.41
+Agent: Main
+Task: Pulsar Enter guarda los cambios inline en el inventario (no hay que salir del modal)
+
+Work Log:
+- Usuario reportó: "no deja actualizar pulsando, hay que salirse siempre"
+- Diagnóstico: todos los inputs inline de la tabla de inventario
+  (nombre, ubicación, cantidad, precio, zonaOrigen) usaban SOLO
+  onBlur para persistir. El usuario escribía, pulsaba Enter, y el
+  input mantenía el foco → no se disparaba onBlur → no se guardaba.
+  Para que se guardara tenía que hacer clic fuera del input O cerrar
+  el modal entero. Mismo problema en el formulario "Agregar nuevo
+  elemento": el campo nombre no respondía a Enter.
+
+Fix:
+- Nuevo helper commitOnEnter(e, commit) en InventarioModal:
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      (e.currentTarget as HTMLInputElement).blur();
+      commit();
+    }
+  El blur dispara onBlur (que llama a handleUpdateField), y el
+  commit() explícito cubre el caso de inputs sin onBlur.
+- Aplicado onKeyDown a los 5 inputs inline de la tabla:
+    * Nombre del elemento
+    * Ubicación
+    * Cantidad
+    * Precio
+    * Zona Origen (fallback cuando no hay zonas configuradas)
+- Formulario "Agregar nuevo elemento": los 3 inputs de texto/número
+  (Elemento, Cantidad, Precio) ahora tienen onKeyDown que ejecuta
+  handleAddItem() al pulsar Enter si hay nombre y categoría. Así
+  el flujo es: escribir nombre → Enter → se agrega el elemento.
+
+Bump v2.41 en middleware.ts, page.tsx, LoginPage.tsx.
+Build Next.js: ✓ Compiled successfully in 20.4s.
+Commit + push a GitHub (cfc1133). Vercel deploy automático.
+
+Stage Summary:
+- Ahora pulsar Enter en cualquier campo del inventario guarda el
+  cambio sin tener que salir del modal.
+- El formulario "Agregar elemento" también responde a Enter para
+  agregar nuevos items rápidamente.
+- Pendiente: usuario prueba en v2.41 tras deploy (~1-2 min). Si
+  quedan otros campos donde Enter no guarda (p. ej. el modal de
+  autoevaluación, auditoría o fotos), reportar y se aplica el
+  mismo patrón commitOnEnter.
