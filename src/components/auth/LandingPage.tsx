@@ -161,11 +161,10 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
             <motion.div className="flex-shrink-0 w-48 h-48 md:w-64 md:h-64"
               initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}
               transition={{ type: 'spring', stiffness: 100, delay: 0.3 }}>
-              {/* Logo de la lima 5S — mismo /5s-logo.png que se usa en la app.
-                  Fondo blanco circular para que los colores se vean idénticos
-                  (sin mezclarse con el gradient verde del hero). Sin drop-shadow
-                  para no alterar la percepción de los colores. */}
-              <div className="w-full h-full rounded-full bg-white flex items-center justify-center p-2">
+              {/* Logo de la lima 5S — PNG ya limpio (sin halo blanco).
+                  Se muestra directamente sobre el fondo verde, sin envoltorio
+                  blanco circular. */}
+              <div className="w-full h-full flex items-center justify-center p-2">
                 <img src="/5s-logo.png" alt="5S Logo" className="w-full h-full object-contain" />
               </div>
             </motion.div>
@@ -570,7 +569,7 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
       <footer className="py-8 bg-gray-50 border-t border-gray-200">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center p-1 shadow-sm">
+            <div className="w-10 h-10 flex items-center justify-center p-1">
               <img src="/5s-logo.png" alt="5S" className="w-full h-full object-contain" />
             </div>
             <span className="text-sm text-gray-500">Método 5S — Plataforma digital</span>
