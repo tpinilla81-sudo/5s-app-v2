@@ -161,7 +161,7 @@ export default function JaulaModal({ open, onClose }: JaulaModalProps) {
   };
 
   // Tag data for printing
-  const tagItems = filteredJaulaItems
+  const tagItemsAndIds = filteredJaulaItems
     .filter(i => !i.extra?.decision || i.extra.decision === 'Jaula')
     .map(i => {
       const dias = Number(i.extra?.diasCuarentena ?? 40);
@@ -174,18 +174,23 @@ export default function JaulaModal({ open, onClose }: JaulaModalProps) {
         } catch {}
       }
       return {
-        nombre: i.name,
-        ubicacion: i.location,
-        cantidad: i.quantityUnneeded || i.quantity,
-        estado: String(i.extra?.estado ?? ''),
-        frecuenciaUso: String(i.extra?.frecuenciaUso ?? ''),
-        decision: 'Jaula' as string,
-        fechaEntrada: i.jaulaFechaEntrada,
-        fechaRevision,
-        diasCuarentena: dias,
-        zonaOrigen: i.zonaOrigen || i.jaulaOrigen,
+        itemId: i.id, // v2.48: para que TagPrinter pueda persistir el snapshot
+        tag: {
+          nombre: i.name,
+          ubicacion: i.location,
+          cantidad: i.quantityUnneeded || i.quantity,
+          estado: String(i.extra?.estado ?? ''),
+          frecuenciaUso: String(i.extra?.frecuenciaUso ?? ''),
+          decision: 'Jaula' as string,
+          fechaEntrada: i.jaulaFechaEntrada,
+          fechaRevision,
+          diasCuarentena: dias,
+          zonaOrigen: i.zonaOrigen || i.jaulaOrigen,
+        },
       };
     });
+  const tagItems = tagItemsAndIds.map(x => x.tag);
+  const tagItemIds = tagItemsAndIds.map(x => x.itemId);
 
   return (
     <Dialog open={open} onOpenChange={() => onClose()}>
@@ -219,7 +224,7 @@ export default function JaulaModal({ open, onClose }: JaulaModalProps) {
 
           {/* Filters + actions */}
           <div className="flex items-center gap-1.5 mb-3 overflow-x-auto pb-1">
-            {tagItems.length > 0 && <TagPrinter items={tagItems} />}
+            {tagItems.length > 0 && <TagPrinter items={tagItems} itemIds={tagItemIds} onAfterPrint={loadJaulaItems} />}
             <div className="h-4 w-px bg-gray-200 mx-1 shrink-0" />
             {/* Status filters */}
             {[

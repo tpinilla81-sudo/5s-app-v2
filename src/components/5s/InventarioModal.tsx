@@ -1278,6 +1278,20 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
     return <Badge className={info.color}>{info.label}</Badge>;
   };
 
+  // v2.48: badge para indicar que la etiqueta roja ya fue impresa y guardada
+  // en el sistema (extra.etiquetaGenerada = true).
+  const getEtiquetaBadge = (item: InventoryItemData) => {
+    if (!item.extra?.etiquetaGenerada) return null;
+    const fecha = item.extra.etiquetaFecha
+      ? new Date(item.extra.etiquetaFecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })
+      : '';
+    return (
+      <Badge className="bg-emerald-100 text-emerald-800 text-[9px]" title={`Etiqueta impresa${fecha ? ` el ${fecha}` : ''}`}>
+        🏷️ Impresa{fecha ? ` ${fecha}` : ''}
+      </Badge>
+    );
+  };
+
   return (
     <>
     <Dialog open={open} onOpenChange={() => onClose()}>
@@ -1558,11 +1572,20 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                     diasCuarentena: Number(i.extra?.diasCuarentena ?? 40),
                     zonaOrigen: i.zonaOrigen || i.jaulaOrigen,
                   }));
+                // v2.48: pasamos los itemIds alineados con rojaItems para que
+                // TagPrinter pueda persistir el snapshot de la etiqueta.
+                const rojaItemIds = items
+                  .filter(i => i.category === 'innecesario' && (!i.extra?.decision || i.extra.decision === 'Jaula'))
+                  .map(i => i.id);
                 return (
                   <div className="flex items-center gap-2 ml-2 pl-2 border-l border-red-300">
                     <span className="text-[10px] text-muted-foreground font-medium">Etiquetas:</span>
                     {rojaItems.length > 0 && (
-                      <TagPrinter items={rojaItems} />
+                      <TagPrinter
+                        items={rojaItems}
+                        itemIds={rojaItemIds}
+                        onAfterPrint={() => { /* recargar items para reflejar etiquetaGenerada */ loadInventory(); }}
+                      />
                     )}
                   </div>
                 );
@@ -1944,7 +1967,10 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                   </SelectContent>
                                 </Select>
                               ) : item.extra?.decision ? (
-                                <Badge className={`text-[9px] px-1 ${item.extra.decision === 'Jaula' ? 'bg-orange-100 text-orange-800' : item.extra.decision === 'Tirar' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>{String(item.extra.decision)}</Badge>
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <Badge className={`text-[9px] px-1 ${item.extra.decision === 'Jaula' ? 'bg-orange-100 text-orange-800' : item.extra.decision === 'Tirar' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>{String(item.extra.decision)}</Badge>
+                                  {getEtiquetaBadge(item)}
+                                </div>
                               ) : <span className="text-[11px] text-muted-foreground">—</span>}
                             </td>
                             {/* ETIQUETA: Días cuarentena */}

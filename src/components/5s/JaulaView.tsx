@@ -274,7 +274,7 @@ export default function JaulaView() {
   };
 
   // Tag data for printing
-  const tagItems = filteredJaulaItems
+  const tagItemsAndIds = filteredJaulaItems
     .filter(i => !i.extra?.decision || i.extra.decision === 'Jaula')
     .map(i => {
       const dias = Number(i.extra?.diasCuarentena ?? 40);
@@ -287,18 +287,23 @@ export default function JaulaView() {
         } catch {}
       }
       return {
-        nombre: i.name,
-        ubicacion: i.location,
-        cantidad: i.quantityUnneeded || i.quantity,
-        estado: String(i.extra?.estado ?? ''),
-        frecuenciaUso: String(i.extra?.frecuenciaUso ?? ''),
-        decision: 'Jaula' as string,
-        fechaEntrada: i.jaulaFechaEntrada,
-        fechaRevision,
-        diasCuarentena: dias,
-        zonaOrigen: i.zonaOrigen || i.jaulaOrigen,
+        itemId: i.id, // v2.48: para que TagPrinter pueda persistir el snapshot
+        tag: {
+          nombre: i.name,
+          ubicacion: i.location,
+          cantidad: i.quantityUnneeded || i.quantity,
+          estado: String(i.extra?.estado ?? ''),
+          frecuenciaUso: String(i.extra?.frecuenciaUso ?? ''),
+          decision: 'Jaula' as string,
+          fechaEntrada: i.jaulaFechaEntrada,
+          fechaRevision,
+          diasCuarentena: dias,
+          zonaOrigen: i.zonaOrigen || i.jaulaOrigen,
+        },
       };
     });
+  const tagItems = tagItemsAndIds.map(x => x.tag);
+  const tagItemIds = tagItemsAndIds.map(x => x.itemId);
 
   return (
     <div className="flex flex-col h-full">
@@ -337,7 +342,7 @@ export default function JaulaView() {
 
         {/* Filter pills */}
         <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1">
-          {tagItems.length > 0 && <TagPrinter items={tagItems} />}
+          {tagItems.length > 0 && <TagPrinter items={tagItems} itemIds={tagItemIds} onAfterPrint={loadJaulaItems} />}
           {tagItems.length > 0 && <div className="h-4 w-px bg-gray-200 mx-1 shrink-0" />}
           {/* Status filters */}
           {[

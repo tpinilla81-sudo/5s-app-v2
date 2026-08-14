@@ -84,6 +84,10 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
+  // v2.48: permite re-abrir un Paso 2 ya completado para AÑADIR más fotos
+  // (p. ej. si se necesitan fotos adicionales en otros pasos como el 4 o 5).
+  // Las fotos ya guardadas siguen sin poder borrarse (backend 409).
+  const [showAddMore, setShowAddMore] = useState(false);
   const [cameraMode, setCameraMode] = useState<'idle' | 'streaming' | 'capturing'>('idle');
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
@@ -327,6 +331,8 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
       setCameraError(null);
       setCameraMode('idle');
       setActiveTab('camera');
+      // v2.48: reset del flag "Añadir más fotos" al cerrar el modal
+      setShowAddMore(false);
     }
   }, [open, stopStream]);
 
@@ -412,6 +418,10 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
 
       // Procesamos SECUENCIALMENTE (no en paralelo) porque cada foto necesita
       // el id del item creado en el paso anterior para vincularse.
+      // v2.48: trackea el dbId devuelto por el backend para cada foto recién
+      // guardada, y actualiza el estado local al final — así, si el usuario
+      // re-abre "Añadir más fotos", las fotos ya guardadas no se re-envían.
+      const newlySavedDbIds: { localId: string; dbId: string }[] = [];
       for (let idx = 0; idx < photos.length; idx++) {
         const p = photos[idx];
         if (p.savedToLibrary) { savedCount++; continue; }
@@ -441,6 +451,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
           const libJson = await libRes.json();
           if (libJson.success && libJson.data?.id) {
             photoId = libJson.data.id;
+            newlySavedDbIds.push({ localId: p.id, dbId: photoId });
             savedCount++;
           } else {
             failedCount++;
@@ -507,8 +518,17 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
       if (failedCount > 0) console.warn(`[FotosModal] ${failedCount} fotos fallaron al guardar`);
       else if (savedCount > 0) console.log(`[FotosModal] ${savedCount} fotos guardadas y vinculadas a borradores`);
 
-      // Mark all photos as saved in local state
-      setPhotos(prev => prev.map(p => ({ ...p, savedToLibrary: true })));
+      // Mark all photos as saved in local state. v2.48: también setea el dbId
+      // devuelto por el backend para las fotos recién guardadas, de forma que
+      // el botón × no aparezca y la próxima vez no se re-envíen.
+      setPhotos(prev => prev.map(p => {
+        const newlySaved = newlySavedDbIds.find(x => x.localId === p.id);
+        return {
+          ...p,
+          savedToLibrary: true,
+          dbId: newlySaved ? newlySaved.dbId : p.dbId,
+        };
+      }));
 
       // Save progress
       const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
@@ -517,7 +537,14 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
         body: JSON.stringify({ completed: true, photoUrls: urls, score: 100, projectId: currentProject?.id, zoneId: currentZone?.id || null }),
       });
       const json = await res.json();
-      if (json.success) { setIsCompleted(true); stopStream(); await fetchProgress(); }
+      if (json.success) {
+        setIsCompleted(true);
+        // v2.48: tras guardar con éxito, volvemos a la pantalla de éxito para
+        // que el usuario vea el resumen actualizado con las nuevas fotos.
+        setShowAddMore(false);
+        stopStream();
+        await fetchProgress();
+      }
     } catch (error) {
       console.error('Error submitting photos:', error);
     } finally {
@@ -575,7 +602,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
         )}
 
         <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
-        {isCompleted ? (
+        {isCompleted && !showAddMore ? (
           <div className="text-center py-8">
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-3" />
             <h3 className="text-xl font-bold mb-2">Fotografías del ANTES Guardadas</h3>
@@ -589,7 +616,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
                 Hasta que no clasifiques todos los elementos, no podrás completar el inventario.
               </p>
             </div>
-            <div className="mt-4 flex justify-center">
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
               <Button
                 onClick={() => { onClose(); openModal('inventario', 3); }}
                 style={{ backgroundColor: sStepData?.color }}
@@ -597,7 +624,24 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
               >
                 Continuar al Inventario →
               </Button>
+              {/* v2.48: permite añadir MÁS fotos aunque el Paso 2 ya esté completado.
+                  Útil cuando se necesitan fotos adicionales para pasos 4/5 u otros sitios.
+                  Las fotos ya guardadas NO se pueden borrar (backend devuelve 409). */}
+              {!isReadOnly && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAddMore(true)}
+                  className="gap-2"
+                  title="Añadir más fotos a este paso sin perder las ya guardadas"
+                >
+                  <Camera className="h-4 w-4" />
+                  Añadir más fotos
+                </Button>
+              )}
             </div>
+            <p className="text-[11px] text-muted-foreground mt-3">
+              Las {photos.length} fotos ya guardadas están bloqueadas (no se pueden eliminar) porque el Paso 2 está completado.
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -757,10 +801,20 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
                           placeholder="Título de la foto..."
                         />
                       </div>
-                      <button className="shrink-0 w-6 h-6 rounded-full bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => removePhoto(index)} title="Eliminar foto">
-                        <X className="h-3 w-3" />
-                      </button>
+                      {/* v2.48: si la foto ya está guardada en la biblioteca, NO mostramos ×.
+                          El backend devolvería 409 (Paso 2 completado) y la UX sería mala.
+                          Solo mostramos × en fotos recién capturadas (aún no submitidas). */}
+                      {!photo.savedToLibrary && (
+                        <button className="shrink-0 w-6 h-6 rounded-full bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removePhoto(index)} title="Eliminar foto">
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                      {photo.savedToLibrary && (
+                        <span className="shrink-0 w-6 h-6 flex items-center justify-center text-green-500" title="Foto guardada (no se puede eliminar)">
+                          <CheckCircle className="h-3.5 w-3.5" />
+                        </span>
+                      )}
                     </div>
                   ))}
                   <button className="w-full py-3 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center gap-2 hover:border-primary/50 hover:bg-muted/20 transition-colors text-sm text-muted-foreground"
@@ -785,9 +839,20 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
               <p>• Incluya diferentes ángulos y perspectivas de la zona</p>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end items-center gap-2">
+              {/* v2.48: si estamos en modo "Añadir más fotos" (Paso 2 ya completado),
+                  ofrecemos un botón para volver a la pantalla de éxito sin guardar. */}
+              {isCompleted && showAddMore && (
+                <Button variant="ghost" size="sm" onClick={() => setShowAddMore(false)}>
+                  Cancelar
+                </Button>
+              )}
               <Button onClick={handleSubmit} disabled={!canSubmit || isSubmitting || isReadOnly} style={canSubmit && !isReadOnly ? { backgroundColor: sStepData?.color } : undefined} className="gap-2">
-                {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" />Guardando...</> : <><CheckCircle className="h-4 w-4" />Guardar Fotos ANTES ({photos.length} foto{photos.length !== 1 ? 's' : ''})</>}
+                {isSubmitting
+                  ? <><Loader2 className="h-4 w-4 animate-spin" />Guardando...</>
+                  : isCompleted && showAddMore
+                    ? <><CheckCircle className="h-4 w-4" />Guardar fotos adicionales</>
+                    : <><CheckCircle className="h-4 w-4" />Guardar Fotos ANTES ({photos.length} foto{photos.length !== 1 ? 's' : ''})</>}
               </Button>
             </div>
           </div>

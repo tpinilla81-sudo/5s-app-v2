@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Tag, Printer } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface TagData {
   nombre: string
@@ -20,6 +21,12 @@ interface TagData {
 
 interface TagPrinterProps {
   items: TagData[]
+  // v2.48: IDs de InventoryItem alineados con `items` (mismo índice). Si se
+  // proporcionan, al imprimir se guardará en cada item.extra un snapshot de
+  // la etiqueta generada (etiquetaGenerada, etiquetaFecha, etiquetaData).
+  // Así queda constancia en el sistema de que se imprimió la etiqueta.
+  itemIds?: string[]
+  onAfterPrint?: () => void
 }
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -103,10 +110,66 @@ function generateQRSvg(text: string, size: number = 80): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="image-rendering:pixelated;">${svgRects}</svg>`
 }
 
-export default function TagPrinter({ items }: TagPrinterProps) {
+export default function TagPrinter({ items, itemIds, onAfterPrint }: TagPrinterProps) {
   const color = '#DC2626'
   const bgColor = '#FEF2F2'
   const borderColor = '#FCA5A5'
+
+  // v2.48: tras abrir la ventana de impresión, persiste en cada item.extra un
+  // snapshot de la etiqueta generada. Esto deja constancia en el sistema de
+  // que la etiqueta roja se imprimió (fecha + datos), permitiendo consultas
+  // posteriores (p. ej. "items con etiqueta impresa pendiente de retirar").
+  const persistLabelSnapshot = async () => {
+    if (!itemIds || itemIds.length === 0) return;
+    const fecha = new Date().toISOString();
+    // Lanzamos todas las PUT en paralelo; no bloqueamos la UI.
+    const tasks = items.map((item, idx) => {
+      const itemId = itemIds[idx];
+      if (!itemId) return Promise.resolve(null);
+      const snapshot = {
+        nombre: item.nombre,
+        ubicacion: item.ubicacion,
+        cantidad: item.cantidad,
+        estado: item.estado ?? null,
+        frecuenciaUso: item.frecuenciaUso ?? null,
+        decision: item.decision ?? 'Jaula',
+        categoria: item.categoria ?? null,
+        fechaEntrada: item.fechaEntrada ?? null,
+        fechaRevision: item.fechaRevision ?? null,
+        diasCuarentena: item.diasCuarentena ?? 40,
+        zonaOrigen: item.zonaOrigen ?? null,
+        observaciones: item.observaciones ?? null,
+      };
+      // Necesitamos leer el extra actual y fusionar — el backend PUT sustituye
+      // el campo `extra` entero. Para no perder otros campos, hacemos GET → merge → PUT.
+      return fetch(`/api/inventory?id=${itemId}`)
+        .then(r => r.json())
+        .then(json => {
+          const existingExtra = (json?.data?.extra && typeof json.data.extra === 'object') ? json.data.extra : {};
+          const mergedExtra = {
+            ...existingExtra,
+            etiquetaGenerada: true,
+            etiquetaFecha: fecha,
+            etiquetaData: snapshot,
+          };
+          return fetch(`/api/inventory?id=${itemId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ extra: mergedExtra }),
+          });
+        })
+        .catch(err => {
+          console.error(`[TagPrinter] Error guardando snapshot etiqueta para item ${itemId}:`, err);
+          return null;
+        });
+    });
+    const results = await Promise.all(tasks);
+    const ok = results.filter(Boolean).length;
+    if (ok > 0) {
+      toast.success(`${ok} etiqueta(s) guardada(s) en el sistema.`);
+      onAfterPrint?.();
+    }
+  };
 
   const handlePrint = () => {
     const tagsHtml = items.map(item => {
@@ -265,6 +328,9 @@ export default function TagPrinter({ items }: TagPrinterProps) {
       </html>
     `)
     printWindow.document.close()
+    // v2.48: persistir el snapshot de la etiqueta en el sistema (item.extra).
+    // Se llama DESPUÉS de abrir la ventana de impresión para no bloquear la UI.
+    persistLabelSnapshot();
   }
 
   return (

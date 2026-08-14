@@ -8,6 +8,26 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get('projectId')
     const jaulaOnly = searchParams.get('jaulaOnly')
     const zoneId = searchParams.get('zoneId')
+    // v2.48: si se pasa ?id=..., devolvemos un único item.
+    const singleId = searchParams.get('id')
+
+    // v2.48: GET por id — usado por TagPrinter para leer el extra actual antes
+    // de fusionar el snapshot de la etiqueta.
+    if (singleId) {
+      const item = await db.inventoryItem.findUnique({
+        where: { id: singleId },
+        include: { photos: true },
+      })
+      if (!item) {
+        return NextResponse.json({ success: false, error: 'Item no encontrado' }, { status: 404 })
+      }
+      const parsed = {
+        ...item,
+        extra: item.extra ? JSON.parse(item.extra) : null,
+        photoUrls: item.photoUrls ? JSON.parse(item.photoUrls) : null,
+      }
+      return NextResponse.json({ success: true, data: parsed })
+    }
 
     // TASK 3: Global jaula view - return all jaula items across all projects
     if (jaulaOnly === 'true') {
