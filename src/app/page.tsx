@@ -629,18 +629,8 @@ export default function HomePage() {
                         )}
                       </button>
                     )}
-                    {/* 🗑️ Borrar Pasos — TESTING: visible for ALL non-gestor users */}
-                    {!isGestor && currentProject && (
-                      <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-red-50 transition-colors text-left min-h-[44px]"
-                        onClick={() => { setMobileMenuOpen(false); 
-                          if (!confirm('¿Seguro que quieres borrar TODOS los pasos? Esto es solo para pruebas.')) return;
-                          fetch('/api/progress/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: currentProject.id, zoneId: currentZone?.id }) })
-                            .then(r => r.json()).then(d => { alert(d.success ? `Restablecido: ${d.deletedCount} registros` : 'Error: ' + d.error); fetchProgress(); fetchEmployeeProgress(currentProject.id); });
-                        }}>
-                        <Trash2 className="h-5 w-5 text-red-500 shrink-0" />
-                        <span className="text-sm font-medium text-red-600">Borrar Pasos</span>
-                      </button>
-                    )}
+                    {/* v2.62: 'Borrar Pasos' eliminado — ya no vale */}
+
                     {/* 📄 Manual */}
                     <button className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-purple-50 transition-colors text-left min-h-[44px]"
                       onClick={() => {
@@ -675,32 +665,7 @@ export default function HomePage() {
             </div>
           ) : (
           <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto">
-            {/* 🗑️ Borrar Pasos — TESTING: visible for ALL non-gestor users with a project */}
-            {!isGestor && currentProject && (
-              <Button variant="outline" size="sm" onClick={async () => {
-                if (!confirm('¿Seguro que quieres borrar TODOS los pasos y datos de este proyecto? Esto es solo para pruebas.')) return;
-                try {
-                  const res = await fetch('/api/progress/reset', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ projectId: currentProject.id, zoneId: currentZone?.id }),
-                  });
-                  const data = await res.json();
-                  if (data.success) {
-                    alert(`Datos restablecidos: ${data.deletedCount} registros eliminados.`);
-                    fetchProgress();
-                    fetchEmployeeProgress(currentProject.id);
-                  } else {
-                    alert('Error: ' + (data.error || 'No se pudo restablecer'));
-                  }
-                } catch (err) {
-                  alert('Error al restablecer datos');
-                }
-              }} className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 h-8 px-2 gap-1" title="Borrar Pasos (pruebas)">
-                <Trash2 className="h-3.5 w-3.5" />
-                <span className="text-xs font-semibold">Borrar</span>
-              </Button>
-            )}
+            {/* v2.62: 'Borrar Pasos' eliminado — ya no vale */}
             {/* 📅 Calendario de acciones */}
             {currentUser && (
               <Button variant={userTaskCount > 0 ? 'default' : 'outline'} size="sm"

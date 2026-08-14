@@ -134,11 +134,13 @@ const DEFAULT_PERMISSIONS: Record<string, string[]> = {
   empleado: [
     'view_board', 'view_progress', 'view_project', 'view_team',
     'notify_audit', 'notify_autoeval', 'reset_data',
-    // S-steps: can view all, can execute steps 1-4, can only view step 5
+    // S-steps: can view all, can execute steps 1-3 (NOT 4 = autoevaluación, that's responsable's job)
+    // and can only view step 5 (auditoría)
     ...PER_S_PERMISSIONS.filter(id => {
       if (id.endsWith('_a0')) return true // All view
+      if (id.match(/_step4_a1$/)) return false // v2.62: empleado NO realiza autoevaluación (la pide al responsable)
       if (id.match(/_step5_a1$/)) return false // Cannot conduct audits
-      return true // Can execute steps 1-4
+      return true // Can execute steps 1-3
     }),
   ],
 
@@ -158,6 +160,28 @@ const DEFAULT_PERMISSIONS: Record<string, string[]> = {
 export async function GET() {
   try {
     let configs = await db.rolePermissionConfig.findMany()
+
+    // v2.62 MIGRATION: Force-update 'empleado' role to remove step4_a1
+    // (autoevaluación). Previously the default gave empleado step4_a1=true,
+    // which was wrong — autoevaluación must be done by the Responsable only.
+    // The empleado just clicks 'Solicitar autoeval' to notify the responsable.
+    // We force-update existing rows so the change takes effect without
+    // requiring the gestor to manually reset permissions.
+    const empleadoStep4A1Perms = configs.filter(c =>
+      c.role === 'empleado' &&
+      /^s[1-5]_step4_a1$/.test(c.permission) &&
+      c.allowed === true
+    )
+    if (empleadoStep4A1Perms.length > 0) {
+      await db.rolePermissionConfig.updateMany({
+        where: {
+          role: 'empleado',
+          permission: { in: empleadoStep4A1Perms.map(c => c.permission) },
+        },
+        data: { allowed: false },
+      })
+      configs = await db.rolePermissionConfig.findMany()
+    }
 
     // Ensure all expected permissions exist in DB using UPSERT (preserve custom edits!)
     const existingPermIds = new Set(configs.map(c => `${c.role}::${c.permission}`))
