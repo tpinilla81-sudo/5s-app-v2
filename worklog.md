@@ -2276,3 +2276,123 @@ Stage Summary:
   * Si por algún motivo la compresión sigue fallando para una foto
     específica, se usará el original sin comprimir (más grande pero
     visible).
+
+---
+Task ID: v2.60
+Agent: Main
+Task: Inventario → Plan de Acción + Diario, fix fotos negras, botón X fotos, VLM auto-descripción
+
+Work Log:
+- Usuario: "del paso 3, poder eliminar foto por si se mete confundida
+  con una x arriba en el icono de la foto. bidireccionalmente se
+  actualiza en paso 2 y biblioteca de fotos"
+- Usuario: "del acuerdo. Ahora el flujo es que todo que se ha apuntado
+  en el inventario se traspase al plan de accion y al diario del
+  responsable, para que se hagan esas tareas de eliminar y retirar
+  a jaula."
+- Usuario: "podriamos implementar una IA para en la descripcion ponga
+  automatico lo que se ve en la foto?"
+- Usuario: "realiza todo"
+
+CAMBIOS:
+
+1) FIX FOTOS NEGRAS (upload pipeline):
+   - /api/upload: sanity check server-side
+     * Rechaza imágenes <2KB (canvas vacío típico)
+     * Rechaza imágenes con >95% de bytes 0x00 o 0xFF (patrón canvas vacío)
+   - image-utils.ts compressImage:
+     * PNG fallback si JPEG devuelve sospechosamente pequeño (<1KB para >100x100)
+     * Si PNG tampoco funciona, usar original sin comprimir
+   - FotosModal.capturePhoto:
+     * Validar video.videoWidth > 0 antes de capturar (evita canvas 0x0)
+     * Llenar canvas con blanco antes de drawImage
+     * Sanity check post-captura: si <1KB, no añadir a la cola
+     * Mensaje al usuario si la captura falla
+
+2) FIX JAULA VACÍO + Z1:
+   - InventarioModal onDecisionChange Retirar:
+     * Asegurar jaulaOrigen = zonaOrigen || currentZone.name || project.name
+     * Asegurar zonaOrigen si no está seteado
+   - loadInventory backfill:
+     * Items S1 con decision='Retirar' pero jaulaStatus='' se normalizan
+       a jaulaStatus='en_jaula' automáticamente
+     * Persiste en DB (background) y actualiza state local
+     * Así aparecen en el JaulaView aunque se hayan creado antes de v2.60
+
+3) BOTÓN × EN FOTOS DEL PASO 3:
+   - Botón × SIEMPRE visible (antes solo si miniStep !== 2)
+   - Icono SVG (×) en vez de carácter texto
+   - Confirmación si es foto del Paso 2: 'Se quitará del inventario,
+     del Paso 2 y de la biblioteca de fotos'
+   - handleDeletePhoto mejorado:
+     * Actualiza itemPhotos (caché local)
+     * Actualiza items[].photos (array embebido)
+     * Actualiza step2Photos si la foto era del Paso 2
+     * Actualiza photoUrl principal del item si era la foto principal
+     * Mensaje: 'Foto eliminada del inventario, Paso 2 y biblioteca'
+   - Si el backend devuelve 409 (Paso 2 completado), muestra error
+
+4) INVENTARIO → PLAN DE ACCIÓN + DIARIO:
+   - Nuevo endpoint POST /api/inventory/sync-actions:
+     * Busca items S1 con decision='Retirar' o 'Eliminar'
+     * Para cada uno, verifica si ya existe ActionItem con itemId=`inv_${id}`
+     * Si no existe, lo crea con:
+       - hallazgo: 'Elemento innecesario detectado en {zona}: {nombre} ({qty} und.)'
+       - accionCorrectiva: 'Retirar a Jaula de cuarentena (40 días)' o 'Eliminar y enviar a Residuo'
+       - clienteZona: zonaOrigen del item
+       - personaDemandada: responsable de la zona (si existe)
+       - source: 'inventario'
+       - estado: 'abierta'
+       - prioridad: 'alta' si Eliminar o vencido, 'media' si no
+       - fechaLimite: jaulaFechaEntrada + diasCuarentena (para Retirar)
+       - semana: W{weekNumber}
+       - numeroEntrada: auto-increment per project
+   - InventarioModal.handleComplete:
+     * Tras completar el paso, llama a /api/inventory/sync-actions
+     * Muestra toast: 'Plan de Acción actualizado: X tarea(s) nueva(s)'
+   - InventarioModal onDecisionChange:
+     * Sincroniza en background al seleccionar Retirar/Eliminar
+     * No espera al completado del paso
+   - ResponsablePanel:
+     * Nueva sección 'Diario del Responsable'
+     * Carga tareas de /api/actions con filtro por rol
+     * Filtros: Todas / Pendientes / En proceso / Resueltas / Desde inventario
+     * Card por tarea con:
+       - Icono según tipo (Package=Retirar, Trash2=Eliminar, ListTodo=otro)
+       - Badges: estado, 'Inventario S1' si source=inventario, Urgente, Vencida
+       - hallazgo + accionCorrectiva
+       - Metadata: zona, responsable, fecha límite, fecha entrada
+       - Progress bar si porcentaje > 0
+       - Botones: Iniciar / Resolver / Cerrar
+     * Colores: rojo si vencida, naranja si urgente, azul si normal
+
+5) VLM AUTO-DESCRIPCIÓN:
+   - Nuevo endpoint POST /api/photo-describe:
+     * Usa ZAI chat.completions.createVision
+     * Prompt por S-Step (S1: elementos innecesarios, S2: organización,
+       S3: suciedad, S4: estándares visuales, S5: cumplimiento)
+     * Máximo 30 palabras, español, sin prefijos
+     * Limpia la respuesta (quita comillas, prefijos, trunca a 200 chars)
+   - FotosModal.handleSubmit:
+     * Tras guardar cada foto en PhotoLibrary, pide descripción VLM
+     * Actualiza PhotoLibrary.description con la respuesta
+     * No bloquea el submit — si VLM falla, la foto queda con desc genérica
+   - InventarioModal.handleAttachPhoto:
+     * Misma integración
+     * Actualiza estado local (itemPhotos + items[].photos) para que
+       se vea en la UI inmediatamente
+
+Bump v2.59 → v2.60 (middleware, page.tsx, LoginPage).
+Build Next.js: ✓ Compiled successfully.
+Commit 235dff8 + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- TRAS DEPLOY v2.60 (~1-2 min):
+  * Fotos subidas desde Paso 2 o Inventario: validación server-side
+    rechaza canvas vacío; PNG fallback si JPEG falla
+  * Items S1 con Retirar aparecen en JaulaView (backfill automático)
+  * Botón × en todas las fotos del Paso 3 (también Paso 2 con confirm)
+  * Completar inventario S1 → crea ActionItems automáticamente
+  * Cambiar decisión a Retirar/Eliminar → sincroniza en background
+  * Diario del Responsable: nueva sección con tareas pendientes
+  * Fotos subidas → descripción automática con IA (VLM) en background
