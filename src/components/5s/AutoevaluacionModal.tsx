@@ -588,7 +588,7 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
       }
     } catch (error) {
       console.error('Error submitting self-evaluation:', error);
-      toast.error('Error al guardar la autoevaluación. Revisa la consola (F12) para más detalles.');
+      toast.error('No se pudo guardar la autoevaluación. Inténtalo de nuevo en unos minutos.');
     } finally {
       setIsSubmitting(false);
     }
@@ -621,7 +621,6 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
             <Badge variant="outline" style={{ borderColor: sStepData?.color, color: sStepData?.color }}>
               {sStepData?.japaneseName} — {sStepData?.spanishName}
             </Badge>
-            <span className="ml-2 text-[10px] text-muted-foreground font-mono" title="Versión del modal">v2.5</span>
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               className="ml-auto p-1 rounded hover:bg-muted transition-colors"

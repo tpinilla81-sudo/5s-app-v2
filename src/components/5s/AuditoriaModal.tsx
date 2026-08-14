@@ -323,7 +323,7 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
   const forceAllOk = () => {
     const nokCount = sections.reduce((acc, s) => acc + s.items.filter(i => results[i.id]?.status === 'nok').length, 0);
     if (nokCount > 0) {
-      if (!confirm(`¿Sobreescribir ${nokCount} hallazgo(s) NOK y marcar TODO como OK?`)) return;
+      if (!confirm(`¿Marcar los ${nokCount} hallazgo(s) pendientes como conformes? Se perderán las observaciones actuales.`)) return;
     }
     setResults(prev => {
       const next = { ...prev };
@@ -579,7 +579,7 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
       }
     } catch (error) {
       console.error('Error submitting audit:', error);
-      toast.error('Error al guardar la auditoría. Revisa la consola (F12) para más detalles.');
+      toast.error('No se pudo guardar la auditoría. Inténtalo de nuevo en unos minutos.');
     } finally {
       setIsSubmitting(false);
     }
@@ -627,7 +627,6 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
             <Badge variant="outline" style={{ borderColor: sStepData?.color, color: sStepData?.color }}>
               {sStepData?.japaneseName} — {sStepData?.spanishName}
             </Badge>
-            <span className="ml-2 text-[10px] text-muted-foreground font-mono" title="Versión del modal">v2.5</span>
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               className="ml-auto p-1 rounded hover:bg-muted transition-colors"
@@ -673,9 +672,9 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
               variant="outline"
               className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100 bg-white"
               onClick={forceAllOk}
-              title="Fuerza TODOS los items a OK (sobreescribe NOK existentes)"
+              title="Marca todos los puntos como conformes"
             >
-              Forzar TODO OK
+              Marcar todo conforme
             </Button>
             <span className="ml-auto text-[10px] text-muted-foreground font-mono">
               {scoring.okCount} OK · {scoring.nokCount} NOK · {scoring.scorePercent}%
