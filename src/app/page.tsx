@@ -378,7 +378,7 @@ export default function HomePage() {
               <h1 className="text-sm font-black text-gray-900 leading-tight tracking-wide">5S</h1>
               <div className="flex items-center gap-1">
                 <span className="text-[10px] font-semibold text-green-600">by Método</span>
-                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.48</span>
+                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.49</span>
                 {isGestor && <span className="text-[10px] font-semibold text-red-500">· Gestor</span>}
                 {!isGestor && currentProject && <span className="text-[10px] text-muted-foreground">· {currentProject.name}</span>}
                 {!isGestor && currentZone && <span className="text-[10px] font-medium" style={{ color: currentZone.color || '#3B82F6' }}>· {currentZone.name}</span>}
@@ -1358,9 +1358,25 @@ export default function HomePage() {
                                           className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center text-[8px] font-bold hover:bg-red-600 transition-colors z-10"
                                           onClick={async (e) => {
                                             e.stopPropagation();
-                                            if (!confirm(`¿Restablecer paso ${ms.id} de S${s.id}? Esto eliminará el progreso guardado.`)) return;
+                                            // v2.49: mensaje específico según miniStep.
+                                            // cleanup=true ahora borra también fotos e items.
+                                            const msId = ms.id;
+                                            let msg = `¿Restablecer paso ${msId} de S${s.id}?\n\n`;
+                                            if (msId === 2) {
+                                              msg += `Esto eliminará:\n• El progreso del Paso 2 (Fotos) Y del Paso 3 (Inventario)\n• Todas las fotos del Paso 2\n• Todos los elementos del inventario\n\nPodrás empezar de cero desde el Paso 2.`;
+                                            } else if (msId === 3) {
+                                              msg += `Esto eliminará el progreso del Paso 3.\nLas fotos y elementos del inventario se conservan — podrás reclasificarlos.`;
+                                            } else {
+                                              msg += `Esto eliminará el progreso guardado.`;
+                                            }
+                                            if (!confirm(msg)) return;
                                             try {
-                                              const params = new URLSearchParams({ sStep: String(s.id), miniStep: String(ms.id), projectId: currentProject?.id || '' });
+                                              const params = new URLSearchParams({
+                                                sStep: String(s.id),
+                                                miniStep: String(msId),
+                                                projectId: currentProject?.id || '',
+                                                cleanup: 'true', // v2.49: deep cleanup
+                                              });
                                               if (currentZone?.id) params.set('zoneId', currentZone.id);
                                               const res = await fetch(`/api/progress/step?${params}`, { method: 'DELETE' });
                                               const json = await res.json();

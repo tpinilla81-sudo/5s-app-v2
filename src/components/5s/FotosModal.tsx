@@ -595,6 +595,49 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
           </div>
         )}
 
+        {/* v2.49: botón visible "Reiniciar paso" — más fácil de encontrar que la × diminuta
+            en el círculo del paso. Solo admin con candado abierto y paso completado. */}
+        {canSkipSteps && adminFreeNavigation && isCompleted && (
+          <div className="flex items-center gap-2 p-2 mx-6 flex-shrink-0 bg-red-50 border border-red-200 rounded-lg">
+            <span className="text-xs text-red-700 font-medium">Reiniciar:</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs border-red-300 text-red-700 hover:bg-red-100"
+              onClick={async () => {
+                const msg = `¿Reiniciar el Paso 2 (Fotos) y el Paso 3 (Inventario)?\n\nEsto eliminará:\n• El progreso del Paso 2 y del Paso 3\n• Todas las fotos del Paso 2 (${photos.length})\n• Todos los elementos del inventario\n\nPodrás empezar de cero desde el Paso 2.`;
+                if (!confirm(msg)) return;
+                try {
+                  const params = new URLSearchParams({
+                    sStep: String(sStep),
+                    miniStep: String(miniStep),
+                    projectId: currentProject?.id || '',
+                    cleanup: 'true',
+                  });
+                  if (currentZone?.id) params.set('zoneId', currentZone.id);
+                  const res = await fetch(`/api/progress/step?${params}`, { method: 'DELETE' });
+                  const json = await res.json();
+                  if (json.success) {
+                    await fetchProgress();
+                    setPhotos([]);
+                    setIsCompleted(false);
+                    setShowAddMore(false);
+                    toast.success('Paso 2 y 3 reiniciados. Ya puedes empezar de cero.');
+                    onClose();
+                  } else {
+                    toast.error(json.error || 'Error al reiniciar');
+                  }
+                } catch (err) {
+                  console.error('Reset error:', err);
+                  toast.error('Error de conexión al reiniciar');
+                }
+              }}
+            >
+              Reiniciar Paso 2 y 3 desde cero
+            </Button>
+          </div>
+        )}
+
         {isReadOnly && (
           <div className="flex items-center gap-2 p-2 mx-6 flex-shrink-0 bg-blue-50 border border-blue-200 rounded-lg">
             <span className="text-xs text-blue-700 font-medium">Solo lectura: {canSkipSteps ? 'Activa el candado para poder realizar pasos.' : 'Puedes ver pero no modificar.'}</span>

@@ -273,8 +273,15 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE /api/progress/step?sStep=1&miniStep=2&projectId=xxx&zoneId=yyy
+// DELETE /api/progress/step?sStep=1&miniStep=2&projectId=xxx&zoneId=yyy&cleanup=true
 // Admin-only: Reset a step's progress (undo admin test actions)
+// v2.49: si cleanup=true, también elimina los datos asociados al paso:
+//   - miniStep=2 (Fotos): borra Photos(miniStep=2) + Inventory items + Progress(3)
+//     (porque los drafts del inventario se crean en Paso 2 y se clasifican en Paso 3).
+//   - miniStep=3 (Inventario): NO toca fotos ni items (Paso 2 sigue completo).
+//     Solo borra el Progress(3), permitiendo al usuario re-clasificar los items
+//     existentes y volver a completar el paso.
+//   - Otros miniSteps: solo borra el Progress record (comportamiento anterior).
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -282,6 +289,7 @@ export async function DELETE(request: NextRequest) {
     const miniStep = searchParams.get('miniStep')
     const projectId = searchParams.get('projectId')
     const zoneId = searchParams.get('zoneId')
+    const cleanup = searchParams.get('cleanup') === 'true'
 
     if (!sStep || !miniStep || !projectId) {
       return NextResponse.json({ success: false, error: 'sStep, miniStep, and projectId are required' }, { status: 400 })
@@ -306,6 +314,34 @@ export async function DELETE(request: NextRequest) {
 
     const sStepNum = parseInt(sStep)
     const miniStepNum = parseInt(miniStep)
+
+    // Helper: cláusula `where` con zoneId correcto (null si no se pasa)
+    const zoneWhere = zoneId ? { zoneId } : { zoneId: null }
+
+    // v2.49: cleanup de datos asociados antes de borrar el Progress.
+    // Lo hacemos en orden para evitar problemas de FK:
+    //   1. Inventory items (cuyo inventoryItemId en PhotoLibrary es SetNull on delete).
+    //   2. Photos (sin dependientes).
+    //   3. Progress records.
+    if (cleanup) {
+      if (miniStepNum === 2) {
+        // Borrar items de inventario del sStep/project/zone (drafts del Paso 2 + clasificados del Paso 3).
+        const deletedItems = await db.inventoryItem.deleteMany({
+          where: { sStep: sStepNum, projectId, ...zoneWhere },
+        })
+        // Borrar fotos tomadas en el Paso 2 (miniStep=2) para este sStep/project/zone.
+        const deletedPhotos = await db.photoLibrary.deleteMany({
+          where: { sStep: sStepNum, miniStep: 2, projectId, ...zoneWhere },
+        })
+        // Cascada: borrar también el Progress del Paso 3 (depende de los drafts del Paso 2).
+        const deletedStep3 = await db.progress.deleteMany({
+          where: { sStep: sStepNum, miniStep: 3, projectId, ...zoneWhere },
+        })
+        console.log(`[DELETE /progress/step] cleanup miniStep=2: ${deletedItems.count} items, ${deletedPhotos.count} photos, ${deletedStep3.count} progress(3) deleted`)
+      }
+      // miniStep=3: NO tocamos items ni fotos. El usuario quiere re-clasificar, no perder datos.
+      // Otros miniSteps: no hay datos adicionales que limpiar (audit results ya se gestionan abajo).
+    }
 
     // Find and delete the progress record
     const findWhere: any = {
