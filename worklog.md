@@ -1508,3 +1508,70 @@ Stage Summary:
 - Pendiente: usuario prueba en v2.45 tras deploy (~1-2 min). Si
   quiere eliminar también los botones "Importar Plantilla / Archivo",
   iterar.
+
+---
+Task ID: v2.46
+Agent: Main
+Task: Bloquear borrado de fotos y items del Paso 2 una vez completado
+
+Work Log:
+- Petición del usuario: "HE ELIMINADO LAS FOTOS DEL PASO 2 UNA VEZ
+  GUARDADO LAS 5 Y ME HA DEJADO SEGUIR EN EL PASO 3, ESTO HAY QEU
+  CAMBIARLO, uNA VEZ QEU SE GUARDAN LAS FOTOS REQUERIDAS Y SE PASA AL
+  PASO 3 NO SE TIENE QUE DEJAR BORRAR DEL PASO DOS. EN EL PASSO 3
+  TIENESN QEU ESTAR FIJAS SIN PODER BORRA Y SE TIENE QEU RELLENAR LO
+  REQUERIDO EN LA TABLA DE TODAS LAS FOTOS DEL PASO 2 PARA PODRE PASAR
+  AL PASO 4"
+
+PROBLEMA: el usuario podía eludir el requisito de clasificar todas
+las fotos del Paso 2 simplemente borrando los borradores (filas de
+la tabla) o las fotos (× en columna Fotos). Al desaparecer, el
+'pendingDraftsCount' quedaba en 0 y 'canComplete' era true → podía
+pasar al Paso 4 sin rellenar nada.
+
+FRONTEND (InventarioModal.tsx):
+- handleDeletePhoto: si photo.miniStep === 2 y miniStep >= 3,
+  toast.error y return sin llamar al backend.
+- handleDeleteItem: si item.extra?.sourcePhotoId y miniStep >= 3,
+  toast.error y return sin llamar al backend.
+- Columna Fotos: el botón × solo se renderiza si photo.miniStep !== 2.
+  Las fotos del Paso 2 no muestran ×.
+- Columna Delete (× de fila): si item.extra?.sourcePhotoId, en
+  lugar del botón × se muestra un 🔒 con tooltip 'Elemento
+  obligatorio vinculado al Paso 2'.
+
+BACKEND (doble guard — el frontend puede ser bypaseado):
+- DELETE /api/inventory?id=X:
+  Si el item tiene extra.sourcePhotoId Y existe un Progress con
+  (sStep, miniStep=2, completed=true, projectId, zoneId),
+  devuelve 409 con mensaje explicando que no se puede eliminar.
+- DELETE /api/photo-library?id=X:
+  Si photo.miniStep === 2 Y existe un Progress con
+  (sStep, miniStep=2, completed=true, projectId, zoneId),
+  devuelve 409 con mensaje explicando que no se puede eliminar.
+  También añadí check de photo not found → 404 limpio.
+
+PhotoLibrary.tsx:
+- handleDelete: ahora verifica res.ok. Si el backend devuelve 409,
+  muestra alert() con el mensaje de error del backend (antes
+  silenciaba cualquier error).
+
+Bump v2.46 en middleware.ts, page.tsx, LoginPage.tsx.
+Build Next.js: ✓ Compiled successfully in 21.2s.
+Commit + push a GitHub (0fcab10). Vercel deploy automático.
+
+Stage Summary:
+- Una vez completado el Paso 2 (Fotos) y pasado al Paso 3 (Inventario):
+  * Las fotos del Paso 2 no se pueden eliminar ni desde la columna
+    Fotos de la tabla (× oculto) ni desde PhotoLibrary (backend 409).
+  * Los items creados desde fotos del Paso 2 (con extra.sourcePhotoId)
+    no se pueden eliminar (🔒 en vez de ×, backend 409).
+  * El usuario TIENE que rellenas los datos de cada foto del Paso 2
+    en la tabla (nombre, categoría, decisión, etc.) para que el
+    borrador deje de ser 'pendiente' (pendingDraftsCount → 0) y
+    pueda completar el inventario y pasar al Paso 4.
+- Pendiente: usuario prueba en v2.46 tras deploy (~1-2 min). Si
+  quiere que las fotos del Paso 2 tampoco se puedan eliminar DESDE
+  FotosModal al reabrir el Paso 2 (p. ej. para añadir más fotos),
+  iterar — aunque actualmente FotosModal solo opera sobre photos
+  state local hasta que se ejecuta handleSubmit.
