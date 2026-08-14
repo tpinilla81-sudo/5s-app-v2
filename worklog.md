@@ -1200,3 +1200,85 @@ Stage Summary:
   quedan otros campos donde Enter no guarda (p. ej. el modal de
   autoevaluación, auditoría o fotos), reportar y se aplica el
   mismo patrón commitOnEnter.
+
+---
+Task ID: v2.42
+Agent: Main
+Task: Migrar fotos huérfanas pre-v2.40 a borradores automáticamente
+
+Work Log:
+- Usuario reportó: "NO VEO EL PASO DE VINCULAR LA FOTO EXISTENTE COMO
+  EXPLICAS"
+- Diagnóstico: dos problemas separados:
+
+  PROBLEMA 1: loadStep2Photos no filtraba fotos huérfanas.
+  - Cargaba TODAS las fotos del Paso 2 (miniStep=2) del proyecto+zona,
+    incluyendo las que ya tenían inventoryItemId (vinculadas a un item).
+  - Esto hacía que el card "Fotos del Paso 2 pendientes de clasificar"
+    mostrara fotos que en realidad ya estaban vinculadas a un borrador.
+  - El unclassifiedPhotosCount era incorrecto (contaba vinculadas).
+  - El usuario veía fotos en el card pero no entendía qué faltaba por
+    hacer, porque en realidad no faltaba nada (el borrador ya existía).
+
+  PROBLEMA 2: fotos tomadas antes de v2.40 no tenían borrador.
+  - La lógica de auto-creación de borradores (v2.40) solo se ejecuta
+    en FotosModal.handleSubmit al guardar fotos NUEVAS.
+  - Las fotos tomadas antes del deploy de v2.40 existían en
+    PhotoLibrary sin inventoryItemId y sin item asociado.
+  - El usuario las veía en el card rojo pero no había manera de que
+    se convirtieran en borradores — el flujo manual (📷 Vincular)
+    era el único camino, y NO era lo que yo había explicado.
+
+FIX:
+- loadStep2Photos ahora filtra solo fotos huérfanas:
+    const orphans = (json.data || []).filter((p: any) => !p.inventoryItemId);
+    setStep2Photos(orphans.map(...));
+  Las fotos vinculadas ya no aparecen en step2Photos ni en el card
+  "pendientes de clasificar" ni en unclassifiedPhotosCount.
+
+- Nueva función migrateOrphanPhotos(orphans):
+  Para cada foto huérfana:
+    1) POST /api/inventory con name="Pendiente de clasificar (idx+1)",
+       category='', extra.isDraft=true, sourcePhotoId/Url/Type/Title.
+    2) PUT /api/photo-library con {id: photoId, inventoryItemId: newItemId}
+       → vincula la foto al nuevo item.
+  Después de migrar todas:
+    - await loadInventory() → los borradores aparecen en la tabla.
+    - setTimeout(() => loadStep2Photos(), 0) → recarga step2Photos,
+      que ahora debería estar vacío (todas vinculadas).
+  Misma lógica que FotosModal.handleSubmit v2.40, replicada para
+  fotos antiguas.
+
+- Guard anti-reentrancia con useRef:
+    const isMigratingRef = useRef(false);
+  Si loadStep2Photos se vuelve a llamar mientras la migración está
+  en curso (p. ej. por el setTimeout recursivo), no se vuelve a
+  disparar migrateOrphanPhotos. Evita loop infinito.
+
+- Import añadido: useRef en la línea de imports de React.
+
+Bump v2.42 en middleware.ts, page.tsx, LoginPage.tsx.
+Build Next.js: ✓ Compiled successfully in 20.9s.
+Commit + push a GitHub (77c6f75). Vercel deploy automático.
+
+Stage Summary:
+- Ahora el flujo es consistente sin importar CUÁNDO se tomaron las
+  fotos del Paso 2:
+  * Fotos nuevas (v2.40+): FotosModal.handleSubmit crea el borrador
+    y vincula la foto al guardar.
+  * Fotos antiguas (pre-v2.40): al abrir InventarioModal,
+    loadStep2Photos detecta las huérfanas y migrateOrphanPhotos les
+    crea un borrador y las vincula automáticamente.
+- El usuario ya no necesita usar el botón 📷 "Vincular Foto del Paso 2"
+  manualmente — ese flujo sigue existiendo como fallback, pero la
+  migración automática debería cubrir todos los casos.
+- Al abrir InventarioModal con fotos pendientes, el usuario verá:
+  1. Breve parpadeo mientras se migran las fotos (silencioso).
+  2. Tabla con items "Pendiente de clasificar (N)" + badge rojo.
+  3. La foto ya attached en la columna Fotos.
+  4. Sin el card rojo de "Fotos del Paso 2 pendientes" (porque ya
+     no hay huérfanas).
+- Pendiente: usuario prueba en v2.42 tras deploy (~1-2 min). Si
+  sigue sin ver los borradores, probablemente sea porque las fotos
+  no existen en BD para ese sStep/zoneId — habría que verificar
+  en la tabla PhotoLibrary directamente.
