@@ -160,6 +160,7 @@ export async function POST(request: NextRequest) {
       semanaPrevista,
       porcentaje,
       semanaReal,
+      photoRefs, // v2.63: JSON array of photo URLs linked to this hallazgo
     } = body
 
     // Allow draft entries from actionplan source with placeholder description
@@ -223,6 +224,7 @@ export async function POST(request: NextRequest) {
         semanaPrevista: semanaPrevista || null,
         porcentaje: porcentaje !== undefined ? porcentaje : 0,
         semanaReal: semanaReal || null,
+        photoRefs: photoRefs || null, // v2.63: fotos del hallazgo enlazadas al ActionItem
       },
     })
 
@@ -271,6 +273,7 @@ export async function PUT(request: NextRequest) {
     if (body.semanaPrevista !== undefined) updateData.semanaPrevista = body.semanaPrevista
     if (body.porcentaje !== undefined) updateData.porcentaje = body.porcentaje
     if (body.semanaReal !== undefined) updateData.semanaReal = body.semanaReal
+    if (body.photoRefs !== undefined) updateData.photoRefs = body.photoRefs // v2.63
     // Description fields
     if (body.hallazgo !== undefined) updateData.hallazgo = body.hallazgo
     if (body.itemDescription !== undefined) updateData.itemDescription = body.itemDescription

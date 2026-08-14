@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { CheckSquare, CheckCircle, XCircle, Camera, ChevronDown, ChevronRight, Maximize2, Minimize2, AlertCircle, Upload, X, Image as ImageIcon, Calendar, UserCircle, CheckCheck } from 'lucide-react';
+import { CheckSquare, CheckCircle, XCircle, Camera, ChevronDown, ChevronRight, Maximize2, Minimize2, AlertCircle, Upload, X, Image as ImageIcon, Calendar, UserCircle, CheckCheck, Paperclip } from 'lucide-react';
 import { use5SStore } from '@/lib/store';
 import {
   S_STEPS,
@@ -63,6 +63,11 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
   const [autoevalPhotos, setAutoevalPhotos] = useState<{ file: File; preview: string; uploading?: boolean; serverUrl?: string }[]>([]);
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  // v2.63: Per-NOK-finding photos — each NOK item can have its own photos
+  // that will be linked to the corresponding ActionItem via photoRefs.
+  const [nokPhotos, setNokPhotos] = useState<Record<string, { file: File; preview: string }[]>>({});
+  const nokPhotoInputRef = useRef<Record<string, HTMLInputElement | null>>({});
+  const [activeNokItemId, setActiveNokItemId] = useState<string | null>(null);
 
   // Project members for responsable selector on NOK items
   const [projectMembers, setProjectMembers] = useState<Array<{ id: string; userId: string; role: string; user: { id: string; name: string; email: string; role: string; active: boolean } }>>([]);
@@ -156,6 +161,7 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
     setIsCompleted(false);
     setFinalScore(0);
     setAutoevalPhotos([]);
+    setNokPhotos({});
     // Auto-fill current date/time for the evaluation
     const now = new Date();
     setFechaAutoevaluacion(now.toISOString().split('T')[0]);
@@ -297,6 +303,36 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
     });
   };
 
+  // v2.63: Per-NOK photo handlers — photos attached to a specific finding
+  // (hallazgo) flow: paso 2 (capture) → paso 3 (action plan with photoRefs).
+  const handleNokPhotoSelect = async (itemId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const newPhotos: { file: File; preview: string }[] = [];
+    for (const file of Array.from(files)) {
+      const preview = URL.createObjectURL(file);
+      newPhotos.push({ file, preview });
+    }
+    setNokPhotos(prev => ({
+      ...prev,
+      [itemId]: [...(prev[itemId] || []), ...newPhotos],
+    }));
+    if (nokPhotoInputRef.current[itemId]) nokPhotoInputRef.current[itemId]!.value = '';
+  };
+
+  const removeNokPhoto = (itemId: string, index: number) => {
+    setNokPhotos(prev => {
+      const photos = prev[itemId] || [];
+      const photo = photos[index];
+      if (photo?.preview) URL.revokeObjectURL(photo.preview);
+      const updated = photos.filter((_, i) => i !== index);
+      const next = { ...prev };
+      if (updated.length === 0) delete next[itemId];
+      else next[itemId] = updated;
+      return next;
+    });
+  };
+
   const toggleSection = (sectionId: string) => {
     setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
   };
@@ -431,11 +467,62 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
         }
 
         // ─── Create Action Items for NOK (disfunciones) ───
+        // v2.63: Para cada NOK, primero subimos sus fotos a la biblioteca
+        // (con photoType='hallazgo' y tags que incluyan el itemId), y luego
+        // creamos el ActionItem con photoRefs = JSON.stringify([urls]).
+        // Así el flujo sigue el patrón S1: foto (paso 2) → plan de acción (paso 3).
         const nokResults = Object.values(results).filter((r: any) => r.status === 'nok');
         for (const nok of nokResults) {
           if (!nok.hallazgo && !nok.mejora) continue; // Skip items without description
           try {
-            await fetch('/api/actions', {
+            // 1. Subir fotos del hallazgo a la biblioteca (si las hay)
+            const photoUrls: string[] = [];
+            const itemPhotos = nokPhotos[nok.itemId] || [];
+            if (itemPhotos.length > 0) {
+              for (let pIdx = 0; pIdx < itemPhotos.length; pIdx++) {
+                const photo = itemPhotos[pIdx];
+                try {
+                  const formData = new FormData();
+                  formData.append('file', photo.file);
+                  formData.append('filename', `S${sStep}_autoeval_nok_${nok.itemId}_${currentZone?.name || 'zona'}_${pIdx + 1}_${Date.now()}.jpg`);
+                  const uploadRes = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData,
+                  });
+                  const uploadData = await uploadRes.json();
+                  if (uploadData.success && uploadData.url) {
+                    photoUrls.push(uploadData.url);
+                    // Guardar en biblioteca con trazabilidad completa
+                    await fetch('/api/photo-library', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        sStep,
+                        miniStep: 4,
+                        title: `Hallazgo S${sStep} - ${nok.itemId} - Foto ${pIdx + 1}`,
+                        description: `Hallazgo autoeval S${sStep} (${sStepData?.japaneseName || ''}) · Zona: ${currentZone?.name || '—'} · Item: ${nok.itemId}\nHallazgo: ${(nok.hallazgo || '').slice(0, 200)}\nSubida por ${currentUser?.name || 'Usuario'}`,
+                        photoUrl: uploadData.url,
+                        photoType: 'hallazgo',
+                        category: `autoeval_nok_s${sStep}`,
+                        tags: JSON.stringify([
+                          `S${sStep}`, sStepData?.japaneseName || '',
+                          currentZone?.name || '', 'paso4', 'autoevaluacion',
+                          'hallazgo', 'nok', `item:${nok.itemId}`,
+                        ]),
+                        projectId: currentProject?.id,
+                        zoneId: currentZone?.id || null,
+                        uploadedBy: currentUser?.id || null,
+                      }),
+                    });
+                  }
+                } catch (photoErr) {
+                  console.error(`[autoeval] Error subiendo foto ${pIdx + 1} del NOK ${nok.itemId}:`, photoErr);
+                }
+              }
+            }
+
+            // 2. Crear ActionItem con photoRefs (JSON array de URLs)
+            const actionRes = await fetch('/api/actions', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -452,8 +539,38 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                 auditor: null,
                 projectId: currentProject?.id,
                 zoneId: currentZone?.id || null,
+                // v2.63: enlazar fotos del hallazgo al ActionItem
+                photoRefs: photoUrls.length > 0 ? JSON.stringify(photoUrls) : undefined,
               }),
             });
+            const actionJson = await actionRes.json();
+            const actionItemId = actionJson?.data?.id;
+
+            // 3. Si se creó el ActionItem y hay fotos, notificar al responsable
+            // con referencia a las fotos, para que entre al Plan de Acción
+            if (actionItemId && photoUrls.length > 0 && nok.responsable) {
+              try {
+                // Buscar userId del responsable por nombre
+                const member = projectMembers.find(m => m.user?.name === nok.responsable);
+                if (member?.userId) {
+                  await fetch('/api/notifications', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      userId: member.userId,
+                      type: 'new_action_item',
+                      title: `Hallazgo con foto: S${sStep} - ${nok.itemId}`,
+                      message: `Se ha detectado un hallazgo en la autoevaluación de S${sStep} (${sStepData?.japaneseName || ''}) en la zona "${currentZone?.name || '—'}" con ${photoUrls.length} foto(s) de evidencia.\n\nHallazgo: ${(nok.hallazgo || '').slice(0, 150)}\n\nRevisa el Plan de Acción para ver la evidencia fotográfica.\n\n[ref:${actionItemId}]`,
+                      sStep,
+                      zoneId: currentZone?.id || null,
+                      projectId: currentProject?.id,
+                    }),
+                  });
+                }
+              } catch (notifErr) {
+                console.error('[autoeval] Error notificando hallazgo con foto:', notifErr);
+              }
+            }
           } catch (actionError) {
             console.error('Error creating action item from autoevaluación:', actionError);
           }
@@ -957,10 +1074,53 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                                     <p className="text-[10px] text-blue-500 mt-0.5">Selecciona un responsable</p>
                                   )}
                                 </div>
-                                <div>
-                                  <Button variant="outline" size="sm" className="text-xs">
-                                    <Camera className="h-3 w-3 mr-1" /> Añadir foto (biblioteca paso 2)
-                                  </Button>
+                                <div className="space-y-2">
+                                  <label className="text-xs font-medium text-blue-700 flex items-center gap-1">
+                                    <Camera className="h-3 w-3" />
+                                    Foto del hallazgo (paso 2 → paso 3 Plan de Acción)
+                                  </label>
+                                  <input
+                                    ref={el => { nokPhotoInputRef.current[item.id] = el; }}
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    className="hidden"
+                                    onChange={e => handleNokPhotoSelect(item.id, e)}
+                                  />
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-xs"
+                                      onClick={() => nokPhotoInputRef.current[item.id]?.click()}
+                                    >
+                                      <Camera className="h-3 w-3 mr-1" /> Añadir foto
+                                    </Button>
+                                    {(nokPhotos[item.id] || []).length > 0 && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {(nokPhotos[item.id] || []).length} foto(s) adjunta(s)
+                                      </span>
+                                    )}
+                                  </div>
+                                  {(nokPhotos[item.id] || []).length > 0 && (
+                                    <div className="grid grid-cols-4 gap-2 mt-1">
+                                      {(nokPhotos[item.id] || []).map((photo, idx) => (
+                                        <div key={idx} className="relative group">
+                                          <img src={photo.preview} alt={`Hallazgo ${idx + 1}`} className="w-full h-16 object-cover rounded-lg border" />
+                                          <button
+                                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onClick={() => removeNokPhoto(item.id, idx)}
+                                            title="Quitar foto"
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <p className="text-[10px] text-muted-foreground">
+                                    Estas fotos se guardarán en la biblioteca y se enlazarán al hallazgo en el Plan de Acción.
+                                  </p>
                                 </div>
                               </div>
                             )}

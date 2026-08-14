@@ -1,0 +1,1063 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import { useState, useEffect, useMemo, useRef } from 'react';
+     4→     4→import {
+     5→     5→  Dialog,
+     6→     6→  DialogContent,
+     7→     7→  DialogHeader,
+     8→     8→  DialogTitle,
+     9→     9→} from '@/components/ui/dialog';
+    10→    10→import { Button } from '@/components/ui/button';
+    11→    11→import { Card, CardContent } from '@/components/ui/card';
+    12→    12→import { Badge } from '@/components/ui/badge';
+    13→    13→import { Input } from '@/components/ui/input';
+    14→    14→import { Textarea } from '@/components/ui/textarea';
+    15→    15→import { Label } from '@/components/ui/label';
+    16→    16→import { CheckSquare, CheckCircle, XCircle, Camera, ChevronDown, ChevronRight, Maximize2, Minimize2, AlertCircle, Upload, X, Image as ImageIcon, Calendar, UserCircle, CheckCheck } from 'lucide-react';
+    17→    17→import { use5SStore } from '@/lib/store';
+    18→    18→import {
+    19→    19→  S_STEPS,
+    20→    20→  SELF_EVAL_THRESHOLD,
+    21→    21→} from '@/lib/5s-constants';
+    22→    22→import type { AuditSection, AuditItemResult } from '@/lib/5s-constants';
+    23→    23→import { useChecklistTemplate } from '@/lib/checklist-templates';
+    24→    24→import {
+    25→    25→  Select,
+    26→    26→  SelectContent,
+    27→    27→  SelectItem,
+    28→    28→  SelectTrigger,
+    29→    29→  SelectValue,
+    30→    30→} from '@/components/ui/select';
+    31→    31→import { toast } from 'sonner';
+    32→    32→
+    33→    33→interface AutoevaluacionModalProps {
+    34→    34→  open: boolean;
+    35→    35→  onClose: () => void;
+    36→    36→  sStep: number;
+    37→    37→  miniStep: number;
+    38→    38→}
+    39→    39→
+    40→    40→
+    41→    41→
+    42→    42→export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: AutoevaluacionModalProps) {
+    43→    43→  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission, openModal } = use5SStore();
+    44→    44→  const sStepData = S_STEPS.find(s => s.id === sStep);
+    45→    45→  const canSkipSteps = hasPermission('skip_steps');
+    46→    46→  const canPerformStep = canPerform(sStep, miniStep);
+    47→    47→  const canViewStep = canView(sStep, miniStep);
+    48→    48→  // Permission-driven: read-only if no execute perm OR if candado closed for skip_steps users
+    49→    49→  const isReadOnly = !canPerformStep || (canSkipSteps && !adminFreeNavigation);
+    50→    50→  const canPerformAutoeval = canPerformStep;
+    51→    51→
+    52→    52→  const [isFullscreen, setIsFullscreen] = useState(true);
+    53→    53→  const [results, setResults] = useState<Record<string, AuditItemResult>>({});
+    54→    54→  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+    55→    55→  const [observaciones, setObservaciones] = useState('');
+    56→    56→  const [isSubmitting, setIsSubmitting] = useState(false);
+    57→    57→  const [isCompleted, setIsCompleted] = useState(false);
+    58→    58→  const [finalScore, setFinalScore] = useState(0);
+    59→    59→  // Track which (open, sStep, sections-signature) we've already initialized for,
+    60→    60→  // so we don't reset user edits if `sections` ref changes mid-session.
+    61→    61→  const initializedFor = useRef<string>('');
+    62→    62→  const [notaMinima, setNotaMinima] = useState(70);
+    63→    63→  const [autoevalPhotos, setAutoevalPhotos] = useState<{ file: File; preview: string; uploading?: boolean; serverUrl?: string }[]>([]);
+    64→    64→  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+    65→    65→  const photoInputRef = useRef<HTMLInputElement>(null);
+    66→    66→
+    67→    67→  // Project members for responsable selector on NOK items
+    68→    68→  const [projectMembers, setProjectMembers] = useState<Array<{ id: string; userId: string; role: string; user: { id: string; name: string; email: string; role: string; active: boolean } }>>([]);
+    69→    69→
+    70→    70→  // Date/Time for scheduling and recording the evaluation
+    71→    71→  const [fechaAutoevaluacion, setFechaAutoevaluacion] = useState('');
+    72→    72→  const [horaAutoevaluacion, setHoraAutoevaluacion] = useState('');
+    73→    73→  const [fechaProgramada, setFechaProgramada] = useState('');
+    74→    74→  const [horaProgramada, setHoraProgramada] = useState('');
+    75→    75→  // Track auditoría schedule (miniStep 5) — employee sees this as read-only (auditor sets it)
+    76→    76→  const [auditFechaProgramada, setAuditFechaProgramada] = useState('');
+    77→    77→  const [auditHoraProgramada, setAuditHoraProgramada] = useState('');
+    78→    78→
+    79→    79→  // Load template from API (uses board config if zone has one)
+    80→    80→  const { sections, isLoading: isLoadingTemplate, notaMinima: templateNotaMinima } = useChecklistTemplate('autoevaluacion', sStep, open, currentZone?.boardConfigId);
+    81→    81→
+    82→    82→  // Apply template notaMinima when loaded
+    83→    83→  useEffect(() => {
+    84→    84→    if (templateNotaMinima !== null) setNotaMinima(templateNotaMinima);
+    85→    85→  }, [templateNotaMinima]);
+    86→    86→
+    87→    87→  // Load project members (for responsable selector on NOK items)
+    88→    88→  useEffect(() => {
+    89→    89→    if (open && currentProject?.id) {
+    90→    90→      fetch(`/api/projects/${currentProject.id}/members`)
+    91→    91→        .then(r => r.json())
+    92→    92→        .then(data => setProjectMembers(data?.members || []))
+    93→    93→        .catch(err => console.error('Error loading project members:', err));
+    94→    94→    } else {
+    95→    95→      setProjectMembers([]);
+    96→    96→    }
+    97→    97→  }, [open, currentProject?.id]);
+    98→    98→
+    99→    99→
+   100→   100→
+   101→   101→  // Fetch dynamic threshold (overrides template if present)
+   102→   102→  useEffect(() => {
+   103→   103→    if (open && currentProject?.id) {
+   104→   104→      const fetchThreshold = async () => {
+   105→   105→        try {
+   106→   106→          const params = new URLSearchParams({ projectId: currentProject.id });
+   107→   107→          if (currentZone?.id) params.set('zoneId', currentZone.id);
+   108→   108→          const res = await fetch(`/api/audit-targets?${params}`);
+   109→   109→          const json = await res.json();
+   110→   110→          if (json.success && json.data) {
+   111→   111→            const zoneTarget = json.data.find((t: any) => t.sStep === sStep && t.miniStep === 4 && t.zoneId === currentZone?.id);
+   112→   112→            const projectTarget = json.data.find((t: any) => t.sStep === sStep && t.miniStep === 4 && t.zoneId === null);
+   113→   113→            const target = zoneTarget || projectTarget;
+   114→   114→            if (target?.notaMinima) setNotaMinima(target.notaMinima);
+   115→   115→          }
+   116→   116→        } catch (e) { console.error('Error fetching threshold:', e); }
+   117→   117→      };
+   118→   118→      fetchThreshold();
+   119→   119→    }
+   120→   120→  }, [open, sStep, currentProject?.id, currentZone?.id]);
+   121→   121→
+   122→   122→  // ─────────────────────────────────────────────────────────────
+   123→   123→  // ROBUST PRE-TICK: Merge missing items as 'ok' whenever sections change.
+   124→   124→  // This replaces the fragile one-shot pre-tick. Instead of setting results
+   125→   125→  // once and praying the effect fires after sections loads, we continuously
+   126→   126→  // MERGE missing items as 'ok' into `results` without overwriting user
+   127→   127→  // edits. This guarantees that every visible item always has an 'ok' entry
+   128→   128→  // unless the user explicitly marks it NOK/N/A.
+   129→   129→  // ─────────────────────────────────────────────────────────────
+   130→   130→  useEffect(() => {
+   131→   131→    if (!open || sections.length === 0) return;
+   132→   132→    setResults(prev => {
+   133→   133→      const next = { ...prev };
+   134→   134→      let changed = false;
+   135→   135→      sections.forEach(s => s.items.forEach(item => {
+   136→   136→        if (!next[item.id]) {
+   137→   137→          next[item.id] = { itemId: item.id, status: 'ok' };
+   138→   138→          changed = true;
+   139→   139→        }
+   140→   140→      }));
+   141→   141→      return changed ? next : prev;
+   142→   142→    });
+   143→   143→  }, [open, sections]);
+   144→   144→
+   145→   145→  // Initialize expanded sections + reset form state once per (sStep + sections signature)
+   146→   146→  useEffect(() => {
+   147→   147→    if (!open || sections.length === 0) return;
+   148→   148→    const sig = `${sStep}:${sections.map(s => s.items.map(i => i.id).join(',')).join('|')}`;
+   149→   149→    if (initializedFor.current === sig) return;
+   150→   150→    initializedFor.current = sig;
+   151→   151→
+   152→   152→    const expanded: Record<string, boolean> = {};
+   153→   153→    sections.forEach(s => { expanded[s.id] = true; });
+   154→   154→    setExpandedSections(expanded);
+   155→   155→    setObservaciones('');
+   156→   156→    setIsCompleted(false);
+   157→   157→    setFinalScore(0);
+   158→   158→    setAutoevalPhotos([]);
+   159→   159→    // Auto-fill current date/time for the evaluation
+   160→   160→    const now = new Date();
+   161→   161→    setFechaAutoevaluacion(now.toISOString().split('T')[0]);
+   162→   162→    setHoraAutoevaluacion(now.toTimeString().slice(0, 5));
+   163→   163→    // Load scheduled date if available
+   164→   164→    loadScheduledDate();
+   165→   165→    // Load previously saved results (so user can see what was saved before)
+   166→   166→    loadSavedResults();
+   167→   167→  }, [open, sStep, sections]);
+   168→   168→
+   169→   169→  // Load previously saved audit results from the backend so the user can see
+   170→   170→  // what was actually persisted. This makes the save behavior verifiable.
+   171→   171→  const loadSavedResults = async () => {
+   172→   172→    if (!currentProject?.id) return;
+   173→   173→    try {
+   174→   174→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}&projectId=${currentProject.id}${currentZone?.id ? `&zoneId=${currentZone.id}` : ''}`);
+   175→   175→      const json = await res.json();
+   176→   176→      if (json.success && json.data?.notes) {
+   177→   177→        try {
+   178→   178→          const notes = typeof json.data.notes === 'string' ? JSON.parse(json.data.notes) : json.data.notes;
+   179→   179→          if (notes?.results && Array.isArray(notes.results)) {
+   180→   180→            const loaded: Record<string, AuditItemResult> = {};
+   181→   181→            notes.results.forEach((r: any) => {
+   182→   182→              if (r?.itemId) loaded[r.itemId] = r;
+   183→   183→            });
+   184→   184→            // Only set if there's at least one real entry (don't overwrite with empty)
+   185→   185→            if (Object.keys(loaded).length > 0) {
+   186→   186→              setResults(loaded);
+   187→   187→              if (notes.observaciones) setObservaciones(notes.observaciones);
+   188→   188→              if (notes.fechaAutoevaluacion) setFechaAutoevaluacion(notes.fechaAutoevaluacion);
+   189→   189→              if (notes.horaAutoevaluacion) setHoraAutoevaluacion(notes.horaAutoevaluacion);
+   190→   190→            }
+   191→   191→          }
+   192→   192→        } catch (e) {
+   193→   193→          console.error('Error parsing saved notes:', e);
+   194→   194→        }
+   195→   195→      }
+   196→   196→    } catch (e) {
+   197→   197→      console.error('Error loading saved results:', e);
+   198→   198→    }
+   199→   199→  };
+   200→   200→
+   201→   201→  // Reset the init guard when modal closes, so next open re-initializes
+   202→   202→  useEffect(() => {
+   203→   203→    if (!open) {
+   204→   204→      initializedFor.current = '';
+   205→   205→      // Also clear results on close so next open starts fresh (then loads saved)
+   206→   206→      setResults({});
+   207→   207→    }
+   208→   208→  }, [open]);
+   209→   209→
+   210→   210→  // Load scheduled date/time for this autoevaluación AND the auditoría schedule
+   211→   211→  const loadScheduledDate = async () => {
+   212→   212→    if (!currentProject?.id || !currentZone?.id) return;
+   213→   213→    try {
+   214→   214→      // Load autoevaluación schedule (miniStep 4)
+   215→   215→      const res = await fetch(`/api/evaluation-schedule?sStep=${sStep}&miniStep=4&projectId=${currentProject.id}&zoneId=${currentZone.id}`);
+   216→   216→      const json = await res.json();
+   217→   217→      if (json.success && json.data) {
+   218→   218→        setFechaProgramada(json.data.fechaProgramada || '');
+   219→   219→        setHoraProgramada(json.data.horaProgramada || '');
+   220→   220→      }
+   221→   221→      // Also load auditoría schedule (miniStep 5) — employee sees if auditor has set a date
+   222→   222→      const auditRes = await fetch(`/api/evaluation-schedule?sStep=${sStep}&miniStep=5&projectId=${currentProject.id}&zoneId=${currentZone.id}`);
+   223→   223→      const auditJson = await auditRes.json();
+   224→   224→      if (auditJson.success && auditJson.data) {
+   225→   225→        setAuditFechaProgramada(auditJson.data.fechaProgramada || '');
+   226→   226→        setAuditHoraProgramada(auditJson.data.horaProgramada || '');
+   227→   227→      }
+   228→   228→    } catch (e) {
+   229→   229→      console.error('Error loading scheduled date:', e);
+   230→   230→    }
+   231→   231→  };
+   232→   232→
+   233→   233→  // Save scheduled date/time
+   234→   234→  const handleSaveSchedule = async () => {
+   235→   235→    if (!currentProject?.id || !currentZone?.id) return;
+   236→   236→    try {
+   237→   237→      await fetch('/api/evaluation-schedule', {
+   238→   238→        method: 'POST',
+   239→   239→        headers: { 'Content-Type': 'application/json' },
+   240→   240→        body: JSON.stringify({
+   241→   241→          sStep,
+   242→   242→          miniStep: 4,
+   243→   243→          projectId: currentProject.id,
+   244→   244→          zoneId: currentZone.id,
+   245→   245→          fechaProgramada,
+   246→   246→          horaProgramada,
+   247→   247→        }),
+   248→   248→      });
+   249→   249→      toast.success('Fecha programada guardada');
+   250→   250→    } catch (e) {
+   251→   251→      console.error('Error saving schedule:', e);
+   252→   252→      toast.error('Error al guardar la fecha programada');
+   253→   253→    }
+   254→   254→  };
+   255→   255→
+   256→   256→  const totalItems = sections.reduce((sum, s) => sum + s.items.length, 0) || 26;
+   257→   257→
+   258→   258→  // SCORING: Treat missing results as 'ok' (default).
+   259→   259→  // This is bulletproof — does NOT depend on useEffect timing.
+   260→   260→  // Every visible item that hasn't been explicitly marked NOK/N/A counts as OK.
+   261→   261→  const scoring = useMemo(() => {
+   262→   262→    let okCount = 0;
+   263→   263→    let nokCount = 0;
+   264→   264→    sections.forEach(s => s.items.forEach(item => {
+   265→   265→      const status = results[item.id]?.status ?? 'ok';
+   266→   266→      if (status === 'ok') okCount++;
+   267→   267→      else if (status === 'nok') nokCount++;
+   268→   268→    }));
+   269→   269→    const answeredCount = okCount + nokCount;
+   270→   270→    const scorePercent = totalItems > 0 ? Math.min(Math.round((okCount / totalItems) * 100), 100) : 0;
+   271→   271→    return { okCount, nokCount, answeredCount, scorePercent };
+   272→   272→  }, [results, sections, totalItems]);
+   273→   273→
+   274→   274→  // Check that all NOK items have hallazgo, mejora and responsable filled
+   275→   275→  const nokItems = Object.values(results).filter(r => r.status === 'nok');
+   276→   276→  const allNokCompleted = nokItems.length === 0 || nokItems.every(r => (r.hallazgo || '').trim() !== '' && (r.mejora || '').trim() !== '' && (r.responsable || '').trim() !== '');
+   277→   277→
+   278→   278→  const passed = scoring.scorePercent >= notaMinima;
+   279→   279→  const canSubmit = canPerformAutoeval && scoring.answeredCount > 0 && allNokCompleted;
+   280→   280→
+   281→   281→  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   282→   282→    const files = e.target.files;
+   283→   283→    if (!files) return;
+   284→   284→    for (const file of Array.from(files)) {
+   285→   285→      const preview = URL.createObjectURL(file);
+   286→   286→      setAutoevalPhotos(prev => [...prev, { file, preview }]);
+   287→   287→    }
+   288→   288→    // Reset input
+   289→   289→    if (photoInputRef.current) photoInputRef.current.value = '';
+   290→   290→  };
+   291→   291→
+   292→   292→  const removeAutoevalPhoto = (index: number) => {
+   293→   293→    setAutoevalPhotos(prev => {
+   294→   294→      const photo = prev[index];
+   295→   295→      if (photo.preview) URL.revokeObjectURL(photo.preview);
+   296→   296→      return prev.filter((_, i) => i !== index);
+   297→   297→    });
+   298→   298→  };
+   299→   299→
+   300→   300→  const toggleSection = (sectionId: string) => {
+   301→   301→    setExpandedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+   302→   302→  };
+   303→   303→
+   304→   304→  const setItemStatus = (itemId: string, status: 'ok' | 'nok' | 'na') => {
+   305→   305→    setResults(prev => ({
+   306→   306→      ...prev,
+   307→   307→      [itemId]: { ...prev[itemId], itemId, status },
+   308→   308→    }));
+   309→   309→  };
+   310→   310→
+   311→   311→  const setItemField = (itemId: string, field: 'hallazgo' | 'mejora' | 'otherText' | 'responsable', value: string) => {
+   312→   312→    setResults(prev => ({
+   313→   313→      ...prev,
+   314→   314→      [itemId]: { ...prev[itemId], itemId, [field]: value },
+   315→   315→    }));
+   316→   316→  };
+   317→   317→
+   318→   318→  const handleSubmit = async () => {
+   319→   319→    if (!canSubmit) return;
+   320→   320→    if (!canPerformAutoeval) return; // Only responsable/admin for S4, or any employee for S1/S2/S3/S5
+   321→   321→    setIsSubmitting(true);
+   322→   322→    try {
+   323→   323→      // Build effective results: merge missing items as 'ok' (default) before sending to backend
+   324→   324→      const effectiveResults = sections.flatMap(s => s.items).map(item => {
+   325→   325→        const r = results[item.id];
+   326→   326→        return r ?? { itemId: item.id, status: 'ok' as const };
+   327→   327→      });
+   328→   328→      // Only mark as completed if score meets notaMinima threshold
+   329→   329→      // If not passed, still save results but step stays available for retry
+   330→   330→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+   331→   331→        method: 'PUT',
+   332→   332→        headers: { 'Content-Type': 'application/json' },
+   333→   333→        body: JSON.stringify({
+   334→   334→          completed: passed,
+   335→   335→          score: scoring.scorePercent,
+   336→   336→          notes: JSON.stringify({
+   337→   337→            type: 'autoevaluacion',
+   338→   338→            passed,
+   339→   339→            notaMinima,
+   340→   340→            results: effectiveResults,
+   341→   341→            observaciones,
+   342→   342→            fechaAutoevaluacion,
+   343→   343→            horaAutoevaluacion,
+   344→   344→            fechaProgramada: fechaProgramada || null,
+   345→   345→            horaProgramada: horaProgramada || null,
+   346→   346→          }),
+   347→   347→          projectId: currentProject?.id,
+   348→   348→          zoneId: currentZone?.id || null,
+   349→   349→        }),
+   350→   350→      });
+   351→   351→      const json = await res.json();
+   352→   352→      if (!res.ok || !json.success) {
+   353→   353→        toast.error(`Error del servidor: ${json.error || res.statusText || 'Error desconocido'}`);
+   354→   354→        return;
+   355→   355→      }
+   356→   356→      if (json.success) {
+   357→   357→        // Feedback visible al usuario
+   358→   358→        toast.success(`Autoevaluación guardada: ${effectiveResults.length} items (${scoring.okCount} OK, ${scoring.nokCount} NOK, score ${scoring.scorePercent}%)`);
+   359→   359→        setIsCompleted(true);
+   360→   360→        setFinalScore(scoring.scorePercent);
+   361→   361→        await fetchProgress();
+   362→   362→
+   363→   363→        // ─── Create EmployeeProgress record for individual step 4 (autoevaluación) ───
+   364→   364→        // Step 4 is individual for S1/S2/S3/S5 (done by employees) and for S4 (done by responsable)
+   365→   365→        // We need to track individual completion so the gating system unlocks step 5
+   366→   366→        if (passed && currentUser?.id && currentProject?.id && currentZone?.id) {
+   367→   367→          try {
+   368→   368→            await fetch('/api/employee-progress', {
+   369→   369→              method: 'POST',
+   370→   370→              headers: { 'Content-Type': 'application/json' },
+   371→   371→              body: JSON.stringify({
+   372→   372→                sStep,
+   373→   373→                miniStep: 4,
+   374→   374→                completed: true,
+   375→   375→                score: scoring.scorePercent,
+   376→   376→                projectId: currentProject.id,
+   377→   377→                zoneId: currentZone.id,
+   378→   378→                userId: currentUser.id,
+   379→   379→              }),
+   380→   380→            });
+   381→   381→            // Also refresh employee progress so step 5 unlocks immediately
+   382→   382→            const { fetchEmployeeProgress } = use5SStore.getState();
+   383→   383→            await fetchEmployeeProgress(currentProject.id, currentZone.id);
+   384→   384→          } catch (empErr) {
+   385→   385→            console.error('Error creating employee progress for autoeval:', empErr);
+   386→   386→          }
+   387→   387→        }
+   388→   388→
+   389→   389→        // ─── Upload photos to library with traceability ───
+   390→   390→        if (autoevalPhotos.length > 0) {
+   391→   391→          setIsUploadingPhotos(true);
+   392→   392→          for (let idx = 0; idx < autoevalPhotos.length; idx++) {
+   393→   393→            const photo = autoevalPhotos[idx];
+   394→   394→            try {
+   395→   395→              // Step 1: Upload the file to get a server URL
+   396→   396→              const formData = new FormData();
+   397→   397→              formData.append('file', photo.file);
+   398→   398→              formData.append('filename', `S${sStep}_autoeval_${currentZone?.name || 'zona'}_${idx + 1}_${Date.now()}.jpg`);
+   399→   399→
+   400→   400→              const uploadRes = await fetch('/api/upload', {
+   401→   401→                method: 'POST',
+   402→   402→                body: formData,
+   403→   403→              });
+   404→   404→              const uploadData = await uploadRes.json();
+   405→   405→
+   406→   406→              if (uploadData.success && uploadData.url) {
+   407→   407→                // Step 2: Save to photo library with full traceability
+   408→   408→                await fetch('/api/photo-library', {
+   409→   409→                  method: 'POST',
+   410→   410→                  headers: { 'Content-Type': 'application/json' },
+   411→   411→                  body: JSON.stringify({
+   412→   412→                    sStep,
+   413→   413→                    miniStep: 4,
+   414→   414→                    title: `Autoeval S${sStep} - Foto ${idx + 1}`,
+   415→   415→                    description: `${sStepData?.japaneseName || 'S' + sStep} - ${currentZone?.name || 'Zona'} - Paso 4 Autoevaluación - Subida por ${currentUser?.name || 'Usuario'}`,
+   416→   416→                    photoUrl: uploadData.url,
+   417→   417→                    photoType: 'hallazgo',
+   418→   418→                    category: `paso4_s${sStep}`,
+   419→   419→                    tags: JSON.stringify([`S${sStep}`, sStepData?.japaneseName || '', currentZone?.name || '', 'paso4', 'autoevaluacion', 'hallazgo']),
+   420→   420→                    projectId: currentProject?.id,
+   421→   421→                    zoneId: currentZone?.id || null,
+   422→   422→                    uploadedBy: currentUser?.id || null,
+   423→   423→                  }),
+   424→   424→                });
+   425→   425→              }
+   426→   426→            } catch (photoErr) {
+   427→   427→              console.error('Error uploading autoeval photo:', photoErr);
+   428→   428→            }
+   429→   429→          }
+   430→   430→          setIsUploadingPhotos(false);
+   431→   431→        }
+   432→   432→
+   433→   433→        // ─── Create Action Items for NOK (disfunciones) ───
+   434→   434→        const nokResults = Object.values(results).filter((r: any) => r.status === 'nok');
+   435→   435→        for (const nok of nokResults) {
+   436→   436→          if (!nok.hallazgo && !nok.mejora) continue; // Skip items without description
+   437→   437→          try {
+   438→   438→            await fetch('/api/actions', {
+   439→   439→              method: 'POST',
+   440→   440→              headers: { 'Content-Type': 'application/json' },
+   441→   441→              body: JSON.stringify({
+   442→   442→                sStep,
+   443→   443→                miniStep: 4,
+   444→   444→                itemId: nok.itemId,
+   445→   445→                itemDescription: `Disfunción detectada en autoevaluación: ${nok.itemId}`,
+   446→   446→                hallazgo: nok.hallazgo || nok.itemId,
+   447→   447→                mejora: nok.mejora || '',
+   448→   448→                responsable: nok.responsable || null,
+   449→   449→                prioridad: 'media',
+   450→   450→                estado: 'abierta',
+   451→   451→                source: 'autoevaluacion',
+   452→   452→                auditor: null,
+   453→   453→                projectId: currentProject?.id,
+   454→   454→                zoneId: currentZone?.id || null,
+   455→   455→              }),
+   456→   456→            });
+   457→   457→          } catch (actionError) {
+   458→   458→            console.error('Error creating action item from autoevaluación:', actionError);
+   459→   459→          }
+   460→   460→        }
+   461→   461→
+   462→   462→        // ─── Notify responsables of NOK disfunciones ───
+   463→   463→        if (nokResults.length > 0 && currentProject?.id && currentZone?.id) {
+   464→   464→          try {
+   465→   465→            const membersRes = await fetch(`/api/projects/${currentProject.id}/members`);
+   466→   466→            const membersData = await membersRes.json();
+   467→   467→            const allMembers = membersData?.members || [];
+   468→   468→
+   469→   469→            const sStepData = S_STEPS.find(s => s.id === sStep);
+   470→   470→            const disfuncionMessage = `Se han detectado ${nokResults.length} disfunción(es) en la autoevaluación de S${sStep} (${sStepData?.japaneseName || ''}) en la zona "${currentZone.name}". Revisa el Plan de Acción.`;
+   471→   471→
+   472→   472→            // Notify zone responsable
+   473→   473→            const responsableIds = new Set<string>();
+   474→   474→            if (currentZone.responsableId) responsableIds.add(currentZone.responsableId);
+   475→   475→            const responsables = allMembers.filter((m: any) => m.role === 'responsable');
+   476→   476→            for (const resp of responsables) responsableIds.add(resp.userId);
+   477→   477→
+   478→   478→            for (const respId of responsableIds) {
+   479→   479→              await fetch('/api/notifications', {
+   480→   480→                method: 'POST',
+   481→   481→                headers: { 'Content-Type': 'application/json' },
+   482→   482→                body: JSON.stringify({
+   483→   483→                  userId: respId,
+   484→   484→                  type: 'disfuncion',
+   485→   485→                  title: `Disfunciones detectadas: S${sStep} — ${sStepData?.japaneseName || ''}`,
+   486→   486→                  message: disfuncionMessage,
+   487→   487→                  sStep,
+   488→   488→                  zoneId: currentZone.id,
+   489→   489→                  projectId: currentProject.id,
+   490→   490→                }),
+   491→   491→              });
+   492→   492→            }
+   493→   493→          } catch (notifError) {
+   494→   494→            console.error('Error notifying responsables of disfunciones:', notifError);
+   495→   495→          }
+   496→   496→        }
+   497→   497→
+   498→   498→        // Check if Steps 1-4 are now all completed for this S-step in the zone
+   499→   499→        // If so, notify auditor(s) that they can perform Step 5
+   500→   500→        if (currentProject?.id && currentZone?.id) {
+   501→   501→          try {
+   502→   502→            // Fetch all progress for this zone and S-step
+   503→   503→            const progRes = await fetch(`/api/progress?projectId=${currentProject.id}`);
+   504→   504→            const progData = await progRes.json();
+   505→   505→            const allProgress = progData?.data || [];
+   506→   506→
+   507→   507→            // Also fetch employee progress for individual steps (formación = step 1)
+   508→   508→            const empProgRes = await fetch(`/api/employee-progress?projectId=${currentProject.id}&zoneId=${currentZone.id}`);
+   509→   509→            const empProgData = await empProgRes.json();
+   510→   510→            const allEmpProgress = empProgData?.data || [];
+   511→   511→
+   512→   512→            // Check steps 1-4 completed (both zone-level progress AND employee progress)
+   513→   513→            let allStepsCompleted = true;
+   514→   514→            for (let ms = 1; ms <= 4; ms++) {
+   515→   515→              const zoneStep = allProgress.find((p: any) =>
+   516→   516→                p.sStep === sStep &&
+   517→   517→                p.miniStep === ms &&
+   518→   518→                (p.zoneId === currentZone.id || p.zoneId === null) &&
+   519→   519→                p.completed
+   520→   520→              );
+   521→   521→              if (zoneStep) continue; // Zone-level completed
+   522→   522→
+   523→   523→              // Also check employee progress for individual steps
+   524→   524→              const empStep = allEmpProgress.some((ep: any) =>
+   525→   525→                ep.sStep === sStep &&
+   526→   526→                ep.miniStep === ms &&
+   527→   527→                ep.zoneId === currentZone.id &&
+   528→   528→                ep.completed
+   529→   529→              );
+   530→   530→              if (empStep) continue; // Some employee completed this step
+   531→   531→
+   532→   532→              allStepsCompleted = false;
+   533→   533→              break;
+   534→   534→            }
+   535→   535→
+   536→   536→            if (allStepsCompleted) {
+   537→   537→              // Find auditor and responsable users for this project and notify them
+   538→   538→              const membersRes = await fetch(`/api/projects/${currentProject.id}/members`);
+   539→   539→              const membersData = await membersRes.json();
+   540→   540→              const allMembers = membersData?.members || [];
+   541→   541→
+   542→   542→              const sStepData = S_STEPS.find(s => s.id === sStep);
+   543→   543→              const notifMessage = `Los pasos 1-4 de S${sStep} (${sStepData?.japaneseName || ''}) en la zona "${currentZone.name}" han sido completados. La auditoría (Paso 5) está lista para realizarse.`;
+   544→   544→
+   545→   545→              // Notify auditors
+   546→   546→              const auditors = allMembers.filter((m: any) => m.role === 'auditor');
+   547→   547→              for (const auditor of auditors) {
+   548→   548→                await fetch('/api/notifications', {
+   549→   549→                  method: 'POST',
+   550→   550→                  headers: { 'Content-Type': 'application/json' },
+   551→   551→                  body: JSON.stringify({
+   552→   552→                    userId: auditor.userId,
+   553→   553→                    type: 'audit_ready',
+   554→   554→                    title: `Auditoría lista: S${sStep} — ${sStepData?.japaneseName || ''}`,
+   555→   555→                    message: notifMessage,
+   556→   556→                    sStep,
+   557→   557→                    zoneId: currentZone.id,
+   558→   558→                    projectId: currentProject.id,
+   559→   559→                  }),
+   560→   560→                });
+   561→   561→              }
+   562→   562→
+   563→   563→              // Notify responsable of the zone (from zone.responsableId OR from project members)
+   564→   564→              const responsableIds = new Set<string>();
+   565→   565→              if (currentZone.responsableId) responsableIds.add(currentZone.responsableId);
+   566→   566→              const responsables = allMembers.filter((m: any) => m.role === 'responsable');
+   567→   567→              for (const resp of responsables) responsableIds.add(resp.userId);
+   568→   568→              for (const respId of responsableIds) {
+   569→   569→                await fetch('/api/notifications', {
+   570→   570→                  method: 'POST',
+   571→   571→                  headers: { 'Content-Type': 'application/json' },
+   572→   572→                  body: JSON.stringify({
+   573→   573→                    userId: respId,
+   574→   574→                    type: 'audit_ready',
+   575→   575→                    title: `Auditoría lista: S${sStep} — ${sStepData?.japaneseName || ''}`,
+   576→   576→                    message: notifMessage,
+   577→   577→                    sStep,
+   578→   578→                    zoneId: currentZone.id,
+   579→   579→                    projectId: currentProject.id,
+   580→   580→                  }),
+   581→   581→                });
+   582→   582→              }
+   583→   583→            }
+   584→   584→          } catch (notifError) {
+   585→   585→            console.error('Error sending notification to auditor:', notifError);
+   586→   586→          }
+   587→   587→        }
+   588→   588→      }
+   589→   589→    } catch (error) {
+   590→   590→      console.error('Error submitting self-evaluation:', error);
+   591→   591→      toast.error('No se pudo guardar la autoevaluación. Inténtalo de nuevo en unos minutos.');
+   592→   592→    } finally {
+   593→   593→      setIsSubmitting(false);
+   594→   594→    }
+   595→   595→  };
+   596→   596→
+   597→   597→  const handleAdminSkip = async () => {
+   598→   598→    try {
+   599→   599→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+   600→   600→        method: 'PUT',
+   601→   601→        headers: { 'Content-Type': 'application/json' },
+   602→   602→        body: JSON.stringify({ completed: true, score: 100, notes: 'Completado por administrador (skip)', skipMissingTemplate: true, projectId: currentProject?.id, zoneId: currentZone?.id || null }),
+   603→   603→      });
+   604→   604→      const json = await res.json();
+   605→   605→      if (json.success) {
+   606→   606→        await fetchProgress();
+   607→   607→        onClose();
+   608→   608→      }
+   609→   609→    } catch (error) {
+   610→   610→      console.error('Error admin skip:', error);
+   611→   611→    }
+   612→   612→  };
+   613→   613→
+   614→   614→  return (
+   615→   615→    <Dialog open={open} onOpenChange={() => onClose()}>
+   616→   616→      <DialogContent size={isFullscreen ? "fullscreen" : "xl"} className="flex flex-col overflow-hidden p-0">
+   617→   617→        <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
+   618→   618→          <DialogTitle className="flex items-center gap-2">
+   619→   619→            <CheckSquare className="h-5 w-5" style={{ color: sStepData?.color }} />
+   620→   620→            <span>Autoevaluación Interna</span>
+   621→   621→            <Badge variant="outline" style={{ borderColor: sStepData?.color, color: sStepData?.color }}>
+   622→   622→              {sStepData?.japaneseName} — {sStepData?.spanishName}
+   623→   623→            </Badge>
+   624→   624→            <button
+   625→   625→              onClick={() => setIsFullscreen(!isFullscreen)}
+   626→   626→              className="ml-auto p-1 rounded hover:bg-muted transition-colors"
+   627→   627→              title={isFullscreen ? "Reducir ventana" : "Pantalla completa"}
+   628→   628→            >
+   629→   629→              {isFullscreen ? <Minimize2 className="h-4 w-4 text-muted-foreground" /> : <Maximize2 className="h-4 w-4 text-muted-foreground" />}
+   630→   630→            </button>
+   631→   631→          </DialogTitle>
+   632→   632→        </DialogHeader>
+   633→   633→
+   634→   634→        {canSkipSteps && !isCompleted && (
+   635→   635→          <div className="flex items-center gap-2 p-2 mx-6 flex-shrink-0 bg-amber-50 border border-amber-200 rounded-lg">
+   636→   636→            <span className="text-xs text-amber-700 font-medium">Modo Admin:</span>
+   637→   637→            <Button
+   638→   638→              variant="outline"
+   639→   639→              size="sm"
+   640→   640→              className="text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
+   641→   641→              onClick={handleAdminSkip}
+   642→   642→            >
+   643→   643→              Completar paso sin autoevaluación
+   644→   644→            </Button>
+   645→   645→          </div>
+   646→   646→        )}
+   647→   647→
+   648→   648→        {isReadOnly && !isCompleted && (
+   649→   649→          <div className="flex items-center gap-2 p-2 mx-6 flex-shrink-0 bg-blue-50 border border-blue-200 rounded-lg">
+   650→   650→            <span className="text-xs text-blue-700 font-medium">Solo lectura: {canSkipSteps ? 'Activa el candado para poder realizar pasos.' : 'Puedes ver pero no modificar.'}</span>
+   651→   651→          </div>
+   652→   652→        )}
+   653→   653→
+   654→   654→        {/* Barra FIJA con acciones rápidas — siempre visible, fuera del scroll */}
+   655→   655→        {!isCompleted && sections.length > 0 && (
+   656→   656→          <div className="flex items-center gap-2 flex-wrap px-6 py-2 flex-shrink-0 bg-green-50 border-b border-green-200">
+   657→   657→            <CheckCheck className="h-4 w-4 text-green-700 shrink-0" />
+   658→   658→            <span className="text-xs text-green-800 font-medium">Estado actual:</span>
+   659→   659→            <span className="ml-auto text-[10px] text-muted-foreground font-mono">
+   660→   660→              {scoring.okCount} OK · {scoring.nokCount} NOK · {scoring.scorePercent}%
+   661→   661→            </span>
+   662→   662→          </div>
+   663→   663→        )}
+   664→   664→
+   665→   665→        <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
+   666→   666→        {isLoadingTemplate ? (
+   667→   667→          <div className="flex items-center justify-center py-12">
+   668→   668→            <div className="h-8 w-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+   669→   669→          </div>
+   670→   670→        ) : sections.length === 0 ? (
+   671→   671→          <div className="text-center py-12">
+   672→   672→            <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-3" />
+   673→   673→            <h3 className="text-lg font-bold mb-2">No hay checklist configurado</h3>
+   674→   674→            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+   675→   675→              No se encontró una plantilla de autoevaluación para S{sStep}. 
+   676→   676→              Crea una plantilla en <strong>Administración → Plantillas → Auditoría Interna</strong> 
+   677→   677→              o pulsa el botón &quot;Crear plantillas por defecto&quot;.
+   678→   678→            </p>
+   679→   679→          </div>
+   680→   680→        ) : isCompleted ? (
+   681→   681→          <div className="text-center py-8">
+   682→   682→            {passed ? (
+   683→   683→              <>
+   684→   684→                <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-3" />
+   685→   685→                <h3 className="text-xl font-bold mb-2 text-green-700">¡Autoevaluación Aprobada!</h3>
+   686→   686→              </>
+   687→   687→            ) : (
+   688→   688→              <>
+   689→   689→                <XCircle className="h-16 w-16 text-red-500 mx-auto mb-3" />
+   690→   690→                <h3 className="text-xl font-bold mb-2 text-red-700">Autoevaluación No Aprobada</h3>
+   691→   691→              </>
+   692→   692→            )}
+   693→   693→            <p className="text-lg mb-1">Puntuación: <strong>{finalScore}%</strong></p>
+   694→   694→            <p className="text-sm text-muted-foreground">
+   695→   695→              {scoring.okCount} OK / {scoring.nokCount} NOK de {totalItems} puntos de verificación
+   696→   696→            </p>
+   697→   697→            <p className="text-xs text-muted-foreground mt-1">
+   698→   698→              Mínimo requerido: {notaMinima}%
+   699→   699→            </p>
+   700→   700→            {!passed && (
+   701→   701→              <p className="text-sm text-amber-600 mt-3">
+   702→   702→                Debes obtener al menos {notaMinima}% para desbloquear el Paso 5 (Auditoría). 
+   703→   703→                Corrige las disfunciones y vuelve a realizar la autoevaluación.
+   704→   704→              </p>
+   705→   705→            )}
+   706→   706→            {passed && (
+   707→   707→              <div>
+   708→   708→              <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
+   709→   709→                <p className="text-sm font-semibold">→ Próximo paso: Auditoría (Paso 5)</p>
+   710→   710→                <p className="text-xs mt-1">Pulsa 🔔 Auditar en el pentágono para notificar al auditor. El auditor programará la fecha.</p>
+   711→   711→                {auditFechaProgramada ? (
+   712→   712→                  <p className="text-xs mt-1 text-green-700 font-medium">
+   713→   713→                    ✅ Auditoría programada: {auditFechaProgramada} a las {auditHoraProgramada}
+   714→   714→                  </p>
+   715→   715→                ) : (
+   716→   716→                  <p className="text-xs mt-1 text-amber-700 font-medium">
+   717→   717→                    ⏳ Pendiente de programar — el auditor asignará fecha y hora
+   718→   718→                  </p>
+   719→   719→                )}
+   720→   720→              </div>
+   721→   721→              <div className="mt-3 flex justify-center">
+   722→   722→                <Button
+   723→   723→                  onClick={() => { onClose(); openModal('auditoria', 5); }}
+   724→   724→                  style={{ backgroundColor: sStepData?.color }}
+   725→   725→                  className="text-white"
+   726→   726→                >
+   727→   727→                  Continuar al paso 5: Auditoría →
+   728→   728→                </Button>
+   729→   729→              </div>
+   730→   730→              </div>
+   731→   731→            )}
+   732→   732→          </div>
+   733→   733→        ) : (
+   734→   734→          <div className="space-y-4">
+   735→   735→            {/* Info banner */}
+   736→   736→            <div className="p-3 rounded-lg border-l-4" style={{ borderColor: sStepData?.color, backgroundColor: `${sStepData?.color}08` }}>
+   737→   737→              <p className="text-sm font-medium" style={{ color: sStepData?.color }}>
+   738→   738→                Autoevaluación Interna — {sStepData?.japaneseName}
+   739→   739→              </p>
+   740→   740→              <p className="text-sm text-muted-foreground mt-1">
+   741→   741→                Evalúa cada punto de verificación. Marca OK si cumple, NOK si hay desviación. 
+   742→   742→                Los NOKs generan hallazgos y puntos de mejora como plan de acción.
+   743→   743→              </p>
+   744→   744→            </div>
+   745→   745→
+   746→   746→            {/* Date/Time: Programación y Registro */}
+   747→   747→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+   748→   748→              <div className="space-y-2">
+   749→   749→                <p className="text-xs font-semibold text-blue-700 flex items-center gap-1">
+   750→   750→                  <Calendar className="h-3.5 w-3.5" />
+   751→   751→                  Programar Autoevaluación
+   752→   752→                </p>
+   753→   753→                <div className="grid grid-cols-2 gap-2">
+   754→   754→                  <div>
+   755→   755→                    <Label htmlFor="fechaProgramada" className="text-[10px] text-blue-600">Fecha programada</Label>
+   756→   756→                    <Input id="fechaProgramada" type="date" value={fechaProgramada}
+   757→   757→                      onChange={e => setFechaProgramada(e.target.value)}
+   758→   758→                      className="h-7 text-xs" />
+   759→   759→                  </div>
+   760→   760→                  <div>
+   761→   761→                    <Label htmlFor="horaProgramada" className="text-[10px] text-blue-600">Hora programada</Label>
+   762→   762→                    <Input id="horaProgramada" type="time" value={horaProgramada}
+   763→   763→                      onChange={e => setHoraProgramada(e.target.value)}
+   764→   764→                      className="h-7 text-xs" />
+   765→   765→                  </div>
+   766→   766→                </div>
+   767→   767→                {fechaProgramada && (
+   768→   768→                  <Button size="sm" variant="outline" className="h-6 text-[10px] border-blue-300 text-blue-700"
+   769→   769→                    onClick={handleSaveSchedule}>
+   770→   770→                    Guardar programación
+   771→   771→                  </Button>
+   772→   772→                )}
+   773→   773→              </div>
+   774→   774→              <div className="space-y-2">
+   775→   775→                <p className="text-xs font-semibold text-blue-700 flex items-center gap-1">
+   776→   776→                  <CheckSquare className="h-3.5 w-3.5" />
+   777→   777→                  Registro de Autoevaluación
+   778→   778→                </p>
+   779→   779→                <div className="grid grid-cols-2 gap-2">
+   780→   780→                  <div>
+   781→   781→                    <Label htmlFor="fechaAutoeval" className="text-[10px] text-blue-600">Fecha realización</Label>
+   782→   782→                    <Input id="fechaAutoeval" type="date" value={fechaAutoevaluacion}
+   783→   783→                      onChange={e => setFechaAutoevaluacion(e.target.value)}
+   784→   784→                      className="h-7 text-xs" />
+   785→   785→                  </div>
+   786→   786→                  <div>
+   787→   787→                    <Label htmlFor="horaAutoeval" className="text-[10px] text-blue-600">Hora realización</Label>
+   788→   788→                    <Input id="horaAutoeval" type="time" value={horaAutoevaluacion}
+   789→   789→                      onChange={e => setHoraAutoevaluacion(e.target.value)}
+   790→   790→                      className="h-7 text-xs" />
+   791→   791→                  </div>
+   792→   792→                </div>
+   793→   793→              </div>
+   794→   794→            </div>
+   795→   795→
+   796→   796→            {/* Score indicator */}
+   797→   797→            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+   798→   798→              <div>
+   799→   799→                <span className="text-sm font-medium">Puntuación</span>
+   800→   800→                <p className="text-xs text-muted-foreground">
+   801→   801→                  {scoring.okCount} OK / {scoring.nokCount} NOK de {totalItems} puntos
+   802→   802→                </p>
+   803→   803→              </div>
+   804→   804→              <div className="flex items-center gap-2">
+   805→   805→                <Badge className="bg-green-100 text-green-800">OK: {scoring.okCount}</Badge>
+   806→   806→                <Badge className="bg-red-100 text-red-800">NOK: {scoring.nokCount}</Badge>
+   807→   807→                <Badge variant={scoring.scorePercent >= notaMinima ? 'default' : 'secondary'}>
+   808→   808→                  {scoring.scorePercent}% (mín. {notaMinima}%)
+   809→   809→                </Badge>
+   810→   810→              </div>
+   811→   811→            </div>
+   812→   812→
+   813→   813→            {/* Checklist sections */}
+   814→   814→            <div className="space-y-3">
+   815→   815→              {sections.map(section => (
+   816→   816→                <Card key={section.id} className="overflow-hidden">
+   817→   817→                  {/* Section header */}
+   818→   818→                  <button
+   819→   819→                    className="w-full p-3 flex items-center gap-2 hover:bg-muted/50 transition-colors text-left"
+   820→   820→                    onClick={() => toggleSection(section.id)}
+   821→   821→                  >
+   822→   822→                    {expandedSections[section.id] ? (
+   823→   823→                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+   824→   824→                    ) : (
+   825→   825→                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+   826→   826→                    )}
+   827→   827→                    <Badge variant="outline" className="text-xs font-mono">{section.id}</Badge>
+   828→   828→                    <span className="font-semibold text-sm">{section.title}</span>
+   829→   829→                    <span className="ml-auto text-xs text-muted-foreground">
+   830→   830→                      {section.items.length} puntos
+   831→   831→                    </span>
+   832→   832→                  </button>
+   833→   833→
+   834→   834→                  {/* Section items */}
+   835→   835→                  {expandedSections[section.id] && (
+   836→   836→                    <CardContent className="px-4 pb-4 pt-0 space-y-3">
+   837→   837→                      {section.items.map(item => {
+   838→   838→                        // BULLETPROOF DEFAULT 'ok': if no result entry exists, treat as 'ok'.
+   839→   839→                        // This is the source of truth — does NOT depend on useEffect timing or MERGE.
+   840→   840→                        // The MERGE effect above is just a secondary safety net.
+   841→   841→                        const hasResult = !!results[item.id];
+   842→   842→                        const result = results[item.id];
+   843→   843→                        const status = hasResult ? (result?.status ?? 'ok') : 'ok';
+   844→   844→                        const isNok = status === 'nok';
+   845→   845→
+   846→   846→                        return (
+   847→   847→                          <div key={item.id} className="border rounded-lg p-3 space-y-2">
+   848→   848→                            {/* Item header: description + status buttons */}
+   849→   849→                            <div className="flex items-start gap-3">
+   850→   850→                              <span className="text-xs font-mono text-muted-foreground shrink-0 mt-0.5">
+   851→   851→                                {item.id}
+   852→   852→                              </span>
+   853→   853→                              <p className="text-sm flex-1">{item.description}</p>
+   854→   854→                              <div className="flex gap-1 shrink-0">
+   855→   855→                                <button
+   856→   856→                                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+   857→   857→                                    status === 'ok'
+   858→   858→                                      ? 'bg-green-500 text-white'
+   859→   859→                                      : 'bg-green-50 text-green-700 hover:bg-green-100'
+   860→   860→                                  }`}
+   861→   861→                                  onClick={() => setItemStatus(item.id, 'ok')}
+   862→   862→                                >
+   863→   863→                                  OK
+   864→   864→                                </button>
+   865→   865→                                <button
+   866→   866→                                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+   867→   867→                                    status === 'nok'
+   868→   868→                                      ? 'bg-red-500 text-white'
+   869→   869→                                      : 'bg-red-50 text-red-700 hover:bg-red-100'
+   870→   870→                                  }`}
+   871→   871→                                  onClick={() => setItemStatus(item.id, 'nok')}
+   872→   872→                                >
+   873→   873→                                  NOK
+   874→   874→                                </button>
+   875→   875→                                <button
+   876→   876→                                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+   877→   877→                                    status === 'na'
+   878→   878→                                      ? 'bg-gray-500 text-white'
+   879→   879→                                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+   880→   880→                                  }`}
+   881→   881→                                  onClick={() => setItemStatus(item.id, 'na')}
+   882→   882→                                >
+   883→   883→                                  N/A
+   884→   884→                                </button>
+   885→   885→                              </div>
+   886→   886→                            </div>
+   887→   887→
+   888→   888→                            {/* "Otros" text field */}
+   889→   889→                            {item.hasOther && (
+   890→   890→                              <Input
+   891→   891→                                placeholder="Especificar..."
+   892→   892→                                value={result?.otherText || ''}
+   893→   893→                                onChange={e => setItemField(item.id, 'otherText', e.target.value)}
+   894→   894→                                className="text-sm"
+   895→   895→                              />
+   896→   896→                            )}
+   897→   897→
+   898→   898→                            {/* NOK details: hallazgo + mejora — OBLIGATORIOS */}
+   899→   899→                            {isNok && (
+   900→   900→                              <div className="space-y-2 pl-6 border-l-2 border-red-200">
+   901→   901→                                <div>
+   902→   902→                                  <label className="text-xs font-medium text-red-700">Referencia del hallazgo (desviación) *</label>
+   903→   903→                                  <Textarea
+   904→   904→                                    placeholder="Obligatorio: describa la desviación encontrada..."
+   905→   905→                                    value={result?.hallazgo || ''}
+   906→   906→                                    onChange={e => setItemField(item.id, 'hallazgo', e.target.value)}
+   907→   907→                                    className={`text-sm mt-1 ${!(result?.hallazgo || '').trim() ? 'border-red-400 focus:border-red-500' : ''}`}
+   908→   908→                                    rows={2}
+   909→   909→                                  />
+   910→   910→                                  {!(result?.hallazgo || '').trim() && (
+   911→   911→                                    <p className="text-[10px] text-red-500 mt-0.5">Campo obligatorio</p>
+   912→   912→                                  )}
+   913→   913→                                </div>
+   914→   914→                                <div>
+   915→   915→                                  <label className="text-xs font-medium text-amber-700">Punto a Mejorar (sugerencia) *</label>
+   916→   916→                                  <Textarea
+   917→   917→                                    placeholder="Obligatorio: sugiera una mejora..."
+   918→   918→                                    value={result?.mejora || ''}
+   919→   919→                                    onChange={e => setItemField(item.id, 'mejora', e.target.value)}
+   920→   920→                                    className={`text-sm mt-1 ${!(result?.mejora || '').trim() ? 'border-amber-400 focus:border-amber-500' : ''}`}
+   921→   921→                                    rows={2}
+   922→   922→                                  />
+   923→   923→                                  {!(result?.mejora || '').trim() && (
+   924→   924→                                    <p className="text-[10px] text-amber-500 mt-0.5">Campo obligatorio</p>
+   925→   925→                                  )}
+   926→   926→                                </div>
+   927→   927→                                <div>
+   928→   928→                                  <label className="text-xs font-medium text-blue-700 flex items-center gap-1">
+   929→   929→                                    <UserCircle className="h-3 w-3" />
+   930→   930→                                    Responsable de la acción *
+   931→   931→                                  </label>
+   932→   932→                                  <Select
+   933→   933→                                    value={result?.responsable || ''}
+   934→   934→                                    onValueChange={val => setItemField(item.id, 'responsable', val)}
+   935→   935→                                  >
+   936→   936→                                    <SelectTrigger className={`text-sm mt-1 ${!(result?.responsable || '').trim() ? 'border-blue-400 focus:border-blue-500' : ''}`}>
+   937→   937→                                      <SelectValue placeholder="Selecciona quien debe resolverlo..." />
+   938→   938→                                    </SelectTrigger>
+   939→   939→                                    <SelectContent>
+   940→   940→                                      {projectMembers.length === 0 ? (
+   941→   941→                                        <SelectItem value="__none__" disabled>No hay miembros en el proyecto</SelectItem>
+   942→   942→                                      ) : (
+   943→   943→                                        projectMembers
+   944→   944→                                          .filter(m => m.user?.active !== false)
+   945→   945→                                          .map(m => (
+   946→   946→                                            <SelectItem key={m.id} value={m.user.name}>
+   947→   947→                                              <div className="flex items-center gap-2">
+   948→   948→                                                <span>{m.user.name}</span>
+   949→   949→                                                <span className="text-[10px] text-muted-foreground">({m.role})</span>
+   950→   950→                                              </div>
+   951→   951→                                            </SelectItem>
+   952→   952→                                          ))
+   953→   953→                                      )}
+   954→   954→                                    </SelectContent>
+   955→   955→                                  </Select>
+   956→   956→                                  {!(result?.responsable || '').trim() && (
+   957→   957→                                    <p className="text-[10px] text-blue-500 mt-0.5">Selecciona un responsable</p>
+   958→   958→                                  )}
+   959→   959→                                </div>
+   960→   960→                                <div>
+   961→   961→                                  <Button variant="outline" size="sm" className="text-xs">
+   962→   962→                                    <Camera className="h-3 w-3 mr-1" /> Añadir foto (biblioteca paso 2)
+   963→   963→                                  </Button>
+   964→   964→                                </div>
+   965→   965→                              </div>
+   966→   966→                            )}
+   967→   967→                          </div>
+   968→   968→                        );
+   969→   969→                      })}
+   970→   970→                    </CardContent>
+   971→   971→                  )}
+   972→   972→                </Card>
+   973→   973→              ))}
+   974→   974→            </div>
+   975→   975→
+   976→   976→            {/* Observaciones */}
+   977→   977→            <Card>
+   978→   978→              <CardContent className="p-4">
+   979→   979→                <label className="text-sm font-medium">Observaciones generales</label>
+   980→   980→                <Textarea
+   981→   981→                  placeholder="Observaciones adicionales de la autoevaluación..."
+   982→   982→                  value={observaciones}
+   983→   983→                  onChange={e => setObservaciones(e.target.value)}
+   984→   984→                  className="mt-2"
+   985→   985→                  rows={3}
+   986→   986→                />
+   987→   987→              </CardContent>
+   988→   988→            </Card>
+   989→   989→
+   990→   990→            {/* Fotos de la autoevaluación */}
+   991→   991→            <Card>
+   992→   992→              <CardContent className="p-4 space-y-3">
+   993→   993→                <div className="flex items-center justify-between">
+   994→   994→                  <div className="flex items-center gap-2">
+   995→   995→                    <Camera className="h-4 w-4 text-muted-foreground" />
+   996→   996→                    <label className="text-sm font-medium">Fotos de la autoevaluación</label>
+   997→   997→                  </div>
+   998→   998→                  <span className="text-xs text-muted-foreground">{autoevalPhotos.length} foto{autoevalPhotos.length !== 1 ? 's' : ''}</span>
+   999→   999→                </div>
+  1000→  1000→                <p className="text-xs text-muted-foreground">
+  1001→  1001→                  Añade fotos de hallazgos o disfunciones detectadas. Se guardarán en la biblioteca con trazabilidad.
+  1002→  1002→                </p>
+  1003→  1003→                <input
+  1004→  1004→                  ref={photoInputRef}
+  1005→  1005→                  type="file"
+  1006→  1006→                  accept="image/*"
+  1007→  1007→                  multiple
+  1008→  1008→                  className="hidden"
+  1009→  1009→                  onChange={handlePhotoSelect}
+  1010→  1010→                />
+  1011→  1011→                <button
+  1012→  1012→                  className="w-full border-2 border-dashed rounded-lg p-4 flex flex-col items-center gap-2 hover:border-primary/50 hover:bg-muted/30 transition-colors"
+  1013→  1013→                  onClick={() => photoInputRef.current?.click()}
+  1014→  1014→                >
+  1015→  1015→                  <Upload className="h-5 w-5 text-muted-foreground" />
+  1016→  1016→                  <span className="text-xs font-medium">Seleccionar fotos</span>
+  1017→  1017→                </button>
+  1018→  1018→                {autoevalPhotos.length > 0 && (
+  1019→  1019→                  <div className="grid grid-cols-4 gap-2">
+  1020→  1020→                    {autoevalPhotos.map((photo, idx) => (
+  1021→  1021→                      <div key={idx} className="relative group">
+  1022→  1022→                        <img src={photo.preview} alt={`Foto ${idx + 1}`} className="w-full h-20 object-cover rounded-lg border" />
+  1023→  1023→                        <button
+  1024→  1024→                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+  1025→  1025→                          onClick={() => removeAutoevalPhoto(idx)}
+  1026→  1026→                        >
+  1027→  1027→                          <X className="h-3 w-3" />
+  1028→  1028→                        </button>
+  1029→  1029→                      </div>
+  1030→  1030→                    ))}
+  1031→  1031→                  </div>
+  1032→  1032→                )}
+  1033→  1033→              </CardContent>
+  1034→  1034→            </Card>
+  1035→  1035→
+  1036→  1036→            {/* NOK incomplete warning */}
+  1037→  1037→            {nokItems.length > 0 && !allNokCompleted && (
+  1038→  1038→              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+  1039→  1039→                <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+  1040→  1040→                <p className="text-xs text-red-700">
+  1041→  1041→                  Debes completar <strong>"Referencia del hallazgo"</strong>, <strong>"Punto a Mejorar"</strong> y <strong>"Responsable de la acción"</strong> en todos los items NOK ({nokItems.filter(r => !(r.hallazgo || '').trim() || !(r.mejora || '').trim() || !(r.responsable || '').trim()).length} pendientes)
+  1042→  1042→                </p>
+  1043→  1043→              </div>
+  1044→  1044→            )}
+  1045→  1045→
+  1046→  1046→            {/* Submit button */}
+  1047→  1047→            <div className="flex justify-end">
+  1048→  1048→              <Button
+  1049→  1049→                onClick={handleSubmit}
+  1050→  1050→                disabled={!canSubmit || isSubmitting}
+  1051→  1051→                style={canSubmit ? { backgroundColor: passed ? sStepData?.color : '#dc2626' } : undefined}
+  1052→  1052→              >
+  1053→  1053→                {isSubmitting ? 'Enviando...' : passed ? `Completar Autoevaluación (${scoring.scorePercent}% - Apto)` : `Enviar Autoevaluación (${scoring.scorePercent}% - No Apto, mín. ${notaMinima}%)`}
+  1054→  1054→              </Button>
+  1055→  1055→            </div>
+  1056→  1056→          </div>
+  1057→  1057→        )}
+  1058→  1058→        </div>
+  1059→  1059→      </DialogContent>
+  1060→  1060→    </Dialog>
+  1061→  1061→  );
+  1062→  1062→}
+  1063→  1063→
