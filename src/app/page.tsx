@@ -124,6 +124,30 @@ export default function HomePage() {
   const [notifs, setNotifs] = useState<any[]>([]);
   const [showUserCalendar, setShowUserCalendar] = useState(false);
   const [userTaskCount, setUserTaskCount] = useState(0);
+  // v2.62: Track which S-steps have been requested for autoeval by the empleado.
+  // Key format: `${sStep}` → true once the user has clicked "Solicitar autoeval"
+  // This is in-memory only (no DB); resets on page reload. Persists in localStorage
+  // so it survives navigation between tabs.
+  const [autoevalRequested, setAutoevalRequested] = useState<Set<number>>(() => {
+    try {
+      const stored = typeof window !== 'undefined' ? window.localStorage.getItem('autoeval_requested_steps') : null;
+      if (stored) {
+        const arr = JSON.parse(stored) as number[];
+        return new Set(arr);
+      }
+    } catch { /* ignore */ }
+    return new Set();
+  });
+  const markAutoevalRequested = useCallback((sStep: number) => {
+    setAutoevalRequested(prev => {
+      const next = new Set(prev);
+      next.add(sStep);
+      try {
+        window.localStorage.setItem('autoeval_requested_steps', JSON.stringify([...next]));
+      } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showGerencia, setShowGerencia] = useState(false);
@@ -387,7 +411,7 @@ export default function HomePage() {
               <h1 className="text-sm font-black text-gray-900 leading-tight tracking-wide">5S</h1>
               <div className="flex items-center gap-1">
                 <span className="text-[10px] font-semibold text-green-600">by Método</span>
-                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.61</span>
+                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.62</span>
                 {isGestor && <span className="text-[10px] font-semibold text-red-500">· Gestor</span>}
                 {!isGestor && currentProject && <span className="text-[10px] text-muted-foreground">· {currentProject.name}</span>}
                 {!isGestor && currentZone && <span className="text-[10px] font-medium" style={{ color: currentZone.color || '#3B82F6' }}>· {currentZone.name}</span>}
@@ -1149,7 +1173,9 @@ export default function HomePage() {
                                         {stepScore}%
                                       </span>
                                     )}
-                                    {/* "Request autoeval" button above step 4 when steps 1-3 are completed but 4 isn't — notify responsable to perform autocheck */}
+                                    {/* "Request autoeval" button above step 4 when steps 1-3 are completed but 4 isn't — notify responsable to perform autocheck.
+                                        v2.62: el aviso NO se envía al propio empleado. Tras click, el botón cambia
+                                        a 'Solicitado ✓' (persistente en localStorage). */}
                                     {ms.id === 4 && canNotifyAutoeval && (() => {
                                       // Check if steps 1-3 are all completed (zone-level OR employee-level)
                                       const steps1to3Done = [1,2,3].every(msCheck => {
@@ -1177,65 +1203,62 @@ export default function HomePage() {
                                         ep.completed
                                       );
                                       return steps1to3Done && !step4Done && !empStep4Done;
-                                    })() && (
-                                      <button
-                                        className="text-[8px] font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-1.5 py-0.5 rounded border border-blue-300 mb-0.5 transition-colors leading-tight whitespace-nowrap animate-pulse bg-blue-50 shadow-sm"
-                                        onClick={async (e) => {
-                                          e.stopPropagation();
-                                          try {
-                                            const sStepData = S_STEPS.find(ss => ss.id === s.id);
-                                            const msg = `Se solicita autoevaluación para S${s.id} (${sStepData?.japaneseName || ''}) en la zona "${currentZone?.name || ''}". El responsable debe realizar el autocheck.`;
-                                            
-                                            const membersRes = await fetch(`/api/projects/${currentProject?.id}/members`);
-                                            const membersData = await membersRes.json();
-                                            const allMembers = membersData?.members || [];
-                                            // Notify all responsables
-                                            const responsableIds = new Set<string>();
-                                            if (currentZone?.responsableId) responsableIds.add(currentZone.responsableId);
-                                            const responsables = allMembers.filter((m: any) => m.role === 'responsable');
-                                            for (const resp of responsables) responsableIds.add(resp.userId);
-                                            for (const respId of responsableIds) {
-                                              await fetch('/api/notifications', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({
-                                                  userId: respId,
-                                                  type: 'autoeval_requested',
-                                                  title: `Solicitud autoevaluación: S${s.id} — ${sStepData?.japaneseName || ''}`,
-                                                  message: msg,
-                                                  sStep: s.id,
-                                                  zoneId: currentZone?.id,
-                                                  projectId: currentProject?.id,
-                                                }),
-                                              });
+                                    })() && (() => {
+                                      const alreadyRequested = autoevalRequested.has(s.id);
+                                      return (
+                                        <button
+                                          className={`text-[8px] font-bold px-1.5 py-0.5 rounded border mb-0.5 transition-colors leading-tight whitespace-nowrap ${
+                                            alreadyRequested
+                                              ? 'text-green-700 bg-green-50 border-green-300 cursor-default'
+                                              : 'text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-300 animate-pulse bg-blue-50 shadow-sm'
+                                          }`}
+                                          disabled={alreadyRequested}
+                                          onClick={async (e) => {
+                                            e.stopPropagation();
+                                            if (alreadyRequested) return;
+                                            try {
+                                              const sStepData = S_STEPS.find(ss => ss.id === s.id);
+                                              const msg = `Se solicita autoevaluación para S${s.id} (${sStepData?.japaneseName || ''}) en la zona "${currentZone?.name || ''}". El responsable debe realizar el autocheck.`;
+
+                                              const membersRes = await fetch(`/api/projects/${currentProject?.id}/members`);
+                                              const membersData = await membersRes.json();
+                                              const allMembers = membersData?.members || [];
+                                              // Notify all responsables
+                                              const responsableIds = new Set<string>();
+                                              if (currentZone?.responsableId) responsableIds.add(currentZone.responsableId);
+                                              const responsables = allMembers.filter((m: any) => m.role === 'responsable');
+                                              for (const resp of responsables) responsableIds.add(resp.userId);
+                                              for (const respId of responsableIds) {
+                                                await fetch('/api/notifications', {
+                                                  method: 'POST',
+                                                  headers: { 'Content-Type': 'application/json' },
+                                                  body: JSON.stringify({
+                                                    userId: respId,
+                                                    type: 'autoeval_requested',
+                                                    title: `Solicitud autoevaluación: S${s.id} — ${sStepData?.japaneseName || ''}`,
+                                                    message: msg,
+                                                    sStep: s.id,
+                                                    zoneId: currentZone?.id,
+                                                    projectId: currentProject?.id,
+                                                  }),
+                                                });
+                                              }
+                                              // v2.62: NO se envía aviso al propio empleado.
+                                              // El botón cambia a 'Solicitado ✓' para indicar el éxito.
+                                              markAutoevalRequested(s.id);
+                                            } catch (err) {
+                                              console.error('Error sending autoeval request:', err);
+                                              alert('Error al enviar la solicitud al responsable.');
                                             }
-                                            // Confirm notification to requesting user
-                                            if (currentUser?.id) {
-                                              await fetch('/api/notifications', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({
-                                                  userId: currentUser.id,
-                                                  type: 'autoeval_ready',
-                                                  title: `Solicitud enviada: S${s.id} — Autoevaluación`,
-                                                  message: `Tu solicitud de autoevaluación para S${s.id} ha sido enviada al responsable.`,
-                                                  sStep: s.id,
-                                                  zoneId: currentZone?.id,
-                                                  projectId: currentProject?.id,
-                                                }),
-                                              });
-                                            }
-                                            alert('Solicitud de autoevaluación enviada al responsable.');
-                                          } catch (err) {
-                                            console.error('Error sending autoeval request:', err);
-                                            alert('Error al enviar la solicitud.');
-                                          }
-                                        }}
-                                        title="Solicitar autoevaluación: notificar al responsable para realizar el autocheck"
-                                      >
-                                        🔔 Autoeval
-                                      </button>
-                                    )}
+                                          }}
+                                          title={alreadyRequested
+                                            ? 'Autoevaluación solicitada al responsable — pendiente de realizar'
+                                            : 'Solicitar autoevaluación: notificar al responsable para realizar el autocheck'}
+                                        >
+                                          {alreadyRequested ? '✓ Solicitado' : '🔔 Autoeval'}
+                                        </button>
+                                      );
+                                    })()}
                                     {/* "Request audit" button above step 5 when steps 1-4 are completed but 5 isn't — only for users with notify_audit permission */}
                                     {ms.id === 5 && canNotifyAudit && (() => {
                                       // Check completion using BOTH zone-level progress AND individual employee progress

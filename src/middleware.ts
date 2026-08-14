@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const BUILD_VERSION = '20260814-210000-v2.61';
+const BUILD_VERSION = '20260814-220000-v2.62';
 const SESSION_COOKIE = '5s_session';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
