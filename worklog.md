@@ -2005,3 +2005,52 @@ Stage Summary:
   para todos los items con Retirar.
 - Si aun así no ve cambios, probablemente está en S2-S5 (la columna
   solo existe en S1) o en modo read-only (candado cerrado).
+
+---
+Task ID: v2.54
+Agent: Main
+Task: Fix Z Destino + etiqueta auto + jaulaStatus no funcionaban en S1
+
+Work Log:
+- Usuario: "no se ven los cambios, por ejemplo el de Z. destino"
+- ROOT CAUSE encontrado: migrateOrphanPhotos (Paso 2 → Paso 3)
+  creaba items con category='' (string vacío). TODA la lógica
+  automática de S1 comprobaba item.category === 'innecesario':
+    * Z Destino auto (Jaula/Residuo): fallaba → caía al Select editable vacío
+    * handleAutoGenerateEtiqueta: no disparaba
+    * jaulaStatus/jaulaFechaEntrada: no se seteaban
+    * Backfill v2.53: tampoco disparaba (también comprobaba category)
+  Aunque la columna Categoría se renderiza hardcoded como "Innecesario"
+  en S1, el dato real estaba vacío → todas las condiciones fallaban.
+
+FIX (3 partes):
+1) migrateOrphanPhotos: en S1, crear drafts con category='innecesario'
+   desde el inicio (no '').
+2) loadInventory backfill: si sStep===1 y category!=='innecesario',
+   normalizar en state local + persistir via PUT /api/inventory
+   (background, sin await). Esto repara items ya existentes en DB.
+3) Relax de checks: cambiar todas las condiciones
+   `item.category === 'innecesario'` → `sStep === 1 || item.category === 'innecesario'`
+   (o variantes con `category !== 'necesario'` para S1).
+   Archivos afectados: InventarioModal.tsx en 7 puntos:
+     - línea 189 (isInnecesario en importTemplateItems)
+     - líneas 433-441 (quantityNeeded/Unneeded en loadInventory)
+     - líneas 1026-1037 (save handler)
+     - líneas 1979-1981 (row render isInnecesario/isNecesario)
+     - línea 2101 (decision handler isInn)
+     - línea 2232 (Z Destino cell render)
+     - línea 585 (migrateOrphanPhotos draft category)
+
+Bump v2.53 → v2.54 (middleware, page.tsx, LoginPage).
+Build Next.js: ✓ Compiled successfully.
+Commit dc40d04 + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- TRAS DEPLOY de v2.54 (~1-2 min), al abrir InventarioModal en S1:
+  * Items existentes con category='' se auto-normalizan a 'innecesario'
+    (visible en state local + persistido en DB en background).
+  * Z Destino ahora SÍ muestra 'Jaula' (rojo) o 'Residuo' (amarillo)
+    según decisión, en todos los items.
+  * Etiquetas auto-generadas también disparan para items con Retirar.
+  * jaulaStatus='en_jaula' + jaulaFechaEntrada se setean al elegir Retirar.
+- Futuros drafts creados desde Paso 2 ya nacen con category='innecesario'.
