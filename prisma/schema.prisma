@@ -645,6 +645,12 @@ model EvaluationSchedule {
   horaProgramada   String? // Scheduled time (HH:MM)
   projectId        String
   zoneId           String?
+  // v2.68: quién programa y quién asiste — para que aparezca en ambos calendarios
+  responsableId    String? // responsable/auditor que programa la fecha
+  empleadoId       String? // empleado que solicitó o que debe asistir
+  createdBy        String? // usuario que creó la entrada
+  estado           String   @default("programada") // programada | realizada | cancelada | reprogramada
+  notas            String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -654,6 +660,8 @@ model EvaluationSchedule {
   @@unique([sStep, miniStep, projectId, zoneId])
   @@index([projectId])
   @@index([projectId, zoneId])
+  @@index([responsableId])
+  @@index([empleadoId])
 }
 
 model ContactRequest {
