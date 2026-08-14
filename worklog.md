@@ -1624,3 +1624,87 @@ Stage Summary:
     backend devuelve 409 y el × muestra toast.error explicando que
     no se puede eliminar. La foto NO se quita del estado local.
 - Pendiente: usuario prueba en v2.47 tras deploy (~1-2 min).
+
+---
+Task ID: v2.48
+Agent: Main
+Task: Re-abrir Paso 2 completado para AÑADIR fotos + guardar etiqueta Jaula al imprimir
+
+Work Log:
+- Petición del usuario: "una vez que en el Paso 2 adjuntas las fotos y
+  pasas al Paso 3 estas no se pueden borrar en el Paso 2, tampoco, se
+  podrá acceder SOLO para adjuntar más fotos si se requiere en algún
+  otro sitio, por ejemplo pasos 4 y 5". Y: "en el caso de la Jaula hay
+  que imprimir etiqueta y esta se tiene que guardar en el sistema".
+
+PROBLEMA 1: Una vez completado el Paso 2 con X fotos, no se podía
+volver a abrir el modal para AÑADIR más fotos — la pantalla de éxito
+mostraba solo 'Continuar al Inventario →' sin opción de añadir.
+
+FIX FotosModal.tsx:
+- Nuevo state `showAddMore` (bool, default false).
+- Pantalla de éxito ahora incluye botón 'Añadir más fotos' (oculto
+  si isReadOnly). Al pulsarlo → showAddMore=true → muestra el form
+  de captura con las fotos existentes cargadas.
+- Botón × ahora solo se renderiza si !photo.savedToLibrary. Las
+  fotos ya guardadas muestran ✓ verde + tooltip 'Foto guardada
+  (no se puede eliminar)'.
+- handleSubmit:
+  * Trackea dbId devuelto por backend para cada foto recién guardada
+    (newlySavedDbIds array).
+  * Al final, setPhotos actualiza savedToLibrary=true Y dbId para
+    las nuevas fotos — así no se re-envían si el usuario vuelve a
+    pulsar 'Añadir más fotos'.
+  * Tras éxito, setShowAddMore(false) → vuelve a pantalla de éxito
+    con el contador actualizado.
+- Reset de showAddMore al cerrar el modal.
+
+PROBLEMA 2: Al imprimir etiqueta roja (Jaula), no quedaba constancia
+en el sistema. Solo se abría la ventana de impresión.
+
+FIX TagPrinter.tsx:
+- Nuevas props opcionales: itemIds (alineado con items) y
+  onAfterPrint callback.
+- Nueva función persistLabelSnapshot():
+  * Si itemIds se pasa, para cada item hace GET /api/inventory?id=X
+    → merge existing extra con { etiquetaGenerada: true,
+    etiquetaFecha: ISO, etiquetaData: snapshot } → PUT.
+  * Toast de confirmación 'N etiqueta(s) guardada(s) en el sistema.'
+  * Llama onAfterPrint para refrescar la UI.
+- handlePrint ahora llama persistLabelSnapshot() después de abrir
+  la ventana de impresión (no bloquea la UI).
+
+FIX InventarioModal.tsx:
+- Pasamos itemIds al TagPrinter (alineado con rojaItems).
+- onAfterPrint llama loadInventory() para refrescar la tabla.
+- Nuevo getEtiquetaBadge() muestra '🏷️ Impresa <fecha>' cuando
+  extra.etiquetaGenerada=true. Se renderiza bajo la badge de decisión.
+
+FIX JaulaModal.tsx + JaulaView.tsx:
+- Mismo patrón: tagItemsAndIds → tagItems + tagItemIds.
+- TagPrinter recibe itemIds + onAfterPrint=loadJaulaItems.
+
+FIX /api/inventory/route.ts (GET):
+- Nuevo: si se pasa ?id=X, devuelve un único item (con extra y
+  photoUrls parseados). Lo usa TagPrinter para GET → merge → PUT
+  sin perder otros campos de extra.
+
+Bump v2.48 en middleware.ts, page.tsx, LoginPage.tsx.
+Build Next.js: ✓ Compiled successfully in 21.0s.
+Commit + push a GitHub (8bb4b3b). Vercel deploy automático.
+
+Stage Summary:
+- Para arreglar el caso puntual del usuario (Paso 2 con 4 fotos
+  en vez de 5): puede re-abrir el Paso 2 (que ya está completado),
+  pulsar 'Añadir más fotos', capturar/subir 1 foto adicional,
+  pulsar 'Guardar fotos adicionales'. Solo se guarda la nueva,
+  las 4 existentes no se re-envían. Progress se re-completa con
+  5 fotos.
+- Para añadir fotos adicionales a un Paso 2 ya correctamente
+  completado (caso normal): mismo flujo. Las fotos ya guardadas
+  muestran ✓ verde y no se pueden borrar.
+- Al imprimir etiqueta roja desde InventarioModal / JaulaModal /
+  JaulaView, se persiste en el sistema (item.extra.etiquetaGenerada
+  + etiquetaFecha + etiquetaData). La tabla muestra '🏷️ Impresa
+  <fecha>' bajo la decisión del item.
+- Pendiente: usuario prueba en v2.48 tras deploy (~1-2 min).
