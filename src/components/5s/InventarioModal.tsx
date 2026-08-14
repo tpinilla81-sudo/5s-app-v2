@@ -95,6 +95,8 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
   const canViewStep = canView(sStep, miniStep);
   // Permission-driven: read-only if no execute perm OR if candado closed for skip_steps users
   const isReadOnly = !canPerformStep || (canSkipSteps && !adminFreeNavigation);
+  // v2.39: hide bulk import/export controls from empleado & auditor (only gestor/admin/gerente/responsable see them)
+  const canManageBulk = ['gestor', 'admin', 'gerente', 'responsable'].includes(currentUser?.role || '');
 
   const [items, setItems] = useState<InventoryItemData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1140,11 +1142,15 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
   const classifyPercent = items.length > 0 ? Math.round((classifiedCount / items.length) * 100) : 0;
   // For S2, S3, S4: layout must be uploaded AND classification threshold met
   const needsLayout = sStep === 2 || sStep === 3 || sStep === 4;
+  // v2.39: fotos del Paso 2 sin clasificar (sin inventoryItemId) bloquean la compleción.
+  // Cada foto del Paso 2 debe estar vinculada a un ítem del inventario.
+  const unclassifiedPhotosCount = step2Photos.length;
+  const allPhotosClassified = unclassifiedPhotosCount === 0;
   // S1: No minimum percentage required — just need at least 1 item. If step 4 goes bad, it means not everything was eliminated.
   // S2-S5: Must meet classification threshold (80%)
   const canComplete = sStep === 1
-    ? items.length > 0 && classifiedCount > 0
-    : classifyPercent >= INVENTORY_CLASSIFY_THRESHOLD && items.length > 0 && (!needsLayout || layoutUploaded);
+    ? items.length > 0 && classifiedCount > 0 && allPhotosClassified
+    : classifyPercent >= INVENTORY_CLASSIFY_THRESHOLD && items.length > 0 && (!needsLayout || layoutUploaded) && allPhotosClassified;
 
   // S1 specific counts: split by category
   const innecesarios = sStep === 1 ? items.filter(i => i.category === 'innecesario') : items.filter(i => i.category === 'innecesario');
@@ -1157,6 +1163,11 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
     // Extra guard: check layout for S2/S3/S4
     if (needsLayout && !layoutUploaded) {
       toast.error('Debes dibujar o subir un layout antes de completar este paso');
+      return;
+    }
+    // v2.39: extra guard — fotos del Paso 2 sin clasificar bloquean
+    if (unclassifiedPhotosCount > 0) {
+      toast.error(`Quedan ${unclassifiedPhotosCount} foto(s) del Paso 2 sin clasificar. Vincula cada foto a un elemento del inventario antes de completar.`);
       return;
     }
 
@@ -1358,19 +1369,22 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
 
             {/* ═══ FOTOS DEL PASO 2 (Fotos) ═══ */}
             {step2Photos.length > 0 && (
-              <Card className="border-2 border-purple-200 bg-purple-50/30">
+              <Card className="border-2 border-red-300 bg-red-50/40">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <ImageIcon className="h-5 w-5 text-purple-600" />
-                    <h4 className="font-semibold text-purple-800">Fotos del Paso 2 ({sStepData?.japaneseName})</h4>
-                    <Badge className="bg-purple-100 text-purple-800">{step2Photos.length} fotos</Badge>
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <ImageIcon className="h-5 w-5 text-red-600" />
+                    <h4 className="font-semibold text-red-800">Fotos del Paso 2 pendientes de clasificar</h4>
+                    <Badge className="bg-red-100 text-red-800">{step2Photos.length} sin clasificar</Badge>
                   </div>
+                  <p className="text-xs text-red-700 mb-3 font-medium">
+                    Cada foto del Paso 2 debe vincularse a un elemento del inventario para saber qué hacer con ese elemento. Hasta que no clasifiques todas las fotos, no podrás completar el inventario.
+                  </p>
                   <p className="text-xs text-muted-foreground mb-3">
-                    Estas fotos se tomaron en el paso de Fotos. Puedes vincularlas a elementos del inventario para mayor trazabilidad.
+                    Para vincular: crea un elemento nuevo (o usa uno existente) y pulsa el botón 📷 «Vincular Foto del Paso 2» en su fila.
                   </p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
                     {step2Photos.map(photo => (
-                      <div key={photo.id} className="relative group border rounded-lg overflow-hidden bg-white">
+                      <div key={photo.id} className="relative group border-2 border-red-200 rounded-lg overflow-hidden bg-white">
                         <img
                           src={photo.photoUrl}
                           alt={photo.title}
@@ -1483,7 +1497,8 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
               </Card>
             )}
 
-            {/* Classification progress */}
+            {/* Classification progress — v2.39: hidden for empleado/auditor (bulk management only) */}
+            {canManageBulk && (
             <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
               <div>
                 <span className="text-sm font-medium">Clasificación</span>
@@ -1495,9 +1510,12 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                 {classifyPercent}%{sStep !== 1 ? ` (mín. ${INVENTORY_CLASSIFY_THRESHOLD}%)` : ''}
               </Badge>
             </div>
+            )}
 
-            {/* Action buttons */}
+            {/* Action buttons — v2.39: bulk import/export hidden for empleado/auditor */}
             <div className="flex gap-2 flex-wrap items-center">
+              {canManageBulk && (
+              <>
               <Button variant="outline" size="sm" onClick={handleImportTemplate}>
                 <Upload className="h-4 w-4 mr-1" /> Importar Plantilla
               </Button>
@@ -1521,6 +1539,8 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
               >
                 <FileSpreadsheet className="h-4 w-4 mr-1" /> Descargar Plantilla Excel
               </a>
+              </>
+              )}
               {/* S1: Print red label button — only for Jaula decision items */}
               {sStep === 1 && items.length > 0 && (() => {
                 // Helper: compute revision date = entry date + diasCuarentena (default 40)
@@ -2542,7 +2562,12 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
             )}
 
             {/* Submit button */}
-            <div className="flex justify-end">
+            <div className="flex justify-end items-center gap-3 flex-wrap">
+              {unclassifiedPhotosCount > 0 && (
+                <span className="text-xs text-red-600 font-medium">
+                  ⚠ {unclassifiedPhotosCount} foto(s) del Paso 2 sin clasificar
+                </span>
+              )}
               <Button
                 onClick={handleComplete}
                 disabled={!canComplete || items.length === 0 || isReadOnly}
