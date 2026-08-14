@@ -259,6 +259,29 @@ export async function DELETE(request: NextRequest) {
     if (item) {
       let extra: any = null
       try { extra = item.extra ? JSON.parse(item.extra) : null } catch {}
+
+      // v2.46: GUARD — si el item viene de una foto del Paso 2 (extra.sourcePhotoId)
+      // Y el Paso 2 (Fotos) ya está completado para ese sStep/project/zone, NO se
+      // puede eliminar. El usuario debe rellenar los datos en la tabla, no borrarlos.
+      if (extra?.sourcePhotoId) {
+        const step2Completed = await db.progress.findFirst({
+          where: {
+            sStep: item.sStep,
+            miniStep: 2,
+            completed: true,
+            projectId: item.projectId,
+            zoneId: item.zoneId ?? undefined,
+          },
+          select: { id: true },
+        })
+        if (step2Completed) {
+          return NextResponse.json({
+            success: false,
+            error: 'Este elemento viene de una foto del Paso 2, que ya está completado. No se puede eliminar — rellena sus datos en la tabla para clasificarlo.',
+          }, { status: 409 })
+        }
+      }
+
       const isDraft = extra?.isDraft === true
       if (isDraft && item.photos.length > 0) {
         // Eliminar las fotos asociadas al borrador

@@ -135,7 +135,33 @@ export async function DELETE(request: NextRequest) {
 
     // Before deleting, if the photo is linked to an inventory item, update photoUrls
     const photo = await db.photoLibrary.findUnique({ where: { id } })
-    if (photo?.inventoryItemId) {
+    if (!photo) {
+      return NextResponse.json({ success: false, error: 'Foto no encontrada' }, { status: 404 })
+    }
+
+    // v2.46: GUARD — las fotos del Paso 2 (miniStep=2) NO se pueden eliminar
+    // si el Paso 2 ya está completado para ese sStep/project/zone. Son
+    // obligatorias para el inventario y para avanzar al Paso 4.
+    if (photo.miniStep === 2) {
+      const step2Completed = await db.progress.findFirst({
+        where: {
+          sStep: photo.sStep,
+          miniStep: 2,
+          completed: true,
+          projectId: photo.projectId,
+          zoneId: photo.zoneId ?? undefined,
+        },
+        select: { id: true },
+      })
+      if (step2Completed) {
+        return NextResponse.json({
+          success: false,
+          error: 'Esta foto se tomó en el Paso 2, que ya está completado. No se puede eliminar — es obligatoria para el inventario.',
+        }, { status: 409 })
+      }
+    }
+
+    if (photo.inventoryItemId) {
       try {
         const inventoryItem = await db.inventoryItem.findUnique({ where: { id: photo.inventoryItemId } })
         if (inventoryItem?.photoUrls) {

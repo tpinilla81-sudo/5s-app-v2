@@ -195,7 +195,14 @@ export default function PhotoLibrary({ open, onClose, initialSStep }: PhotoLibra
   const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar esta foto del registro?')) return
     try {
-      await fetch(`/api/photo-library?id=${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/photo-library?id=${id}`, { method: 'DELETE' })
+      // v2.46: el backend puede rechazar el borrado (409) si la foto es del Paso 2
+      // y ese paso ya está completado. Mostramos el error al usuario.
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        alert(json?.error || 'No se puede eliminar esta foto.')
+        return
+      }
       await loadPhotos()
     } catch (e) {
       console.error('Error deleting photo:', e)

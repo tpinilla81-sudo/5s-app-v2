@@ -660,6 +660,14 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
   };
 
   const handleDeletePhoto = async (photoId: string, itemId: string) => {
+    // v2.46: las fotos del Paso 2 (miniStep=2) están bloqueadas una vez
+    // completado el Paso 2 — no se pueden borrar desde el Inventario.
+    const photo = (itemPhotos[itemId] || []).find(p => p.id === photoId)
+      || (items.find(i => i.id === itemId)?.photos || []).find(p => p.id === photoId);
+    if (photo && (photo as any).miniStep === 2 && miniStep >= 3) {
+      toast.error('Esta foto se tomó en el Paso 2 y no se puede eliminar. Es obligatoria para completar el inventario.');
+      return;
+    }
     try {
       const res = await fetch(`/api/photo-library?id=${photoId}`, { method: 'DELETE' });
       const json = await res.json();
@@ -989,6 +997,13 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
   };
 
   const handleDeleteItem = async (id: string) => {
+    // v2.46: los items creados desde fotos del Paso 2 (extra.sourcePhotoId)
+    // no se pueden eliminar desde el Inventario — son obligatorios.
+    const item = items.find(i => i.id === id);
+    if (item && (item.extra as any)?.sourcePhotoId && miniStep >= 3) {
+      toast.error('Este elemento viene de una foto del Paso 2 y no se puede eliminar. Rellena sus datos para clasificarlo.');
+      return;
+    }
     try {
       const res = await fetch(`/api/inventory?id=${id}`, { method: 'DELETE' });
       const json = await res.json();
@@ -2003,7 +2018,7 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                 <Badge className={`absolute -top-1 -left-1 text-[7px] px-0.5 py-0 min-w-0 ${photo.photoType === 'antes' ? 'bg-amber-100 text-amber-800' : photo.photoType === 'despues' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                                   {photo.photoType === 'antes' ? 'A' : photo.photoType === 'despues' ? 'D' : 'R'}
                                 </Badge>
-                                {!isReadOnly && (
+                                {!isReadOnly && (photo as any).miniStep !== 2 && (
                                   <button className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] opacity-0 group-hover:opacity-100 transition-opacity"
                                     onClick={(e) => { e.stopPropagation(); handleDeletePhoto(photo.id, item.id!); }} title="Eliminar foto">×</button>
                                 )}
@@ -2018,10 +2033,14 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                             )}
                           </div>
                         </td>
-                        {/* Delete */}
+                        {/* Delete — v2.46: oculto si el item viene de una foto del Paso 2 (sourcePhotoId) */}
                         <td className="px-1 py-1 border bg-gray-50">
-                          <Button variant="ghost" size="sm" className="h-7 text-destructive"
-                            onClick={() => item.id && handleDeleteItem(item.id)} disabled={isReadOnly}>×</Button>
+                          {isReadOnly || (item.extra as any)?.sourcePhotoId ? (
+                            <span className="text-[10px] text-muted-foreground" title={item.extra?.sourcePhotoId ? 'Elemento obligatorio vinculado al Paso 2' : ''}>🔒</span>
+                          ) : (
+                            <Button variant="ghost" size="sm" className="h-7 text-destructive"
+                              onClick={() => item.id && handleDeleteItem(item.id)}>×</Button>
+                          )}
                         </td>
                       </tr>
                     );
