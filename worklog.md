@@ -1373,3 +1373,72 @@ Stage Summary:
 - Pendiente: usuario prueba en v2.43 tras deploy (~1-2 min). Si
   quiere ajustar los textos del card o añadir más campos específicos
   por S en DRAFT_INSTRUCTIONS_BY_S, iterar.
+
+---
+Task ID: v2.44
+Agent: Main
+Task: Limpiar Trazabilidad Fotográfica y Adjuntar Foto del InventarioModal
+
+Work Log:
+- Petición del usuario (con screenshot): "COMO HEMOS DICHO, SOBRA ESTO
+  YA QEU SE RELLENA DIRECTAMENTE EN LA TABLA CON LAS FOTOS QEU SE HAN
+  VINCULADO DEL PASO 2"
+- El screenshot mostraba el formulario "+ Agregar" con su bloque
+  "Adjuntar Foto" + Select Antes/Después + preview de archivo
+  pendiente, y debajo el card "Elementos en Jaula — Trazabilidad
+  Fotográfica".
+
+Tras v2.40 (foto→borrador automático al tomar la foto en Paso 2) y
+v2.42 (migración de huérfanas pre-v2.40), las fotos YA se muestran
+en la columna "Fotos" de la tabla del inventario, vinculadas a su
+item. Los siguientes elementos quedaban obsoletos:
+
+ELIMINADO:
+1. Card "Elementos en Jaula — Trazabilidad Fotográfica" (S1,
+   innecesarios) — mostraba las mismas fotos que ya están en la
+   tabla, en un card separado redundante.
+2. Card "Puntos de Suciedad — Fotos Antes/Después" (S3) — mostraba
+   las fotos Antes/Después de cada punto de suciedad en un card
+   separado, con un botón "Adjuntar foto DESPUÉS" por item.
+3. Bloque "Adjuntar Foto" del formulario "+ Agregar" — el Select
+   Antes/Después, el label con icono Camera y el input file oculto,
+   más el preview del archivo pendiente. Queda solo el botón
+   "+ Agregar".
+
+LIMPIEZA DE CÓDIGO:
+- Eliminados state: pendingNewPhoto, pendingNewPhotoType.
+- handleAddItem ya no intenta adjuntar la foto pendiente al nuevo
+  item (bloque if (pendingNewPhoto && newItemId) {...} eliminado).
+- Imports limpiados: ImageIcon, X, Link2, Unlink ya no se usan.
+
+SE MANTIENE (no es obsoleto):
+- Columna "Fotos" de la tabla — muestra las fotos vinculadas (que
+  vienen del Paso 2) y permite eliminarlas con el botón × al hover.
+- Botón Camera por fila de la tabla — por si el usuario quiere
+  añadir una foto adicional (p. ej. foto DESPUÉS en S3 tras la
+  limpieza).
+- Photo Lightbox Dialog — para ver la foto ampliada al hacer click.
+- handleAttachPhoto, handleDeletePhoto, itemPhotos,
+  showPhotoLightbox, uploadingPhotoForItem — siguen usándose
+  desde la tabla.
+- Card rojo "Elementos pendientes de clasificar" (DRAFT_INSTRUCTIONS
+  _BY_S) — se muestra solo cuando hay borradores sin clasificar,
+  no es obsoleto.
+
+Bump v2.44 en middleware.ts, page.tsx, LoginPage.tsx.
+Build Next.js: ✓ Compiled successfully in 21.4s.
+Commit + push a GitHub (e2a1c92). Vercel deploy automático.
+
+Stage Summary:
+- InventarioModal ahora muestra las fotos SOLO en la columna "Fotos"
+  de la tabla. Eliminados los dos cards de Trazabilidad Fotográfica
+  (S1 y S3) y el bloque "Adjuntar Foto" del formulario "+ Agregar".
+- La columna "Fotos" sigue permitiendo:
+  * Ver las fotos vinculadas desde el Paso 2 (auto-drafts).
+  * Adjuntar una foto adicional con el botón Camera (caso de uso:
+    foto DESPUÉS en S3).
+  * Eliminar una foto con el botón × al hover.
+  * Abrir el lightbox al hacer click en una foto.
+- Pendiente: usuario prueba en v2.44 tras deploy (~1-2 min). Si
+  quiere eliminar también el botón Camera de la tabla (dejar la
+  columna como solo-lectura), iterar.
