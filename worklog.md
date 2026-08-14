@@ -629,3 +629,38 @@ Stage Summary:
 - Solución: ruta restaurada + cola secuencial en cliente + UI que deshabilita
   el input mientras procesa.
 - Pendiente: commit + push a GitHub para deploy en Vercel.
+
+---
+Task ID: v2.34
+Agent: Main
+Task: Fix bug en handleFileSelect v2.33 — input.value='' vaciaba el FileList antes de leer
+
+Work Log:
+- Usuario reportó: en Paso 2 S1, puede elegir fotos de carpeta pero no se ejecutan.
+  Versión v2.33 confirmada.
+- Diagnóstico: en la v2.33 cometí un bug en handleFileSelect. El orden era:
+    const files = e.target.files;
+    if (fileInputRef.current) fileInputRef.current.value = '';   ← BUG
+    const fileArr = Array.from(files);                            ← files ya vacío
+    await Promise.all(fileArr.map(...));
+  Al asignar input.value='' el navegador vacía el FileList que `files` referenciaba.
+  Array.from(files) devolvía [] → Promise.all([]) resolvía inmediatamente →
+  no se procesaba ninguna foto.
+- Fix: capturar Array.from(files) ANTES de limpiar el input.
+  Ahora el orden es:
+    const files = e.target.files;
+    const fileArr = Array.from(files);          ← snapshot primero
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    await Promise.all(fileArr.map(...));
+  Mismo fix aplicado a handleCameraCapture.
+- Añadidos console.log en handleFileSelect, handleCameraCapture y processQueue
+  para que el usuario pueda abrir la consola del navegador y ver exactamente
+  cuántos archivos se seleccionaron y cuántos se están procesando.
+- Bump v2.34 en middleware.ts, page.tsx, LoginPage.tsx.
+- Next.js build: "✓ Compiled successfully in 20.1s".
+- Commit + push a GitHub para deploy en Vercel.
+
+Stage Summary:
+- Bug mío de la v2.33: limpiaba el input antes de leer los archivos.
+- Fix en v2.34: snapshot del FileList antes de limpiar + logs de depuración.
+- Pendiente: usuario prueba en v2.34 tras deploy (~1-2 min).

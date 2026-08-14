@@ -138,6 +138,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
     if (isProcessingRef.current) return;
     if (uploadQueueRef.current.length === 0) return;
     isProcessingRef.current = true;
+    console.log(`[FotosModal] processQueue: iniciando procesamiento de ${uploadQueueRef.current.length} foto(s)`);
 
     try {
       while (uploadQueueRef.current.length > 0) {
@@ -147,6 +148,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
         const { rawBase64, photoType } = item;
         const index = photoCounterRef.current++;
         const photoId = `photo_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`;
+        console.log(`[FotosModal] processQueue: procesando foto #${index + 1} (id=${photoId}), quedan ${uploadQueueRef.current.length} en cola`);
 
         try {
           const compressed = await compressImage(rawBase64);
@@ -316,18 +318,20 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    // Limpia el input inmediatamente para que el usuario pueda volver a seleccionar
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    // Lee todos los archivos en paralelo (FileReader es I/O barato) y encola
+    // Captura el snapshot del FileList ANTES de limpiar el input.
+    // Si limpiamos antes, el navegador vacía el FileList y Array.from(files) da [].
     const fileArr = Array.from(files);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    console.log(`[FotosModal] handleFileSelect: ${fileArr.length} archivo(s) seleccionado(s)`);
     await Promise.all(fileArr.map(f => readFileAsDataURL(f).then(addPhoto).catch(err => console.error('Error leyendo archivo:', err))));
   };
 
   const handleCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    if (cameraInputRef.current) cameraInputRef.current.value = '';
     const fileArr = Array.from(files);
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
+    console.log(`[FotosModal] handleCameraCapture: ${fileArr.length} archivo(s) capturado(s)`);
     await Promise.all(fileArr.map(f => readFileAsDataURL(f).then(addPhoto).catch(err => console.error('Error leyendo archivo de cámara:', err))));
   };
 
