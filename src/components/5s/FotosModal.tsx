@@ -505,11 +505,6 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
               </div>
             </div>
 
-            <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-100 rounded-lg">
-              <Zap className="h-4 w-4 text-blue-500 shrink-0" />
-              <p className="text-xs text-blue-700">Las fotos se comprimen automáticamente (máx. 1200×900px, calidad 70%) para ahorrar espacio. Cada foto optimizada pesa ~80-150KB.</p>
-            </div>
-
             <Card>
               <CardContent className="p-4 space-y-4">
                 <div className="flex gap-1 p-1 bg-muted rounded-lg">
@@ -677,8 +672,7 @@ export default function FotosModal({ open, onClose, sStep, miniStep }: FotosModa
             )}
 
             <div className="text-xs text-muted-foreground space-y-1">
-              <p>• Mínimo {minPhotos} fotos del estado ANTES de la zona {photoLimitSource === 'override' && '(override de zona)'}{photoLimitSource === 'template' && '(definido en plantilla)'}</p>
-              <p>• Las fotos se comprimen automáticamente para ahorrar espacio</p>
+              <p>• Mínimo {minPhotos} fotos del estado ANTES de la zona</p>
               <p>• Incluya diferentes ángulos y perspectivas de la zona</p>
             </div>
 
