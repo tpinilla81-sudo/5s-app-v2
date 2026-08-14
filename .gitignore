@@ -11,3 +11,4 @@ node_modules/
 skills/
 tsconfig.tsbuildinfo
 upload/
+tool-results/
