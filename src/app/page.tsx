@@ -46,8 +46,10 @@ import {
   Crown, Trash2,
   ClipboardList, GraduationCap, Camera, CheckSquare, Trophy, ChevronRight,
   Lock as LockIcon, AlertTriangle, Building2, Zap, Bell, BellRing, BookOpen, Image as ImageIcon,
-  Package, BoxSelect, Menu, Droplets, CalendarDays
+  Package, BoxSelect, Menu, Droplets, CalendarDays,
+  Calendar, // v2.68: icono para programar evaluación
 } from 'lucide-react';
+import { toast } from 'sonner'; // v2.68: notificaciones toast para schedule
 
 const MODAL_MAP: Record<string, React.ComponentType<{
   open: boolean;
@@ -124,6 +126,21 @@ export default function HomePage() {
   const [notifs, setNotifs] = useState<any[]>([]);
   const [showUserCalendar, setShowUserCalendar] = useState(false);
   const [userTaskCount, setUserTaskCount] = useState(0);
+  // v2.68: diálogo para programar fecha de autoeval/auditoría desde una notificación
+  const [scheduleDialog, setScheduleDialog] = useState<{
+    open: boolean;
+    notifId?: string;
+    sStep?: number;
+    miniStep?: number; // 4=autoeval, 5=auditoría
+    zoneId?: string;
+    projectId?: string;
+    empleadoId?: string;
+    responsableId?: string;
+    type?: string;
+  }>({ open: false });
+  const [scheduleDate, setScheduleDate] = useState<string>('');
+  const [scheduleTime, setScheduleTime] = useState<string>('10:00');
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
   // v2.62: Track which S-steps have been requested for autoeval by the empleado.
   // Key format: `${sStep}` → true once the user has clicked "Solicitar autoeval"
   // This is in-memory only (no DB); resets on page reload. Persists in localStorage
@@ -411,7 +428,7 @@ export default function HomePage() {
               <h1 className="text-sm font-black text-gray-900 leading-tight tracking-wide">5S</h1>
               <div className="flex items-center gap-1">
                 <span className="text-[10px] font-semibold text-green-600">by Método</span>
-                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.67</span>
+                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.68</span>
                 {isGestor && <span className="text-[10px] font-semibold text-red-500">· Gestor</span>}
                 {!isGestor && currentProject && <span className="text-[10px] text-muted-foreground">· {currentProject.name}</span>}
                 {!isGestor && currentZone && <span className="text-[10px] font-medium" style={{ color: currentZone.color || '#3B82F6' }}>· {currentZone.name}</span>}
@@ -691,6 +708,7 @@ export default function HomePage() {
           <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto">
             {/* v2.62: 'Borrar Pasos' eliminado — ya no vale */}
             {/* v2.65: orden toolbar — Avisos → Plan Acc. → Calendario → Fotos → Jaula → Activos → P. Limpio → Estándares */}
+            {/* v2.68: orden toolbar — Avisos → Calendario → Plan Acc. → Fotos → Jaula → Activos → P. Limpio → Estándares */}
             {/* 🔔 Notification bell */}
             {canSeeNotifications && (
               <Button variant={unreadNotifs > 0 ? 'default' : 'outline'} size="sm"
@@ -712,16 +730,6 @@ export default function HomePage() {
                 )}
               </Button>
             )}
-            {/* 📋 Plan de Acción General */}
-            {canSeeNotifications && currentUser?.role !== 'auditor' && (
-              <Button variant="outline" size="sm"
-                className="gap-1 text-[10px] h-8 border-orange-300 text-orange-600 hover:bg-orange-50"
-                onClick={() => setActiveTab('actionplan')}
-                title="Plan de Acción General">
-                <ListChecks className="h-3 w-3" />
-                <span className="hidden sm:inline">Plan Acc.</span>
-              </Button>
-            )}
             {/* 📅 Calendario de acciones */}
             {currentUser && (
               <Button variant={userTaskCount > 0 ? 'default' : 'outline'} size="sm"
@@ -733,6 +741,16 @@ export default function HomePage() {
                 {userTaskCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center animate-pulse">{userTaskCount > 9 ? '9+' : userTaskCount}</span>
                 )}
+              </Button>
+            )}
+            {/* 📋 Plan de Acción General */}
+            {canSeeNotifications && currentUser?.role !== 'auditor' && (
+              <Button variant="outline" size="sm"
+                className="gap-1 text-[10px] h-8 border-orange-300 text-orange-600 hover:bg-orange-50"
+                onClick={() => setActiveTab('actionplan')}
+                title="Plan de Acción General">
+                <ListChecks className="h-3 w-3" />
+                <span className="hidden sm:inline">Plan Acc.</span>
               </Button>
             )}
             {/* 📸 Biblioteca de Fotos */}
@@ -945,6 +963,59 @@ export default function HomePage() {
                   <p className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-line">{n.message}</p>
                   <div className="flex items-center justify-between mt-1.5">
                     <p className="text-[9px] text-muted-foreground">{new Date(n.createdAt).toLocaleString('es-ES')}</p>
+                    {/* v2.68: Programar fecha de autoeval/auditoría — botón visible para responsable/auditor */}
+                    {(n.type === 'autoeval_requested' || n.type === 'audit_requested') && !n.read && (
+                      <button
+                        className="text-[10px] font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 px-2 py-0.5 rounded border border-blue-300 transition-colors flex items-center gap-0.5"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          // Mark as read
+                          try {
+                            await fetch('/api/notifications', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ notificationId: n.id, read: true }),
+                            });
+                          } catch (e) { /* ignore */ }
+                          // Find empleado that requested (we need to know who to notify back)
+                          let empleadoId: string | undefined;
+                          try {
+                            const membersRes = await fetch(`/api/projects/${currentProject?.id}/members`);
+                            const membersData = await membersRes.json();
+                            const empleados = (membersData?.members || []).filter((m: any) => m.role === 'empleado');
+                            // If zone has a single empleado, use it; otherwise let user pick later
+                            if (empleados.length === 1) {
+                              empleadoId = empleados[0].userId;
+                            } else if (n.zoneId) {
+                              // Filter by zone
+                              const zoneEmps = empleados.filter((m: any) => m.zoneId === n.zoneId);
+                              if (zoneEmps.length === 1) empleadoId = zoneEmps[0].userId;
+                            }
+                          } catch (e) { /* ignore */ }
+
+                          setScheduleDialog({
+                            open: true,
+                            notifId: n.id,
+                            sStep: n.sStep,
+                            miniStep: n.type === 'autoeval_requested' ? 4 : 5,
+                            zoneId: n.zoneId,
+                            projectId: n.projectId || currentProject?.id,
+                            empleadoId,
+                            responsableId: currentUser?.id,
+                            type: n.type,
+                          });
+                          // Default date = tomorrow
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          setScheduleDate(tomorrow.toISOString().slice(0, 10));
+                          setScheduleTime('10:00');
+                          setShowNotifs(false);
+                        }}
+                      >
+                        <Calendar className="h-2.5 w-2.5" />
+                        Programar fecha
+                      </button>
+                    )}
                     {/* Accept audit meeting button — only for audit_requested notifications and users with accept_audit_meeting permission */}
                     {n.type === 'audit_requested' && !n.read && canAcceptAuditMeeting && (
                       <button
@@ -1610,6 +1681,98 @@ export default function HomePage() {
             setActiveTab('actionplan');
           }}
         />
+      )}
+
+      {/* v2.68: Diálogo para programar fecha de autoeval/auditoría desde notificación */}
+      {scheduleDialog.open && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-blue-600" />
+              <h3 className="text-base font-bold text-gray-900">
+                Programar {scheduleDialog.miniStep === 4 ? 'Autoevaluación' : 'Auditoría'}
+                {scheduleDialog.sStep && ` — S${scheduleDialog.sStep}`}
+              </h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Selecciona fecha y hora. Se creará una entrada en tu calendario y en el del empleado,
+              y se le notificará automáticamente.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1">Fecha</label>
+                <input
+                  type="date"
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min={new Date().toISOString().slice(0, 10)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1">Hora</label>
+                <input
+                  type="time"
+                  value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t">
+              <button
+                className="text-xs px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+                onClick={() => setScheduleDialog({ open: false })}
+                disabled={isSavingSchedule}
+              >
+                Cancelar
+              </button>
+              <button
+                className="text-xs px-4 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                disabled={!scheduleDate || isSavingSchedule}
+                onClick={async () => {
+                  if (!scheduleDate || !scheduleDialog.projectId || !scheduleDialog.sStep) return;
+                  setIsSavingSchedule(true);
+                  try {
+                    const res = await fetch('/api/evaluation-schedule', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        sStep: scheduleDialog.sStep,
+                        miniStep: scheduleDialog.miniStep,
+                        projectId: scheduleDialog.projectId,
+                        zoneId: scheduleDialog.zoneId,
+                        fechaProgramada: scheduleDate,
+                        horaProgramada: scheduleTime,
+                        responsableId: scheduleDialog.responsableId,
+                        empleadoId: scheduleDialog.empleadoId,
+                        createdBy: currentUser?.id,
+                        estado: 'programada',
+                      }),
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                      toast.success(`Fecha programada: ${scheduleDate.split('-').reverse().join('/')} a las ${scheduleTime}`);
+                      setScheduleDialog({ open: false });
+                      // Open calendar to show the new entry
+                      setShowUserCalendar(true);
+                    } else {
+                      toast.error('Error al programar la fecha');
+                    }
+                  } catch (e) {
+                    console.error('Error saving schedule:', e);
+                    toast.error('Error de conexión');
+                  } finally {
+                    setIsSavingSchedule(false);
+                  }
+                }}
+              >
+                {isSavingSchedule && <Loader2 className="h-3 w-3 animate-spin" />}
+                Programar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

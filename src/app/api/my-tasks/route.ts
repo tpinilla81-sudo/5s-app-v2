@@ -137,10 +137,75 @@ export async function GET(request: NextRequest) {
       sinFecha: enriched.filter((i) => i._status === 'sin_fecha').length,
     }
 
+    // v2.68: incluir evaluaciones programadas (autoeval/auditoría) donde el usuario
+    // es responsable OR empleado. Aparecen como entradas adicionales en el calendario.
+    const evalSchedules = await db.evaluationSchedule.findMany({
+      where: {
+        OR: [
+          { responsableId: user.id },
+          { empleadoId: user.id },
+        ],
+        estado: { notIn: ['cancelada', 'realizada'] },
+        ...(projectId ? { projectId } : {}),
+      },
+      include: {
+        zone: { select: { id: true, name: true, color: true } },
+        project: { select: { id: true, name: true, company: true } },
+      },
+    })
+
+    const evalItems = evalSchedules.map((es) => {
+      const miniStepLabel = es.miniStep === 4 ? 'Autoevaluación' : es.miniStep === 5 ? 'Auditoría' : `Paso ${es.miniStep}`
+      const isEmpleado = es.empleadoId === user.id
+      const roleLabel = isEmpleado ? '(asistes)' : '(realizas)'
+      return {
+        id: `eval-${es.id}`,
+        itemId: `eval-${es.id}`,
+        itemDescription: `${miniStepLabel} S${es.sStep} ${roleLabel}`,
+        hallazgo: `${miniStepLabel} programada para S${es.sStep}`,
+        mejora: es.notas || null,
+        responsable: null,
+        personaDemandada: null,
+        prioridad: 'alta' as const,
+        estado: 'abierta' as const,
+        fechaLimite: es.fechaProgramada || null,
+        fechaCompromiso: es.fechaProgramada || null,
+        fechaResolucion: null,
+        fechaReal: null,
+        fechaEntrada: es.createdAt ? new Date(es.createdAt).toISOString() : null,
+        porcentaje: 0,
+        source: 'evaluation_schedule',
+        sStep: es.sStep,
+        miniStep: es.miniStep,
+        notas: es.horaProgramada ? `Hora: ${es.horaProgramada}` : null,
+        project: es.project,
+        zone: es.zone,
+        _status: (() => {
+          if (!es.fechaProgramada) return 'sin_fecha' as const
+          const d = new Date(es.fechaProgramada)
+          d.setHours(0, 0, 0, 0)
+          const dStr = d.toISOString().slice(0, 10)
+          if (dStr < todayStr) return 'vencida' as const
+          if (dStr === todayStr) return 'hoy' as const
+          return 'proxima' as const
+        })(),
+      }
+    })
+
+    const allItems = [...enriched, ...evalItems]
+
+    const finalStats = {
+      total: allItems.length,
+      vencidas: allItems.filter((i) => i._status === 'vencida').length,
+      hoy: allItems.filter((i) => i._status === 'hoy').length,
+      proximas: allItems.filter((i) => i._status === 'proxima').length,
+      sinFecha: allItems.filter((i) => i._status === 'sin_fecha').length,
+    }
+
     return NextResponse.json({
       success: true,
-      data: enriched,
-      stats,
+      data: allItems,
+      stats: finalStats,
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     })
   } catch (error) {
