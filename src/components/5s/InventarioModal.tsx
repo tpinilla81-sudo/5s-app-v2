@@ -2439,27 +2439,26 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
       )}
 
       {/* Photo Lightbox — Full-size photo preview */}
-      {/* v2.56: Lightbox con fondo gris oscuro (no negro puro) + manejo de error
-          si la foto no carga. Antes era bg-black y si la imagen fallaba, se veía
-          todo negro sin feedback para el usuario. */}
+      {/* v2.58: Lightbox con fondo BLANCO. Antes era bg-zinc-900 (gris oscuro)
+          que hacía que las fotos (especialmente las oscuras) se vieran negras.
+          Ahora el fondo es blanco y la imagen se ve con todo contraste. */}
       <Dialog open={!!showPhotoLightbox} onOpenChange={() => setShowPhotoLightbox(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] p-0 bg-zinc-900 border border-zinc-700 [&>button]:text-white [&>button]:hover:bg-white/10">
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0 bg-white border border-gray-300 overflow-hidden">
           {showPhotoLightbox && (
             <div className="flex flex-col">
-              <div className="relative">
+              <div className="relative bg-white flex items-center justify-center min-h-[200px]">
                 <img
                   src={showPhotoLightbox.photoUrl}
                   alt={showPhotoLightbox.title}
-                  className="w-full max-h-[80vh] object-contain"
+                  className="w-full max-h-[80vh] object-contain bg-white"
                   onError={(e) => {
-                    // v2.56: si la foto no carga, mostrar mensaje en lugar de caja negra
                     const img = e.currentTarget;
                     img.style.display = 'none';
                     const parent = img.parentElement;
                     if (parent && !parent.querySelector('.photo-error')) {
                       const div = document.createElement('div');
-                      div.className = 'photo-error flex flex-col items-center justify-center w-full h-[60vh] text-zinc-400';
-                      div.innerHTML = '<div style="font-size:48px;margin-bottom:12px">🖼️</div><div style="font-size:14px;font-weight:500">No se pudo cargar la imagen</div><div style="font-size:11px;margin-top:4px;color:#71717a">La foto puede estar corrupta o no estar disponible</div>';
+                      div.className = 'photo-error flex flex-col items-center justify-center w-full h-[60vh] text-gray-500';
+                      div.innerHTML = '<div style="font-size:48px;margin-bottom:12px">🖼️</div><div style="font-size:14px;font-weight:500">No se pudo cargar la imagen</div><div style="font-size:11px;margin-top:4px;color:#9ca3af">La foto puede estar corrupta o no estar disponible</div>';
                       parent.appendChild(div);
                     }
                   }}
@@ -2468,12 +2467,12 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                   {showPhotoLightbox.photoType === 'antes' ? 'Antes' : showPhotoLightbox.photoType === 'despues' ? 'Después' : showPhotoLightbox.photoType}
                 </Badge>
               </div>
-              <div className="px-3 py-2 bg-zinc-900 text-white border-t border-zinc-700">
+              <div className="px-3 py-2 bg-gray-50 text-gray-900 border-t border-gray-200">
                 <h4 className="text-sm font-medium">{showPhotoLightbox.title}</h4>
                 {showPhotoLightbox.description && (
-                  <p className="text-xs text-zinc-300">{showPhotoLightbox.description}</p>
+                  <p className="text-xs text-gray-600">{showPhotoLightbox.description}</p>
                 )}
-                <p className="text-[10px] text-zinc-400 mt-1">
+                <p className="text-[10px] text-gray-400 mt-1">
                   {new Date(showPhotoLightbox.createdAt).toLocaleString('es-ES')}
                 </p>
               </div>
