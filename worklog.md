@@ -2802,3 +2802,62 @@ Stage Summary:
   * Empleado recibe notif 'evaluation_scheduled' con fecha y hora
   * Calendario del responsable y del empleado muestra la entrada
   * Si pasa la fecha sin completar, se marca como vencida (rojo)
+
+---
+Task ID: v2.69
+Agent: Main
+Task: Fix Plan de Acción autorelleno + botón Programar siempre visible
+
+Work Log:
+- Usuario: "sigo viendo que el plan de acción no autorellena con los datos del paso 3"
+- Usuario: "no veo el botón azul"
+
+ANÁLISIS:
+- Causa raíz #1 (Plan de Acción no autorellena): RACE CONDITION
+  - InventarioModal hacía fetch PUT (sin await) y luego llamaba sync-actions
+  - sync-actions se ejecutaba ANTES de que el PUT persistiera la decisión
+  - Resultado: sync-actions no veía la decisión → no creaba ActionItem
+
+- Causa raíz #2 (botón azul no visible): la condición era `!n.read`
+  - Si la notificación ya estaba leída, el botón desaparecía
+  - No se podía reprogramar una vez leída
+
+CAMBIOS:
+
+1) InventarioModal — RACE CONDITION FIX:
+   - Antes: `fetch(...).catch(...)` (fire-and-forget)
+   - Ahora: `await fetch(...)` dentro de un IIFE async
+   - Sync-actions se ejecuta DESPUÉS de que el PUT ha persistido la decisión
+   - Toast de confirmación cuando se crea el ActionItem
+
+2) sync-actions — soporte multi-S-step:
+   - Antes: `where: { sStep: 1, projectId }` (solo S1)
+   - Ahora: `where: { projectId }` (cualquier S-step)
+   - ActionItem.sStep ahora usa item.sStep (antes hardcoded 1)
+   - Funciona para inventarios S1, S2, S3, S4, S5 con decisión Retirar/Eliminar
+
+3) InventarioModal — handleComplete:
+   - Eliminada la condición `if (sStep === 1)` — ahora sync-actions se llama
+     para cualquier S-step al completar el paso 3
+
+4) page.tsx — botón 'Programar fecha':
+   - Antes: `&& !n.read` (solo si no leída)
+   - Ahora: visible SIEMPRE (leída o no)
+   - Click ya NO marca la notif como leída
+   - Permite reprogramar la fecha cuantas veces sea necesario
+
+Bump v2.68 → v2.69 (middleware.ts, page.tsx).
+Build Next.js: ✓ Compiled successfully.
+Commit 74eaf76 + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- TRAS DEPLOY v2.69 (~1-2 min):
+  * En el Paso 3 (Inventario), al cambiar decisión a Retirar/Eliminar:
+    - PUT se completa primero (awaited)
+    - Sync-actions crea el ActionItem en el Plan de Acción
+    - Toast verde: 'Plan de Acción: X tarea(s) nueva(s) creada(s)'
+    - Funciona para cualquier S-step (no solo S1)
+  * En Avisos del responsable:
+    - Botón azul '📅 Programar fecha' visible SIEMPRE
+    - Aunque la notif esté leída, el botón sigue ahí
+    - Click abre diálogo de programación sin marcar como leída
