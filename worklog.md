@@ -1977,3 +1977,31 @@ Stage Summary:
      Etiquetas = —.
   3. Cualquier item se puede borrar con × (sin candado).
 - Pendiente: usuario prueba en v2.52 tras deploy (~1-2 min).
+
+---
+Task ID: v2.53
+Agent: Main
+Task: Backfill etiqueta para items existentes con Retirar (fix v2.52 gap)
+
+Work Log:
+- Usuario reporta: "veo la version correcta (v2.52) pero no veo los cambios"
+- Diagnóstico: handleAutoGenerateEtiqueta solo dispara en onValueChange.
+  Items creados antes de v2.52 con decision='Retirar' ya seleccionada
+  NO se backfillean → siguen mostrando badge "Pendiente" en lugar de
+  "Impresa" + botón impresora.
+- Fix: en loadInventory, tras setItems(mappedItems), si sStep===1:
+  recorrer items y para cada uno con decision='Retirar' o 'Jaula'
+  (legacy) sin etiquetaGenerada, llamar handleAutoGenerateEtiqueta
+  vía setTimeout(50ms stagger).
+- Bump v2.52 → v2.53 (middleware, page.tsx, LoginPage).
+- Build Next.js: ✓ Compiled successfully.
+- Commit 3577289 + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- Al abrir InventarioModal en S1, cualquier item con Retirar
+  previamente seleccionado ahora se auto-genera la etiqueta al cargar.
+- Tras ~1-2 min de deploy Vercel, usuario debe ver v2.53 y, al abrir
+  el modal, badges verdes "Impresa DD/MM/YY" en columna Etiquetas
+  para todos los items con Retirar.
+- Si aun así no ve cambios, probablemente está en S2-S5 (la columna
+  solo existe en S1) o en modo read-only (candado cerrado).
