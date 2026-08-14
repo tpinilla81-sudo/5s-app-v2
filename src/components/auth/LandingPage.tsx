@@ -206,48 +206,142 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
           </motion.div>
 
           <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
-            {/* Pentagon visual */}
-            <div className="flex-shrink-0 w-[280px] h-[280px] md:w-[340px] md:h-[340px] relative">
-              <svg viewBox="0 0 200 200" className="w-full h-full">
-                {/* Center circle */}
-                <circle cx="100" cy="100" r="28" fill="#059669" opacity="0.1" />
-                <text x="100" y="96" textAnchor="middle" className="text-[9px] font-bold" fill="#059669">CICLO</text>
-                <text x="100" y="108" textAnchor="middle" className="text-[8px]" fill="#059669">5S</text>
+            {/* Pentagon visual — estilo tablero 5S */}
+            <div className="flex-shrink-0 w-[280px] h-[280px] md:w-[360px] md:h-[360px] relative">
+              <svg viewBox="0 0 400 400" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  {S_CYCLE.map((s, i) => (
+                    <linearGradient key={`cgrad-${i}`} id={`csg${i}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor={s.color} stopOpacity={i === activeS ? '1' : '0.85'} />
+                      <stop offset="100%" stopColor={s.color} stopOpacity={i === activeS ? '0.85' : '0.65'} />
+                    </linearGradient>
+                  ))}
+                  <filter id="cshadow" x="-15%" y="-15%" width="130%" height="130%">
+                    <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#00000020" />
+                  </filter>
+                  <radialGradient id="ccenterGrad" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#f0fdf4" stopOpacity="1" />
+                    <stop offset="100%" stopColor="#dcfce7" stopOpacity="0.9" />
+                  </radialGradient>
+                </defs>
 
-                {/* Connecting lines */}
-                {S_CYCLE.map((s, i) => {
-                  const next = S_CYCLE[(i + 1) % 5]
-                  const r = 75
-                  const x1 = 100 + r * Math.cos((s.angle - 90) * Math.PI / 180)
-                  const y1 = 100 + r * Math.sin((s.angle - 90) * Math.PI / 180)
-                  const x2 = 100 + r * Math.cos((next.angle - 90) * Math.PI / 180)
-                  const y2 = 100 + r * Math.sin((next.angle - 90) * Math.PI / 180)
-                  return (
-                    <line key={`line-${i}`} x1={x1} y1={y1} x2={x2} y2={y2}
-                      stroke={i === activeS ? s.color : '#d1d5db'} strokeWidth={i === activeS ? 2.5 : 1}
-                      strokeDasharray={i === activeS ? 'none' : '4 3'} opacity={i === activeS ? 1 : 0.4} />
-                  )
-                })}
+                {/* Pentagon geometry constants */}
+                {(() => {
+                  const cx = 200, cy = 200
+                  const outerR = 150
+                  const innerR = 60
+                  const sliceAngle = 360 / 5
 
-                {/* Nodes */}
-                {S_CYCLE.map((s, i) => {
-                  const r = 75
-                  const x = 100 + r * Math.cos((s.angle - 90) * Math.PI / 180)
-                  const y = 100 + r * Math.sin((s.angle - 90) * Math.PI / 180)
-                  const isActive = i === activeS
+                  const pentagonVertex = (angle: number, radius: number) => ({
+                    x: cx + radius * Math.cos(angle),
+                    y: cy + radius * Math.sin(angle),
+                  })
+
+                  const getPentagonSlice = (index: number, oR: number, iR: number): string => {
+                    const startAngle = (index * sliceAngle - 90) * (Math.PI / 180)
+                    const endAngle = ((index + 1) * sliceAngle - 90) * (Math.PI / 180)
+                    const oStart = pentagonVertex(startAngle, oR)
+                    const oEnd = pentagonVertex(endAngle, oR)
+                    const iStart = pentagonVertex(startAngle, iR)
+                    const iEnd = pentagonVertex(endAngle, iR)
+                    return `M ${oStart.x} ${oStart.y} L ${oEnd.x} ${oEnd.y} L ${iEnd.x} ${iEnd.y} A ${iR} ${iR} 0 0 0 ${iStart.x} ${iStart.y} Z`
+                  }
+
+                  const getPentagonOutline = (r: number): string => {
+                    const points = []
+                    for (let i = 0; i < 5; i++) {
+                      const angle = (i * sliceAngle - 90) * (Math.PI / 180)
+                      const p = pentagonVertex(angle, r)
+                      points.push(`${p.x},${p.y}`)
+                    }
+                    return `M ${points.join(' L ')} Z`
+                  }
+
+                  const getSliceLabelPos = (i: number) => {
+                    const midR = (outerR + innerR) / 2
+                    const angle = (i * sliceAngle + sliceAngle / 2 - 90) * (Math.PI / 180)
+                    return { x: cx + midR * 0.85 * Math.cos(angle), y: cy + midR * 0.85 * Math.sin(angle) }
+                  }
+
                   return (
-                    <g key={`node-${i}`} onClick={() => setActiveS(i)} className="cursor-pointer">
-                      <circle cx={x} cy={y} r={isActive ? 20 : 15}
-                        fill={isActive ? s.color : 'white'} stroke={s.color}
-                        strokeWidth={isActive ? 3 : 2}
-                        style={{ transition: 'all 0.3s' }} />
-                      <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="middle"
-                        className="text-[10px] font-bold" fill={isActive ? 'white' : s.color}>
-                        S{s.num}
+                    <>
+                      {/* Outer ring + background pentagon */}
+                      <path d={getPentagonOutline(outerR + 8)} fill="none" stroke="#d1d5db" strokeWidth="1.5" opacity="0.4" />
+                      <path d={getPentagonOutline(outerR + 2)} fill="#f9fafb" filter="url(#cshadow)" />
+
+                      {/* Pentagon slices */}
+                      {S_CYCLE.map((s, i) => {
+                        const isActive = i === activeS
+                        const labelPos = getSliceLabelPos(i)
+                        return (
+                          <g key={`cslice-${i}`}>
+                            {/* Active halo */}
+                            {isActive && (
+                              <path
+                                d={getPentagonSlice(i, outerR + 6, innerR - 2)}
+                                fill={s.color}
+                                opacity="0.25"
+                                style={{ pointerEvents: 'none' }}
+                              />
+                            )}
+                            {/* Slice */}
+                            <path
+                              d={getPentagonSlice(i, outerR, innerR - 3)}
+                              fill={`url(#csg${i})`}
+                              stroke="white"
+                              strokeWidth="3"
+                              style={{ cursor: 'pointer', transition: 'opacity 0.2s' }}
+                              onClick={() => setActiveS(i)}
+                              onMouseEnter={(e) => { (e.currentTarget as SVGPathElement).style.opacity = '0.88' }}
+                              onMouseLeave={(e) => { (e.currentTarget as SVGPathElement).style.opacity = '1' }}
+                            />
+                            {/* S label inside slice */}
+                            <text
+                              x={labelPos.x}
+                              y={labelPos.y - 4}
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              fill="white"
+                              fontSize={isActive ? '22' : '18'}
+                              fontWeight="900"
+                              style={{ pointerEvents: 'none', fontFamily: 'system-ui', textShadow: '0 1px 2px rgba(0,0,0,0.25)' }}
+                            >
+                              S{s.num}
+                            </text>
+                            {/* Spanish label below S number (only on active) */}
+                            {isActive && (
+                              <text
+                                x={labelPos.x}
+                                y={labelPos.y + 14}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                fill="white"
+                                fontSize="11"
+                                fontWeight="700"
+                                style={{ pointerEvents: 'none', fontFamily: 'system-ui', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
+                              >
+                                {s.label.toUpperCase()}
+                              </text>
+                            )}
+                          </g>
+                        )
+                      })}
+
+                      {/* Center circle */}
+                      <circle cx={cx} cy={cy} r={innerR - 3} fill="url(#ccenterGrad)" stroke="#e5e7eb" strokeWidth="2" />
+                      <text x={cx} y={cy - 6} textAnchor="middle" dominantBaseline="middle"
+                        fill="#059669" fontSize="13" fontWeight="900"
+                        style={{ fontFamily: 'system-ui' }}>
+                        CICLO
                       </text>
-                    </g>
+                      <text x={cx} y={cy + 10} textAnchor="middle" dominantBaseline="middle"
+                        fill="#059669" fontSize="11" fontWeight="700"
+                        style={{ fontFamily: 'system-ui' }}>
+                        5S
+                      </text>
+                    </>
                   )
-                })}
+                })()}
               </svg>
             </div>
 
