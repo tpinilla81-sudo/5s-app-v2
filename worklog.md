@@ -2667,3 +2667,43 @@ Stage Summary:
   * Fotos del hallazgo van a la biblioteca y se enlazan al ActionItem
     (visible en ActionPlanTracker como 'Evidencia fotográfica')
   * Responsable recibe aviso 'Hallazgo con foto' si hay fotos adjuntas
+
+---
+Task ID: 5
+Agent: Main
+Task: Restart dev server + clean 5S logo halo + green page bg + incorporate v2.55-v2.65 changes into the manual with detailed definitions
+
+Work Log:
+- Restarted dev server (was stopped) so user could see latest version
+- Analyzed /public/5s-logo.png: found 57,914 semi-transparent off-white pixels forming a halo ring at radius ~364
+- Wrote scripts/clean_logo.py: removed the halo ring from the PNG (corners already transparent, only the off-white ring was the issue)
+- Updated /src/app/page.tsx: replaced `bg-gradient-to-br from-green-50 via-white to-emerald-50` (loading + no-projects screens) with solid `bg-green-50`; main app container `bg-gradient-to-b from-gray-50 to-white` → `bg-green-50`; header `bg-white/90` → `bg-green-50/90 border-green-200`
+- Backed up original logo to /public/5s-logo.original.png
+- Updated /generate_manual.py with 2,500+ lines of new content:
+  * Section 5.3 (new): Barra de herramientas superior — full toolbar description with new v2.65 order + Tabla 3
+  * Section 8.1 (new): Biblioteca de Fotos
+  * Section 8.2 (new): Visor de fotos (lightbox) con fondo blanco (v2.58)
+  * Section 8.3 (new): Descripción automática con IA (VLM) (v2.60)
+  * Section 8.4 (new): Calidad de las fotos y prevención de fotos "negras" (v2.59)
+  * Section 9.3 (new): Del inventario al Plan de Acción (v2.60)
+  * Section 9.4 (new): Diario de inventario (v2.60)
+  * Section 10.1.1 (new): Botón "Solicitado" y delegación al responsable (v2.62)
+  * Section 10.1.2 (new): Eliminación del botón "Borrar Pasos" (v2.62)
+  * Section 10.5 (new): Foto + IA describe + responsable auto (v2.64/v2.65)
+  * Section 11.4 (new): Integración con el Calendario (v2.61)
+  * Section 11.5 (new): Notificaciones automáticas (v2.61)
+  * Section 13.2 (new): Notificación "jaula_pending" + "jaula_pending_vencido"
+  * Section 14 (new full section): Calendario de Acciones — vista mensual, entradas, filtros, reuniones (Tabla 12)
+  * Section 15 (new full section): Avisos y Notificaciones — tipos, bandeja, ciclo de vida, email (Tabla 13)
+  * Renumbered FAQ 14→16 and Glosario 15→17
+  * Added 17 new glossary terms (Biblioteca de Fotos, VLM, Lightbox, compressImage, Diario de inventario, Origen, Calendario de Acciones, Bandeja de Avisos, jaula_pending, jaula_pending_vencido, Solicitado, Borrar Pasos, Toolbar, Mi Calendario, etc.)
+  * Added 7 new FAQ entries (toolbar reorder, IA en fotos, asignación automática responsable, Borrar Pasos, Solicitado, Calendario, notificaciones)
+  * Renumbered all subsequent tables (Tabla 3 → Tabla 4 → ... → Tabla 14)
+- Generated PDF: 37 pages, 177 KB, saved to /download/Manual_Usuario_5S.pdf and copied to /public/Manual_Usuario_5S.pdf
+
+Stage Summary:
+- Dev server running on :3000 (PID 2333/2334/2347)
+- 5S logo cleaned: no more off-white halo ring on green backgrounds
+- Page backgrounds: loading, no-projects, main app container and header all switched to solid bg-green-50
+- Manual regenerated with all v2.55-v2.65 changes documented in detail (17 sections, 14 tables, 30+ glossary terms, 14 FAQ entries)
+- Commits: 33b3871 (toolbar reorder), then v2.65 logo+green-bg commit, then 2e99018 (manual update)
