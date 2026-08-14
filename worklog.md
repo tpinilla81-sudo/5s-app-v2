@@ -1282,3 +1282,94 @@ Stage Summary:
   sigue sin ver los borradores, probablemente sea porque las fotos
   no existen en BD para ese sStep/zoneId — habría que verificar
   en la tabla PhotoLibrary directamente.
+
+---
+Task ID: v2.43
+Agent: Main
+Task: Limpiar flujo manual de vinculación + nombres de borrador por S + eliminar foto al borrar borrador
+
+Work Log:
+- Petición del usuario: "VALE, ACTUALIZA ASI" + "TAMBIEN LA PLANTILLA
+  DESDE EL INICIO" + "TAMBIEN SERAN ASI LOS INVENTARIOS DE LA S2-3-4
+  PERO CON SUS RESPECTIVOS, S2-NECESARIOS, S-3 PUNTOS DE SUCIEDAD,
+  S4. ESTANDARES. TODO ENCARADO A LAS FOTOS QUE SE HACEN EN LOS PASOS 2"
+
+LIMPIEZA del flujo manual de vinculación (ya obsoleto tras v2.42):
+- Eliminado el card rojo "Fotos del Paso 2 pendientes de clasificar"
+  del InventarioModal (ya no hay huérfanas tras la migración automática).
+- Eliminado el botón 📷 "Vincular Foto del Paso 2" en cada fila de la
+  tabla. Queda solo el botón Camera para adjuntar fotos adicionales.
+- Eliminado el PhotoGallery Modal (Dialog) que se abría al pulsar 📷.
+- Eliminadas las funciones handleLinkStep2Photo, handleUnlinkPhoto,
+  openPhotoGallery del InventarioModal.
+- Eliminados los estados showPhotoGallery y galleryTargetItemId.
+- Se mantiene handleDeletePhoto (sigue siendo útil para fotos adjuntadas
+  manualmente con el botón Camera).
+
+NOMBRES de borrador específicos por S:
+- Nuevo helper en src/lib/5s-constants.ts:
+    DRAFT_NAME_BY_S: Record<number, (index: number) => string>
+  * S1: "Pendiente de clasificar (N)"
+  * S2: "Necesario pendiente (N)"
+  * S3: "Punto de suciedad pendiente (N)"
+  * S4: "Estándar pendiente (N)"
+  * S5: "Cumplimiento pendiente (N)"
+- Aplicado en FotosModal.handleSubmit (fotos nuevas) y en
+  InventarioModal.migrateOrphanPhotos (fotos huérfanas pre-v2.40).
+- handleUpdateField extendido: ahora reconoce TODOS los prefijos de
+  borrador (DRAFT_PREFIXES array) para eliminar isDraft al cambiar el
+  nombre a algo real. Antes solo reconocía "pendiente de clasificar".
+
+INSTRUCCIONES específicas por S en el card de pendientes:
+- Nuevo helper en src/lib/5s-constants.ts:
+    DRAFT_INSTRUCTIONS_BY_S: Record<number, { title, subtitle, fields[] }>
+  Cada S tiene su propio título, subtítulo y lista de campos a rellenar.
+  * S1: "Elementos pendientes de clasificar" — nombre, categoría,
+    decisión (Jaula/Tirar/Eliminar).
+  * S2: "Necesarios pendientes de clasificar" — nombre, frecuencia de
+    uso, ubicación y cantidad.
+  * S3: "Puntos de suciedad pendientes" — nombre, tipo de suciedad
+    (polvo/grasa/mancha/óxido), frecuencia y responsable.
+  * S4: "Estándares pendientes" — nombre, tipo (visual/procedimiento/
+    checklist), ubicación y responsable.
+  * S5: "Cumplimientos pendientes" — nombre del estándar, cumplimiento
+    (cumplido/parcial/incumplido), observaciones.
+- Card "Elementos pendientes" ahora usa DRAFT_INSTRUCTIONS_BY_S[sStep]
+  con IIFE inline para renderizar título, subtítulo y fields[].
+- Mensaje de éxito del FotosModal actualizado para mencionar el S
+  específico (S{sStep} · {japaneseName}) y los campos a rellenar.
+
+ELIMINAR FOTO al borrar borrador (lo que pidió el usuario):
+- Usuario: "CUIDADO PORQUE AL ELIMINAR FOTO DE LA LISTA NO VUELVE A
+  APARECER"
+- Antes: al borrar un item, la foto vinculada quedaba huérfana
+  (onDelete: SetNull en el schema) y la migración la volvía a
+  convertir en borrador al recargar — la foto "volvía a aparecer".
+- Ahora: DELETE /api/inventory?id=X verifica si el item tiene
+  extra.isDraft=true. Si es borrador, elimina también sus fotos
+  asociadas (db.photoLibrary.deleteMany where inventoryItemId=id).
+  Si es item normal (ya clasificado), mantiene el comportamiento
+  onDelete: SetNull — la foto queda en la biblioteca sin item.
+- Así, al borrar un borrador, la foto se elimina definitivamente y
+  no vuelve a aparecer al recargar.
+
+Bump v2.43 en middleware.ts, page.tsx, LoginPage.tsx.
+Build Next.js: ✓ Compiled successfully in 21.3s.
+Commit + push a GitHub (1fd3ed3). Vercel deploy automático.
+
+Stage Summary:
+- El flujo de fotos → inventario ahora es consistente para TODOS los S:
+  * S1 (Clasificación): cada foto del Paso 2 crea "Pendiente de clasificar".
+  * S2 (Orden): cada foto del Paso 2 crea "Necesario pendiente".
+  * S3 (Limpieza): cada foto del Paso 2 crea "Punto de suciedad pendiente".
+  * S4 (Estandarizar): cada foto del Paso 2 crea "Estándar pendiente".
+  * S5 (Mantener): cada foto del Paso 2 crea "Cumplimiento pendiente".
+- El card rojo de pendientes ahora muestra instrucciones específicas
+  por S (qué campos hay que rellenar).
+- Eliminados todos los elementos del flujo manual de vinculación
+  (card, botón 📷, PhotoGallery Modal) que ya no aportaban valor.
+- Al borrar un borrador, la foto asociada se elimina también (no
+  vuelve a aparecer al recargar).
+- Pendiente: usuario prueba en v2.43 tras deploy (~1-2 min). Si
+  quiere ajustar los textos del card o añadir más campos específicos
+  por S en DRAFT_INSTRUCTIONS_BY_S, iterar.
