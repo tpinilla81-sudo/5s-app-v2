@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import {
   Search, ArrowRight, Sparkles, BarChart3, ShieldCheck,
   ClipboardList, Camera, CheckSquare, GraduationCap,
-  TrendingUp, Users, Target, Award, ArrowDown, ArrowDownRight,
+  TrendingUp, Users, Target, Award, ArrowDownRight,
   RotateCcw, Zap, Clock, Layers,
   ChevronRight, Play, CheckCircle2,
   Lightbulb, Wrench, FileText, MapPin
@@ -149,25 +149,25 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
                   className="bg-white text-green-700 hover:bg-green-50 text-lg px-8 py-6 shadow-xl shadow-green-900/20 font-semibold">
                   Iniciar Sesión
                 </Button>
-                <Button size="lg" variant="outline"
-                  onClick={() => document.getElementById('ciclo')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="border-white/40 text-white hover:bg-white/10 text-lg px-8 py-6">
-                  Ver cómo funciona
-                  <ArrowDown className="h-5 w-5 ml-2" />
-                </Button>
                 {/* Access button — opens the contact dialog in the background */}
                 <SolicitarInfoDialog
-                  label="Solicitar Información"
+                  label="Pedir Información"
                   variant="outline"
                   size="lg"
-                  className="border-yellow-300/60 text-yellow-200 hover:bg-yellow-300/10 text-lg px-8 py-6"
+                  className="bg-yellow-300/95 border-yellow-200 text-green-800 hover:bg-yellow-200 text-lg px-8 py-6 font-semibold shadow-lg shadow-yellow-900/10"
                 />
               </div>
             </motion.div>
             <motion.div className="flex-shrink-0 w-48 h-48 md:w-64 md:h-64"
               initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}
               transition={{ type: 'spring', stiffness: 100, delay: 0.3 }}>
-              <img src="/5s-logo.png" alt="5S Logo" className="w-full h-full object-contain drop-shadow-2xl" />
+              {/* Logo de la lima 5S — mismo /5s-logo.png que se usa en la app.
+                  Fondo blanco circular para que los colores se vean idénticos
+                  (sin mezclarse con el gradient verde del hero). Sin drop-shadow
+                  para no alterar la percepción de los colores. */}
+              <div className="w-full h-full rounded-full bg-white flex items-center justify-center p-2">
+                <img src="/5s-logo.png" alt="5S Logo" className="w-full h-full object-contain" />
+              </div>
             </motion.div>
           </div>
         </div>
@@ -459,13 +459,13 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button size="lg" onClick={onLogin}
                 className="bg-white text-green-700 hover:bg-green-50 text-lg px-10 py-6 shadow-xl font-semibold">
-                Acceder a la plataforma
+                Iniciar Sesión
               </Button>
               <SolicitarInfoDialog
-                label="Solicitar Información"
+                label="Pedir Información"
                 variant="outline"
                 size="lg"
-                className="border-white/40 text-white hover:bg-white/10 text-lg px-10 py-6"
+                className="bg-yellow-300/95 border-yellow-200 text-green-800 hover:bg-yellow-200 text-lg px-10 py-6 font-semibold shadow-lg"
               />
             </div>
           </motion.div>
@@ -476,7 +476,9 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
       <footer className="py-8 bg-gray-50 border-t border-gray-200">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src="/5s-logo.png" alt="5S" className="w-8 h-8 object-contain" />
+            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center p-1 shadow-sm">
+              <img src="/5s-logo.png" alt="5S" className="w-full h-full object-contain" />
+            </div>
             <span className="text-sm text-gray-500">Método 5S — Plataforma digital</span>
           </div>
           <p className="text-xs text-gray-400">

@@ -535,3 +535,43 @@ Stage Summary:
 - GestorPanel: nueva pestaña "Plantillas" para editar TODAS las plantillas
   genéricas (Biblioteca del Sistema) — power exclusive del gestor.
 - Pendiente: commit + push a GitHub para deploy en Vercel.
+
+---
+Task ID: v2.32
+Agent: Main
+Task: Landing page — botones visibles (Iniciar Sesión + Pedir Información) + logo lima con colores correctos
+
+Work Log:
+- Usuario reportó: en la captura de la landing, el botón intermedio "Ver cómo
+  funciona" se ve vacío (texto blanco sobre fondo transparente del outline).
+  Pide: solo "Iniciar Sesión" + "Pedir Información" visibles arriba y abajo,
+  y que el logo de la lima se vea con los mismos colores que en la app.
+- Hero (arriba):
+  * Eliminado el botón "Ver cómo funciona" (el intermedio que aparecía vacío).
+  * Quedan solo dos botones: "Iniciar Sesión" (blanco con texto verde) y
+    "Pedir Información" (amarillo brillante #FDE047 con texto verde oscuro).
+  * El botón "Pedir Información" ahora es muy visible: fondo amarillo sólido
+    + texto verde oscuro + sombra amarilla. Ya no es un outline transparente.
+- CTA (abajo):
+  * Cambiado el botón "Acceder a la plataforma" → "Iniciar Sesión"
+    (mismo texto que arriba, para consistencia).
+  * El botón "Solicitar Información" → "Pedir Información" con el mismo
+    estilo amarillo brillante que arriba.
+- Logo de la lima (/5s-logo.png):
+  * Eliminado el drop-shadow-2xl que distorsionaba la percepción de los
+    colores (hacía que el centro se viera más oscuro/amarillento).
+  * Envolvido en un contenedor circular blanco (bg-white rounded-full) que
+    aisla los colores del logo del gradient verde del hero. Así los colores
+    se ven exactamente igual que en la app (anillo verde oscuro #1B5E20,
+    5 segmentos verde lima #8BC34A, centro blanco con "5S" en lima).
+  * En el footer: mismo tratamiento (logo sobre fondo blanco circular).
+- Bump v2.32 en middleware, page.tsx, LoginPage.tsx.
+- Build OK ("✓ Compiled successfully in 21.9s").
+- Commit + push a GitHub para deploy en Vercel.
+
+Stage Summary:
+- Landing page: dos botones claros y visibles ("Iniciar Sesión" blanco +
+  "Pedir Información" amarillo) tanto en el hero como en el CTA inferior.
+- Logo de la lima con colores fieles a la app (sin distorsión por sombras
+  ni mezcla con el fondo verde).
+- Pendiente: verificar en Vercel que se ve correcto tras el deploy.
