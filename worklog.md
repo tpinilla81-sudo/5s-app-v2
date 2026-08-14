@@ -746,3 +746,63 @@ Stage Summary:
 - Pendiente: commit + push a GitHub para deploy en Vercel. Las columnas
   nuevas se crearán automáticamente en el primer cold start vía
   ensureDbSchema (ADD COLUMN IF NOT EXISTS).
+
+---
+Task ID: v2.36
+Agent: Main
+Task: Fix bug — empleado siempre veía "mínimo 10 fotos" aunque el admin cambiara el límite a 5 en su zona
+
+Work Log:
+- Bug reportado por usuario: "he cambiado el número de fotos a 5 en el
+  administrador z1 y en el empleado sigue apareciendo mínimo 10".
+- Investigación del flujo:
+  1. Admin entra a AdminPanel → Proyecto → Zona z1 → ZoneTemplatesSection.
+     Recibe boardConfigId (que puede ser null si la zona no tiene tablero
+     propio). Llama a /api/board-slots?zoneId=z1.
+  2. /api/board-slots: si no se pasa boardConfigId, cae automáticamente
+     al BoardConfiguration isDefault=true (lo crea si no existe). El
+     admin ve los slots del tablero predeterminado del sistema.
+  3. Admin cambia el override a 5 → PUT /api/photo-limits con
+     boardSlotTemplateId (que pertenece al tablero predeterminado).
+     El override se guarda correctamente en la DB.
+  4. Empleado abre FotosModal → fetch GET /api/photo-limits?projectId&zoneId=z1&sStep&miniStep=2.
+  5. BUG: /api/photo-limits tenía `if (!zone.boardConfigId) return 10`
+     sin hacer fallback al tablero predeterminado. Por tanto el empleado
+     siempre recibía 10, aunque el slot del tablero predeterminado tuviera
+     el override a 5.
+- Fix en /api/photo-limits/route.ts:
+  * Si zone.boardConfigId es null, buscar BoardConfiguration isDefault=true
+    (crearla si no existe) y usarla como effectiveBoardConfigId.
+  * Buscar el slot con effectiveBoardConfigId en lugar de zone.boardConfigId.
+  * Esto hace que GET sea consistente con lo que el admin ve/edita en
+    ZoneTemplatesSection (que también cae al tablero predeterminado).
+- Fix adicional: parsing robusto de miniStep.
+  * Antes: `Number(searchParams.get('miniStep') || '2')`. Si el cliente
+    pasa 'undefined' (string), `Number('undefined')` = NaN porque 'undefined'
+    es truthy y el OR no se aplica.
+  * Ahora: `Number.isFinite(miniStepParsed) ? miniStepParsed : 2`.
+- Añadido log diagnóstico en GET con: zone.boardConfigId,
+  effectiveBoardConfigId, sStep, miniStep, slotFound, fotosEntry.
+- Bump v2.36 en middleware.ts, page.tsx, LoginPage.tsx.
+- Build Next.js: ✓ Compiled successfully in 20.3s.
+- Commit + push a GitHub (40c3a9f). Vercel deploy automático.
+
+Stage Summary:
+- Root cause: la API de lectura (GET /api/photo-limits) y la API de
+  escritura (PUT, usada por ZoneTemplatesSection vía /api/board-slots)
+  usaban lógica distinta para resolver el tablero de una zona sin
+  boardConfigId propio. La escritura caía al default; la lectura
+  devolvía 10 sin más.
+- Tras el fix, cuando una zona no tiene tablero propio, el override que
+  el admin edita (en el tablero predeterminado) se refleja
+  correctamente en el empleado.
+- Importante: si la zona NO tiene tablero propio, el override que el
+  admin edita se aplica al tablero predeterminado del sistema, que es
+  COMPARTIDO por todas las zonas sin tablero propio. La UI ya advierte
+  de esto con un banner amber en ZoneTemplatesSection. Para tener
+  overrides específicos por zona, hace falta asignar un tablero propio
+  a la zona (sección Tableros del AdminPanel).
+- Pendiente: usuario prueba en v2.36 tras deploy (~1-2 min). Si sigue
+  viendo 10, abrir DevTools → Network → buscar la llamada a
+  /api/photo-limits y revisar el JSON devuelto + el log del servidor
+  Vercel que ahora imprime la traza de resolución.

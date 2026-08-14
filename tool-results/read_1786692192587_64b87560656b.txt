@@ -1,0 +1,749 @@
+     1→# 5S App Worklog
+     2→
+     3→---
+     4→Task ID: 1
+     5→Agent: Main
+     6→Task: Set up local development environment with SQLite
+     7→
+     8→Work Log:
+     9→- Changed Prisma schema datasource from PostgreSQL to SQLite
+    10→- Ran prisma db push to create /home/z/my-project/db/custom.db
+    11→- Generated Prisma client for SQLite engine
+    12→
+    13→Stage Summary:
+    14→- Local development now uses SQLite database at /home/z/my-project/db/custom.db
+    15→- PostgreSQL schema preserved in deploy/ directory for production
+    16→
+    17→---
+    18→Task ID: 2
+    19→Agent: Main
+    20→Task: Seed database with Roncal company demo data
+    21→
+    22→Work Log:
+    23→- Created scripts/seed-roncal.mjs with comprehensive seed data
+    24→- Created Roncal company, project, 4 zones, 6 empleados (including "Tablero"), auditor, responsable, admin_empresa
+    25→- Set up role permissions with updated defaults
+    26→- Seeded templates and audit targets
+    27→
+    28→Stage Summary:
+    29→- Roncal company seeded successfully with all users
+    30→- Login credentials: Tablero: tablero@roncal.com / tablero123
+    31→
+    32→---
+    33→Task ID: 3
+    34→Agent: Main
+    35→Task: Create API endpoint /api/progress/reset for resetting all progress
+    36→
+    37→Work Log:
+    38→- Created /src/app/api/progress/reset/route.ts with POST endpoint
+    39→- Endpoint deletes all progress, employee progress, audit results, checklist responses, exam answers, action items, photos, inventory, standards, PDCA items, evaluation schedules, and notifications
+    40→- Requires reset_data or skip_steps permission
+    41→- Supports optional zoneId filter
+    42→
+    43→Stage Summary:
+    44→- Reset API fully functional at /api/progress/reset
+    45→- Deletes all project data with confirmation counts returned
+    46→
+    47→---
+    48→Task ID: 4
+    49→Agent: Main
+    50→Task: UI changes - Borrar Pasos button, hide Permisos from empleados, add Step 4 notification
+    51→
+    52→Work Log:
+    53→- Added 🗑️ "Borrar Pasos" button in desktop toolbar and mobile menu (visible only to users with reset_data/skip_steps permission)
+    54→- Hidden 🛡️ "Permisos" button from employees (only visible to gestor/admin with manage_permissions)
+    55→- Added 🔔 "Autoeval" notification button for Step 4 (when steps 1-3 completed, notifies responsable)
+    56→- Added notify_autoeval permission to RolePermissions component
+    57→- Updated empleado permissions: removed step4_a1 (autoeval done by responsable only), added notify_autoeval
+    58→- Added canSeePermissions and canResetData permission checks in page.tsx
+    59→- Added Trash2 to lucide-react imports
+    60→
+    61→Stage Summary:
+    62→- Employees cannot see Permisos button anymore
+    63→- Employees can request responsable to do autocheck via 🔔 Autoeval button on Step 4
+    64→- Reset button available for testing (gestor/admin only)
+    65→- Updated DEFAULT_PERMISSIONS in RolePermissions.tsx to reflect new permission model
+    66→
+    67→---
+    68→Task ID: 7
+    69→Agent: Main
+    70→Task: Re-clone project from GitHub + restore Neon DB connection + recreate individual calendar (Task 5 files lost from repo)
+    71→
+    72→Work Log:
+    73→- Cloned repo from github.com/tpinilla81-sudo/5s-app-v2 using user PAT
+    74→- Created .env with Neon DATABASE_URL (postgresql://neondb_owner:...@ep-round-glitter-as6ryhe3.c-4.eu-central-1.aws.neon.tech/neondb?sslmode=require)
+    75→- bun install (931 packages)
+    76→- bunx prisma generate + bunx prisma db push (schema already in sync with Neon)
+    77→- Verified Neon DB connection: 19 users, 1 project (Mecanización S.A. en RONCAL SL), 1 ActionItem, 1 Zone, 1 AuditResult
+    78→- ⚠️ Discovered t_pinilla@outlook.com does NOT exist in Neon — the cleanup done in previous session only affected local SQLite, not Neon. Gestor in Neon is gestor@cincos.com.
+    79→- Recreated src/app/api/my-tasks/route.ts (GET + PATCH)
+    80→- Recreated src/components/5s/UserTaskCalendar.tsx (Sheet with monthly calendar + list view, stat cards, task cards with quick actions)
+    81→- Modified src/app/page.tsx:
+    82→  - Cleaned up duplicate UserTaskCalendar import
+    83→  - Added showUserCalendar + userTaskCount state
+    84→  - Added useEffect polling /api/my-tasks every 60s for badge count
+    85→  - Added "📅 Calendario" button in gestor header (between Avisos and Manual)
+    86→  - Added "📅 Calendario" button in non-gestor desktop toolbar (between Borrar and Avisos)
+    87→  - Added "📅 Mi Calendario" entry in mobile hamburger menu (between Permisos and Borrar Pasos)
+    88→  - Rendered <UserTaskCalendar> Sheet at end of JSX
+    89→- Verified TypeScript: no errors in new files (pre-existing errors in other files remain)
+    90→- Started dev server on :3000 — verified /api/my-tasks returns 200 with correct data
+    91→- Gerente sees all ActionItems in their project; responsable sees only items where their name/email matches responsable/personaDemandada OR where they are Zone.responsableId
+    92→
+    93→Stage Summary:
+    94→- Project successfully re-cloned to /home/z/my-project/5s-app-v2/
+    95→- Neon PostgreSQL connection working (schema is postgresql, db push reports "already in sync")
+    96→- Individual calendar feature (Task 5) fully recreated and verified:
+    97→  - GET /api/my-tasks?userId=... → returns tasks + stats
+    98→  - PATCH /api/my-tasks → updates estado (abierta/en_proceso/resuelta)
+    99→  - UserTaskCalendar Sheet with calendar+list view, markers, quick actions
+   100→  - Calendar button in all 3 toolbar locations (gestor header, non-gestor desktop toolbar, mobile menu)
+   101→- ⚠️ PENDING: Neon DB cleanup (user previously requested "deja la app limpia excepto gestor t_pinilla@outlook.com" but that was only done on local SQLite; Neon still has 19 demo users). Need user confirmation before deleting production data.
+   102→- ⚠️ PENDING: Commit + push to GitHub so Vercel redeploys with the new calendar feature.
+   103→- ⚠️ PENDING: User should revoke the GitHub PAT (ghp_...23HFz4) — it was shared in plaintext in the chat.
+   104→
+   105→---
+   106→Task ID: v2.19
+   107→Agent: Main
+   108→Task: Reorganizar sección de Proyectos en dos cajas separadas (Activos | Abrir Nuevo)
+   109→
+   110→Work Log:
+   111→- Localizado el componente AdminPanel.tsx (pestaña Proyectos) — v2.18 ya había
+   112→  hecho una primera separación pero la lista de proyectos quedaba FUERA de la
+   113→  caja "Proyectos Activos", lo que daba sensación de "mezclado todo".
+   114→- Reescrito el cuerpo de la pestaña Proyectos con dos cajas claramente
+   115→  separadas:
+   116→  * CAJA 1 — "Proyectos Activos" (header azul): envuelve el banner + la
+   117→    lista de proyectos existentes. Cada proyecto expandible muestra:
+   118→    - info editable (nombre, descripción, empresa)
+   119→    - zonas existentes con sus miembros (editable rol, retirar de zona)
+   120→    - añadir zona nueva (renombrar/eliminar inline)
+   121→    - añadir usuario EXISTENTE a cada zona (picker con dropdown de todos
+   122→      los usuarios activos; los que ya están en la zona no aparecen)
+   123→    - añadir usuario NUEVO al proyecto con zonas asignadas
+   124→  * CAJA 2 — "Abrir Nuevo Proyecto" (header morado, debajo): formulario
+   125→    de alta con nombre, empresa, descripción, zonas, Y NUEVO: sección
+   126→    "Usuarios del proyecto" que permite añadir usuarios existentes o
+   127→    crear nuevos, con rol y selección de zonas, ANTES de crear el
+   128→    proyecto. Al crear, todos los usuarios pendientes se asignan al
+   129→    proyecto+zonas recién creadas.
+   130→- Añadido estado nuevo: newProjectMembers (lista de miembros pendientes),
+   131→  npMemberMode/Name/Email/Password/Role/ZoneIdxs para el formulario.
+   132→- Añadido handler handleAddNewProjectMember y actualizado
+   133→  handleCreateProject para iterar sobre newProjectMembers y llamar a
+   134→  POST /api/projects/{id}/members para cada uno.
+   135→- Bump de versión: middleware BUILD_VERSION → 20260813-120000-v2.19,
+   136→  badge en page.tsx y LoginPage.tsx → v2.19.
+   137→- Verificado: TypeScript compila limpio (solo quedan 2 errores
+   138→  preexistentes en AdminPanel no relacionados con este cambio); build
+   139→  de Next.js OK ("Compiled successfully in 20.8s").
+   140→
+   141→Stage Summary:
+   142→- Pestaña Proyectos reorganizada visualmente en dos cajas claras.
+   143→- Caja 1 contiene la lista de proyectos activos con TODA la edición
+   144→  (info, zonas, miembros por zona, añadir existente/nuevo).
+   145→- Caja 2 permite crear un proyecto nuevo con zonas Y usuarios
+   146→  (existentes o nuevos) en un solo flujo.
+   147→- Listo para commit + push a Vercel.
+   148→
+   149→---
+   150→Task ID: v2.20
+   151→Agent: Main
+   152→Task: Eliminar el listado "Miembros del Proyecto" (redundante — ya están en cada zona)
+   153→
+   154→Work Log:
+   155→- Localizada la sección "Miembros del Proyecto" en AdminPanel.tsx
+   156→  (líneas 1558-1931): incluía el formulario de alta de miembros
+   157→  (existente/nuevo) + tabla editable con nombre/email/contraseña/rol/
+   158→  zonas + botones de enviar credenciales / eliminar.
+   159→- Confirmado que toda esa información YA está disponible dentro de cada
+   160→  zona en la sección "Zonas del Proyecto" (arriba): cada zona muestra
+   161→  sus miembros con rol, eliminar de zona, añadir existente/nuevo.
+   162→- Script scripts/remove_project_members_listing.py elimina 375 líneas
+   163→  (líneas 1557-1931 inclusive) dejando la estructura JSX válida.
+   164→- TypeScript: solo 2 errores preexistentes en AdminPanel.tsx (líneas
+   165→  635 y 1158), ninguno relacionado con este cambio.
+   166→- Next.js build: "✓ Compiled successfully in 20.5s" — 56 páginas
+   167→  estáticas generadas.
+   168→- Bump de versión: BUILD_VERSION → 20260813-130000-v2.20, badges en
+   169→  page.tsx y LoginPage.tsx → v2.20.
+   170→- Commit + push a GitHub (5c81f07). Vercel redeploy disparado.
+   171→
+   172→Stage Summary:
+   173→- Pestaña Proyectos: cada proyecto expandible ahora muestra solo
+   174→  (1) info editable, (2) zonas con sus miembros. Sin listado
+   175→  duplicado a nivel de proyecto.
+   176→- Caja "Abrir Nuevo Proyecto" intacta (sigue permitiendo añadir
+   177→  usuarios existentes/nuevos al crear el proyecto).
+   178→- Despliegue en curso en Vercel.
+   179→
+   180→---
+   181→Task ID: v2.21
+   182→Agent: Main
+   183→Task: Permitir crear usuario NUEVO desde cada zona existente (no solo asignar existentes)
+   184→
+   185→Work Log:
+   186→- Detectado problema reportado por usuario: al añadir zona a un proyecto
+   187→  existente, solo aparece el picker de "Añadir existente" — no hay
+   188→  formulario para crear un usuario NUEVO y asignarlo a esa zona.
+   189→- Añadido estado por zona:
+   190→  * zoneAddMode: 'existing' | 'new' (toggle por zona)
+   191→  * zoneNewName, zoneNewEmail, zoneNewPassword (Record<zoneId, string>)
+   192→- Añadido handler handleCreateNewUserInZone(zoneId):
+   193→  1. POST /api/users → crea el User (sin empresa/proyecto)
+   194→  2. POST /api/projects/{pid}/zones/{zid}/members → asigna el nuevo
+   195→     userId a la zona (esto crea ProjectMember + MemberZone)
+   196→  3. Actualiza projectMembers local, recarga users + projects
+   197→  4. Limpia el formulario de esa zona
+   198→  5. Muestra notificación verde con la contraseña
+   199→- Sustituida la UI de "Añadir existente" por un toggle de 2 pestañas:
+   200→  * "Asignar existente" (muestra count de disponibles)
+   201→  * "Crear nuevo usuario" (formulario nombre/email/password/rol +
+   202→    botón "Crear y asignar a esta zona")
+   203→- Cuando no hay disponibles en modo existente, el mensaje ahora guía
+   204→  al usuario a usar "Crear nuevo usuario".
+   205→- Reubicada la notificación de contraseña generada (verde, con
+   206→  copiar/cerrar) al inicio del panel de detalle del proyecto, justo
+   207→  encima de "Zonas del Proyecto".
+   208→- Build OK (21.1s). Bump v2.21. Push + deploy verificado en Vercel
+   209→  (x-build-version: 20260813-140000-v2.21).
+   210→
+   211→Stage Summary:
+   212→- Cada zona existente permite ahora AMBOS flujos: asignar existente
+   213→  (dropdown) O crear nuevo usuario (formulario inline).
+   214→- Validaciones: nombre + email obligatorios, contraseña ≥ 6 car.
+   215→- Tras crear un usuario nuevo, recarga la lista de users (aparecerá
+   216→  en "existentes" para otras zonas) y los proyectos (memberCount).
+   217→
+   218→---
+   219→Task ID: v2.22
+   220→Agent: Main
+   221→Task: Fix crear usuario en zona — email duplicado falso + dropdown no aparece
+   222→
+   223→Work Log:
+   224→- Causa raíz #1 ("email repetido" falso positivo): el API POST /api/users
+   225→  hace findUnique por email global. Si el email existe en OTRA empresa
+   226→  o como usuario inactivo (no visible en la lista del admin), falla con
+   227→  "Ya existe un usuario con ese email" aunque el admin no lo vea.
+   228→- Causa raíz #2 ("no aparece desplegable"): cuando availableUsers.length
+   229→  === 0, se mostraba un texto plano sin guía clara, y el Select dropdown
+   230→  del rol estaba dentro de un contenedor con overflow que recortaba el
+   231→  portal.
+   232→- Fix #1: añadido endpoint /api/users/lookup-by-email (gestor/admin)
+   233→  que hace findUnique por email exacto, sin filtrar por empresa/activo.
+   234→  En handleCreateNewUserInZone, si POST /api/users responde "email
+   235→  ya existe", se hace automáticamente lookup y se asigna ese usuario
+   236→  a la zona (con alert informativo al admin).
+   237→- Fix #2:
+   238→  * SelectContent con position="popper" + side="top" en TODOS los
+   239→    dropdowns de la sección de zona (evita recortes por overflow).
+   240→  * Placeholder dinámico: "Seleccionar usuario (N disponibles)".
+   241→  * Estado de carga: muestra "Cargando usuarios..." mientras
+   242→    isLoadingUsers=true.
+   243→  * Estado vacío mejorado: 3 mensajes — "No hay usuarios disponibles",
+   244→    botón inline "→ Crear nuevo usuario", nota explicativa.
+   245→  * Al expandir un proyecto (handleSelectProject), se llama loadUsers()
+   246→    para asegurar que la lista esté fresca.
+   247→- Build OK (20.8s, 57 páginas). Push + deploy verificado en Vercel
+   248→  (x-build-version: 20260813-150000-v2.22).
+   249→
+   250→Stage Summary:
+   251→- Crear usuario nuevo en zona: si email colisiona, se reutiliza el
+   252→  usuario existente (incluso de otra empresa) en vez de fallar.
+   253→- Dropdown de existentes: siempre visible cuando hay disponibles,
+   254→  con count en el placeholder y portal bien posicionado.
+   255→- Empty state claro con CTA hacia "Crear nuevo usuario".
+   256→
+   257→---
+   258→Task ID: v2.25
+   259→Agent: Main
+   260→Task: Sliding session — "con el mismo token, dura 7 días" desde última actividad
+   261→
+   262→Work Log:
+   263→- Diagnóstico: la sesión actual era FIJA de 7 días desde el login.
+   264→  getAuthUser solo verificaba expiresAt; cookie con maxAge fijo de 7 días
+   265→  desde el login. Usuario activo era desconectado a los 7 días exactos.
+   266→- auth-helpers.ts (getAuthUser): añadida renovación "sliding" en DB.
+   267→  * Nueva constante SESSION_RENEWAL_THRESHOLD_DAYS = 1
+   268→  * Si faltan <1 día para expirar, UPDATE session.expiresAt = ahora + 7d
+   269→  * Evita escribir en DB en cada petición (solo cuando está cerca de
+   270→    expirar)
+   271→  * Exportada SESSION_DURATION_DAYS para reutilización
+   272→- middleware.ts: añadido refresh de cookie en cada petición autenticada.
+   273→  * Si request tiene cookie 5s_session, response.cookies.set con mismo
+   274→    valor + maxAge=7d
+   275→  * Hace la cookie "sliding" — el navegador no la borra mientras el
+   276→    usuario esté activo
+   277→- Bump versión v2.25 en middleware, LoginPage.tsx, page.tsx
+   278→- Build Next.js: "✓ Compiled successfully in 20.2s"
+   279→- Commit local: e3f6a50 "v2.25: sliding session — mismo token dura
+   280→  7 días desde última actividad"
+   281→- Push a GitHub: FALLA — el entorno actual no tiene credenciales
+   282→  configuradas (no ~/.git-credentials, no GH_TOKEN, no gh CLI).
+   283→  El usuario necesita hacer `git push origin main` desde su entorno
+   284→  para disparar el deploy en Vercel.
+   285→
+   286→Stage Summary:
+   287→- Comportamiento nuevo: mientras el usuario use la app al menos una
+   288→  vez cada 7 días, NUNCA es desconectado. Solo caduca si pasan 7 días
+   289→  seguidos sin actividad.
+   290→- Mecanismo: cookie refrescada en cada request (middleware) + DB
+   291→  session.expiresAt renovada cuando faltan <24h (getAuthUser).
+   292→- El token mismo no cambia — sigue siendo el mismo durante toda la
+   293→  vida de la sesión. Solo se extienden cookie maxAge y DB expiresAt.
+   294→- Pendiente: `git push origin main` desde entorno con credenciales
+   295→  GitHub para deploy en Vercel.
+   296→
+   297→---
+   298→Task ID: v2.26
+   299→Agent: Main
+   300→Task: Centralizar alta de usuarios en 'Datos Empresa'; en proyectos/zona solo adjudicar existentes
+   301→
+   302→Work Log:
+   303→- Modelo nuevo definido por usuario:
+   304→  * Datos Empresa → listado maestro + alta/edición/borrado
+   305→  * Proyectos/Zona → solo adjudicar usuarios ya existentes
+   306→- UI AdminPanel.tsx:
+   307→  * Eliminado toggle "Crear nuevo / De esta empresa" dentro de cada zona
+   308→  * Eliminado formulario de "Crear nuevo usuario" dentro de cada zona
+   309→  * Eliminado toggle "Asignar existente / Crear nuevo" del modal Nuevo Proyecto
+   310→  * Eliminado formulario de creación en el modal Nuevo Proyecto
+   311→  * Añadida nueva sección "Usuarios de la Empresa" en pestaña Datos Empresa:
+   312→    - Listado maestro filtrado por empresa del admin actual
+   313→    - Formulario de alta (nombre/email/password/rol) con botón "Crear nuevo usuario"
+   314→    - Tabla con columnas: Nombre, Email, Rol, Estado, Acciones
+   315→    - Acciones por usuario: Activar/Desactivar, Reset pass, Eliminar
+   316→    - Stats: total / activos / inactivos
+   317→- Handlers nuevos:
+   318→  * handleCreateCompanyUser (POST /api/users + POST /api/companies/{id}/members)
+   319→  * handleToggleUserActive (PUT /api/users con active)
+   320→  * handleResetUserPassword (PUT /api/users con password)
+   321→  * handleDeleteCompanyUser (DELETE /api/users?id=)
+   322→- Estados nuevos: showAddCompanyUser, newCompanyUserName/Email/Password/Role
+   323→- API zona-members: añadido auto-link a empresa del proyecto
+   324→  (CompanyMember.upsert idempotente) como salvaguarda
+   325→- Build OK (21.6s). Bump v2.26 en middleware, LoginPage, page.tsx
+   326→- Commit local: bb84044
+   327→- Push a GitHub: FALLA — token PAT anterior fue revocado (correcto).
+   328→  Usuario debe pasar nuevo token o hacer push manual.
+   329→
+   330→Stage Summary:
+   331→- Flujo nuevo coherente con tarifa: alta en Datos Empresa → adjudicación
+   332→  en proyectos/zonas → tarifa calculada sobre usuarios activos de la empresa
+   333→- En cada zona solo aparece picker de existentes (con buscador + lista)
+   334→- Empty state claro: "Crea nuevos usuarios en Datos Empresa → Usuarios"
+   335→- API de zona-members mantiene auto-link a empresa como defensa
+   336→
+   337→---
+   338→Task ID: v2.27
+   339→Agent: Main
+   340→Task: Revertir auto-link CompanyMember en API zona-members
+   341→
+   342→Work Log:
+   343→- Usuario: el flujo correcto es alta en Datos Empresa → adjudicación
+   344→  en proyectos/zonas → tarifa sobre usuarios activos. El auto-link
+   345→  a CompanyMember que se añadió en v2.26 (commit 71f6b36) violaba
+   346→  el principio de "zonas no tocan empresas".
+   347→- Revertido en src/app/api/projects/[projectId]/zones/[zoneId]/members/route.ts:
+   348→  eliminado el bloque que hacía db.project.findUnique para companyId
+   349→  + db.companyMember.upsert idempotente.
+   350→- Sustituido por comentario aclarador: "No se toca CompanyMember aquí.
+   351→  La empresa del usuario se gestiona exclusivamente desde 'Datos
+   352→  Empresa → Usuarios'."
+   353→- Adjudicar a zona ahora solo crea/actualiza ProjectMember + MemberZone
+   354→  (comportamiento esperado).
+   355→- Verificada la UI AdminPanel.tsx: empty state en zona ya guía a
+   356→  Datos Empresa ("Crea nuevos usuarios en Datos Empresa → Usuarios
+   357→  y volverán a aparecer aquí"). Modal Nuevo Proyecto también indica
+   358→  "Solo puedes adjudicar usuarios ya dados de alta. Para crear nuevos,
+   359→  ve a Datos Empresa → Usuarios." No hay formulario de alta en zona
+   360→  ni en proyecto. Todo correcto.
+   361→- Build OK (21.0s, "✓ Compiled successfully").
+   362→- Bump v2.27 en middleware (BUILD_VERSION), LoginPage.tsx, page.tsx.
+   363→- Commit local: 6db1ec2.
+   364→- Push a GitHub: OK. Usando PAT nuevo proporcionado por usuario
+   365→  (ghp_...JH2r, válido 30 días). Cambio de fe7b8ed → 6db1ec2 en main.
+   366→- Vercel auto-redeploy disparado.
+   367→
+   368→Stage Summary:
+   369→- API zona-members limpio: solo toca ProjectMember + MemberZone.
+   370→- Separación de responsabilidades respetada:
+   371→  * Datos Empresa → alta/edición/baja + CompanyMember
+   372→  * Proyectos/Zonas → solo adjudicar existentes (ProjectMember + MemberZone)
+   373→- v2.27 desplegado en Vercel.
+   374→- ⚠️ PAT quedó guardado en .git/config (remote URL con credenciales).
+   375→  El usuario puede revocarlo cuando quiera desde GitHub Settings.
+   376→
+   377→---
+   378→Task ID: v2.28
+   379→Agent: Main
+   380→Task: Pantalla de selección de proyecto/zona tras login (eliminar dropdown del header)
+   381→
+   382→Work Log:
+   383→- Decisiones UX confirmadas con usuario:
+   384→  * Mostrar SIEMPRE tras login (aunque tenga 1 sola opción)
+   385→  * Botón 'Cambiar' en header para volver al selector (elimina dropdown)
+   386→  * Gestor pasa por el MISMO selector (no skip a admin)
+   387→  * Layout: tarjetas de proyecto expandibles a zonas con color
+   388→- Cambios en src/lib/store.ts:
+   389→  * authView: añadido 'project_selector'
+   390→  * login/register/checkSession: si hay proyectos y NO es gestor,
+   391→    va a 'project_selector' (no asigna currentProject automáticamente).
+   392→    Gestor sigue yendo directo a 'board' con tab 'gestion'.
+   393→  * Nuevas acciones:
+   394→    - selectProjectAndZone(project, zone) → setea ambos + authView='board'
+   395→      + dispara fetchProgress y fetchEmployeeProgress
+   396→    - goToProjectSelector() → limpia currentProject/currentZone + authView='project_selector'
+   397→- Nuevo componente src/components/auth/ProjectSelector.tsx:
+   398→  * Header con logo + avatar del usuario + logout
+   399→  * Saludo personalizado ("Hola {nombre} 👋")
+   400→  * Grid 1-2 columnas de tarjetas de proyecto
+   401→  * Cada tarjeta: icono Building2 + nombre + companyName + descripción
+   402→    + badges (count de zonas, count de miembros)
+   403→  * Al clickar tarjeta: se expande (AnimatePresence) mostrando zonas
+   404→    accesibles como botones con color de la zona
+   405→  * Para admin/gestor/gerente: muestra todas las zonas del proyecto
+   406→  * Para empleado/responsable/auditor: solo las zonas en userZones
+   407→  * Empty state: "No tienes zonas asignadas en este proyecto"
+   408→  * Estado de carga con spinner
+   409→  * Si no hay proyectos: mensaje con CTA al logout
+   410→- Cambios en src/app/page.tsx:
+   411→  * Import ProjectSelector
+   412→  * Añadido 'if (authView === "project_selector") return <ProjectSelector onLogout={handleLogout} />'
+   413→  * Eliminado el dropdown de zona del header (líneas 384-413 antes)
+   414→  * Añadido botón 'Cambiar' (variant outline, color azul, icono RefreshCw)
+   415→    que llama a goToProjectSelector(). Visible solo cuando hay currentProject.
+   416→  * Destructure goToProjectSelector del store
+   417→- Bump v2.28 en middleware, LoginPage.tsx, page.tsx
+   418→- Build Next.js: "✓ Compiled successfully in 22.3s"
+   419→- Commit local: b6a9c29
+   420→- Push a GitHub: OK (6db1ec2..b6a9c29). Vercel auto-redeploy.
+   421→
+   422→Stage Summary:
+   423→- Flujo nuevo: login → ProjectSelector → tablero
+   424→- Usuario cambia de proyecto/zona con botón 'Cambiar' del header
+   425→- Gestor se salta el selector (va directo a gestión)
+   426→- Dropdown del header eliminado
+   427→
+   428→---
+   429→Task ID: v2.29
+   430→Agent: Main
+   431→Task: Fix formación S1 no aparece en zonas con boardConfigId sin slots
+   432→
+   433→Work Log:
+   434→- Diagnóstico (ver informe agente-ba54e0a5):
+   435→  * Templates son GLOBALES (sin projectId/zoneId).
+   436→  * Zona nueva recibe automáticamente el boardConfigId default.
+   437→  * Board config default se crea VACÍO (sin slots).
+   438→  * FormacionModal era el ÚNICO modal que no caía al fallback global
+   439→    cuando board config no tenía slot para esa posición → "Sin formación
+   440→    configurada" en vez de mostrar la plantilla global.
+   441→  * Los demás modales (Inventario, Autoevaluación, Auditoría, Examen)
+   442→    SÍ caían al fallback global.
+   443→
+   444→- Fix A — FormacionModal fallback global:
+   445→  (src/components/5s/FormacionModal.tsx)
+   446→  * Reescrita loadTemplate() con dos fases:
+   447→    1. Intentar leer del board config del zone (slot templates).
+   448→    2. Para CADA tipo (formacion/examen) por separado, si no se cargó
+   449→       en la fase 1, caer al fallback global /api/templates?type=...
+   450→  * Variables formacionLoaded/examLoaded marcan si la fase 1 tuvo éxito.
+   451→  * Mismo patrón que InventarioModal/Autoevaluacion/Auditoría.
+   452→  * NO rompe la configuración manual del admin: si el board config tiene
+   453→    slots con plantillas, esas siguen teniendo prioridad.
+   454→
+   455→- Fix B — Auto-poblar slots del board config default:
+   456→  (src/app/api/board-configs/route.ts)
+   457→  * Nueva función ensureDefaultSlotsPopulated(boardConfigId):
+   458→    - Recorre los 25 slots (5S × 5 mini-steps).
+   459→    - Para cada slot sin plantillas enlazadas, busca la plantilla global
+   460→      correspondiente por (sStep, miniStep, type) y la enlaza.
+   461→    - Idempotente: respeta slots ya configurados manualmente.
+   462→    - Skip silencioso si no existe plantilla global para esa posición.
+   463→  * Invocada automáticamente desde GET /api/board-configs.
+   464→  * Mapeo mini-step → tipos:
+   465→    1 → formacion + examen
+   466→    2 → fotos
+   467→    3 → inventario
+   468→    4 → autoevaluacion + planaccion
+   469→    5 → auditoria
+   470→
+   471→- Bump v2.29 en middleware, LoginPage.tsx, page.tsx.
+   472→- Build Next.js: "✓ Compiled successfully in 20.2s".
+   473→- Commit local: c7ceb4b.
+   474→- Push a GitHub: OK (b6a9c29..c7ceb4b). Vercel auto-redeploy.
+   475→
+   476→Stage Summary:
+   477→- Cualquier zona (z1, z2, z3...) con boardConfigId asignado pero sin
+   478→  slots configurados ahora:
+   479→  1. En el FormacionModal, cae al fallback global (Fix A inmediato).
+   480→  2. Al visitar el panel admin de board-configs, se auto-pueblan los 25
+   481→     slots con las plantillas globales disponibles (Fix B definitivo).
+   482→- Las plantillas son globales → editar una se propaga a todas las
+   483→  zonas/proyectos que la referencian (no hay copias por zona).
+   484→- Gestor sigue yendo directo a su panel (no pasa por selector).
+   485→
+   486→---
+   487→Task ID: v2.31
+   488→Agent: Main
+   489→Task: Plantillas se eligen por zona (antes que usuarios) + gestor edita genéricas en su panel
+   490→
+   491→Work Log:
+   492→- Usuario: "las plantillas ya no tiene sentido que estén en la parte plantillas.
+   493→  tienen que estar elegidas en cada zona antes de los usuarios elegidos y desde
+   494→  ahí poder entrar a la edición. El gestor, en su panel, será el que tenga el
+   495→  poder de editar todas las plantillas genéricas."
+   496→- Eliminada la pestaña "Plantillas" del AdminPanel.tsx:
+   497→  * activeTab type: 'companies' | 'projects' | 'plantillas' → 'companies' | 'projects'
+   498→  * Eliminado el botón de tab "Plantillas" (líneas 1462-1472 originales)
+   499→  * Eliminado el bloque de contenido del tab Plantillas (líneas 2791-2796 originales)
+   500→  * Eliminado el import de TemplateManager y ProjectTemplatesSection
+   501→- Eliminado el <ProjectTemplatesSection> embebido dentro de cada proyecto
+   502→  (sub-sección redundante ahora que las plantillas viven por zona).
+   503→- Creado componente nuevo src/components/admin/ZoneTemplatesSection.tsx:
+   504→  * Se renderiza DENTRO de cada zona, ANTES de la tabla de miembros.
+   505→  * Muestra las 25 celdas (5S × 5 Pasos) con la plantilla asignada a cada una.
+   506→  * Cada celda tiene 2 botones:
+   507→    - Editar (lápiz) → abre Sheet con <TemplateManager embedded /> completo
+   508→    - Cambiar (refresh) → abre dropdown con todas las plantillas disponibles
+   509→      para esa (sStep, miniStep, type); al seleccionar, POST /api/board-slots
+   510→      con el nuevo templateIds (preserva las otras types del slot).
+   511→  * Indica si la zona usa tablero predeterminado (compartido) → aviso amber.
+   512→  * Contador "N asignadas" + badge con nombre del tablero.
+   513→- Actualizada la zona header del AdminPanel: el badge ya NO es hardcoded
+   514→  "Tablero predeterminado" — ahora muestra zone.boardConfig.name real
+   515→  (o "Sin tablero") con color indicativo (índigo=default, violeta=propio).
+   516→- Actualizada interfaz ZoneData: boardConfig ahora incluye isDefault?: boolean.
+   517→- Añadida pestaña "Plantillas" al GestorPanel.tsx:
+   518→  * GestorTab type: ... | 'plantillas'
+   519→  * tabs array: entrada nueva con icono BookOpen
+   520→  * Render: <TemplateManager /> dentro de contenedor blanco (para no chocar
+   521→    con el tema dark slate/violet del GestorPanel).
+   522→  * Banner "Modo Gestor — Editando la Biblioteca del Sistema".
+   523→  * Como gestor, TemplateManager auto-detecta el rol y edita plantillas
+   524→    globales (companyId=null) → cambios se propagan a todas las zonas/empresas.
+   525→- Bump v2.31 en middleware.ts (BUILD_VERSION), page.tsx (badge), LoginPage.tsx.
+   526→- TypeScript check: no new errors introduced (pre-existing errors unchanged).
+   527→- Next.js build: "✓ Compiled successfully in 22.5s".
+   528→
+   529→Stage Summary:
+   530→- Flujo nuevo: AdminPanel → Proyectos → expandir proyecto → ver zonas →
+   531→  cada zona muestra PRIMERO sus plantillas (editar/cambiar por celda S×Paso),
+   532→  DESPUÉS sus miembros.
+   533→- Eliminada la pestaña "Plantillas" del AdminPanel (ya no tiene sentido ahí).
+   534→- Eliminado ProjectTemplatesSection (era sub-sección por proyecto, redundante).
+   535→- GestorPanel: nueva pestaña "Plantillas" para editar TODAS las plantillas
+   536→  genéricas (Biblioteca del Sistema) — power exclusive del gestor.
+   537→- Pendiente: commit + push a GitHub para deploy en Vercel.
+   538→
+   539→---
+   540→Task ID: v2.32
+   541→Agent: Main
+   542→Task: Landing page — botones visibles (Iniciar Sesión + Pedir Información) + logo lima con colores correctos
+   543→
+   544→Work Log:
+   545→- Usuario reportó: en la captura de la landing, el botón intermedio "Ver cómo
+   546→  funciona" se ve vacío (texto blanco sobre fondo transparente del outline).
+   547→  Pide: solo "Iniciar Sesión" + "Pedir Información" visibles arriba y abajo,
+   548→  y que el logo de la lima se vea con los mismos colores que en la app.
+   549→- Hero (arriba):
+   550→  * Eliminado el botón "Ver cómo funciona" (el intermedio que aparecía vacío).
+   551→  * Quedan solo dos botones: "Iniciar Sesión" (blanco con texto verde) y
+   552→    "Pedir Información" (amarillo brillante #FDE047 con texto verde oscuro).
+   553→  * El botón "Pedir Información" ahora es muy visible: fondo amarillo sólido
+   554→    + texto verde oscuro + sombra amarilla. Ya no es un outline transparente.
+   555→- CTA (abajo):
+   556→  * Cambiado el botón "Acceder a la plataforma" → "Iniciar Sesión"
+   557→    (mismo texto que arriba, para consistencia).
+   558→  * El botón "Solicitar Información" → "Pedir Información" con el mismo
+   559→    estilo amarillo brillante que arriba.
+   560→- Logo de la lima (/5s-logo.png):
+   561→  * Eliminado el drop-shadow-2xl que distorsionaba la percepción de los
+   562→    colores (hacía que el centro se viera más oscuro/amarillento).
+   563→  * Envolvido en un contenedor circular blanco (bg-white rounded-full) que
+   564→    aisla los colores del logo del gradient verde del hero. Así los colores
+   565→    se ven exactamente igual que en la app (anillo verde oscuro #1B5E20,
+   566→    5 segmentos verde lima #8BC34A, centro blanco con "5S" en lima).
+   567→  * En el footer: mismo tratamiento (logo sobre fondo blanco circular).
+   568→- Bump v2.32 en middleware, page.tsx, LoginPage.tsx.
+   569→- Build OK ("✓ Compiled successfully in 21.9s").
+   570→- Commit + push a GitHub para deploy en Vercel.
+   571→
+   572→Stage Summary:
+   573→- Landing page: dos botones claros y visibles ("Iniciar Sesión" blanco +
+   574→  "Pedir Información" amarillo) tanto en el hero como en el CTA inferior.
+   575→- Logo de la lima con colores fieles a la app (sin distorsión por sombras
+   576→  ni mezcla con el fondo verde).
+   577→- Pendiente: verificar en Vercel que se ve correcto tras el deploy.
+   578→
+   579→---
+   580→Task ID: v2.33
+   581→Agent: Main
+   582→Task: Fix bloqueo al subir varias fotos a la vez en FotosModal
+   583→
+   584→Work Log:
+   585→- Usuario reportó: "No deja subir fotos a la vez, se bloquea".
+   586→- Diagnóstico raíz:
+   587→  1. La ruta /api/upload fue eliminada del proyecto el 22 jul (commit d07599d).
+   588→     Cada intento de subida → 404 → catch silencioso → serverUrl vacío →
+   589→     al hacer submit, los base64 (~150KB × N fotos) iban TODOS en el body
+   590→     del POST /api/photo-library → JSON.stringify gigante → navegador colgado.
+   591→  2. El handleFileSelect lanzaba FileReader + compressImage + fetch en paralelo
+   592→     para todas las fotos a la vez → saturaba CPU/memoria en móvil → UI congelada.
+   593→  3. addPhoto usaba `photos.length` capturado en el closure → índice stale
+   594→     cuando varias llamadas paralelas pisaban el mismo valor.
+   595→- Fix 1: Restaurada /api/upload/route.ts desde git history (última versión buena,
+   596→  "refactor: upload API solo Neon"). Convierte el File a base64 y lo devuelve
+   597→  como data URL — se almacena directamente en la columna photoUrl (text) de Neon.
+   598→- Fix 2: Reescrito FotosModal con cola secuencial:
+   599→  * uploadQueueRef: array de {rawBase64, photoType} pendientes.
+   600→  * isProcessingRef: semáforo para que solo un processQueue() corra a la vez.
+   601→  * photoCounterRef: contador siempre fresco (no stale como photos.length).
+   602→  * processQueue(): loop while-queue-no-vacía, comprime UNA foto, sube,
+   603→    actualiza estado por ID (no por índice), cede 30ms al event loop, repite.
+   604→  * addPhoto() ahora solo encola (no procesa) — las llamadas paralelas
+   605→    desde handleFileSelect solo llenan la cola baratamente.
+   606→  * handleFileSelect/handleCameraCapture leen archivos en paralelo
+   607→    (FileReader es I/O barato) y encolan; el procesamiento pesado es secuencial.
+   608→  * PhotoItem ahora tiene `id` único para updates robustos (inmune a
+   609→    reordenamientos / eliminaciones mientras la cola corre).
+   610→  * Cuando se cargan fotos existentes de la DB, photoCounterRef se inicializa
+   611→    con la cantidad existente para que los nuevos índices no colisionen.
+   612→- Fix 3: UI feedback:
+   613→  * Botón "Subir desde galería" se deshabilita y muestra spinner mientras la
+   614→    cola está activa (isQueueBusy = queueLength>0 || uploadingCount>0).
+   615→  * Banner azul "Procesando fotos una a una para evitar bloqueos".
+   616→  * Contador "N en cola" / "Subiendo N..." en tiempo real.
+   617→  * Icono rojo X si una foto falló al subir (uploaded=false, serverUrl='').
+   618→  * Texto de ayuda actualizado: "Se procesan una a una para no saturar".
+   619→- canSubmit ahora también requiere queueLength===0 (no solo uploadingCount===0)
+   620→  para evitar submit con fotos a medio procesar.
+   621→- Bump v2.33 en middleware.ts, page.tsx, LoginPage.tsx.
+   622→- TypeScript check: sin errores nuevos en FotosModal.tsx ni upload/route.ts
+   623→  (pre-existing error en MiniStepModal.tsx sigue, pero ignoreBuildErrors=true).
+   624→- Next.js build: "✓ Compiled successfully in 21.5s" — ruta /api/upload aparece
+   625→  en el listado de endpoints del build.
+   626→
+   627→Stage Summary:
+   628→- Causa raíz del bloqueo: /api/upload faltante + subida paralela descontrolada.
+   629→- Solución: ruta restaurada + cola secuencial en cliente + UI que deshabilita
+   630→  el input mientras procesa.
+   631→- Pendiente: commit + push a GitHub para deploy en Vercel.
+   632→
+   633→---
+   634→Task ID: v2.34
+   635→Agent: Main
+   636→Task: Fix bug en handleFileSelect v2.33 — input.value='' vaciaba el FileList antes de leer
+   637→
+   638→Work Log:
+   639→- Usuario reportó: en Paso 2 S1, puede elegir fotos de carpeta pero no se ejecutan.
+   640→  Versión v2.33 confirmada.
+   641→- Diagnóstico: en la v2.33 cometí un bug en handleFileSelect. El orden era:
+   642→    const files = e.target.files;
+   643→    if (fileInputRef.current) fileInputRef.current.value = '';   ← BUG
+   644→    const fileArr = Array.from(files);                            ← files ya vacío
+   645→    await Promise.all(fileArr.map(...));
+   646→  Al asignar input.value='' el navegador vacía el FileList que `files` referenciaba.
+   647→  Array.from(files) devolvía [] → Promise.all([]) resolvía inmediatamente →
+   648→  no se procesaba ninguna foto.
+   649→- Fix: capturar Array.from(files) ANTES de limpiar el input.
+   650→  Ahora el orden es:
+   651→    const files = e.target.files;
+   652→    const fileArr = Array.from(files);          ← snapshot primero
+   653→    if (fileInputRef.current) fileInputRef.current.value = '';
+   654→    await Promise.all(fileArr.map(...));
+   655→  Mismo fix aplicado a handleCameraCapture.
+   656→- Añadidos console.log en handleFileSelect, handleCameraCapture y processQueue
+   657→  para que el usuario pueda abrir la consola del navegador y ver exactamente
+   658→  cuántos archivos se seleccionaron y cuántos se están procesando.
+   659→- Bump v2.34 en middleware.ts, page.tsx, LoginPage.tsx.
+   660→- Next.js build: "✓ Compiled successfully in 20.1s".
+   661→- Commit + push a GitHub para deploy en Vercel.
+   662→
+   663→Stage Summary:
+   664→- Bug mío de la v2.33: limpiaba el input antes de leer los archivos.
+   665→- Fix en v2.34: snapshot del FileList antes de limpiar + logs de depuración.
+   666→- Pendiente: usuario prueba en v2.34 tras deploy (~1-2 min).
+   667→
+   668→---
+   669→Task ID: v2.35
+   670→Agent: Main
+   671→Task: Límite mínimo de fotos configurable por plantilla + override por zona
+   672→
+   673→Work Log:
+   674→- Usuario: "SE tiene qeu poder modificar la cantidad en la plantilla paso 2
+   675→  de cada s de cada zona de cada proyecto de cada empresa. Lo puede modificar
+   676→  el administrador. El gestor tambien, en su tablero pone 10 como partida."
+   677→- Modelo de datos (2 capas):
+   678→  1. Template.minPhotos (valor base) — lo define el gestor en plantillas
+   679→     globales type='fotos'. Default 10. El admin puede crear plantillas de
+   680→     empresa con otro valor.
+   681→  2. BoardSlotTemplate.minPhotosOverride (override por zona) — el admin lo
+   682→     rellena en cada zona para sobreescribir el valor base sin tocar la
+   683→     plantilla.
+   684→- Resolución en runtime (GET /api/photo-limits):
+   685→  1. Si override existe → usarlo.
+   686→  2. Si no, usar Template.minPhotos de la plantilla asignada.
+   687→  3. Si no hay plantilla → fallback a 10.
+   688→- Migración prisma/schema.prisma + SQL en
+   689→  prisma/migrations/20260814_add_min_photos_config/migration.sql.
+   690→- ensureDbSchema() en src/lib/db.ts ampliado con ALTER TABLE IF NOT EXISTS
+   691→  idempotente (ADD COLUMN minPhotos, ADD COLUMN minPhotosOverride, ADD COLUMN
+   692→  updatedAt) para que se aplique en el primer cold start tras deploy sin
+   693→  necesidad de correr prisma migrate localmente.
+   694→- Prisma client regenerado.
+   695→- API nueva /api/photo-limits/route.ts:
+   696→  * GET ?projectId&zoneId&sStep[&miniStep=2] → resuelve y devuelve
+   697→    { minPhotos, source, templateId, templateTitle, boardSlotTemplateId,
+   698→      baseMinPhotos, overrideMinPhotos }.
+   699→  * PUT body { boardSlotTemplateId, minPhotosOverride } → guarda/elimina override.
+   700→  * PUT body { templateId, minPhotos } → actualiza valor base de la plantilla.
+   701→- API /api/templates/route.ts actualizada:
+   702→  * POST incluye minPhotos (solo si type='fotos', default 10).
+   703→  * PUT acepta minPhotos (si llega undefined no lo toca).
+   704→- API /api/board-slots/route.ts: select de template ampliado con `minPhotos: true`
+   705→  para que el AdminPanel reciba el valor base.
+   706→- FotosModal.tsx:
+   707→  * Estado `minPhotos` (number) + `photoLimitSource` ('override'|'template'|'default').
+   708→  * useEffect llama a /api/photo-limits al abrir el modal → actualiza minPhotos.
+   709→  * Sustituidas todas las refs a MIN_PHOTOS constante por `minPhotos` dinámico:
+   710→    canSubmit, badge "X / Y mínimo", línea "Mínimo N fotos del ANTES".
+   711→  * Indicación visual del origen: "(override de zona)" o "(definido en plantilla)".
+   712→- TemplateManager.tsx (gestor y admin):
+   713→  * TemplateData.minPhotos añadido al interface.
+   714→  * Estado formMinPhotos (default 10).
+   715→  * startCreate, startEdit, importTemplateData → cargan el valor.
+   716→  * handleSave → incluye minPhotos en el payload (solo type='fotos').
+   717→  * exportTemplateData → version bumped a 2, incluye minPhotos.
+   718→  * Duplicate → incluye minPhotos al copiar.
+   719→  * UI: input "Mínimo de fotos" visible solo cuando formType==='fotos',
+   720→    debajo del campo "Nota mínima". Helper text explicativo.
+   721→  * Badge en lista de plantillas: "N fotos mín" (amber) para type='fotos'.
+   722→- ZoneTemplatesSection.tsx (admin, por zona):
+   723→  * SlotTemplate interface ampliada con minPhotosOverride + template.minPhotos.
+   724→  * Estado photoLimitEditing, photoLimitValue, photoLimitSaving.
+   725→  * savePhotoLimitOverride(slotTemplateId, value) → PUT /api/photo-limits.
+   726→  * UI: sub-fila amber bajo la celda type='fotos' con:
+   727→    - Valor actual (resuelto: override o heredado de plantilla).
+   728→    - Badge "override zona" si está sobreescrito, o "(hereda: N)" si no.
+   729→    - Botón "Cambiar" → input inline + Enter/Guardar/Cancelar.
+   730→    - Vaciar el input = eliminar override (volver a heredar).
+   731→- Bump v2.35 en middleware.ts, page.tsx, LoginPage.tsx.
+   732→- TypeScript: sin errores nuevos en archivos modificados (pre-existing errors
+   733→  en TemplateManager y MiniStepModal siguen, ignoreBuildErrors=true).
+   734→- Next.js build: "✓ Compiled successfully in 20.8s".
+   735→
+   736→Stage Summary:
+   737→- Gestor: en su pestaña Plantillas, al editar una plantilla type='fotos',
+   738→  ve y edita el campo "Mínimo de fotos" (default 10). Es el valor base
+   739→  global para todas las zonas que usen esa plantilla.
+   740→- Admin de empresa: puede crear plantilla type='fotos' propia con su minPhotos.
+   741→- Admin de proyecto/zona: en la sección "Plantillas de esta zona", cada
+   742→  celda de tipo Fotos muestra el límite actual y un botón "Cambiar" para
+   743→  hacer override puntual (sin tocar la plantilla).
+   744→- FotosModal: al abrir, consulta /api/photo-limits y usa el valor resuelto
+   745→  (override > template > 10). Indica visualmente el origen del valor.
+   746→- Pendiente: commit + push a GitHub para deploy en Vercel. Las columnas
+   747→  nuevas se crearán automáticamente en el primer cold start vía
+   748→  ensureDbSchema (ADD COLUMN IF NOT EXISTS).
+   749→
