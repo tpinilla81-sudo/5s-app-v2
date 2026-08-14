@@ -2158,3 +2158,69 @@ Stage Summary:
     - Z Destino = 'Residuo', Días cuar. = '—', Etiquetas = '—'
   * Al clickar en una foto: lightbox gris oscuro, si la foto carga
     se ve; si no carga, mensaje '🖼️ No se pudo cargar la imagen'
+
+---
+Task ID: v2.57
+Agent: Main
+Task: 4 cambios solicitados por usuario tras ver screenshot
+
+Work Log:
+- Usuario mandó screenshot mostrando tabla S1 con thumbnails negros en
+  columna Fotos. Pidió:
+  1) Eliminar botón global 'Etiquetas rojas' (ya hay uno por línea)
+  2) Fix fotos en negro (thumbnails de 32x32px)
+  3) Poder meter líneas manualmente
+  4) Las fotos se guarden también en Paso 2 y en biblioteca
+
+DIAGNÓSTICO VLM:
+- Confirmado por análisis visual de la screenshot:
+  * Thumbnails son rectángulos negros opacos sin contenido
+  * El lightbox ya estaba fixeado en v2.56 (zinc-900)
+  * El problema está en los <img> de 32x32px de la columna Fotos
+
+CAMBIOS:
+
+1) Eliminado botón global 'Etiquetas rojas':
+   - Bloque entero (sStep===1 + rojaItems + TagPrinter) comentado
+   - Razón: ya existe TagPrinter por línea en columna Etiquetas
+
+2) Fix thumbnails negros:
+   - <img>: className ahora incluye bg-gray-100 + border-gray-300
+   - loading=lazy + decoding=async
+   - onError handler: si foto no carga, reemplaza src por SVG data URL
+     con icono de imagen gris (data:image/svg+xml;utf8,...)
+   - Así nunca más se ve negro: o se ve la foto, o se ve icono gris
+
+3) Botón 'Añadir línea' (handleAddRow):
+   - POST /api/inventory con item vacío
+   - S1: category='innecesario', quantityUnneeded=1, zonaOrigen auto
+   - S2-S5: category='' (editable)
+   - Recarga inventario tras crear para obtener ID real
+   - Botón azul con icono Plus en toolbar, visible para cualquier editor
+
+4) Botón '+' por item para adjuntar fotos:
+   - En columna Fotos, después de miniaturas existentes
+   - fileInputRefs: useRef<Map<string, HTMLInputElement>>
+   - Inputs ocultos renderizados al final del componente (uno por item)
+   - handleFileInputChange → handleAttachPhoto(itemId, file, 'antes')
+   - handleAttachPhoto MODIFICADO:
+     * miniStep: 2 (antes era miniStep del inventario, p.ej. 3)
+     * category: 'paso2_s{sStep}' (antes 'inventario_s{sStep}')
+     * tags incluyen 'paso2' además de 'inventario'
+   - Así cada foto subida aparece en:
+     a) Biblioteca de fotos (PhotoLibrary)
+     b) Paso 2 / FotosModal (por miniStep=2)
+     c) Columna Fotos del inventario (por inventoryItemId)
+   - capture=environment para móvil (cámara trasera)
+
+Bump v2.56 → v2.57 (middleware, page.tsx, LoginPage).
+Build Next.js: ✓ Compiled successfully.
+Commit 5d1f000 + 618d9e3 (gitignore) + push a GitHub. Vercel deploy.
+
+Stage Summary:
+- TRAS DEPLOY v2.57 (~1-2 min):
+  * Toolbar: botón azul 'Añadir línea' a la izquierda
+  * Columna Fotos: botón '+' dashed por item para adjuntar foto
+  * Thumbnails: si la foto carga, se ve; si no, icono gris (no negro)
+  * Sin botón global 'Etiquetas rojas' (usa el de cada línea)
+  * Foto subida desde inventario → aparece también en Paso 2 y biblioteca
