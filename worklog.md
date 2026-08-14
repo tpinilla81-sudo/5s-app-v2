@@ -959,3 +959,103 @@ Stage Summary:
 - Pendiente: usuario prueba en v2.38 tras deploy (~1-2 min). Si
   quiere ajustar tamaños, colores o disposición del panel lateral,
   iterar.
+
+---
+Task ID: v2.39
+Agent: Main
+Task: Ocultar bulk-import al empleado + clasificación obligatoria de fotos del Paso 2
+
+Work Log:
+- Dos peticiones del usuario en un mismo mensaje:
+  1) "primeramente, al empleado no le tiene que salir lo marcado"
+     (con captura del InventarioModal marcando en rojo la sección
+     'Clasificación' + los 4 botones Importar/Exportar).
+  2) "como tenemos las fotos, de alguna buena forma, tenemos que
+     hacer que esas fotos tengan un registro, como si obligara a
+     esas fotos rellenar los datos que pide en la clasificación.
+     En definitiva cada foto tiene que tener una clasificación.
+     Las fotos que se han sacado en el paso dos, aquí se clasifican
+     para inventariar y saber qué hacer con esos elementos. Es la
+     dinámica. Luego esto se va adjuntando en el listado/inventarios."
+
+PARTE 1: Ocultar bulk-import al empleado
+- Nuevo flag en InventarioModal.tsx:
+    const canManageBulk = ['gestor','admin','gerente','responsable']
+      .includes(currentUser?.role || '');
+- Sección 'Clasificación' (contador X/Y clasificados + %) envuelta
+  en {canManageBulk && (...)}.
+- Los 4 botones de Importar/Exportar (Importar Plantilla, Exportar
+  CSV, Importar Archivo, Descargar Plantilla Excel) envueltos en
+  {canManageBulk && (<>...</>)}.
+- NO se oculta: el botón de imprimir etiquetas rojas (S1), que es
+  operativo para el empleado en planta.
+- Empleado y auditor ahora ven un InventarioModal limpio: solo
+  formulario de alta, tabla de items, y botón Completar.
+
+PARTE 2: Clasificación obligatoria de fotos del Paso 2
+- Investigación del sistema existente:
+  * step2Photos: estado con fotos del Paso 2 sin inventoryItemId.
+  * handleLinkStep2Photo(photoId, itemId): vincula foto a item.
+  * handleUnlinkPhoto(photoId, itemId): desvincula.
+  * itemPhotos[itemId]: fotos vinculadas a cada item.
+  * Modal showPhotoGallery: galería para vincular fotos.
+  * Botón 📷 en cada fila de la tabla → abre PhotoGallery.
+- El flujo ya existía, pero NO era obligatorio. El empleado podía
+  completar el inventario dejando fotos sin clasificar.
+- Cambios:
+  * Nuevo estado derivado:
+      const unclassifiedPhotosCount = step2Photos.length;
+      const allPhotosClassified = unclassifiedPhotosCount === 0;
+  * canComplete ahora requiere allPhotosClassified (tanto para S1
+    como para S2-S5).
+  * handleComplete tiene un guard extra:
+      if (unclassifiedPhotosCount > 0) {
+        toast.error(`Quedan ${unclassifiedPhotosCount} foto(s) del
+        Paso 2 sin clasificar. Vincula cada foto a un elemento del
+        inventario antes de completar.`);
+        return;
+      }
+  * El card 'Fotos del Paso 2' cambia de purple a RED:
+    - border-2 border-red-300 bg-red-50/40
+    - Título: 'Fotos del Paso 2 pendientes de clasificar'
+    - Badge: 'N sin clasificar'
+    - Texto explicativo en rojo: 'Cada foto del Paso 2 debe
+      vincularse a un elemento del inventario para saber qué hacer
+      con ese elemento. Hasta que no clasifiques todas las fotos,
+      no podrás completar el inventario.'
+    - Instrucción: 'Para vincular: crea un elemento nuevo (o usa
+      uno existente) y pulsa el botón 📷 Vincular Foto del Paso 2
+      en su fila.'
+    - Borde de cada thumbnail en border-red-200.
+  * Junto al botón 'Completar Inventario' aparece contador rojo:
+    '⚠ N foto(s) del Paso 2 sin clasificar' cuando hay pendientes.
+
+Dinámica resultante (la que pidió el usuario):
+1. Empleado saca fotos en Paso 2 (FotosModal).
+2. En Paso 3 (Inventario) ve el card ROJO con las fotos pendientes.
+3. Crea items del inventario (nombre, ubicación, categoría,
+   cantidad, precio, estado, frecuencia, decisión, etc.).
+4. Vincula cada foto a un item via el botón 📷 de la fila →
+   abre PhotoGallery → selecciona la foto.
+5. Al vincular, la foto desaparece del card rojo y se adjunta
+   al item (aparece en la columna Fotos de la tabla).
+6. Cuando todas las fotos están vinculadas, el card rojo
+   desaparece y el botón 'Completar Inventario' se habilita.
+7. Las fotos vinculadas quedan registradas en el inventario
+   con trazabilidad (inventoryItemId en la tabla Photo).
+
+Bump v2.39 en middleware.ts, page.tsx, LoginPage.tsx.
+Build Next.js: ✓ Compiled successfully in 21.0s.
+Commit + push a GitHub (24df73b). Vercel deploy automático.
+
+Stage Summary:
+- Empleado ve un InventarioModal limpio sin botones de gestión masiva.
+- La dinámica Paso 2 → Paso 3 ahora es obligatoria: cada foto del
+  Paso 2 debe clasificarse (vincularse a un item con sus datos)
+  antes de poder completar el inventario.
+- El feedback visual es claro: card rojo mientras haya pendientes,
+  contador junto al botón, toast con número exacto al intentar
+  completar.
+- Pendiente: usuario prueba en v2.39 tras deploy (~1-2 min). Si
+  quiere ajustar el texto del card, el umbral, o el flujo de
+  vinculación (e.g. auto-crear item al vincular), iterar.
