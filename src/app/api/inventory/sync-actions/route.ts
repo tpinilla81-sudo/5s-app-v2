@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 1. Buscar todos los items S1 con decisión (Retirar o Eliminar) en este proyecto/zona
+    // 1. Buscar todos los items con decisión (Retirar o Eliminar) en este proyecto/zona
+    // v2.69: ya no limitamos a sStep=1 — cualquier S-step puede tener inventario con decisiones
     const where: any = {
-      sStep: 1,
       projectId,
     }
     if (zoneId) where.zoneId = zoneId
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
 
         const newAction = await db.actionItem.create({
           data: {
-            sStep: 1,
+            sStep: item.sStep, // v2.69: usar el sStep del item (antes hardcoded a 1)
             miniStep: 3,
             itemId: itemIdRef,
             itemDescription,

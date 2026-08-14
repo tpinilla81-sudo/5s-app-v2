@@ -1477,12 +1477,13 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
         setIsCompleted(true);
         await fetchProgress();
 
-        // v2.60: Sincronizar inventario S1 → Plan de Acción + Diario del Responsable.
+        // v2.60: Sincronizar inventario → Plan de Acción + Diario del Responsable.
         // Para cada item con decisión Retirar/Eliminar, se crea un ActionItem
         // (si no existe ya) con la tarea correspondiente. Así el responsable
         // ve en su diario y en el plan de acción qué debe retirar a jaula
         // o eliminar a residuo.
-        if (sStep === 1) {
+        // v2.69: ahora funciona para cualquier S-step (no solo S1).
+        if (currentProject?.id) {
           try {
             const syncRes = await fetch('/api/inventory/sync-actions', {
               method: 'POST',
@@ -2309,34 +2310,53 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
                                       ...topLevel,
                                       extra: newExtra,
                                     } : it));
-                                    // 4) Único PUT con todos los campos
-                                    fetch(`/api/inventory?id=${item.id}`, {
-                                      method: 'PUT',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ ...topLevel, extra: newExtra }),
-                                    }).catch(e => console.error('Error updating decision:', e));
-                                    // 5) Si Retirar → generar etiqueta (snapshot) en background
-                                    if (val === 'Retirar') {
-                                      const updatedItem: InventoryItemData = {
-                                        ...item,
-                                        ...topLevel,
-                                        extra: newExtra,
-                                      };
-                                      setTimeout(() => handleAutoGenerateEtiqueta(updatedItem), 50);
-                                    }
-                                    // v2.60: sincronizar con Plan de Acción en background.
-                                    // No esperamos al completado del paso para crear el
-                                    // ActionItem — así el responsable ve la tarea cuanto antes.
-                                    if (sStep === 1 && currentProject?.id) {
-                                      fetch('/api/inventory/sync-actions', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                          projectId: currentProject.id,
-                                          zoneId: currentZone?.id || undefined,
-                                        }),
-                                      }).catch(e => console.error('Error syncing action:', e));
-                                    }
+                                    // 4) Único PUT con todos los campos — v2.69: AWAIT antes de sync-actions
+                                    //    (antes era fire-and-forget, lo que causaba race condition:
+                                    //    sync-actions se ejecutaba antes de que el PUT guardara la decisión,
+                                    //    y el ActionItem no se creaba).
+                                    (async () => {
+                                      try {
+                                        await fetch(`/api/inventory?id=${item.id}`, {
+                                          method: 'PUT',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ ...topLevel, extra: newExtra }),
+                                        });
+                                        // 5) Si Retirar → generar etiqueta (snapshot) en background
+                                        if (val === 'Retirar') {
+                                          const updatedItem: InventoryItemData = {
+                                            ...item,
+                                            ...topLevel,
+                                            extra: newExtra,
+                                          };
+                                          setTimeout(() => handleAutoGenerateEtiqueta(updatedItem), 50);
+                                        }
+                                        // v2.60/v2.69: sincronizar con Plan de Acción DESPUÉS de que
+                                        // el PUT haya persistido la decisión. Así sync-actions ve la
+                                        // decisión actualizada y crea el ActionItem correctamente.
+                                        // v2.69: ahora funciona para cualquier S-step (no solo S1).
+                                        if (currentProject?.id) {
+                                          try {
+                                            const syncRes = await fetch('/api/inventory/sync-actions', {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({
+                                                projectId: currentProject.id,
+                                                zoneId: currentZone?.id || undefined,
+                                              }),
+                                            });
+                                            const syncJson = await syncRes.json();
+                                            if (syncJson.success && syncJson.created > 0) {
+                                              toast.success(`Plan de Acción: ${syncJson.created} tarea(s) nueva(s) creada(s)`);
+                                            }
+                                          } catch (syncErr) {
+                                            console.error('Error syncing action:', syncErr);
+                                          }
+                                        }
+                                      } catch (e) {
+                                        console.error('Error updating decision:', e);
+                                        toast.error('Error al guardar la decisión');
+                                      }
+                                    })();
                                   }}>
                                   <SelectTrigger className={inlineSelect}><SelectValue placeholder="—" /></SelectTrigger>
                                   <SelectContent>
