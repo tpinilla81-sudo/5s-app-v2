@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -119,6 +119,10 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
   const [showPhotoLightbox, setShowPhotoLightbox] = useState<PhotoData | null>(null);
   const [pendingNewPhoto, setPendingNewPhoto] = useState<File | null>(null);
   const [pendingNewPhotoType, setPendingNewPhotoType] = useState<string>('antes');
+  // v2.42: guard contra re-entrancia en la migración de fotos huérfanas.
+  // Impide que loadStep2Photos → migrateOrphanPhotos → loadStep2Photos
+  // se vuelva a disparar mientras la migración está en curso.
+  const isMigratingRef = useRef(false);
 
   // S1: default category is 'innecesario' since this template is for unnecessary items
   const defaultCategory = sStep === 1 ? 'innecesario' : undefined;
@@ -483,7 +487,13 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
       const res = await fetch(`/api/photo-library?${params}`);
       const json = await res.json();
       if (json.success) {
-        setStep2Photos(json.data.map((p: any) => ({
+        // v2.42: solo nos interesan las fotos HUÉRFANAS (sin inventoryItemId).
+        // Las que ya están vinculadas a un item NO deben aparecer en el card
+        // "pendientes de clasificar" ni contar en unclassifiedPhotosCount,
+        // porque su item correspondiente ya existe (creado automáticamente
+        // en FotosModal.handleSubmit o migrado por migrateOrphanPhotos).
+        const orphans = (json.data || []).filter((p: any) => !p.inventoryItemId);
+        setStep2Photos(orphans.map((p: any) => ({
           id: p.id,
           title: p.title,
           description: p.description,
@@ -495,9 +505,88 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
           sStep: p.sStep,
           createdAt: p.createdAt,
         })));
+
+        // v2.42: migración automática de fotos huérfanas (pre-v2.40).
+        // Si hay fotos del Paso 2 sin inventoryItemId, les creamos un
+        // borrador de inventario y los vinculamos, igual que hace
+        // FotosModal.handleSubmit para fotos nuevas. Así el usuario no
+        // tiene que vincular manualmente — el flujo es consistente
+        // tanto para fotos nuevas como para fotos antiguas.
+        if (orphans.length > 0 && !isMigratingRef.current) {
+          isMigratingRef.current = true;
+          try {
+            await migrateOrphanPhotos(orphans);
+          } finally {
+            isMigratingRef.current = false;
+          }
+        }
       }
     } catch (e) {
       console.error('Error loading Step 2 photos:', e);
+    }
+  };
+
+  // v2.42: crea un borrador de inventario por cada foto huérfana del Paso 2
+  // y vincula la foto al nuevo item. Después recarga items para que los
+  // borradores aparezcan en la tabla con badge "Pendiente".
+  const migrateOrphanPhotos = async (orphans: any[]) => {
+    if (!currentProject?.id || orphans.length === 0) return;
+    console.log(`[InventarioModal] Migrando ${orphans.length} foto(s) huérfana(s) del Paso 2 a borradores`);
+    let migrated = 0;
+    for (let idx = 0; idx < orphans.length; idx++) {
+      const photo = orphans[idx];
+      try {
+        // 1) Crear item borrador
+        const itemRes = await fetch('/api/inventory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sStep,
+            projectId: currentProject.id,
+            zoneId: currentZone?.id || null,
+            name: `Pendiente de clasificar (${idx + 1})`,
+            location: null,
+            category: '',
+            quantity: 1,
+            photoUrl: photo.photoUrl,
+            extra: {
+              isDraft: true,
+              sourcePhotoId: photo.id,
+              sourcePhotoUrl: photo.photoUrl,
+              sourcePhotoType: photo.photoType || 'antes',
+              sourcePhotoTitle: photo.title || '',
+            },
+            zonaOrigen: currentZone?.name || null,
+          }),
+        });
+        const itemJson = await itemRes.json();
+        if (!itemJson.success || !itemJson.data?.id) {
+          console.warn(`[InventarioModal] No se pudo crear borrador para foto ${idx + 1}`);
+          continue;
+        }
+        const newItemId = itemJson.data.id;
+
+        // 2) Vincular la foto al nuevo item
+        await fetch('/api/photo-library', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: photo.id, inventoryItemId: newItemId }),
+        });
+        migrated++;
+      } catch (err) {
+        console.error(`[InventarioModal] Error migrando foto ${idx + 1}:`, err);
+      }
+    }
+
+    if (migrated > 0) {
+      console.log(`[InventarioModal] ${migrated} foto(s) migrada(s) a borradores`);
+      // Recargar items para que aparezcan los borradores nuevos, y recargar
+      // step2Photos (ahora debería estar vacío porque todas tienen inventoryItemId).
+      await loadInventory();
+      // Recargar step2Photos: como acabamos de vincular todas, debería
+      // devolver array vacío. Usamos setTimeout(0) para evitar race con
+      // el setItems de loadInventory.
+      setTimeout(() => loadStep2Photos(), 0);
     }
   };
 
