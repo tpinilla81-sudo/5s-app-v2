@@ -1017,13 +1017,15 @@ export default function HomePage() {
                             const membersRes = await fetch(`/api/projects/${currentProject?.id}/members`);
                             const membersData = await membersRes.json();
                             const empleados = (membersData?.members || []).filter((m: any) => m.role === 'empleado');
-                            // If zone has a single empleado, use it; otherwise let user pick later
-                            if (empleados.length === 1) {
-                              empleadoId = empleados[0].userId;
-                            } else if (n.zoneId) {
-                              // Filter by zone
+                            // v2.74.5: priorizar zona, fallback a cualquier empleado
+                            if (n.zoneId) {
                               const zoneEmps = empleados.filter((m: any) => m.zoneId === n.zoneId);
-                              if (zoneEmps.length === 1) empleadoId = zoneEmps[0].userId;
+                              if (zoneEmps.length >= 1) {
+                                empleadoId = zoneEmps[0].userId;
+                              }
+                            }
+                            if (!empleadoId && empleados.length >= 1) {
+                              empleadoId = empleados[0].userId;
                             }
                           } catch (e) { /* ignore */ }
 
@@ -1397,7 +1399,7 @@ export default function HomePage() {
                                             if (alreadyRequested) return;
                                             try {
                                               const sStepData = S_STEPS.find(ss => ss.id === s.id);
-                                              const msg = `Se solicita autoevaluación para S${s.id} (${sStepData?.japaneseName || ''}) en la zona "${currentZone?.name || ''}". El responsable debe realizar el autocheck.`;
+                                              const msg = `Se solicita autoevaluación para S${s.id} (${sStepData?.japaneseName || ''}) en la zona "${currentZone?.name || ''}". El responsable debe realizar el autocheck.\n\n👉 Habla con el empleado para acordar fecha y hora (presencial, teléfono o mensajería — fuera de la app). Luego usa el botón "📅 Programar" sobre el globo 4 para fijar la cita.`;
 
                                               const membersRes = await fetch(`/api/projects/${currentProject?.id}/members`);
                                               const membersData = await membersRes.json();
@@ -1469,7 +1471,7 @@ export default function HomePage() {
                                           try {
                                             const sStepData = S_STEPS.find(ss => ss.id === s.id);
                                             // Decision C: Employee does NOT propose date — only notifies auditor to schedule
-                                            const msg = `Se solicita auditoría para S${s.id} (${sStepData?.japaneseName || ''}) en la zona "${currentZone?.name || ''}". El auditor debe programar la fecha y hora.`;
+                                            const msg = `Se solicita auditoría para S${s.id} (${sStepData?.japaneseName || ''}) en la zona "${currentZone?.name || ''}". El auditor debe programar la fecha y hora.\n\n👉 Habla con el empleado para acordar fecha y hora (presencial, teléfono o mensajería — fuera de la app). Luego usa el botón "📅 Programar" sobre el globo 5 para fijar la cita.`;
                                             
                                             const membersRes = await fetch(`/api/projects/${currentProject?.id}/members`);
                                             const membersData = await membersRes.json();
@@ -1616,11 +1618,16 @@ export default function HomePage() {
                                             const membersRes = await fetch(`/api/projects/${currentProject?.id}/members`);
                                             const membersData = await membersRes.json();
                                             const empleados = (membersData?.members || []).filter((m: any) => m.role === 'empleado');
-                                            if (empleados.length === 1) {
-                                              empleadoId = empleados[0].userId;
-                                            } else if (currentZone) {
+                                            if (currentZone) {
+                                              // Priorizar empleados de la zona actual
                                               const zoneEmps = empleados.filter((m: any) => m.zoneId === currentZone.id);
-                                              if (zoneEmps.length === 1) empleadoId = zoneEmps[0].userId;
+                                              if (zoneEmps.length >= 1) {
+                                                empleadoId = zoneEmps[0].userId;
+                                              }
+                                            }
+                                            // Fallback: si la zona no tiene empleado, tomar el primero del proyecto
+                                            if (!empleadoId && empleados.length >= 1) {
+                                              empleadoId = empleados[0].userId;
                                             }
                                           } catch (e) { /* ignore */ }
 
@@ -1911,6 +1918,14 @@ export default function HomePage() {
               Selecciona fecha y hora. Se creará una entrada en tu calendario y en el del empleado,
               y se le notificará automáticamente.
             </p>
+            {/* v2.74.5: Aviso recordatorio de hablar con el empleado fuera de la app */}
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-2.5 text-xs text-amber-800 flex items-start gap-2">
+              <span className="font-bold text-amber-600">⚠</span>
+              <div>
+                <p className="font-semibold">Antes de programar:</p>
+                <p>Conversa con el empleado (presencial, teléfono, mensajería) para acordar fecha y hora. La app solo registra la cita ya acordada — la coordinación se hace fuera de la aplicación.</p>
+              </div>
+            </div>
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-semibold text-gray-700 block mb-1">Fecha</label>

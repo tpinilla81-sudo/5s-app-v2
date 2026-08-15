@@ -80,6 +80,8 @@ export function UserTaskCalendar({
   const [showCompleted, setShowCompleted] = React.useState(false)
   const [updatingId, setUpdatingId] = React.useState<string | null>(null)
   const [view, setView] = React.useState<'calendar' | 'list'>('calendar')
+  // v2.74.5: citas de evaluación programadas (autoeval/auditoría)
+  const [evalSchedules, setEvalSchedules] = React.useState<any[]>([])
 
   const fetchData = React.useCallback(async () => {
     if (!userId) return
@@ -93,6 +95,21 @@ export function UserTaskCalendar({
       if (json.success) {
         setTasks(json.data || [])
         setStats(json.stats || null)
+      }
+      // v2.74.5: cargar también las citas de evaluación donde el usuario
+      // es responsable OR empleado. Solo si tiene projectId.
+      if (projectId) {
+        try {
+          const sres = await fetch(`/api/evaluation-schedule?userId=${userId}&projectId=${projectId}`)
+          const sjson = await sres.json()
+          if (sjson?.success && Array.isArray(sjson.data)) {
+            setEvalSchedules(sjson.data)
+          } else {
+            setEvalSchedules([])
+          }
+        } catch {
+          setEvalSchedules([])
+        }
       }
     } catch (e) {
       console.error('Error fetching tasks:', e)
@@ -125,13 +142,82 @@ export function UserTaskCalendar({
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(t)
     }
+    // v2.74.5: añadir citas de evaluación programadas (autoeval/auditoría)
+    // como eventos en el calendario. Se muestran como "vencimientos" (citas
+    // próximas) para que aparezcan tanto en la vista de calendario como en
+    // la lista. Construímos un TaskItem "virtual" para reutilizar la UI.
+    for (const sch of evalSchedules) {
+      if (!sch.fechaProgramada) continue
+      if (sch.estado === 'cancelada' || sch.estado === 'realizada') continue
+      const key = format(parseISO(sch.fechaProgramada), 'yyyy-MM-dd')
+      const isAutoeval = sch.miniStep === 4
+      const virtualTask: TaskItem = {
+        id: `eval-${sch.id}`,
+        itemId: `eval-${sch.id}`,
+        itemDescription: `${isAutoeval ? 'Autoevaluación' : 'Auditoría'} S${sch.sStep} programada${sch.horaProgramada ? ' — ' + sch.horaProgramada : ''}`,
+        hallazgo: sch.notas || `Cita de ${isAutoeval ? 'autoevaluación' : 'auditoría'} de S${sch.sStep} programada${sch.horaProgramada ? ' a las ' + sch.horaProgramada : ''}. Zona: ${sch.zone?.name || 'sin zona'}.`,
+        mejora: null,
+        responsable: null,
+        personaDemandada: null,
+        prioridad: 'media' as const,
+        estado: 'abierta' as const,
+        fechaLimite: sch.fechaProgramada,
+        fechaCompromiso: null,
+        fechaResolucion: null,
+        fechaReal: null,
+        fechaEntrada: null,
+        porcentaje: null,
+        source: 'evaluation_schedule',
+        sStep: sch.sStep,
+        miniStep: sch.miniStep,
+        notas: sch.estado,
+        project: sch.project,
+        zone: sch.zone,
+        _status: 'proxima' as const,
+      }
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(virtualTask)
+    }
     return map
-  }, [tasks])
+  }, [tasks, evalSchedules])
 
   const vencidas = tasks.filter((t) => t._status === 'vencida')
   const hoy = tasks.filter((t) => t._status === 'hoy')
   const proximas = tasks.filter((t) => t._status === 'proxima')
   const sinFecha = tasks.filter((t) => t._status === 'sin_fecha')
+
+  // v2.74.5: las citas de evaluación NO son ActionItems — las añadimos
+  // a 'proximas' manualmente para que aparezcan en la lista lateral.
+  // (El vencimientosByDate ya las incluye para la vista de calendario.)
+  const evalProximas = evalSchedules
+    .filter(s => s.fechaProgramada && s.estado !== 'cancelada' && s.estado !== 'realizada')
+    .map(sch => {
+      const isAutoeval = sch.miniStep === 4
+      return {
+        id: `eval-${sch.id}`,
+        itemId: `eval-${sch.id}`,
+        itemDescription: `${isAutoeval ? 'Autoevaluación' : 'Auditoría'} S${sch.sStep} programada${sch.horaProgramada ? ' — ' + sch.horaProgramada : ''}`,
+        hallazgo: sch.notas || `Cita de ${isAutoeval ? 'autoevaluación' : 'auditoría'} de S${sch.sStep} programada${sch.horaProgramada ? ' a las ' + sch.horaProgramada : ''}. Zona: ${sch.zone?.name || 'sin zona'}.`,
+        mejora: null,
+        responsable: null,
+        personaDemandada: null,
+        prioridad: 'media' as const,
+        estado: 'abierta' as const,
+        fechaLimite: sch.fechaProgramada,
+        fechaCompromiso: null,
+        fechaResolucion: null,
+        fechaReal: null,
+        fechaEntrada: null,
+        porcentaje: null,
+        source: 'evaluation_schedule',
+        sStep: sch.sStep,
+        miniStep: sch.miniStep,
+        notas: sch.estado,
+        project: sch.project,
+        zone: sch.zone,
+        _status: 'proxima' as const,
+      } as TaskItem
+    })
 
   // Tasks for selected date in calendar view — split into entradas / vencimientos
   const tasksForSelectedDate = React.useMemo(() => {
@@ -425,13 +511,13 @@ export function UserTaskCalendar({
                 onOpenActionPlan={onOpenActionPlan}
               />
             )}
-            {proximas.length > 0 && (
+            {(proximas.length > 0 || evalProximas.length > 0) && (
               <TaskSection
                 title="Próximas"
-                count={proximas.length}
+                count={proximas.length + evalProximas.length}
                 color="blue"
                 icon={<CircleDot className="h-4 w-4" />}
-                tasks={proximas}
+                tasks={[...proximas, ...evalProximas]}
                 onUpdate={updateTask}
                 updatingId={updatingId}
                 onOpenActionPlan={onOpenActionPlan}
