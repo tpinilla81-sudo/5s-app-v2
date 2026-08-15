@@ -175,8 +175,8 @@ interface FiveSState {
   fetchEvaluationSchedules: () => Promise<void>
   selectSStep: (s: number | null) => void
   setCurrentView: (view: 'board' | 'detail' | 'admin' | 'maintenance' | 'gerente') => void
-  setActiveTab: (tab: 'board' | 'gerente' | 'admin' | 'maintenance' | 'gestion' | 'actionplan') => void
-  openModal: (type: 'formacion' | 'fotos' | 'inventario' | 'actionplan' | 'autoevaluacion' | 'auditoria' | 'globalActionPlan' | 'globalInventory' | 'auditResults' | 'standardsLibrary' | 'photoLibrary', miniStep: number) => void
+  setActiveTab: (tab: 'board' | 'gerente' | 'admin' | 'maintenance' | 'gestion' | 'actionplan' | 'jaula' | 'activos' | 'puntoLimpio') => void
+  openModal: (type: 'formacion' | 'fotos' | 'inventario' | 'actionplan' | 'autoevaluacion' | 'auditoria' | 'globalActionPlan' | 'globalInventory' | 'auditResults' | 'standardsLibrary' | 'photoLibrary' | 'standards', miniStep: number) => void
   closeModal: () => void
   seedDatabase: () => Promise<void>
   setAdminFreeNavigation: (enabled: boolean) => void
@@ -200,7 +200,7 @@ interface FiveSState {
   removeLocalNotification: (id: string) => void
 
   // Computed helpers
-  getMiniStepStatus: (sStep: number, miniStep: number) => 'locked' | 'available' | 'completed'
+  getMiniStepStatus: (sStep: number, miniStep: number) => 'locked' | 'available' | 'completed' | 'completed_viewonly'
   // v2.73: helper para saber si el paso 4/5 está dentro de la ventana de la cita programada
   isStepInScheduleWindow: (sStep: number, miniStep: number) => 'no_schedule' | 'before' | 'in_window' | 'after_window'
   isZoneMiniStepComplete: (sStep: number, miniStep: number, zoneId: string) => boolean
@@ -382,11 +382,8 @@ export const use5SStore = create<FiveSState>((set, get) => ({
           get().fetchEmployeeProgress(currentProject.id, z.id)
         }
       }
-
-      return zones
     } catch (error) {
       console.error('Error fetching user zones:', error)
-      return []
     }
   },
 

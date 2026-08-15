@@ -211,22 +211,21 @@ export default function HomePage() {
             // v2.74.2: cargar schedules de evaluación para mostrar badge
             // "📅 Programado" sobre los globos 4 y 5
             try { await use5SStore.getState().fetchEvaluationSchedules(); } catch {}
-            // Auto-generate audit_ready notifications for any pending audits
-            if (currentProject?.id) {
-              fetch('/api/notifications/auto', {
+            // v2.75: disparar endpoint unificado /api/avisos/generate que cubre
+            // step_completed (autoeval_ready, audit_ready) + action_items
+            // (new_action_item, action_due_today, action_overdue) + schedule
+            // (evaluation_expired). Sustituye a /api/notifications/auto y
+            // /api/avisos/auto.
+            if (currentProject?.id && currentUser?.id) {
+              fetch('/api/avisos/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ projectId: currentProject.id }),
-              }).catch(e => console.error('Auto-notification error:', e));
-              // v2.61: Auto-generate avisos from ActionItems (new_action_item,
-              // action_due_today, action_overdue) for the current user
-              if (currentUser?.id) {
-                fetch('/api/avisos/auto', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ userId: currentUser.id, projectId: currentProject.id }),
-                }).catch(e => console.error('Auto-avisos error:', e));
-              }
+                body: JSON.stringify({
+                  projectId: currentProject.id,
+                  userId: currentUser.id,
+                  source: 'all',
+                }),
+              }).catch(e => console.error('Auto-avisos error:', e));
             }
           } else {
             setIsSeeding(true);

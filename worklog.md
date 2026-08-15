@@ -3134,3 +3134,142 @@ Stage Summary:
   * Implementar vista unificada del Plan de Acción con pestañas por origen
   * Implementar deduplicación estricta en el guardado (no crear ActionItem
     nuevo si ya existe uno con mismo sourceId+itemId+zoneId)
+
+---
+Task ID: v2.75-FINAL
+Agent: Main
+Task: v2.75 — Verificación, cleanup y bump de versión final
+
+Work Log:
+- Inspeccionado estado del repo: commit fd1187c contiene la base de v2.75
+  (schema + API + componentes + store + page.tsx).
+- Detectado que /src/components/{MiniStepModal,SStepDetail,FormacionModal,
+  Board5S}.tsx son código muerto (nadie los importa). El flujo real está
+  en /src/components/5s/* y se usa desde page.tsx vía MODAL_MAP.
+  → Borrados los 4 ficheros legacy (limpieza de -16 TS errors).
+- Corregido fetchUserZones en store.ts: retornaba Promise<UserZoneAssignment[]>
+  pero la interfaz declara Promise<void>. Ajustado el cuerpo para no retornar.
+- Corregido getMiniStepStatus en store.ts: el tipo de retorno excluye
+  'completed_viewonly' pero la implementación lo usa en 4 sitios. Añadido
+  al tipo de la firma.
+- Ajustados tipos de setActiveTab y openModal en la interfaz del store para
+  admitir los valores 'jaula' | 'activos' | 'puntoLimpio' | 'standards'
+  que ya están en el tipo del estado. Elimina 8 TS errors en page.tsx.
+- page.tsx (init effect): sustituidas las 2 llamadas paralelas a
+  /api/notifications/auto + /api/avisos/auto por una sola a
+  /api/avisos/generate con source:'all'. La llamada unificada se hace
+  tanto en el init del board como en el polling cada 5 min.
+- Verificado SQLite local: las columnas nuevas de ActionItem (sourceId,
+  comunicadoPorId, personaDemandadaId, verificadoPorId, tipo, status),
+  AuditResult (miniStep, zoneId, ejecutorId, asistenteId,
+  actionItemsGenerados, scheduleId), Notification (metadata) y
+  EvaluationSchedule (rolEjecutor) están presentes en db/custom.db.
+- Build de producción: ✓ Compiled successfully in 21.5s (Next.js).
+- TypeScript: 108 → 88 errors (todos pre-existentes en módulos ajenos
+  a v2.75: TemplateManager, email, supabase-storage, gerente/, etc.).
+- Bump v2.74.5 → v2.75 en middleware.ts.
+
+Stage Summary:
+- v2.75 está completo y listo para deploy.
+- Pendiente (para próximo deploy a producción): ejecutar migración
+  prisma migrate deploy en Neon para añadir las columnas nuevas.
+  En local ya están aplicadas vía prisma db push.
+- ENDPOINTS UNIFICADOS: /api/avisos/generate sustituye a
+  /api/notifications/auto y /api/avisos/auto (estos endpoints siguen
+  existiendo por retrocompatibilidad pero ya no se llaman desde el
+  frontend; considerar eliminarlos en v2.76).
+
+---
+Task ID: REPROI-v2.75
+Agent: Main
+Task: REPROI — Repriorización de tareas tras cerrar v2.75
+
+Tras verificar el estado del tablero y completar v2.75 (avisos unificados
++ ActionItem v2 + flujo 3→4→5 + canOpenModal solo-ejecutor), queda la
+siguiente backlog ordenada por prioridad:
+
+PRIORIDAD ALTA (cortar deuda técnica / bugs activos):
+
+P1. Migración a producción (DB Neon)
+   - Ejecutar `prisma migrate deploy` en Vercel para añadir las columnas
+     nuevas de ActionItem, AuditResult, Notification y EvaluationSchedule
+     que en local ya están vía db push. Sin esto, los nuevos endpoints
+     fallarán en producción como ya pasó en v2.68/v2.74.
+   - Alternativa: crear endpoint temporal /api/migrate-v275 (ALTER TABLE
+     IF NOT EXISTS para cada columna nueva) igual que hicimos en v2.74.1.
+
+P2. Migrar datos legacy de ActionItem (Fase 2 del diseño)
+   - Copiar responsable / comunicadoPor / personaDemandada / verificadoPor
+     (texto libre) a los nuevos *Id (FK) usando matching por email o name.
+   - Script one-shot: scripts/migrate-actionitem-fks.cjs que recorra todos
+     los ActionItem con *Id null y haga upsert de la FK si encuentra
+     User por email o name exacto.
+
+P3. Eliminar campos legacy de ActionItem (Fase 3 del diseño)
+   - Una vez migrados todos los datos y verificado que los nuevos *Id
+     están poblados, eliminar del schema prisma:
+       responsable, verificadoPor, comunicadoPor, personaDemandada,
+       fechaCompromiso, fechaResolucion
+   - Actualizar todas las referencias en /api/actions, /api/avisos/generate,
+     /api/gerente/*, AutoevaluacionModal, AuditoriaModal, ActionPlanModal,
+     InventarioModal, PlanDeAccionView.
+
+P4. Eliminar endpoints legacy /api/notifications/auto y /api/avisos/auto
+   - Ya no se llaman desde el frontend tras v2.75. Confirmar que ningún
+     otro código los referencia y borrarlos.
+
+PRIORIDAD MEDIA (cierre de características):
+
+M1. Vista unificada del Plan de Acción con pestañas por origen
+   - PlanDeAccionView.tsx debe mostrar 3 pestañas:
+       "Plan S5" (source='actionplan')
+       "Inventario S1-S4" (source='inventario')
+       "Hallazgos autoeval/auditoría" (source in ['autoevaluacion','auditoria'])
+   - Cada pestaña con sus filtros y columnas específicas.
+   - Una 4ª pestaña "Todo" combinando con badge de origen.
+
+M2. Deduplicación estricta al guardar ActionItems
+   - En /api/actions POST: antes de crear un ActionItem nuevo, buscar
+     si ya existe uno con mismo (sourceId, itemId, zoneId, estado in
+     ['abierta','en_proceso']). Si existe, hacer UPDATE en lugar de INSERT.
+   - Esto evita duplicados cuando el mismo NOK se detecta en autoeval y
+     luego de nuevo en auditoría sin haberse resuelto.
+
+M3. Recategorización con FK en AuditoriaModal
+   - AuditoriaModal aún usa el campo legacy 'responsable' (texto) al
+     recategorizar. Cambiar a personaDemandadaId (FK) cuando el auditor
+     reasigna.
+   - Igual para AutoevaluacionModal al crear ActionItems desde NOKs:
+     usar comunicadoPorId=currentUser.id en lugar del texto.
+
+M4. Trazabilidad: enlazar AuditResult con ActionItems
+   - Al guardar AutoevaluacionModal/AuditoriaModal, setear
+     AuditResult.actionItemsGenerados = count de NOKs con ActionItem creado.
+   - Al crear cada ActionItem desde un NOK, setear sourceId = auditResult.id.
+   - Esto permite navegar desde el AuditResult hacia sus hallazgos y
+     viceversa.
+
+PRIORIDAD BAJA (mejoras UX):
+
+B1. NotificationPanel: mostrar metadata estructurada
+   - El store ya tiene NotificationItem. Falta que el panel renderice
+     botones de acción cuando el tipo lo permita:
+       evaluation_scheduled → "Aceptar cita" / "Rechazar"
+       audit_failed → "Ver hallazgos"
+       action_verified → "Ver en plan de acción"
+   - Hoy el panel solo muestra título + mensaje.
+
+B2. Bump de versión del package.json (cosmético)
+   - package.json sigue en "version": "2.1.0" mientras middleware va por
+     v2.75. Sincronizar.
+
+B3. Calendario de citas: filtrar por usuario actual
+   - UserTaskCalendar muestra todas las citas. Filtrar para que el
+     empleado solo vea las suyas (asistente), el responsable solo las
+     que ejecuta, el auditor las suyas, el gerente todas.
+
+PENDIENTE (bloqueado hasta fin de tablero):
+
+PENDIENTE-ZONAS — Ver Task ID PENDIENTE-ZONAS arriba. NO tocar hasta
+que el usuario confirme que el tablero está totalmente definido.
+
