@@ -116,11 +116,51 @@ export async function POST(request: NextRequest) {
 
         const zoneName = item.zone?.name || item.zonaOrigen || 'Sin zona'
         const itemDescription = `${item.name} (${item.quantity} und.)`
-        const hallazgo = `Elemento innecesario detectado en ${zoneName}: ${itemDescription}` +
-          (item.location ? ` — Ubicación: ${item.location}` : '')
+        // v2.72: hallazgo más limpio — antes era un texto mezclado con todo.
+        // Ahora solo lleva el resumen; los detalles van en `extra`.
+        const hallazgo = `Innecesario S${item.sStep}: ${item.name}` +
+          (item.category ? ` (${item.category})` : '') +
+          (item.location ? ` — ${item.location}` : '')
         const accionCorrectiva = decision === 'Retirar'
           ? `Retirar a Jaula de cuarentena${extra.diasCuarentena ? ` (${extra.diasCuarentena} días)` : ''}`
           : 'Eliminar y enviar a Residuo'
+
+        // v2.72: Snapshot completo del inventario para el grupo
+        // "ORIGEN (INVENTARIO)" en el Plan de Acción. Reproduce las
+        // columnas del InventarioModal S1 (y compatibilidad S2-S5).
+        const photoUrls: string[] = []
+        if (item.photoUrls) {
+          try {
+            const parsed = JSON.parse(item.photoUrls)
+            if (Array.isArray(parsed)) {
+              for (const p of parsed) {
+                if (typeof p === 'string') photoUrls.push(p)
+                else if (p?.url) photoUrls.push(p.url)
+              }
+            }
+          } catch { /* ignore */ }
+        } else if (item.photoUrl) {
+          photoUrls.push(item.photoUrl)
+        }
+
+        const extraSnapshot = JSON.stringify({
+          inventoryItemId: item.id,
+          elemento: item.name,
+          ubicacion: item.location || '',
+          categoria: item.category || '',
+          cantidad: item.quantity || 1,
+          precio: item.price ?? null,
+          estado: extra.estado || '',
+          frecuenciaUso: extra.frecuenciaUso || '',
+          decision: decision,
+          diasCuarentena: extra.diasCuarentena || null,
+          etiquetas: extra.etiquetas || '',
+          zonaOrigen: item.zonaOrigen || zoneName,
+          zonaDestino: item.zonaDestino || '',
+          photoUrls,
+          sStep: item.sStep,
+          capturedAt: new Date().toISOString(),
+        })
 
         // Calcular fecha límite para items en jaula (fecha entrada + días cuarentena)
         let fechaLimite: Date | null = null
@@ -180,6 +220,7 @@ export async function POST(request: NextRequest) {
             semanaPrevista: `W${getWeekNumber(fechaLimite || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))}`,
             porcentaje: 0,
             semanaReal: null,
+            extra: extraSnapshot, // v2.72: snapshot del inventario
           },
         })
 

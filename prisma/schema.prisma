@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -314,13 +314,20 @@ model ActionItem {
   fechaResolucion DateTime? // Fecha de resolución (alias)
   photoRefs       String? // JSON array of photo references
   notas           String? // Notas adicionales sobre la resolución
-  source          String    @default("autoevaluacion") // "autoevaluacion" or "auditoria" or "actionplan"
+  source          String    @default("autoevaluacion") // "autoevaluacion" or "auditoria" or "actionplan" or "inventario"
   auditor         String? // Nombre del auditor que detectó la deficiencia
   zoneId          String? // Zona asignada (opcional, referencia a Zone)
   verificadoPor   String? // Quién verificó que la acción fue completada
   projectId       String
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  // v2.72: Snapshot del inventario original (cuando source='inventario').
+  // Contiene { elemento, ubicacion, categoria, cantidad, precio, estado,
+  // frecuenciaUso, decision, diasCuarentena, etiquetas, zonaOrigen,
+  // zonaDestino, photoUrls, inventoryItemId } para mostrar el grupo
+  // "ORIGEN (INVENTARIO)" en el Plan de Acción igual que en InventarioModal.
+  extra           String?
 
   // Plan de Acción table fields (matching the standard 5S action plan format)
   numeroEntrada       Int? // Nº de entrada (auto-increment per project)

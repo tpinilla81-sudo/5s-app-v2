@@ -428,7 +428,7 @@ export default function HomePage() {
               <h1 className="text-sm font-black text-gray-900 leading-tight tracking-wide">5S</h1>
               <div className="flex items-center gap-1">
                 <span className="text-[10px] font-semibold text-green-600">by Método</span>
-                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.70</span>
+                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.71</span>
                 {isGestor && <span className="text-[10px] font-semibold text-red-500">· Gestor</span>}
                 {!isGestor && currentProject && <span className="text-[10px] text-muted-foreground">· {currentProject.name}</span>}
                 {!isGestor && currentZone && <span className="text-[10px] font-medium" style={{ color: currentZone.color || '#3B82F6' }}>· {currentZone.name}</span>}
@@ -1817,11 +1817,13 @@ export default function HomePage() {
                       // Open calendar to show the new entry
                       setShowUserCalendar(true);
                     } else {
-                      toast.error('Error al programar la fecha');
+                      // v2.71: mostrar el error real del servidor en el toast
+                      console.error('[schedule] Server error:', json);
+                      toast.error(`Error al programar: ${json.error || 'Error desconocido'}`);
                     }
-                  } catch (e) {
+                  } catch (e: any) {
                     console.error('Error saving schedule:', e);
-                    toast.error('Error de conexión');
+                    toast.error(`Error de conexión: ${e?.message || 'desconocido'}`);
                   } finally {
                     setIsSavingSchedule(false);
                   }

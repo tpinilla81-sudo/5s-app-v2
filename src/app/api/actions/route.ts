@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+// v2.72: helper para parsear `extra` (JSON string) sin romper si está malformado
+function safeParseExtra(raw: string): any {
+  try { return JSON.parse(raw) } catch { return null }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -49,7 +54,8 @@ export async function GET(request: NextRequest) {
             project: { select: { id: true, name: true, company: true } },
           },
         })
-        return NextResponse.json({ success: true, data: actions })
+        const parsed = actions.map(a => ({ ...a, extra: a.extra ? safeParseExtra(a.extra) : null }))
+        return NextResponse.json({ success: true, data: parsed })
       }
 
       if (userRole === 'responsable') {
@@ -72,7 +78,8 @@ export async function GET(request: NextRequest) {
             project: { select: { id: true, name: true, company: true } },
           },
         })
-        return NextResponse.json({ success: true, data: actions })
+        const parsed = actions.map(a => ({ ...a, extra: a.extra ? safeParseExtra(a.extra) : null }))
+        return NextResponse.json({ success: true, data: parsed })
       }
 
       if (userRole === 'empleado') {
@@ -97,7 +104,8 @@ export async function GET(request: NextRequest) {
             project: { select: { id: true, name: true, company: true } },
           },
         })
-        return NextResponse.json({ success: true, data: actions })
+        const parsed = actions.map(a => ({ ...a, extra: a.extra ? safeParseExtra(a.extra) : null }))
+        return NextResponse.json({ success: true, data: parsed })
       }
     }
 
@@ -116,7 +124,13 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ success: true, data: actions })
+    // v2.72: parse `extra` (JSON string) → objeto para el frontend
+    const parsed = actions.map(a => ({
+      ...a,
+      extra: a.extra ? safeParseExtra(a.extra) : null,
+    }))
+
+    return NextResponse.json({ success: true, data: parsed })
   } catch (error) {
     console.error('Error fetching actions:', error)
     return NextResponse.json({ success: false, error: 'Error fetching actions' }, { status: 500 })
@@ -161,6 +175,7 @@ export async function POST(request: NextRequest) {
       porcentaje,
       semanaReal,
       photoRefs, // v2.63: JSON array of photo URLs linked to this hallazgo
+      extra, // v2.72: snapshot del inventario (JSON string o objeto)
     } = body
 
     // Allow draft entries from actionplan source with placeholder description
@@ -225,6 +240,7 @@ export async function POST(request: NextRequest) {
         porcentaje: porcentaje !== undefined ? porcentaje : 0,
         semanaReal: semanaReal || null,
         photoRefs: photoRefs || null, // v2.63: fotos del hallazgo enlazadas al ActionItem
+        extra: extra ? (typeof extra === 'string' ? extra : JSON.stringify(extra)) : null, // v2.72
       },
     })
 
@@ -274,6 +290,11 @@ export async function PUT(request: NextRequest) {
     if (body.porcentaje !== undefined) updateData.porcentaje = body.porcentaje
     if (body.semanaReal !== undefined) updateData.semanaReal = body.semanaReal
     if (body.photoRefs !== undefined) updateData.photoRefs = body.photoRefs // v2.63
+    // v2.72: snapshot del inventario
+    if (body.extra !== undefined) {
+      updateData.extra = body.extra === null ? null
+        : (typeof body.extra === 'string' ? body.extra : JSON.stringify(body.extra))
+    }
     // Description fields
     if (body.hallazgo !== undefined) updateData.hallazgo = body.hallazgo
     if (body.itemDescription !== undefined) updateData.itemDescription = body.itemDescription

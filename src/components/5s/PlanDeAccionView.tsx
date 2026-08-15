@@ -53,6 +53,64 @@ interface ActionItemData {
   sStep: number;
   miniStep: number;
   zoneName: string;
+  source?: string; // v2.72: 'inventario' | 'autoevaluacion' | 'auditoria' | 'actionplan'
+  extra?: any | null; // v2.72: snapshot del inventario
+}
+
+// v2.72: helper para saber si una entrada viene del inventario
+function isInventarioSource(a: ActionItemData): boolean {
+  return a.source === 'inventario' || (a.extra && a.extra.inventoryItemId);
+}
+
+// v2.72: componente visual del snapshot de inventario (compartido desktop + mobile)
+function OrigenInventarioPanel({ extra, compact = false }: { extra: any; compact?: boolean }) {
+  if (!extra) {
+    return (
+      <div className="text-[10px] italic text-gray-400 py-1">
+        Sin datos de inventario asociados (entrada manual).
+      </div>
+    );
+  }
+  const fields: { label: string; value: any }[] = [
+    { label: 'Elemento', value: extra.elemento },
+    { label: 'Ubicación', value: extra.ubicacion },
+    { label: 'Categoría', value: extra.categoria },
+    { label: 'Cantidad', value: extra.cantidad },
+    { label: 'Precio (€)', value: extra.precio != null ? Number(extra.precio).toFixed(2) : null },
+    { label: 'Estado', value: extra.estado },
+    { label: 'Frec. uso', value: extra.frecuenciaUso },
+    { label: 'Decisión', value: extra.decision },
+    { label: 'Días cuar.', value: extra.diasCuarentena },
+    { label: 'Etiquetas', value: extra.etiquetas },
+    { label: 'Z. Origen', value: extra.zonaOrigen },
+    { label: 'Z. Destino', value: extra.zonaDestino },
+  ];
+  return (
+    <div className={`grid gap-x-3 gap-y-1 ${compact ? 'grid-cols-2' : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6'}`}>
+      {fields.map(f => (
+        <div key={f.label} className="min-w-0">
+          <div className="text-[9px] font-bold text-emerald-700 uppercase tracking-wide leading-tight">{f.label}</div>
+          <div className="text-[11px] text-gray-800 truncate" title={String(f.value ?? '')}>
+            {f.value != null && String(f.value) !== '' ? String(f.value) : <span className="text-gray-300">—</span>}
+          </div>
+        </div>
+      ))}
+      {Array.isArray(extra.photoUrls) && extra.photoUrls.length > 0 && (
+        <div className="col-span-2 sm:col-span-3 md:col-span-6 mt-1">
+          <div className="text-[9px] font-bold text-emerald-700 uppercase tracking-wide mb-1">Fotos del hallazgo</div>
+          <div className="flex gap-1.5 flex-wrap">
+            {extra.photoUrls.map((url: string, i: number) => (
+              <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                className="block w-12 h-12 rounded border border-emerald-200 overflow-hidden bg-emerald-50 hover:scale-110 transition-transform">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface ZoneData {
@@ -408,6 +466,8 @@ export default function PlanDeAccionView() {
   const [filterS, setFilterS] = useState<string>('all');
   const [zones, setZones] = useState<ZoneData[]>([]);
   const [showNewDialog, setShowNewDialog] = useState(false);
+  // v2.72: filas expandidas (mostrar grupo ORIGEN-INVENTARIO)
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   // Load zones
   useEffect(() => {
@@ -459,6 +519,8 @@ export default function PlanDeAccionView() {
           sStep: a.sStep || 1,
           miniStep: a.miniStep || 4,
           zoneName: a.zone?.name || '',
+          source: a.source || '',
+          extra: a.extra || null, // v2.72: snapshot del inventario
         })));
       }
     } catch (e) {
@@ -707,7 +769,7 @@ export default function PlanDeAccionView() {
               <table className="w-full text-xs border-collapse min-w-[1200px]">
                 <thead className="sticky top-0 z-10">
                   <tr>
-                    <th className="bg-gray-600 text-white px-1.5 py-1.5 text-center font-bold border border-gray-500 w-10">
+                    <th colSpan={2} className="bg-gray-600 text-white px-1.5 py-1.5 text-center font-bold border border-gray-500">
                       Origen
                     </th>
                     <th colSpan={9} className="bg-amber-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-amber-500">
@@ -726,6 +788,8 @@ export default function PlanDeAccionView() {
                   <tr>
                     {/* Origen column */}
                     <th className="bg-gray-500 text-white px-1 py-1 text-center font-semibold border border-gray-400 whitespace-nowrap">S</th>
+                    {/* v2.72: toggle 📦 para expandir ORIGEN (INVENTARIO) */}
+                    <th className="bg-gray-500 text-white px-1 py-1 text-center font-semibold border border-gray-400 w-8">📦</th>
                     {/* Yellow section headers */}
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Nº</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Fecha</th>

@@ -72,45 +72,58 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'sStep, miniStep, and projectId are required' }, { status: 400 })
     }
 
-    // Use upsert based on the unique constraint
-    const where = {
-      sStep_miniStep_projectId_zoneId: {
+    // v2.71: Reemplazamos el upsert (que fallaba con zoneId=null por la
+    // clave única compuesta) por findFirst + create/update. Esto evita el
+    // error "Argument where needs sStep_miniStep_projectId_zoneId" cuando
+    // zoneId es null.
+    const existingSchedule = await db.evaluationSchedule.findFirst({
+      where: {
         sStep,
         miniStep,
         projectId,
         zoneId: zoneId || null,
-      },
-    }
-
-    const schedule = await db.evaluationSchedule.upsert({
-      where,
-      update: {
-        fechaProgramada: fechaProgramada || null,
-        horaProgramada: horaProgramada || null,
-        responsableId: responsableId || null,
-        empleadoId: empleadoId || null,
-        createdBy: createdBy || null,
-        notas: notas || null,
-        estado: estado || 'programada',
-      },
-      create: {
-        sStep,
-        miniStep,
-        projectId,
-        zoneId: zoneId || null,
-        fechaProgramada: fechaProgramada || null,
-        horaProgramada: horaProgramada || null,
-        responsableId: responsableId || null,
-        empleadoId: empleadoId || null,
-        createdBy: createdBy || null,
-        notas: notas || null,
-        estado: estado || 'programada',
-      },
-      include: {
-        zone: { select: { id: true, name: true, color: true } },
-        project: { select: { id: true, name: true } },
       },
     })
+
+    let schedule: any
+    if (existingSchedule) {
+      schedule = await db.evaluationSchedule.update({
+        where: { id: existingSchedule.id },
+        data: {
+          fechaProgramada: fechaProgramada || null,
+          horaProgramada: horaProgramada || null,
+          responsableId: responsableId || null,
+          empleadoId: empleadoId || null,
+          createdBy: createdBy || null,
+          notas: notas || null,
+          estado: estado || 'programada',
+        },
+        include: {
+          zone: { select: { id: true, name: true, color: true } },
+          project: { select: { id: true, name: true } },
+        },
+      })
+    } else {
+      schedule = await db.evaluationSchedule.create({
+        data: {
+          sStep,
+          miniStep,
+          projectId,
+          zoneId: zoneId || null,
+          fechaProgramada: fechaProgramada || null,
+          horaProgramada: horaProgramada || null,
+          responsableId: responsableId || null,
+          empleadoId: empleadoId || null,
+          createdBy: createdBy || null,
+          notas: notas || null,
+          estado: estado || 'programada',
+        },
+        include: {
+          zone: { select: { id: true, name: true, color: true } },
+          project: { select: { id: true, name: true } },
+        },
+      })
+    }
 
     // v2.68: notificar al empleado (y al responsable si lo programa el empleado)
     if (notifyUser) {
@@ -161,9 +174,14 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, data: schedule })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error saving evaluation schedule:', error)
-    return NextResponse.json({ success: false, error: 'Error saving evaluation schedule' }, { status: 500 })
+    // v2.71: devolver el mensaje real del error para que el frontend pueda mostrarlo
+    const errorMsg = error?.message || 'Error saving evaluation schedule'
+    return NextResponse.json(
+      { success: false, error: errorMsg, code: error?.code || 'UNKNOWN' },
+      { status: 500 }
+    )
   }
 }
 
