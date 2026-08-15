@@ -185,7 +185,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PATCH /api/evaluation-schedule — Update estado (realizada, cancelada, reprogramada)
+// PATCH /api/evaluation-schedule — Update estado (realizada, cancelada, reprogramada, aceptada, vencida)
+// v2.74: cuando estado='aceptada', notifica al responsable que el empleado aceptó la cita.
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
@@ -195,6 +196,12 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'id and estado are required' }, { status: 400 })
     }
 
+    // Traer el schedule antes de actualizar para tener responsableId/empleadoId/etc.
+    const before = await db.evaluationSchedule.findUnique({ where: { id } })
+    if (!before) {
+      return NextResponse.json({ success: false, error: 'Schedule not found' }, { status: 404 })
+    }
+
     const updated = await db.evaluationSchedule.update({
       where: { id },
       data: {
@@ -202,6 +209,30 @@ export async function PATCH(request: NextRequest) {
         ...(notas !== undefined ? { notas } : {}),
       },
     })
+
+    // v2.74: notificar al responsable cuando el empleado acepta
+    if (estado === 'aceptada' && before.responsableId) {
+      const miniStepLabel = before.miniStep === 4 ? 'Autoevaluación' : 'Auditoría'
+      const fechaStr = before.fechaProgramada
+        ? `${before.fechaProgramada.split('-').reverse().join('/')}${before.horaProgramada ? ' a las ' + before.horaProgramada : ''}`
+        : 'fecha por confirmar'
+      try {
+        await db.notification.create({
+          data: {
+            userId: before.responsableId,
+            type: 'evaluation_accepted',
+            title: `✓ ${miniStepLabel} aceptada: S${before.sStep} — ${fechaStr}`,
+            message: `El empleado ha aceptado la cita de ${miniStepLabel.toLowerCase()} para S${before.sStep} programada para el ${fechaStr}. La ventana se abrirá automáticamente a la hora programada.`,
+            sStep: before.sStep,
+            zoneId: before.zoneId || null,
+            projectId: before.projectId,
+            read: false,
+          },
+        })
+      } catch (e) {
+        console.error('Error notifying responsable of acceptance:', e)
+      }
+    }
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {

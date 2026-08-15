@@ -326,6 +326,31 @@ export default function HomePage() {
     }
   }, [canSeeNotifications, currentUser?.id, currentProject?.id]);
 
+  // v2.74: Comprobar si alguna cita programada ha superado la ventana de 2h.
+  // Si es así, el backend la marca como 'vencida' y envía notificaciones a
+  // responsable y empleado. Ejecutamos al montar y cada 5 minutos.
+  useEffect(() => {
+    if (!currentUser?.id || !currentProject?.id) return;
+    const checkVencidas = async () => {
+      try {
+        const res = await fetch('/api/evaluation-schedule/check-vencidas', { method: 'POST' });
+        const data = await res.json();
+        if (data?.success && data.vencidasCount > 0) {
+          // Hubo vencidas → refrescar schedules + notifs para que la UI refleje el cambio
+          try { await use5SStore.getState().fetchEvaluationSchedules(); } catch {}
+          try {
+            const nres = await fetch(`/api/notifications?userId=${currentUser.id}&projectId=${currentProject.id}&unread=true`);
+            const ndata = await nres.json();
+            if (ndata.success) setUnreadNotifs(ndata.data?.length || 0);
+          } catch {}
+        }
+      } catch (e) { /* silent */ }
+    };
+    checkVencidas();
+    const interval = setInterval(checkVencidas, 5 * 60 * 1000); // cada 5 min
+    return () => clearInterval(interval);
+  }, [currentUser?.id, currentProject?.id]);
+
   // Fetch user task count for the calendar badge (vencidas + hoy)
   useEffect(() => {
     if (!currentUser?.id) {
@@ -942,6 +967,9 @@ export default function HomePage() {
                   key={n.id}
                   className={`p-3 ${n.read ? 'bg-white' :
                     n.type === 'audit_requested' ? 'bg-orange-50' :
+                    n.type === 'evaluation_scheduled' ? 'bg-purple-50' :
+                    n.type === 'evaluation_accepted' ? 'bg-green-50' :
+                    n.type === 'evaluation_expired' ? 'bg-red-50' :
                     n.type === 'new_action_item' ? 'bg-blue-50' :
                     n.type === 'action_due_today' ? 'bg-orange-50' :
                     n.type === 'action_overdue' ? 'bg-red-50' :
@@ -952,6 +980,9 @@ export default function HomePage() {
                     {n.type === 'audit_requested' && <BellRing className="h-3 w-3 text-orange-500 shrink-0" />}
                     {n.type === 'audit_ready' && <ShieldCheck className="h-3 w-3 text-green-500 shrink-0" />}
                     {n.type === 'audit_meeting_accepted' && <CheckSquare className="h-3 w-3 text-green-600 shrink-0" />}
+                    {n.type === 'evaluation_scheduled' && <CalendarDays className="h-3 w-3 text-purple-500 shrink-0" />}
+                    {n.type === 'evaluation_accepted' && <CheckSquare className="h-3 w-3 text-green-600 shrink-0" />}
+                    {n.type === 'evaluation_expired' && <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />}
                     {n.type === 'new_action_item' && <CalendarDays className="h-3 w-3 text-blue-500 shrink-0" />}
                     {n.type === 'action_due_today' && <AlertTriangle className="h-3 w-3 text-orange-500 shrink-0" />}
                     {n.type === 'action_overdue' && <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />}
@@ -1009,6 +1040,79 @@ export default function HomePage() {
                       >
                         <Calendar className="h-2.5 w-2.5" />
                         Programar fecha
+                      </button>
+                    )}
+                    {/* v2.74: Botón "Aceptar" para el empleado cuando recibe 'evaluation_scheduled'.
+                        - Solo visible para empleados (no para el responsable que la programa).
+                        - Solo si la notif no está leída (para no repetir la aceptación).
+                        - Click: PATCH estado='aceptada' + marca notif como leída.
+                        - Backend envía notificación al responsable confirmando la aceptación. */}
+                    {n.type === 'evaluation_scheduled' && !n.read && currentUser?.role === 'empleado' && (
+                      <button
+                        className="text-[10px] font-semibold text-green-700 bg-green-100 hover:bg-green-200 px-2 py-0.5 rounded border border-green-300 transition-colors flex items-center gap-0.5"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            // Buscar el schedule correspondiente a esta notificación
+                            // (sStep + projectId + zoneId + miniStep derivado del título).
+                            // El endpoint POST del schedule guarda sStep y miniStep en el schedule;
+                            // aquí necesitamos recuperar el id del schedule.
+                            const sStep = n.sStep;
+                            const projectId = n.projectId || currentProject?.id;
+                            const zoneId = n.zoneId || undefined;
+                            if (!projectId || !sStep) {
+                              alert('No se pudo identificar la cita. Contacta con el responsable.');
+                              return;
+                            }
+                            // Deducir miniStep: por defecto 4 (autoeval). El título contiene
+                            // "Autoevaluación" o "Auditoría" — lo usamos para distinguir.
+                            const titleLower = (n.title || '').toLowerCase();
+                            const miniStep = titleLower.includes('auditor') ? 5 : 4;
+
+                            // Buscar el schedule
+                            const listRes = await fetch(
+                              `/api/evaluation-schedule?sStep=${sStep}&miniStep=${miniStep}&projectId=${projectId}${zoneId ? `&zoneId=${zoneId}` : ''}`
+                            );
+                            const listData = await listRes.json();
+                            const scheduleId = listData?.data?.id;
+                            if (!scheduleId) {
+                              alert('No se encontró la cita programada. Puede que ya se haya procesado.');
+                              return;
+                            }
+
+                            // PATCH estado='aceptada'
+                            const patchRes = await fetch('/api/evaluation-schedule', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: scheduleId, estado: 'aceptada' }),
+                            });
+                            const patchData = await patchRes.json();
+                            if (!patchData?.success) {
+                              alert(`Error al aceptar: ${patchData?.error || 'desconocido'}`);
+                              return;
+                            }
+
+                            // Marcar notif como leída
+                            await fetch('/api/notifications', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ notificationId: n.id, read: true }),
+                            });
+                            setNotifs(notifs.map((nn: any) => nn.id === n.id ? { ...nn, read: true } : nn));
+                            setUnreadNotifs(prev => Math.max(0, prev - 1));
+
+                            // Refrescar schedules en el store para que la UI se actualice
+                            try { await use5SStore.getState().fetchEvaluationSchedules(); } catch {}
+
+                            toast.success('Cita aceptada. El responsable ha sido notificado.');
+                          } catch (err) {
+                            console.error('Error accepting schedule:', err);
+                            alert('Error al aceptar la cita.');
+                          }
+                        }}
+                      >
+                        <CheckSquare className="h-2.5 w-2.5" />
+                        Aceptar cita
                       </button>
                     )}
                     {/* Accept audit meeting button — only for audit_requested notifications and users with accept_audit_meeting permission */}
