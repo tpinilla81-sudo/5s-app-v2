@@ -2967,3 +2967,49 @@ Stage Summary:
     responsable y empleado reciben notif roja 'evaluation_expired' →
     paso 4/5 se cierra (locked) → hay que reprogramar
   * Check-vencidas se ejecuta al montar el board y cada 5 minutos
+
+---
+Task ID: v2.74.1
+Agent: Main
+Task: Fix Prisma error "EvaluationSchedule.responsableId does not exist"
+
+Work Log:
+- Usuario: "da un error al programar la fecha, como de prisma"
+- Screenshot mostraba: "Invalid prisma.evaluationSchedule.findFirst()
+  invocation: The column 'EvaluationSchedule.responsableId' does not
+  exist in the current database"
+
+DIAGNÓSTICO:
+- El schema de Prisma tenía responsableId/empleadoId/createdBy/estado/notas
+  desde v2.68, pero la migración no se había aplicado a la DB Neon
+- Sin estas columnas, POST /api/evaluation-schedule fallaba → no se podía
+  programar fecha → no se enviaba notif al empleado → "no se entera"
+
+FIX:
+1. Detectado también bug paralelo: commit 307ed31 (UUID sospechoso) había
+   cambiado provider 'postgresql' → 'sqlite' en schema.prisma → login 500
+   en Vercel. Revertido en commit b444790.
+2. Creado endpoint temporal POST /api/migrate-evaluation-schedule que
+   ejecuta ALTER TABLE IF NOT EXISTS para las 5 columnas faltantes + 2
+   índices + ActionItem.extra (v2.72).
+3. Deploy a Vercel (commit 6248c33).
+4. Ejecutado curl POST contra producción:
+   - EvaluationSchedule.responsableId OK
+   - EvaluationSchedule.empleadoId OK
+   - EvaluationSchedule.createdBy OK
+   - EvaluationSchedule.estado OK (con default 'programada')
+   - EvaluationSchedule.notas OK
+   - Index responsableId OK
+   - Index empleadoId OK
+   - ActionItem.extra OK
+   - verify: 14 columnas presentes
+5. Test POST /api/evaluation-schedule → ahora acepta todos los campos
+   (solo falla foreign key porque era un test con IDs inventados)
+6. Eliminado endpoint temporal (commit 3110f05).
+
+Stage Summary:
+- Programar fecha de autoeval/auditoría vuelve a funcionar en producción
+- El flujo de avisos completo (responsable programa → empleado recibe
+  notif 'evaluation_scheduled' → empleado ve botón 'Aceptar cita') ya
+  está operativo
+- DB Neon ahora tiene las columnas que faltaban desde v2.68
