@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -260,6 +260,8 @@ function ActionCard({
   onDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  // v2.72: toggle del panel ORIGEN-INVENTARIO dentro de la mobile card
+  const [showInventario, setShowInventario] = useState(false);
   const estadoInfo = ESTADO_OPTIONS.find(e => e.value === action.estado) || ESTADO_OPTIONS[0];
 
   return (
@@ -429,6 +431,25 @@ function ActionCard({
               </Field>
             </div>
           </div>
+
+          {/* v2.72: sección plegable ORIGEN-INVENTARIO (mobile) */}
+          {isInventarioSource(action) && (
+            <div className="border-t pt-2 mt-2">
+              <button
+                onClick={() => setShowInventario(!showInventario)}
+                className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 uppercase tracking-wider w-full"
+              >
+                <span>📦</span>
+                <span>Origen Inventario</span>
+                <ChevronDown className={`h-3 w-3 ml-auto transition-transform ${showInventario ? 'rotate-180' : ''}`} />
+              </button>
+              {showInventario && (
+                <div className="mt-2 p-2 bg-emerald-50/60 rounded border border-emerald-200">
+                  <OrigenInventarioPanel extra={action.extra} compact />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Delete button */}
           <div className="flex justify-end pt-1">
@@ -816,8 +837,11 @@ export default function PlanDeAccionView() {
                 <tbody>
                   {filteredActions.map((action) => {
                     const estadoInfo = getEstadoBadge(action.estado);
+                    const isExpanded = expandedRows.has(action.id);
+                    const hasInventario = isInventarioSource(action);
                     return (
-                      <tr key={action.id} className={`border-b hover:bg-gray-50 ${action.estado === 'resuelta' || action.estado === 'cerrada' ? 'bg-green-50/50' : ''}`}>
+                      <Fragment key={action.id}>
+                      <tr className={`border-b hover:bg-gray-50 ${action.estado === 'resuelta' || action.estado === 'cerrada' ? 'bg-green-50/50' : ''}`}>
                         {/* Origen S badge */}
                         <td className="px-1 py-1 border text-center bg-gray-50">
                           <span
@@ -827,6 +851,29 @@ export default function PlanDeAccionView() {
                           >
                             S{action.sStep}
                           </span>
+                        </td>
+                        {/* v2.72: toggle 📦 para expandir ORIGEN-INVENTARIO */}
+                        <td className="px-1 py-1 border text-center bg-gray-50">
+                          {hasInventario ? (
+                            <button
+                              onClick={() => setExpandedRows(prev => {
+                                const next = new Set(prev);
+                                if (next.has(action.id)) next.delete(action.id);
+                                else next.add(action.id);
+                                return next;
+                              })}
+                              className={`w-6 h-6 rounded text-xs font-bold transition-all ${
+                                isExpanded
+                                  ? 'bg-emerald-500 text-white shadow-sm'
+                                  : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300'
+                              }`}
+                              title={isExpanded ? 'Cerrar origen inventario' : 'Ver origen inventario'}
+                            >
+                              {isExpanded ? '−' : <span style={{ fontSize: '11px' }}>📦</span>}
+                            </button>
+                          ) : (
+                            <span className="text-gray-300 text-xs" title="Entrada manual — sin origen inventario">·</span>
+                          )}
                         </td>
                         {/* Yellow: Demanda */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante} text-center font-mono font-bold`}>
@@ -945,6 +992,26 @@ export default function PlanDeAccionView() {
                           </button>
                         </td>
                       </tr>
+                      {/* v2.72: fila expandible ORIGEN-INVENTARIO */}
+                      {isExpanded && (
+                        <tr className="bg-emerald-50/40 border-b">
+                          <td colSpan={22} className="px-3 py-2 border">
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <span className="text-[10px]">📦</span>
+                              <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
+                                Origen Inventario
+                              </span>
+                              {action.extra?.capturedAt && (
+                                <span className="text-[9px] text-gray-500 ml-auto">
+                                  Snapshot: {new Date(action.extra.capturedAt).toLocaleString('es-ES')}
+                                </span>
+                              )}
+                            </div>
+                            <OrigenInventarioPanel extra={action.extra} />
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     );
                   })}
                 </tbody>
