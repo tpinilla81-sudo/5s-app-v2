@@ -428,7 +428,7 @@ export default function HomePage() {
               <h1 className="text-sm font-black text-gray-900 leading-tight tracking-wide">5S</h1>
               <div className="flex items-center gap-1">
                 <span className="text-[10px] font-semibold text-green-600">by Método</span>
-                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.69</span>
+                <span className="text-[9px] font-mono text-white bg-purple-600 rounded px-1 py-0.5" title="Versión de la app">v2.70</span>
                 {isGestor && <span className="text-[10px] font-semibold text-red-500">· Gestor</span>}
                 {!isGestor && currentProject && <span className="text-[10px] text-muted-foreground">· {currentProject.name}</span>}
                 {!isGestor && currentZone && <span className="text-[10px] font-medium" style={{ color: currentZone.color || '#3B82F6' }}>· {currentZone.name}</span>}
@@ -1424,6 +1424,71 @@ export default function HomePage() {
                                         title="Solicitar auditoría: notificar al auditor y responsable para fijar fecha"
                                       >
                                         🔔 Auditar
+                                      </button>
+                                    )}
+                                    {/* v2.70: Botón "Programar fecha" sobre paso 4 y 5 para responsable/auditor.
+                                        Aparece cuando hay una solicitud pendiente (autoeval_requested o audit_requested)
+                                        y el usuario es responsable, auditor o admin. Abre el mismo diálogo de programación. */}
+                                    {(ms.id === 4 || ms.id === 5) && (isResponsable || currentUser?.role === 'auditor' || isAdmin) && currentZone && currentProject && (() => {
+                                      // Para paso 4: mostrar si pasos 1-3 están completos y paso 4 no
+                                      // Para paso 5: mostrar si pasos 1-4 están completos y paso 5 no
+                                      const requiredSteps = ms.id === 4 ? [1,2,3] : [1,2,3,4];
+                                      const allPrevDone = requiredSteps.every(msCheck => {
+                                        const zoneCompleted = progress.some(p =>
+                                          p.sStep === s.id && p.miniStep === msCheck &&
+                                          (currentZone ? (p.zoneId === currentZone.id || p.zoneId === null) : true) &&
+                                          p.completed
+                                        );
+                                        const empCompleted = employeeProgress.some(ep =>
+                                          ep.sStep === s.id && ep.miniStep === msCheck &&
+                                          currentZone && ep.zoneId === currentZone.id &&
+                                          ep.completed
+                                        );
+                                        return zoneCompleted || empCompleted;
+                                      });
+                                      const currentStepDone = progress.some(p =>
+                                        p.sStep === s.id && p.miniStep === ms.id &&
+                                        (currentZone ? (p.zoneId === currentZone.id || p.zoneId === null) : true) &&
+                                        p.completed
+                                      );
+                                      return allPrevDone && !currentStepDone;
+                                    })() && (
+                                      <button
+                                        className="text-[8px] font-bold text-purple-700 hover:text-purple-800 hover:bg-purple-50 px-1.5 py-0.5 rounded border border-purple-300 mb-0.5 transition-colors leading-tight whitespace-nowrap animate-pulse bg-purple-50 shadow-sm flex items-center gap-0.5"
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          // Buscar empleado de la zona (para notificarle)
+                                          let empleadoId: string | undefined;
+                                          try {
+                                            const membersRes = await fetch(`/api/projects/${currentProject?.id}/members`);
+                                            const membersData = await membersRes.json();
+                                            const empleados = (membersData?.members || []).filter((m: any) => m.role === 'empleado');
+                                            if (empleados.length === 1) {
+                                              empleadoId = empleados[0].userId;
+                                            } else if (currentZone) {
+                                              const zoneEmps = empleados.filter((m: any) => m.zoneId === currentZone.id);
+                                              if (zoneEmps.length === 1) empleadoId = zoneEmps[0].userId;
+                                            }
+                                          } catch (e) { /* ignore */ }
+
+                                          setScheduleDialog({
+                                            open: true,
+                                            sStep: s.id,
+                                            miniStep: ms.id, // 4=autoeval, 5=auditoría
+                                            zoneId: currentZone?.id,
+                                            projectId: currentProject?.id,
+                                            empleadoId,
+                                            responsableId: currentUser?.id,
+                                          });
+                                          const tomorrow = new Date();
+                                          tomorrow.setDate(tomorrow.getDate() + 1);
+                                          setScheduleDate(tomorrow.toISOString().slice(0, 10));
+                                          setScheduleTime('10:00');
+                                        }}
+                                        title={`Programar fecha de ${ms.id === 4 ? 'autoevaluación' : 'auditoría'}: abrir calendario`}
+                                      >
+                                        <Calendar className="h-2.5 w-2.5" />
+                                        Programar
                                       </button>
                                     )}
                                     <div className="relative">
