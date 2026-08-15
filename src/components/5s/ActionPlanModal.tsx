@@ -108,6 +108,15 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(true);
 
+  // v2.77: Diálogo de decisión de cierre (cuando se pasa a resuelta/cerrada)
+  const [closeDialog, setCloseDialog] = useState<{
+    actionId: string;
+    hallazgo: string;
+    source?: string;
+  } | null>(null);
+  const [closeDecision, setCloseDecision] = useState<'Resuelto' | 'Retirar' | 'Eliminar'>('Resuelto');
+  const [closeDiasCuarentena, setCloseDiasCuarentena] = useState<number>(40);
+
   const loadZones = async () => {
     if (!currentProject) return;
     try {
@@ -243,6 +252,26 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
   };
 
   const handleUpdateField = async (actionId: string, field: string, value: any) => {
+    // v2.77: Si se está cambiando `estado` a 'resuelta' o 'cerrada',
+    // abrir el diálogo de decisión de cierre antes de persistir.
+    // El diálogo pedirá: Resuelto / Retirar a Jaula / Eliminar
+    // y (si Retirar) los días de cuarentena. El guardado real se hace
+    // en `confirmCloseDecision`. Para otros cambios, flujo normal.
+    if (field === 'estado' && (value === 'resuelta' || value === 'cerrada')) {
+      const action = actions.find(a => a.id === actionId);
+      // Si ya estaba resuelta/cerrada, no relanzar el diálogo
+      if (action && action.estado !== 'resuelta' && action.estado !== 'cerrada') {
+        setCloseDialog({
+          actionId,
+          hallazgo: action.hallazgo || action.descripcion || '',
+          source: (action as any).source,
+        });
+        setCloseDecision('Resuelto');
+        setCloseDiasCuarentena(40);
+        return; // No persistir todavía; espera confirmación del diálogo
+      }
+    }
+
     // Optimistic update
     setActions(prev => prev.map(a =>
       a.id === actionId ? { ...a, [field]: value } : a
@@ -263,6 +292,60 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
       console.error('Error updating action:', error);
       await loadActions(); // Revert
     }
+  };
+
+  // v2.77: Confirma el cierre con decisión + diasCuarentena y persiste.
+  // Si decision='Retirar', el backend crea un InventoryItem en jaula.
+  // Si decision='Eliminar', el backend crea un InventoryItem efímero transferido.
+  // Si decision='Resuelto', solo cierra el ActionItem sin tocar la Jaula.
+  const confirmCloseDecision = async () => {
+    if (!closeDialog) return;
+    const { actionId } = closeDialog;
+    const payload: any = {
+      estado: 'cerrada',
+      porcentaje: 100,
+      decision: closeDecision,
+    };
+    if (closeDecision === 'Retirar') {
+      payload.diasCuarentena = closeDiasCuarentena;
+    }
+
+    // Optimistic update
+    setActions(prev => prev.map(a =>
+      a.id === actionId ? { ...a, estado: 'cerrada', porcentaje: 100 } : a
+    ));
+
+    try {
+      const res = await fetch(`/api/actions?id=${actionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (json.success) {
+        const msg = closeDecision === 'Retirar'
+          ? 'Cerrada y enviada a la Jaula de cuarentena'
+          : closeDecision === 'Eliminar'
+            ? 'Cerrada y enviada a Residuo'
+            : 'Acción cerrada correctamente';
+        toast.success(msg);
+        await loadActions();
+      } else {
+        toast.error(`Error al cerrar: ${json.error || 'Error desconocido'}`);
+        await loadActions();
+      }
+    } catch (error) {
+      console.error('Error cerrando acción:', error);
+      toast.error('Error de conexión al cerrar');
+      await loadActions();
+    } finally {
+      setCloseDialog(null);
+    }
+  };
+
+  const cancelCloseDecision = () => {
+    // No cambiar el estado; queda como estaba
+    setCloseDialog(null);
   };
 
   const handleDeleteAction = async (id: string) => {
@@ -690,6 +773,97 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
               >
                 Completar Plan de Acción ({totalActions}/{ACTION_PLAN_MIN_ITEMS} mín.)
               </Button>
+            </div>
+          </div>
+        )}
+
+        {/* v2.77: Diálogo de decisión de cierre */}
+        {closeDialog && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-6 w-6 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="text-base font-bold text-gray-900">Cerrar acción</h3>
+                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                    {closeDialog.hallazgo || 'Sin descripción'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-700">
+                  Decisión de cierre
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCloseDecision('Resuelto')}
+                    className={`p-2 text-xs rounded-md border-2 transition-colors ${
+                      closeDecision === 'Resuelto'
+                        ? 'border-green-500 bg-green-50 text-green-700 font-bold'
+                        : 'border-gray-200 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    ✓ Resuelto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCloseDecision('Retirar')}
+                    className={`p-2 text-xs rounded-md border-2 transition-colors ${
+                      closeDecision === 'Retirar'
+                        ? 'border-amber-500 bg-amber-50 text-amber-700 font-bold'
+                        : 'border-gray-200 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    📦 A Jaula
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCloseDecision('Eliminar')}
+                    className={`p-2 text-xs rounded-md border-2 transition-colors ${
+                      closeDecision === 'Eliminar'
+                        ? 'border-red-500 bg-red-50 text-red-700 font-bold'
+                        : 'border-gray-200 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    🗑 Eliminar
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">
+                  {closeDecision === 'Resuelto' && 'La acción se da por cerrada sin tocar la Jaula.'}
+                  {closeDecision === 'Retirar' && 'Se crea un nuevo item en la Jaula de cuarentena para este hallazgo.'}
+                  {closeDecision === 'Eliminar' && 'Se registra como eliminado/residuo (no entra en la Jaula).'}
+                </p>
+              </div>
+
+              {closeDecision === 'Retirar' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700">
+                    Días de cuarentena
+                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={closeDiasCuarentena}
+                    onChange={e => setCloseDiasCuarentena(parseInt(e.target.value) || 40)}
+                    className="w-24"
+                  />
+                  <p className="text-[10px] text-gray-500">
+                    Pasados esos días, el item quedará reclamable/transferible.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button variant="outline" size="sm" onClick={cancelCloseDecision}>
+                  Cancelar
+                </Button>
+                <Button size="sm" onClick={confirmCloseDecision}>
+                  Confirmar cierre
+                </Button>
+              </div>
             </div>
           </div>
         )}

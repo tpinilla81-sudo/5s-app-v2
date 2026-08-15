@@ -73,6 +73,73 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'sStep, miniStep, and projectId are required' }, { status: 400 })
     }
 
+    // ──────────────────────────────────────────────────────────────────
+    // v2.77: VALIDACIÓN DE HALLAZGOS PENDIENTES
+    // ──────────────────────────────────────────────────────────────────
+    // Antes de programar una autoeval (miniStep=4) o auditoría (miniStep=5),
+    // comprobar que no haya ActionItems ABIERTOS de los pasos previos en la
+    // misma zona. Si los hay, devolver 409 con el detalle para que el
+    // frontend lo muestre y el responsable/auditor sepa qué falta por cerrar.
+    //
+    // Reglas:
+    //   • miniStep=4 (autoeval):  bloquear si hay ActionItems con
+    //     miniStep<=3, estado in ['abierta','en_proceso'] para este
+    //     projectId+zoneId (inventario S1-S4 + plan S5 del paso 3).
+    //   • miniStep=5 (auditoría): bloquear si hay ActionItems con
+    //     miniStep<=4, estado in ['abierta','en_proceso'] (paso 3 + autoeval).
+    //
+    // Excepción: si `force=true` viene en el body, se omite la validación
+    // (solo para casos excepcionales — p.ej. reprogramar una auditoría
+    // cuyo hallazgo se decide posponer).
+    const allowForce = body.force === true
+    if (!allowForce && (miniStep === 4 || miniStep === 5)) {
+      const maxMiniStepPrevio = miniStep - 1 // 3 para autoeval, 4 para auditoría
+      const wherePending: any = {
+        projectId,
+        miniStep: { lte: maxMiniStepPrevio },
+        estado: { in: ['abierta', 'en_proceso'] },
+      }
+      if (zoneId) wherePending.zoneId = zoneId
+      else wherePending.zoneId = null
+
+      const pendingActions = await db.actionItem.findMany({
+        where: wherePending,
+        select: {
+          id: true,
+          hallazgo: true,
+          estado: true,
+          miniStep: true,
+          source: true,
+          itemId: true,
+          zoneId: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50, // limit para no saturar la respuesta
+      })
+
+      if (pendingActions.length > 0) {
+        const label = miniStep === 4 ? 'la autoevaluación' : 'la auditoría'
+        const prevLabel = miniStep === 4
+          ? 'el paso 3 (inventario + plan)'
+          : 'los pasos 3-4 (inventario + plan + autoevaluación)'
+        const mensaje = `No se puede programar ${label} porque hay ${pendingActions.length} hallazgo(s) pendiente(s) de ${prevLabel} en esta zona. Resuélvelos primero en el Plan de Acción.`
+        return NextResponse.json({
+          success: false,
+          error: mensaje,
+          code: 'PENDING_HALLAZGOS',
+          pendingCount: pendingActions.length,
+          pending: pendingActions.map(a => ({
+            id: a.id,
+            hallazgo: (a.hallazgo || '').slice(0, 100),
+            estado: a.estado,
+            source: a.source,
+            miniStep: a.miniStep,
+            itemId: a.itemId,
+          })),
+        }, { status: 409 })
+      }
+    }
+
     // v2.71: Reemplazamos el upsert (que fallaba con zoneId=null por la
     // clave única compuesta) por findFirst + create/update. Esto evita el
     // error "Argument where needs sStep_miniStep_projectId_zoneId" cuando

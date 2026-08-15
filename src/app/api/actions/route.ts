@@ -329,37 +329,235 @@ export async function PUT(request: NextRequest) {
       // v2.75: si se está cerrando y viene verificadoPorId, lo persistimos
       if (body.verificadoPorId) updateData.verificadoPorId = body.verificadoPorId
 
-      // v2.76: Auto-sincronización Inventario Jaula → al cerrar un
-      // ActionItem con source='inventario', actualizar el InventoryItem
-      // original para que refleje el fin de la cuarentena.
-      //   - Si decisión='Retirar' → jaulaStatus='transferido' + jaulaFechaSalida=now
-      //   - Si decisión='Eliminar' → jaulaStatus='transferido' (a residuo) + jaulaFechaSalida=now
-      // El InventoryItemId se guarda en `extra.inventoryItemId` (snapshot).
-      // Solo aplica si el InventoryItem sigue en jaula (jaulaStatus='en_jaula').
+      // ──────────────────────────────────────────────────────────────────
+      // v2.77: Decisión de cierre + Jaula desde cualquier origen.
+      // ──────────────────────────────────────────────────────────────────
+      // El frontend (ActionPlanModal) puede enviar `decision` y
+      // `diasCuarentena` cuando el usuario marca estado='cerrada':
+      //   decision:        'Resuelto' | 'Retirar' | 'Eliminar'
+      //   diasCuarentena:  número (solo relevante si decision='Retirar')
+      //
+      // Comportamiento:
+      //  • source='inventario' + decision='Retirar'/'Eliminar' →
+      //    actualizar el InventoryItem original (mantiene lógica v2.76):
+      //      - Si decision='Eliminar' → jaulaStatus='transferido',
+      //        jaulaDestino='Residuo', jaulaFechaSalida=now
+      //      - Si decision='Retirar' → NO se hace nada aquí (el item ya
+      //        está en jaula porque así lo creó /api/inventory/sync-actions).
+      //        Si el snapshot trae zonaDestino, se marca transferido.
+      //
+      //  • source EN ('autoevaluacion', 'auditoria', 'actionplan') +
+      //    decision='Retirar' → CREAR un nuevo InventoryItem con
+      //    jaulaStatus='en_jaula', jaulaFechaEntrada=now,
+      //    jaulaFechaLimite=now+diasCuarentena, zonaOrigen=zone.name,
+      //    y guardar su id en ActionItem.extra.inventoryItemId para
+      //    trazabilidad. Esto permite que la Jaula reciba hallazgos de
+      //    los pasos 4 y 5, no solo del paso 3.
+      //
+      //  • Cualquier source + decision='Eliminar' y NO hay
+      //    InventoryItem previo → se crea un InventoryItem efímero ya
+      //    'transferido' a Residuo (para que aparezca en el histórico).
+      //
+      //  • decision='Resuelto' (o ausente) → no se toca la Jaula.
       try {
-        const before = await db.actionItem.findUnique({ where: { id }, select: { source: true, extra: true } })
-        if (before?.source === 'inventario' && before.extra) {
-          const snapshot = JSON.parse(before.extra)
-          const invId = snapshot?.inventoryItemId
-          const decision = snapshot?.decision
-          if (invId) {
-            const invItem = await db.inventoryItem.findUnique({
-              where: { id: invId },
-              select: { id: true, jaulaStatus: true },
-            })
-            // Solo actualizamos si está en jaula (no tocamos los ya transferidos/reclamados)
-            if (invItem && invItem.jaulaStatus === 'en_jaula') {
+        const before = await db.actionItem.findUnique({
+          where: { id },
+          select: {
+            source: true, extra: true, hallazgo: true, sStep: true,
+            zoneId: true, projectId: true, itemId: true,
+          },
+        })
+        if (!before) {
+          throw new Error('ActionItem no encontrado al cerrar')
+        }
+
+        // Leer decisión del body; si no viene, intentar leerla del snapshot
+        // existente (para source='inventario' que ya trae decision en extra).
+        let snapshot: any = {}
+        try { snapshot = before.extra ? JSON.parse(before.extra) : {} } catch {}
+        const decision = body.decision || snapshot?.decision || null
+        const diasCuarentena =
+          typeof body.diasCuarentena === 'number' ? body.diasCuarentena :
+          (snapshot?.diasCuarentena && !Number.isNaN(Number(snapshot.diasCuarentena)))
+            ? Number(snapshot.diasCuarentena) : 40
+
+        // Persistir la decisión + diasCuarentena en `extra` para trazabilidad
+        if (body.decision || body.diasCuarentena !== undefined) {
+          const newExtra = {
+            ...snapshot,
+            ...(body.decision ? { decision: body.decision } : {}),
+            ...(body.diasCuarentena !== undefined ? { diasCuarentena } : {}),
+            cierreDecisionAt: new Date().toISOString(),
+          }
+          updateData.extra = JSON.stringify(newExtra)
+        }
+
+        const source = before.source || 'actionplan'
+
+        // ── Caso 1: source='inventario' → actualizar InventoryItem existente ──
+        if (source === 'inventario' && snapshot?.inventoryItemId) {
+          const invId = snapshot.inventoryItemId
+          const invItem = await db.inventoryItem.findUnique({
+            where: { id: invId },
+            select: { id: true, jaulaStatus: true },
+          })
+          if (invItem && invItem.jaulaStatus === 'en_jaula') {
+            // Si decision='Eliminar' → transferir a residuo
+            // Si decision='Retirar' y hay zonaDestino → transferir
+            // Si decision='Resuelto' → dejarlo en jaula (no debería pasar)
+            if (decision === 'Eliminar') {
               await db.inventoryItem.update({
                 where: { id: invId },
                 data: {
                   jaulaStatus: 'transferido',
                   jaulaFechaSalida: new Date(),
-                  jaulaDestino: decision === 'Eliminar' ? 'Residuo' : (snapshot?.zonaDestino || 'Transferido'),
+                  jaulaDestino: 'Residuo',
                 },
               })
-              console.log(`[actions PUT] InventoryItem ${invId} → jaulaStatus='transferido' (auto-sync al cerrar ActionItem ${id})`)
+              console.log(`[actions PUT] Inv ${invId} → Residuo (cerrar ActionItem ${id})`)
+            } else if (decision === 'Retirar' && snapshot?.zonaDestino) {
+              await db.inventoryItem.update({
+                where: { id: invId },
+                data: {
+                  jaulaStatus: 'transferido',
+                  jaulaFechaSalida: new Date(),
+                  jaulaDestino: snapshot.zonaDestino,
+                },
+              })
+              console.log(`[actions PUT] Inv ${invId} → ${snapshot.zonaDestino} (cerrar ActionItem ${id})`)
             }
           }
+        } else if (
+          // ── Caso 2: source en pasos 4/5/plan + decision='Retirar' → crear Inv en jaula ──
+          ['autoevaluacion', 'auditoria', 'actionplan'].includes(source) &&
+          decision === 'Retirar'
+        ) {
+          // Buscar nombre de la zona para zonaOrigen
+          let zoneName = 'Sin zona'
+          if (before.zoneId) {
+            const z = await db.zone.findUnique({
+              where: { id: before.zoneId },
+              select: { name: true },
+            })
+            if (z?.name) zoneName = z.name
+          }
+
+          const now = new Date()
+          const limite = new Date(now.getTime() + diasCuarentena * 24 * 60 * 60 * 1000)
+
+          // Crear InventoryItem en jaula
+          const newInv = await db.inventoryItem.create({
+            data: {
+              sStep: before.sStep || 5,
+              name: (before.hallazgo || 'Hallazgo').slice(0, 120),
+              location: zoneName,
+              category: 'innecesario',
+              quantity: 1,
+              price: null,
+              action: 'Retirar a Jaula de cuarentena',
+              projectId: before.projectId,
+              zoneId: before.zoneId || null,
+              jaulaStatus: 'en_jaula',
+              jaulaFechaEntrada: now,
+              jaulaOrigen: zoneName,
+              jaulaFechaLimite: limite,
+              zonaOrigen: zoneName,
+              zonaDestino: null,
+              extra: JSON.stringify({
+                origen: 'actionplan',
+                sourceActionItemId: id,
+                source: before.source,
+                miniStep: before.source === 'autoevaluacion' ? 4 : (before.source === 'auditoria' ? 5 : 3),
+                itemId: before.itemId,
+                decision: 'Retirar',
+                diasCuarentena,
+                capturedAt: now.toISOString(),
+              }),
+            },
+          })
+
+          // Guardar inventoryItemId en extra del ActionItem para trazabilidad inversa
+          const newExtra = {
+            ...snapshot,
+            inventoryItemId: newInv.id,
+            decision: 'Retirar',
+            diasCuarentena,
+            jaulaCreadaEn: now.toISOString(),
+          }
+          updateData.extra = JSON.stringify(newExtra)
+
+          console.log(`[actions PUT] Creado InventoryItem ${newInv.id} en jaula desde ActionItem ${id} (source=${source})`)
+
+          // Notificar a gerentes/admins del proyecto que hay un nuevo item en jaula
+          try {
+            const admins = await db.projectMember.findMany({
+              where: { projectId: before.projectId, role: { in: ['gerente', 'admin', 'responsable'] } },
+              select: { userId: true },
+            })
+            for (const a of admins) {
+              await db.notification.create({
+                data: {
+                  userId: a.userId,
+                  type: 'new_action_item',
+                  title: `Item en Jaula: ${(before.hallazgo || 'Hallazgo').slice(0, 50)}`,
+                  message: `Al cerrar un hallazgo de ${source} se ha creado un item en la Jaula de cuarentena (${zoneName}). Salida prevista: ${limite.toLocaleDateString('es-ES')}.\n\n[ref:${newInv.id}]`,
+                  sStep: before.sStep || 5,
+                  zoneId: before.zoneId || null,
+                  projectId: before.projectId,
+                },
+              })
+            }
+          } catch (notifErr) {
+            console.error('[actions PUT] Error notificando jaula:', notifErr)
+          }
+        } else if (
+          // ── Caso 3: cualquier source + decision='Eliminar' sin InventoryItem previo ──
+          ['autoevaluacion', 'auditoria', 'actionplan'].includes(source) &&
+          decision === 'Eliminar'
+        ) {
+          // Crear InventoryItem efímero ya 'transferido' a Residuo para histórico
+          let zoneName = 'Sin zona'
+          if (before.zoneId) {
+            const z = await db.zone.findUnique({
+              where: { id: before.zoneId },
+              select: { name: true },
+            })
+            if (z?.name) zoneName = z.name
+          }
+          const now = new Date()
+          const newInv = await db.inventoryItem.create({
+            data: {
+              sStep: before.sStep || 5,
+              name: (before.hallazgo || 'Hallazgo').slice(0, 120),
+              location: zoneName,
+              category: 'innecesario',
+              quantity: 1,
+              action: 'Eliminar a Residuo',
+              projectId: before.projectId,
+              zoneId: before.zoneId || null,
+              jaulaStatus: 'transferido',
+              jaulaFechaEntrada: now,
+              jaulaFechaSalida: now,
+              jaulaOrigen: zoneName,
+              jaulaDestino: 'Residuo',
+              zonaOrigen: zoneName,
+              extra: JSON.stringify({
+                origen: 'actionplan',
+                sourceActionItemId: id,
+                source: before.source,
+                decision: 'Eliminar',
+                capturedAt: now.toISOString(),
+              }),
+            },
+          })
+          const newExtra = {
+            ...snapshot,
+            inventoryItemId: newInv.id,
+            decision: 'Eliminar',
+            jaulaCreadaEn: now.toISOString(),
+          }
+          updateData.extra = JSON.stringify(newExtra)
+          console.log(`[actions PUT] Creado InventoryItem efímero ${newInv.id} → Residuo desde ActionItem ${id}`)
         }
       } catch (syncErr) {
         console.error('[actions PUT] Error auto-sincronizando inventario jaula:', syncErr)

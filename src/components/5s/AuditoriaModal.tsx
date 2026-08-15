@@ -384,7 +384,24 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
       });
       const json = await res.json();
       if (!json.success) {
-        toast.error(`Error al programar: ${json.error || 'desconocido'}`);
+        // v2.77: si el backend bloquea por hallazgos pendientes (409),
+        // mostrar un diálogo con el listado para que el auditor sepa
+        // exactamente qué debe cerrar el responsable antes de programar.
+        if (res.status === 409 && json.code === 'PENDING_HALLAZGOS') {
+          const pendingList = Array.isArray(json.pending) ? json.pending : [];
+          const detail = pendingList.length > 0
+            ? pendingList.slice(0, 5).map((p: any, i: number) =>
+                `${i + 1}. ${p.hallazgo || p.itemId || '—'} (${p.source || '?'}, ${p.estado})`
+              ).join('\n')
+            : '';
+          const extra = pendingList.length > 5 ? `\n…y ${pendingList.length - 5} más.` : '';
+          alert(
+            `${json.error}\n\nHallazgos pendientes:\n${detail}${extra}\n\n` +
+            `El responsable de zona debe cerrar estos hallazgos en el Plan de Acción antes de programar la auditoría.`
+          );
+        } else {
+          toast.error(`Error al programar: ${json.error || 'desconocido'}`);
+        }
         return;
       }
       toast.success('Fecha programada guardada — responsable avisado');
