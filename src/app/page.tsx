@@ -201,6 +201,9 @@ export default function HomePage() {
             if (currentProject && currentZone) {
               await use5SStore.getState().fetchEmployeeProgress(currentProject.id, currentZone.id);
             }
+            // v2.74.2: cargar schedules de evaluación para mostrar badge
+            // "📅 Programado" sobre los globos 4 y 5
+            try { await use5SStore.getState().fetchEvaluationSchedules(); } catch {}
             // Auto-generate audit_ready notifications for any pending audits
             if (currentProject?.id) {
               fetch('/api/notifications/auto', {
@@ -285,6 +288,9 @@ export default function HomePage() {
 
   // Permission helpers — derived from store permissions map (NO admin bypass)
   const permissions = use5SStore(s => s.permissions);
+  // v2.74.2: schedules de evaluación (autoeval/auditoría) — para mostrar badge
+  // "📅 Programado" sobre los globos 4 y 5
+  const evaluationSchedules = use5SStore(s => s.evaluationSchedules);
   const hasPermission = useMemo(() => {
     const hp = (perm: string): boolean => {
       if (!currentUser) return false;
@@ -1530,6 +1536,39 @@ export default function HomePage() {
                                         🔔 Auditar
                                       </button>
                                     )}
+                                    {/* v2.74.2: Badge "📅 Programado" sobre los globos 4 y 5 cuando hay
+                                        una cita programada (estado programada|aceptada|en_ventana).
+                                        Visible para TODOS los roles (responsable Y empleado) para que
+                                        ambos sepan que la cita está fijada. */}
+                                    {(ms.id === 4 || ms.id === 5) && currentZone && (() => {
+                                      const sched = evaluationSchedules.find(sch =>
+                                        sch.sStep === s.id &&
+                                        sch.miniStep === ms.id &&
+                                        sch.estado !== 'cancelada' &&
+                                        sch.estado !== 'realizada' &&
+                                        sch.fechaProgramada &&
+                                        (!sch.zoneId || sch.zoneId === currentZone.id)
+                                      );
+                                      if (!sched) return null;
+                                      const fechaCorta = sched.fechaProgramada!.split('-').reverse().join('/');
+                                      const horaCorta = sched.horaProgramada || '10:00';
+                                      const estadoLabel =
+                                        sched.estado === 'aceptada' ? '✓ Aceptada' :
+                                        sched.estado === 'vencida' ? '⏰ Vencida' :
+                                        '📅 Programada';
+                                      const bg =
+                                        sched.estado === 'vencida' ? 'bg-red-50 text-red-700 border-red-300' :
+                                        sched.estado === 'aceptada' ? 'bg-green-50 text-green-700 border-green-300' :
+                                        'bg-purple-50 text-purple-700 border-purple-300';
+                                      return (
+                                        <span
+                                          className={`text-[8px] font-bold px-1.5 py-0.5 rounded border mb-0.5 leading-tight whitespace-nowrap ${bg}`}
+                                          title={`${estadoLabel} — ${fechaCorta} ${horaCorta}`}
+                                        >
+                                          {estadoLabel}: {fechaCorta} {horaCorta}
+                                        </span>
+                                      );
+                                    })()}
                                     {/* v2.70: Botón "Programar fecha" sobre paso 4 y 5 para responsable/auditor.
                                         Aparece cuando hay una solicitud pendiente (autoeval_requested o audit_requested)
                                         y el usuario es responsable, auditor o admin. Abre el mismo diálogo de programación. */}
@@ -1918,6 +1957,9 @@ export default function HomePage() {
                     if (json.success) {
                       toast.success(`Fecha programada: ${scheduleDate.split('-').reverse().join('/')} a las ${scheduleTime}`);
                       setScheduleDialog({ open: false });
+                      // v2.74.2: refrescar schedules para que el badge "📅 Programado"
+                      // aparezca inmediatamente sobre el globo 4/5
+                      try { await use5SStore.getState().fetchEvaluationSchedules(); } catch {}
                       // Open calendar to show the new entry
                       setShowUserCalendar(true);
                     } else {
