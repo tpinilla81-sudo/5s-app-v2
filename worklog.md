@@ -3320,3 +3320,54 @@ Stage Summary:
   Esto aplica las migraciones de columnas y el backfill en producción.
   Tras verificar el resultado, eliminar el endpoint en el siguiente
   commit (igual que migrate-v275).
+
+---
+Task ID: v2.77-DEPLOY
+Agent: Main
+Task: Implementar Opción B (Jaula desde cualquier origen) + bloqueo
+programar autoeval/auditoría si hay hallazgos pendientes.
+
+Work Log:
+- /api/actions PUT: añadido bloque v2.77 que gestiona `decision` y
+  `diasCuarentena` al cerrar ActionItems. Tres casos:
+    1. source='inventario' + decision='Eliminar' → marca Inv original
+       como transferido a Residuo (manteniendo v2.76).
+    2. source en ('autoevaluacion','auditoria','actionplan') +
+       decision='Retirar' → CREA nuevo InventoryItem en jaula con
+       jaulaStatus='en_jaula', jaulaFechaLimite=now+dias, etc.
+    3. source en pasos 4/5/plan + decision='Eliminar' → crea Inv
+       efímero ya transferido a Residuo.
+  Persiste decision+diasCuarentena en `extra` y notifica a
+  gerente/admin/responsable cuando se crea item en jaula.
+
+- /api/evaluation-schedule POST: añadida validación previa v2.77.
+  - miniStep=4: bloquea si hay ActionItems con miniStep<=3 y estado
+    in ['abierta','en_proceso'] para este projectId+zoneId.
+  - miniStep=5: bloquea si hay ActionItems con miniStep<=4.
+  - Devuelve 409 con code='PENDING_HALLAZGOS' + listado de hasta 50
+    pendientes (id, hallazgo, estado, source, miniStep, itemId).
+  - body.force=true omite la validación (para casos excepcionales).
+
+- ActionPlanModal: añadido diálogo de decisión de cierre. Al cambiar
+  estado a 'resuelta'/'cerrada' se abre un modal con 3 opciones:
+    ✓ Resuelto | 📦 A Jaula (con días cuarentena) | 🗑 Eliminar
+  confirmCloseDecision envía estado='cerrada', porcentaje=100,
+  decision, diasCuarentena.
+
+- AutoevaluacionModal + AuditoriaModal: al recibir 409
+  PENDING_HALLAZGOS muestran un alert con los 5 hallazgos pendientes
+  más recientes y mensaje claro de qué hacer.
+
+- Bump package.json 2.76.0 → 2.77.0
+- Bump middleware → 20260815-130000-v2.77.0
+- Commit c5877e1 y push a origin/main → Vercel rebuild en curso.
+
+Stage Summary:
+- Endpoint modificados: /api/actions (PUT), /api/evaluation-schedule (POST)
+- Frontend modificados: ActionPlanModal, AutoevaluacionModal, AuditoriaModal
+- Commit: c5877e1 v2.77 (7 files, +498/-25)
+- Push OK → Vercel rebuild en curso
+- IMPORTANTE: El endpoint /api/migrate-v276 (creado en commit anterior
+  4e279d5) SIGUE SIENDO NECESARIO ejecutarlo una vez en producción
+  para backfill de las columnas y tipos. Una vez desplegado v2.77:
+    curl -X POST https://<dominio-vercel>/api/migrate-v276
