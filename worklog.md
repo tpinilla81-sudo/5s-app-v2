@@ -3013,3 +3013,38 @@ Stage Summary:
   notif 'evaluation_scheduled' → empleado ve botón 'Aceptar cita') ya
   está operativo
 - DB Neon ahora tiene las columnas que faltaban desde v2.68
+
+---
+Task ID: PENDIENTE-ZONAS
+Agent: Main
+Task: 🔒 PENDIENTE — Mejora de zonificación (NO BORRAR hasta implementar)
+
+Recordatorio explícito del usuario (15 ago 2026):
+"recuerda la mejora de las zonas cuando se acabe de definir el tablero totalmente"
+
+DISEÑO APROBADO (no implementar todavía, esperar a fin de tablero):
+
+1. División jerárquica: Empresa → Proyectos → Zonas → Empleado (1:1 por turno)
+2. Algoritmo multicriterio para zonificación automática:
+   - 40% m² ajustados por complejidad (factor: baños=3.0, cocina=2.5,
+     vidrio=2.0, despachos=1.3, oficinas=1.0, pasillos=0.8, almacén=0.6)
+   - 30% carga de trabajo temporal (objetivo: 1 zona = 1 turno de 2-4h,
+     rendimiento ~250 m² ajustados/hora → ~1000 m² ajustados/zona)
+   - 15% contigüidad física (mismo edificio/planta/ala, no cruzar barreras)
+   - 10% criticidad y frecuencia (baños públicos → zonas más pequeñas)
+   - 5% accesibilidad (llaves, restricciones horarias, carros limpieza)
+3. Algoritmo de 6 pasos:
+   inventario → cálculo zonas → clustering físico → balanceo ±15%
+   → etiquetado criticidad → revisión humana (antesala admin)
+4. Nueva entidad `Proyecto` en el modelo (entre Empresa y Zona)
+5. Pantalla "Asistente de Zonificación" con revisión manual antes de crear
+6. Repetición de empleados entre zonas (1 empleado puede cubrir
+   zona 3 del Proyecto A y zona 1 del Proyecto B)
+
+NO IMPLEMENTAR HASTA QUE el usuario confirme que el tablero está
+totalmente definido (mejoras de avisos + plan de acción + pasos 3-4-5).
+
+Cuando se reactive este Task ID:
+- Re-leer diseño completo en conversación del 15 ago 2026
+- Implementar en 4 fases: modelo datos → CRUD proyectos → asistente
+  zonificación → reasignación empleados
