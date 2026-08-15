@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
       notas, estado,
       notifyUser = true, // si true, envía notificación al empleado
       notifyMessage,
+      rolEjecutor, // v2.75: 'responsable' | 'auditor'
     } = body
 
     if (!sStep || !miniStep || !projectId) {
@@ -97,6 +98,7 @@ export async function POST(request: NextRequest) {
           createdBy: createdBy || null,
           notas: notas || null,
           estado: estado || 'programada',
+          ...(rolEjecutor ? { rolEjecutor } : {}),
         },
         include: {
           zone: { select: { id: true, name: true, color: true } },
@@ -117,6 +119,7 @@ export async function POST(request: NextRequest) {
           createdBy: createdBy || null,
           notas: notas || null,
           estado: estado || 'programada',
+          rolEjecutor: rolEjecutor || (miniStep === 5 ? 'auditor' : 'responsable'),
         },
         include: {
           zone: { select: { id: true, name: true, color: true } },
@@ -125,51 +128,59 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // v2.68: notificar al empleado (y al responsable si lo programa el empleado)
+    // v2.68/v2.75: notificar al asistente (empleadoId en autoeval,
+    // responsable de zona en auditoría) para que sepa que tiene cita.
+    // La notif al ejecutor NO se envía porque él mismo la programa.
     if (notifyUser) {
       const miniStepLabel = miniStep === 4 ? 'Autoevaluación' : miniStep === 5 ? 'Auditoría' : `Paso ${miniStep}`
       const fechaStr = fechaProgramada
         ? `${fechaProgramada.split('-').reverse().join('/')}${horaProgramada ? ' a las ' + horaProgramada : ''}`
         : 'fecha por confirmar'
+      const zoneName = schedule.zone?.name || 'sin zona'
 
-      // Notificar al empleado si lo programa el responsable
-      if (empleadoId && createdBy && empleadoId !== createdBy) {
+      // v2.75: el asistente es empleadoId (en autoeval, el empleado de la zona)
+      // o responsableId (en auditoría, el responsable de la zona que asiste
+      // al auditor). El ejecutor es el otro campo y es quien programa, así
+      // que la notif se envía solo al asistente.
+      const ejecutorId = rolEjecutor === 'auditor' ? responsableId : responsableId
+      const asistenteId = rolEjecutor === 'auditor' ? empleadoId : empleadoId
+      // En la práctica, el asistente SIEMPRE es empleadoId (el otro campo).
+      // El ejecutor SIEMPRE es responsableId (quien programa).
+      // Solo enviamos notif al asistente si no es el mismo que el ejecutor.
+      const notifyTargetId = asistenteId && asistenteId !== ejecutorId ? asistenteId : null
+
+      if (notifyTargetId) {
+        const rolEjecutorLabel = rolEjecutor === 'auditor' ? 'El auditor' : 'El responsable'
         try {
           await db.notification.create({
             data: {
-              userId: empleadoId,
+              userId: notifyTargetId,
               type: 'evaluation_scheduled',
               title: `${miniStepLabel} programada: S${sStep} — ${fechaStr}`,
-              message: notifyMessage || `Tu ${miniStepLabel.toLowerCase()} para S${sStep} ha sido programada para el ${fechaStr}. Zona: ${schedule.zone?.name || 'sin zona'}.`,
+              message: notifyMessage || `${rolEjecutorLabel} ha programado tu ${miniStepLabel.toLowerCase()} para S${sStep} el ${fechaStr}. Zona: ${zoneName}. Tienes una ventana de 2 horas desde la hora programada. Entra a la app en ese momento para participar.`,
               sStep,
               zoneId: zoneId || null,
               projectId,
               read: false,
+              metadata: JSON.stringify({
+                scheduleId: schedule.id,
+                miniStep,
+                sStep,
+                fecha: fechaProgramada,
+                hora: horaProgramada,
+                ejecutorId,
+                asistenteId: notifyTargetId,
+                rolEjecutor: rolEjecutor || (miniStep === 5 ? 'auditor' : 'responsable'),
+                zoneName,
+              }),
             },
           })
+          console.log(`[evaluation-schedule] Notif enviada a ${notifyTargetId} (${miniStepLabel} S${sStep} ${fechaStr})`)
         } catch (e) {
-          console.error('Error notifying empleado:', e)
+          console.error('Error notifying asistente:', e)
         }
-      }
-
-      // Notificar al responsable si lo programa el empleado (caso: empleado solicita)
-      if (responsableId && createdBy && responsableId !== createdBy) {
-        try {
-          await db.notification.create({
-            data: {
-              userId: responsableId,
-              type: 'evaluation_scheduled',
-              title: `${miniStepLabel} programada: S${sStep} — ${fechaStr}`,
-              message: notifyMessage || `El empleado ha propuesto ${fechaStr} para la ${miniStepLabel.toLowerCase()} de S${sStep}. Zona: ${schedule.zone?.name || 'sin zona'}.`,
-              sStep,
-              zoneId: zoneId || null,
-              projectId,
-              read: false,
-            },
-          })
-        } catch (e) {
-          console.error('Error notifying responsable:', e)
-        }
+      } else {
+        console.warn(`[evaluation-schedule] No se envió notif: asistenteId=${asistenteId} ejecutorId=${ejecutorId}`)
       }
     }
 

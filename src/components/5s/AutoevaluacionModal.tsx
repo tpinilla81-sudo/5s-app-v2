@@ -304,9 +304,21 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
   };
 
   // Save scheduled date/time
+  // v2.75: enviamos responsableId (ejecutor), empleadoId (asistente),
+  // createdBy (quien programa) y notifyUser:true para que el backend
+  // dispare la notif 'evaluation_scheduled' al asistente.
+  // En autoeval (miniStep=4):
+  //   - ejecutor = responsable de la zona (currentZone.responsableId)
+  //   - asistente = primer empleado del proyecto asignado a la zona
+  //   - createdBy = currentUser.id (responsable que programa)
   const handleSaveSchedule = async () => {
     if (!currentProject?.id || !currentZone?.id) return;
     try {
+      // Buscar empleado (asistente): primer miembro con role 'empleado'
+      const empleadoMember = projectMembers.find(m => m.role === 'empleado');
+      const responsableId = currentZone.responsableId || currentUser?.id || null;
+      const empleadoId = empleadoMember?.userId || null;
+
       await fetch('/api/evaluation-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -317,9 +329,15 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
           zoneId: currentZone.id,
           fechaProgramada,
           horaProgramada,
+          // v2.75: roles para que se disparen los avisos
+          responsableId,   // EJECUTOR (responsable de zona)
+          empleadoId,      // ASISTENTE (empleado)
+          createdBy: currentUser?.id || null,
+          rolEjecutor: 'responsable',
+          notifyUser: true,
         }),
       });
-      toast.success('Fecha programada guardada');
+      toast.success('Fecha programada guardada — empleado avisado');
     } catch (e) {
       console.error('Error saving schedule:', e);
       toast.error('Error al guardar la fecha programada');

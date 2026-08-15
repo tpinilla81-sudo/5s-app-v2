@@ -324,9 +324,21 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
   };
 
   // Save scheduled date/time
+  // v2.75: enviamos responsableId (ejecutor=auditor), empleadoId
+  // (asistente=responsable de zona), createdBy y notifyUser:true
+  // para que el backend dispare la notif 'evaluation_scheduled' al
+  // asistente (responsable de zona).
+  // En auditoría (miniStep=5):
+  //   - ejecutor = primer auditor del proyecto
+  //   - asistente = responsable de la zona (currentZone.responsableId)
+  //   - createdBy = currentUser.id (auditor que programa)
   const handleSaveSchedule = async () => {
     if (!currentProject?.id || !currentZone?.id) return;
     try {
+      const auditorMember = projectMembers.find(m => m.role === 'auditor');
+      const responsableId = auditorMember?.userId || currentUser?.id || null;
+      const empleadoId = currentZone.responsableId || null;
+
       await fetch('/api/evaluation-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -337,9 +349,15 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
           zoneId: currentZone.id,
           fechaProgramada,
           horaProgramada,
+          // v2.75: roles para que se disparen los avisos
+          responsableId,   // EJECUTOR (auditor)
+          empleadoId,      // ASISTENTE (responsable de zona)
+          createdBy: currentUser?.id || null,
+          rolEjecutor: 'auditor',
+          notifyUser: true,
         }),
       });
-      toast.success('Fecha programada guardada');
+      toast.success('Fecha programada guardada — responsable avisado');
     } catch (e) {
       console.error('Error saving schedule:', e);
       toast.error('Error al guardar la fecha programada');
