@@ -2861,3 +2861,39 @@ Stage Summary:
     - Botón azul '📅 Programar fecha' visible SIEMPRE
     - Aunque la notif esté leída, el botón sigue ahí
     - Click abre diálogo de programación sin marcar como leída
+
+---
+Task ID: v2.70
+Agent: Main
+Task: Botón 'Programar' sobre globo paso 4 y 5 para responsable/auditor
+
+Work Log:
+- Usuario: "he pensado que para planificar fecha, le salga al responsable encima
+  del globo paso 4 un botón para planificar al igual que le sale al empleado
+  para avisar al responsable"
+
+CAMBIOS:
+- Añadido botón '📅 Programar' (morado, pulsante) sobre los globos 4 y 5
+- Visible para: responsable, auditor, admin (no empleado)
+- Condición de aparición:
+  * Paso 4: pasos 1-3 completos Y paso 4 no completado
+  * Paso 5: pasos 1-4 completos Y paso 5 no completado
+- Click abre el mismo diálogo de programación (setScheduleDialog)
+  que el botón de las notificaciones
+- Autocompleta empleadoId buscando el empleado de la zona
+- Tras programar: entrada en EvaluationSchedule + notif al empleado
+- Simétrico al botón '🔔 Autoeval' del empleado (que avisa al responsable)
+
+Bump v2.69 → v2.70 (middleware.ts, page.tsx).
+Build Next.js: ✓ Compiled successfully.
+Commit 2ab3b00 + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- TRAS DEPLOY v2.70 (~1-2 min):
+  * Responsable/auditor entra al board de una zona
+  * Si pasos 1-3 están completos y paso 4 no → ve botón morado '📅 Programar'
+    sobre el globo 4 (junto al '✓ Solicitado' del empleado si ya solicitó)
+  * Si pasos 1-4 están completos y paso 5 no → ve botón morado '📅 Programar'
+    sobre el globo 5
+  * Click → diálogo de fecha/hora → Programar → notif al empleado
+  * Misma UX que el botón '🔔 Autoeval' del empleado, pero invertido
