@@ -1536,10 +1536,10 @@ export default function HomePage() {
                                         🔔 Auditar
                                       </button>
                                     )}
-                                    {/* v2.74.2: Badge "📅 Programado" sobre los globos 4 y 5 cuando hay
-                                        una cita programada (estado programada|aceptada|en_ventana).
-                                        Visible para TODOS los roles (responsable Y empleado) para que
-                                        ambos sepan que la cita está fijada. */}
+                                    {/* v2.74.3: Badge "Programada" sobre los globos 4 y 5 cuando hay
+                                        una cita programada. Visible para TODOS los roles. Texto corto:
+                                        solo "Programada" (sin fecha/hora en el texto — el hover los muestra).
+                                        Color único morado para programada/aceptada, rojo si vencida. */}
                                     {(ms.id === 4 || ms.id === 5) && currentZone && (() => {
                                       const sched = evaluationSchedules.find(sch =>
                                         sch.sStep === s.id &&
@@ -1552,20 +1552,17 @@ export default function HomePage() {
                                       if (!sched) return null;
                                       const fechaCorta = sched.fechaProgramada!.split('-').reverse().join('/');
                                       const horaCorta = sched.horaProgramada || '10:00';
-                                      const estadoLabel =
-                                        sched.estado === 'aceptada' ? '✓ Aceptada' :
-                                        sched.estado === 'vencida' ? '⏰ Vencida' :
-                                        '📅 Programada';
-                                      const bg =
-                                        sched.estado === 'vencida' ? 'bg-red-50 text-red-700 border-red-300' :
-                                        sched.estado === 'aceptada' ? 'bg-green-50 text-green-700 border-green-300' :
-                                        'bg-purple-50 text-purple-700 border-purple-300';
+                                      const isVencida = sched.estado === 'vencida';
+                                      const bg = isVencida
+                                        ? 'bg-red-50 text-red-700 border-red-300'
+                                        : 'bg-purple-50 text-purple-700 border-purple-300';
+                                      const label = isVencida ? 'Vencida' : 'Programada';
                                       return (
                                         <span
                                           className={`text-[8px] font-bold px-1.5 py-0.5 rounded border mb-0.5 leading-tight whitespace-nowrap ${bg}`}
-                                          title={`${estadoLabel} — ${fechaCorta} ${horaCorta}`}
+                                          title={`${label} — ${fechaCorta} ${horaCorta}`}
                                         >
-                                          {estadoLabel}: {fechaCorta} {horaCorta}
+                                          {label}
                                         </span>
                                       );
                                     })()}
