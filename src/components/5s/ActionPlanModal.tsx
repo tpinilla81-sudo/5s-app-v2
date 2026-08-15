@@ -224,6 +224,8 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
           estado: 'abierta',
           enviado: 'Pendiente',
           porcentaje: 0,
+          // v2.76: marcar como entrada manual para el filtro por origen
+          tipo: 'accion',
         }),
       });
 

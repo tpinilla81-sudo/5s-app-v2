@@ -485,6 +485,11 @@ export default function PlanDeAccionView() {
   const [isLoading, setIsLoading] = useState(true);
   const [filterEstado, setFilterEstado] = useState<string>('all');
   const [filterS, setFilterS] = useState<string>('all');
+  // v2.76: filtro por origen (tabs unificados) — 'all' | 'manual' | 'inventario' | 'hallazgo'
+  //   'manual'     → source='actionplan' (entradas manuales del Plan de Acción S5 paso 3)
+  //   'inventario' → source='inventario' (items del inventario S1-S4 paso 3 con decisión)
+  //   'hallazgo'   → source in ['autoevaluacion','auditoria'] (NOKs de pasos 4 y 5)
+  const [filterOrigen, setFilterOrigen] = useState<string>('all');
   const [zones, setZones] = useState<ZoneData[]>([]);
   const [showNewDialog, setShowNewDialog] = useState(false);
   // v2.72: filas expandidas (mostrar grupo ORIGEN-INVENTARIO)
@@ -649,7 +654,16 @@ export default function PlanDeAccionView() {
   // Filter actions
   const filteredActions = actions
     .filter(a => filterEstado === 'all' || a.estado === filterEstado)
-    .filter(a => filterS === 'all' || a.sStep === Number(filterS));
+    .filter(a => filterS === 'all' || a.sStep === Number(filterS))
+    // v2.76: filtro por origen unificado
+    .filter(a => {
+      if (filterOrigen === 'all') return true;
+      const src = a.source || 'actionplan';
+      if (filterOrigen === 'manual') return src === 'actionplan';
+      if (filterOrigen === 'inventario') return src === 'inventario' || !!a.extra?.inventoryItemId;
+      if (filterOrigen === 'hallazgo') return src === 'autoevaluacion' || src === 'auditoria';
+      return true;
+    });
 
   // Stats
   const totalActions = actions.length;
@@ -738,14 +752,43 @@ export default function PlanDeAccionView() {
           })}
 
           {/* Reset filters */}
-          {(filterEstado !== 'all' || filterS !== 'all') && (
+          {(filterEstado !== 'all' || filterS !== 'all' || filterOrigen !== 'all') && (
             <button
-              onClick={() => { setFilterEstado('all'); setFilterS('all'); }}
+              onClick={() => { setFilterEstado('all'); setFilterS('all'); setFilterOrigen('all'); }}
               className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors whitespace-nowrap"
             >
               <X className="h-3 w-3" /> Limpiar
             </button>
           )}
+        </div>
+
+        {/* v2.76: Fila de tabs por origen — unificación de tablas */}
+        <div className="flex items-center gap-1.5 mt-1.5 overflow-x-auto pb-1">
+          <span className="text-[10px] text-muted-foreground shrink-0 mr-1">Origen:</span>
+          {([
+            { key: 'all', label: 'Todos', color: 'gray', count: actions.length },
+            { key: 'manual', label: '📝 Manual', color: 'rose', count: actions.filter(a => (a.source || 'actionplan') === 'actionplan').length },
+            { key: 'inventario', label: '📦 Inventario', color: 'emerald', count: actions.filter(a => a.source === 'inventario' || !!a.extra?.inventoryItemId).length },
+            { key: 'hallazgo', label: '🔍 Hallazgos 4/5', color: 'purple', count: actions.filter(a => a.source === 'autoevaluacion' || a.source === 'auditoria').length },
+          ] as const).map(tab => {
+            const isActive = filterOrigen === tab.key;
+            const colorMap: Record<string, { active: string; inactive: string }> = {
+              gray: { active: 'bg-gray-900 text-white border-gray-900', inactive: 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50' },
+              rose: { active: 'bg-rose-600 text-white border-rose-600', inactive: 'bg-white text-rose-600 border-rose-200 hover:bg-rose-50' },
+              emerald: { active: 'bg-emerald-600 text-white border-emerald-600', inactive: 'bg-white text-emerald-600 border-emerald-200 hover:bg-emerald-50' },
+              purple: { active: 'bg-purple-600 text-white border-purple-600', inactive: 'bg-white text-purple-600 border-purple-200 hover:bg-purple-50' },
+            };
+            const c = colorMap[tab.color];
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setFilterOrigen(tab.key)}
+                className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border transition-colors whitespace-nowrap ${isActive ? c.active : c.inactive}`}
+              >
+                {tab.label} <span className="opacity-70">({tab.count})</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

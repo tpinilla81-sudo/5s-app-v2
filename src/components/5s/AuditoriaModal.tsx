@@ -52,6 +52,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { buildDemandaFromHallazgo } from '@/lib/action-item-helpers';
 
 interface AuditoriaModalProps {
   open: boolean;
@@ -757,6 +758,26 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
           }
 
           // 2. Crear ActionItem con photoRefs
+          // v2.76: unificación de tablas — el ActionItem se crea con todos
+          // los campos de "Demanda" autocompletados (seccionDemandante=
+          // 'Auditoría', clienteZona=nombre zona, personaDemandada=
+          // responsable de zona, etc.) para que aparezca en el Plan de
+          // Acción con la misma estructura que las entradas manuales,
+          // los items del inventario y los hallazgos de autoeval.
+          const responsableZonaNameAudit = (() => {
+            if (currentZone?.responsableId) {
+              const m = projectMembers.find(m => m.userId === currentZone.responsableId);
+              if (m?.user?.name) return m.user.name;
+            }
+            const resp = projectMembers.find(m => m.role === 'responsable');
+            return resp?.user?.name || null;
+          })();
+          const demandaFieldsAudit = buildDemandaFromHallazgo({
+            miniStep: 5,
+            revisorName: auditorName || currentUser?.name || 'Auditor',
+            zonaName: currentZone?.name,
+            responsableZonaName: responsableZonaNameAudit || undefined,
+          });
           await fetch('/api/actions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -775,6 +796,8 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
               projectId: currentProject?.id,
               zoneId: currentZone?.id || null,
               photoRefs: photoUrls.length > 0 ? JSON.stringify(photoUrls) : undefined,
+              // v2.76: campos de Demanda autocompletados
+              ...demandaFieldsAudit,
             }),
           });
         }

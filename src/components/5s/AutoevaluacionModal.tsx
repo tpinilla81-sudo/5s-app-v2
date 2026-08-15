@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { buildDemandaFromHallazgo } from '@/lib/action-item-helpers';
 import { toast } from 'sonner';
 
 interface AutoevaluacionModalProps {
@@ -785,6 +786,25 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
             }
 
             // 2. Crear ActionItem con photoRefs (JSON array de URLs)
+            // v2.76: unificación de tablas — el ActionItem se crea con todos
+            // los campos de "Demanda" autocompletados para que aparezca en el
+            // Plan de Acción con la misma estructura que las entradas manuales
+            // y los items del inventario. Solo quedan vacíos los campos de
+            // "Acción" y "Seguimiento" para rellenar manualmente.
+            const responsableZonaName = (() => {
+              if (currentZone?.responsableId) {
+                const m = projectMembers.find(m => m.userId === currentZone.responsableId);
+                if (m?.user?.name) return m.user.name;
+              }
+              const resp = projectMembers.find(m => m.role === 'responsable');
+              return resp?.user?.name || null;
+            })();
+            const demandaFields = buildDemandaFromHallazgo({
+              miniStep: 4,
+              revisorName: currentUser?.name || 'Responsable',
+              zonaName: currentZone?.name,
+              responsableZonaName: responsableZonaName || undefined,
+            });
             const actionRes = await fetch('/api/actions', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -797,13 +817,14 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                 mejora: nok.mejora || '',
                 responsable: nok.responsable || null,
                 prioridad: 'media',
-                estado: 'abierta',
                 source: 'autoevaluacion',
                 auditor: null,
                 projectId: currentProject?.id,
                 zoneId: currentZone?.id || null,
                 // v2.63: enlazar fotos del hallazgo al ActionItem
                 photoRefs: photoUrls.length > 0 ? JSON.stringify(photoUrls) : undefined,
+                // v2.76: campos de Demanda autocompletados
+                ...demandaFields,
               }),
             });
             const actionJson = await actionRes.json();

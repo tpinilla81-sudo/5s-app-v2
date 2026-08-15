@@ -221,6 +221,10 @@ export async function POST(request: NextRequest) {
             porcentaje: 0,
             semanaReal: null,
             extra: extraSnapshot, // v2.72: snapshot del inventario
+            // v2.76: unificación de tablas — marcar el tipo y status para
+            // que el Plan de Acción pueda filtrar/agrupar por origen.
+            tipo: 'inventario',
+            status: 'nok',
           },
         })
 

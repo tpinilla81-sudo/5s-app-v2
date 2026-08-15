@@ -328,6 +328,43 @@ export async function PUT(request: NextRequest) {
       updateData.fechaReal = updateData.fechaReal || new Date()
       // v2.75: si se está cerrando y viene verificadoPorId, lo persistimos
       if (body.verificadoPorId) updateData.verificadoPorId = body.verificadoPorId
+
+      // v2.76: Auto-sincronización Inventario Jaula → al cerrar un
+      // ActionItem con source='inventario', actualizar el InventoryItem
+      // original para que refleje el fin de la cuarentena.
+      //   - Si decisión='Retirar' → jaulaStatus='transferido' + jaulaFechaSalida=now
+      //   - Si decisión='Eliminar' → jaulaStatus='transferido' (a residuo) + jaulaFechaSalida=now
+      // El InventoryItemId se guarda en `extra.inventoryItemId` (snapshot).
+      // Solo aplica si el InventoryItem sigue en jaula (jaulaStatus='en_jaula').
+      try {
+        const before = await db.actionItem.findUnique({ where: { id }, select: { source: true, extra: true } })
+        if (before?.source === 'inventario' && before.extra) {
+          const snapshot = JSON.parse(before.extra)
+          const invId = snapshot?.inventoryItemId
+          const decision = snapshot?.decision
+          if (invId) {
+            const invItem = await db.inventoryItem.findUnique({
+              where: { id: invId },
+              select: { id: true, jaulaStatus: true },
+            })
+            // Solo actualizamos si está en jaula (no tocamos los ya transferidos/reclamados)
+            if (invItem && invItem.jaulaStatus === 'en_jaula') {
+              await db.inventoryItem.update({
+                where: { id: invId },
+                data: {
+                  jaulaStatus: 'transferido',
+                  jaulaFechaSalida: new Date(),
+                  jaulaDestino: decision === 'Eliminar' ? 'Residuo' : (snapshot?.zonaDestino || 'Transferido'),
+                },
+              })
+              console.log(`[actions PUT] InventoryItem ${invId} → jaulaStatus='transferido' (auto-sync al cerrar ActionItem ${id})`)
+            }
+          }
+        }
+      } catch (syncErr) {
+        console.error('[actions PUT] Error auto-sincronizando inventario jaula:', syncErr)
+        // No bloquear el cierre del ActionItem si la sincronización falla
+      }
     }
 
     const action = await db.actionItem.update({
