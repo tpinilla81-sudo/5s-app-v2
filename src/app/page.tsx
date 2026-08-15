@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { use5SStore } from '@/lib/store';
 import { S_STEPS, MINI_STEPS } from '@/lib/5s-constants';
@@ -320,14 +320,30 @@ export default function HomePage() {
 
   // v2.75: Fetch notifications usando el store (reemplaza useState local)
   // El store hace debounce de 5s y guarda el último fetch.
-  // Polling cada 30s para refrescar unread count.
+  // Polling cada 15s para refrescar unread count (v2.75.2: bajado de
+  // 30s a 15s para que el empleado vea el aviso de cita programada
+  // más rápido cuando el responsable programa).
+  // v2.75.2: si el unread count cambia, también refrescamos las notifs
+  // completas para que el panel muestre las nuevas al instante.
+  const prevUnreadRef = useRef(0);
   useEffect(() => {
     if (canSeeNotifications && currentUser?.id && currentProject?.id) {
       fetchUnreadCount();
-      const interval = setInterval(() => fetchUnreadCount(), 30000); // Poll every 30s
+      const interval = setInterval(async () => {
+        const before = use5SStore.getState().unreadNotifs;
+        await fetchUnreadCount();
+        const after = use5SStore.getState().unreadNotifs;
+        // Si hay nuevas notifs desde la última vez, refrescar la lista completa
+        if (after > before || after > prevUnreadRef.current) {
+          try { await fetchNotifications(true); } catch (e) { console.error(e); }
+          // También refrescar schedules por si hay una cita nueva
+          try { await use5SStore.getState().fetchEvaluationSchedules(); } catch (e) { /* ignore */ }
+        }
+        prevUnreadRef.current = after;
+      }, 15000); // Poll every 15s
       return () => clearInterval(interval);
     }
-  }, [canSeeNotifications, currentUser?.id, currentProject?.id, fetchUnreadCount]);
+  }, [canSeeNotifications, currentUser?.id, currentProject?.id, fetchUnreadCount, fetchNotifications]);
 
   // v2.74/v2.75: Comprobar si alguna cita programada ha superado la ventana de 2h.
   // v2.75: ahora también dispara el endpoint unificado /api/avisos/generate que cubre:
@@ -1961,15 +1977,22 @@ export default function HomePage() {
                         empleadoId: scheduleDialog.empleadoId,
                         createdBy: currentUser?.id,
                         estado: 'programada',
+                        // v2.75.2: rolEjecutor + notifyUser para que se
+                        // dispare la notif 'evaluation_scheduled' al asistente.
+                        rolEjecutor: scheduleDialog.miniStep === 5 ? 'auditor' : 'responsable',
+                        notifyUser: true,
                       }),
                     });
                     const json = await res.json();
                     if (json.success) {
                       toast.success(`Fecha programada: ${scheduleDate.split('-').reverse().join('/')} a las ${scheduleTime}`);
                       setScheduleDialog({ open: false });
-                      // v2.74.2: refrescar schedules para que el badge "📅 Programado"
-                      // aparezca inmediatamente sobre el globo 4/5
+                      // v2.74.2/v2.75.2: refrescar schedules + notifs para
+                      // que el badge "📅 Programado" aparezca inmediatamente
+                      // y el asistente reciba la notif sin tener que
+                      // refrescar la página.
                       try { await use5SStore.getState().fetchEvaluationSchedules(); } catch {}
+                      try { await use5SStore.getState().fetchNotifications(true); } catch {}
                       // Open calendar to show the new entry
                       setShowUserCalendar(true);
                     } else {

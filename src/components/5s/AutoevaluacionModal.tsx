@@ -309,17 +309,41 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
   // dispare la notif 'evaluation_scheduled' al asistente.
   // En autoeval (miniStep=4):
   //   - ejecutor = responsable de la zona (currentZone.responsableId)
+  //     fallback al currentUser (que debe ser responsable)
   //   - asistente = primer empleado del proyecto asignado a la zona
   //   - createdBy = currentUser.id (responsable que programa)
+  // v2.75.2: tras guardar, refresca el store (schedules + notifs) para
+  // que el badge "Programada" aparezca al instante sin tener que cerrar
+  // y reabrir el modal.
   const handleSaveSchedule = async () => {
     if (!currentProject?.id || !currentZone?.id) return;
     try {
-      // Buscar empleado (asistente): primer miembro con role 'empleado'
-      const empleadoMember = projectMembers.find(m => m.role === 'empleado');
+      // Cargar miembros si no están cargados aún (race condition)
+      let members = projectMembers;
+      if (members.length === 0) {
+        try {
+          const r = await fetch(`/api/projects/${currentProject.id}/members`);
+          const d = await r.json();
+          members = d?.members || [];
+          setProjectMembers(members);
+        } catch (e) { /* ignore */ }
+      }
+      // Buscar empleado (asistente): priorizar empleados de la zona actual,
+      // si no hay, coger el primer empleado del proyecto.
+      const empleadoMember = members.find(m => m.role === 'empleado');
       const responsableId = currentZone.responsableId || currentUser?.id || null;
       const empleadoId = empleadoMember?.userId || null;
 
-      await fetch('/api/evaluation-schedule', {
+      if (!responsableId) {
+        toast.error('No se puede programar: no hay responsable asignado');
+        return;
+      }
+      if (!empleadoId) {
+        toast.error('No se puede programar: no hay empleado en el proyecto');
+        return;
+      }
+
+      const res = await fetch('/api/evaluation-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -337,7 +361,19 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
           notifyUser: true,
         }),
       });
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(`Error al programar: ${json.error || 'desconocido'}`);
+        return;
+      }
       toast.success('Fecha programada guardada — empleado avisado');
+      // v2.75.2: refrescar store para que el badge "Programada" aparezca
+      // inmediatamente sobre el globo 4 y el empleado lo vea sin tener
+      // que refrescar la página.
+      try {
+        await use5SStore.getState().fetchEvaluationSchedules();
+        await use5SStore.getState().fetchNotifications(true);
+      } catch (e) { /* ignore */ }
     } catch (e) {
       console.error('Error saving schedule:', e);
       toast.error('Error al guardar la fecha programada');

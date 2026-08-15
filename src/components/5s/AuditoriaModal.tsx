@@ -331,15 +331,39 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
   // En auditoría (miniStep=5):
   //   - ejecutor = primer auditor del proyecto
   //   - asistente = responsable de la zona (currentZone.responsableId)
+  //     fallback al primer responsable del proyecto
   //   - createdBy = currentUser.id (auditor que programa)
+  // v2.75.2: tras guardar, refresca el store (schedules + notifs) para
+  // que el badge "Programada" aparezca al instante sin tener que cerrar
+  // y reabrir el modal.
   const handleSaveSchedule = async () => {
     if (!currentProject?.id || !currentZone?.id) return;
     try {
-      const auditorMember = projectMembers.find(m => m.role === 'auditor');
+      // Cargar miembros si no están cargados aún (race condition)
+      let members = projectMembers;
+      if (members.length === 0) {
+        try {
+          const r = await fetch(`/api/projects/${currentProject.id}/members`);
+          const d = await r.json();
+          members = d?.members || [];
+          setProjectMembers(members);
+        } catch (e) { /* ignore */ }
+      }
+      const auditorMember = members.find(m => m.role === 'auditor');
+      const responsableMember = members.find(m => m.role === 'responsable');
       const responsableId = auditorMember?.userId || currentUser?.id || null;
-      const empleadoId = currentZone.responsableId || null;
+      const empleadoId = currentZone.responsableId || responsableMember?.userId || null;
 
-      await fetch('/api/evaluation-schedule', {
+      if (!responsableId) {
+        toast.error('No se puede programar: no hay auditor en el proyecto');
+        return;
+      }
+      if (!empleadoId) {
+        toast.error('No se puede programar: no hay responsable de zona');
+        return;
+      }
+
+      const res = await fetch('/api/evaluation-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -357,7 +381,19 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
           notifyUser: true,
         }),
       });
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(`Error al programar: ${json.error || 'desconocido'}`);
+        return;
+      }
       toast.success('Fecha programada guardada — responsable avisado');
+      // v2.75.2: refrescar store para que el badge "Programada" aparezca
+      // inmediatamente sobre el globo 5 y el responsable lo vea sin tener
+      // que refrescar la página.
+      try {
+        await use5SStore.getState().fetchEvaluationSchedules();
+        await use5SStore.getState().fetchNotifications(true);
+      } catch (e) { /* ignore */ }
     } catch (e) {
       console.error('Error saving schedule:', e);
       toast.error('Error al guardar la fecha programada');
