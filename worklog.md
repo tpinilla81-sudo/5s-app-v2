@@ -3273,3 +3273,50 @@ PENDIENTE (bloqueado hasta fin de tablero):
 PENDIENTE-ZONAS — Ver Task ID PENDIENTE-ZONAS arriba. NO tocar hasta
 que el usuario confirme que el tablero está totalmente definido.
 
+
+---
+Task ID: v2.76-DEPLOY
+Agent: Main
+Task: Desplegar v2.76 (unificación tablas) en Vercel — crear endpoint
+migrate-v276 porque el script /scripts/migrate-v276-unify-tables.ts no
+se ejecuta automáticamente en Vercel.
+
+Work Log:
+- Verificado que el código v2.76 ya estaba committed y funcionando en
+  local: buildDemandaFromHallazgo() en AutoevaluacionModal y
+  AuditoriaModal, helper compartido en src/lib/action-item-helpers.ts,
+  schema con todos los campos Demanda/Acción/Seguimiento.
+- Detectada la causa: el script de migración sólo existe como archivo
+  TS en /scripts/, Vercel no lo ejecuta. Hacía falta un endpoint HTTP
+  como ya hicimos en v2.74.1 (migrate-evaluation-schedule) y v2.75
+  (migrate-v275).
+- Creado /api/migrate-v276/route.ts (one-shot, idempotente) que:
+  1. ALTER TABLE IF NOT EXISTS para las 15+ columnas del Plan de Acción
+     + las columnas v2.75/v2.76 (sourceId, *Id, tipo, status, extra).
+  2. BACKFILL del campo tipo según source:
+       actionplan→accion, inventario→inventario,
+       autoevaluacion/auditoria→hallazgo
+  3. BACKFILL de Demanda en hallazgos con campos vacíos:
+       fechaEntrada=createdAt, semana=W{ISO week}, seccionDemandante
+       según miniStep (5=Auditoría, 4=Autoevaluación),
+       clienteZona+seccionDemandada=zone.name, personaDemandada=
+       responsable(legacy), enviado=Pendiente, porcentaje=0, status=nok
+  4. BACKFILL inventario: status=nok, enviado=Sí
+  5. BACKFILL accion: enviado=Pendiente, porcentaje=0
+  6. Verificación final con counts por tipo y estado del backfill.
+- Bump package.json 2.1.0 → 2.76.0
+- Bump middleware BUILD_VERSION → 20260815-120000-v2.76.0
+- Commit 4e279d5 y push a origin/main → dispara rebuild en Vercel.
+
+Stage Summary:
+- Endpoint creado: /api/migrate-v276 (POST, idempotente)
+- Commit: 4e279d5 v2.76 (3 files, +345/-2)
+- Push OK a main → Vercel rebuild en curso
+- PRÓXIMO PASO para el usuario: una vez que termine el deploy en Vercel
+  (1-2 min), invocar el endpoint con curl/Postman:
+
+    curl -X POST https://<dominio-vercel>/api/migrate-v276
+
+  Esto aplica las migraciones de columnas y el backfill en producción.
+  Tras verificar el resultado, eliminar el endpoint en el siguiente
+  commit (igual que migrate-v275).
