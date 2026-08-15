@@ -975,6 +975,7 @@ export default function HomePage() {
                     n.type === 'audit_requested' ? 'bg-orange-50' :
                     n.type === 'evaluation_scheduled' ? 'bg-purple-50' :
                     n.type === 'evaluation_accepted' ? 'bg-green-50' :
+                    n.type === 'evaluation_completed' ? 'bg-green-50' :
                     n.type === 'evaluation_expired' ? 'bg-red-50' :
                     n.type === 'new_action_item' ? 'bg-blue-50' :
                     n.type === 'action_due_today' ? 'bg-orange-50' :
@@ -988,6 +989,7 @@ export default function HomePage() {
                     {n.type === 'audit_meeting_accepted' && <CheckSquare className="h-3 w-3 text-green-600 shrink-0" />}
                     {n.type === 'evaluation_scheduled' && <CalendarDays className="h-3 w-3 text-purple-500 shrink-0" />}
                     {n.type === 'evaluation_accepted' && <CheckSquare className="h-3 w-3 text-green-600 shrink-0" />}
+                    {n.type === 'evaluation_completed' && <CheckSquare className="h-3 w-3 text-green-600 shrink-0" />}
                     {n.type === 'evaluation_expired' && <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />}
                     {n.type === 'new_action_item' && <CalendarDays className="h-3 w-3 text-blue-500 shrink-0" />}
                     {n.type === 'action_due_today' && <AlertTriangle className="h-3 w-3 text-orange-500 shrink-0" />}
@@ -1566,9 +1568,10 @@ export default function HomePage() {
                                         </span>
                                       );
                                     })()}
-                                    {/* v2.70: Botón "Programar fecha" sobre paso 4 y 5 para responsable/auditor.
-                                        Aparece cuando hay una solicitud pendiente (autoeval_requested o audit_requested)
-                                        y el usuario es responsable, auditor o admin. Abre el mismo diálogo de programación. */}
+                                    {/* v2.70/v2.74.4: Botón "Programar fecha" sobre paso 4 y 5 para responsable/auditor.
+                                        Solo aparece cuando NO hay cita activa (programada/aceptada/en_ventana).
+                                        Si ya hay cita → no se muestra (está el badge "Programada").
+                                        Si la cita está vencida → sí se muestra (para reprogramar). */}
                                     {(ms.id === 4 || ms.id === 5) && (isResponsable || currentUser?.role === 'auditor' || isAdmin) && currentZone && currentProject && (() => {
                                       // Para paso 4: mostrar si pasos 1-3 están completos y paso 4 no
                                       // Para paso 5: mostrar si pasos 1-4 están completos y paso 5 no
@@ -1591,7 +1594,17 @@ export default function HomePage() {
                                         (currentZone ? (p.zoneId === currentZone.id || p.zoneId === null) : true) &&
                                         p.completed
                                       );
-                                      return allPrevDone && !currentStepDone;
+                                      if (!allPrevDone || currentStepDone) return false;
+                                      // v2.74.4: NO mostrar botón si ya hay cita activa (programada/aceptada).
+                                      // SÍ mostrar si no hay cita, o si está vencida (para reprogramar).
+                                      const existingSched = evaluationSchedules.find(sch =>
+                                        sch.sStep === s.id &&
+                                        sch.miniStep === ms.id &&
+                                        sch.fechaProgramada &&
+                                        (!sch.zoneId || sch.zoneId === currentZone.id) &&
+                                        ['programada', 'aceptada'].includes(sch.estado)
+                                      );
+                                      return !existingSched;
                                     })() && (
                                       <button
                                         className="text-[8px] font-bold text-purple-700 hover:text-purple-800 hover:bg-purple-50 px-1.5 py-0.5 rounded border border-purple-300 mb-0.5 transition-colors leading-tight whitespace-nowrap animate-pulse bg-purple-50 shadow-sm flex items-center gap-0.5"

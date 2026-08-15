@@ -512,6 +512,47 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
       if (auditJson.success) {
         // Feedback visible
         toast.success(`Auditoría guardada: ${Object.keys(results).length} items (${scoring.okCount} OK, ${scoring.nokCount} NOK, score ${scoring.scorePercent}%)`);
+
+        // v2.74.4: Marcar el schedule como 'realizada' y avisar a responsable/empleado
+        if (currentProject?.id && currentZone?.id) {
+          try {
+            const schedRes = await fetch(
+              `/api/evaluation-schedule?sStep=${sStep}&miniStep=5&projectId=${currentProject.id}&zoneId=${currentZone.id}`
+            );
+            const schedData = await schedRes.json();
+            if (schedData?.success && schedData?.data?.id) {
+              await fetch('/api/evaluation-schedule', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: schedData.data.id, estado: 'realizada' }),
+              });
+              const otherUserId = schedData.data.responsableId === currentUser?.id
+                ? schedData.data.empleadoId
+                : schedData.data.responsableId;
+              if (otherUserId && otherUserId !== currentUser?.id) {
+                const fechaStr = schedData.data.fechaProgramada
+                  ? schedData.data.fechaProgramada.split('-').reverse().join('/')
+                  : '';
+                await fetch('/api/notifications', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: otherUserId,
+                    type: 'evaluation_completed',
+                    title: `✓ Auditoría S${sStep} completada (score ${scoring.scorePercent}%)`,
+                    message: `La auditoría de S${sStep} programada para el ${fechaStr} se ha completado con un ${scoring.scorePercent}%. Resultado: ${isApto ? 'APTO' : 'NO APTO'}. Zona: ${currentZone?.name || 'sin zona'}.`,
+                    sStep,
+                    zoneId: currentZone.id,
+                    projectId: currentProject.id,
+                  }),
+                });
+              }
+            }
+          } catch (e) {
+            console.error('[v2.74.4] Error marking schedule as realizada:', e);
+          }
+        }
+
         // Also save results in progress.notes so loadSavedResults can find them on reopen
         try {
           await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {

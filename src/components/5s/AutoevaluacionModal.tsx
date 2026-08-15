@@ -494,6 +494,50 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
         setFinalScore(scoring.scorePercent);
         await fetchProgress();
 
+        // v2.74.4: Marcar el schedule como 'realizada' y avisar a responsable/empleado
+        // para que el badge "Programada" desaparezca y el otro sepa que se completó.
+        if (passed && currentProject?.id && currentZone?.id) {
+          try {
+            // Buscar el schedule activo
+            const schedRes = await fetch(
+              `/api/evaluation-schedule?sStep=${sStep}&miniStep=4&projectId=${currentProject.id}&zoneId=${currentZone.id}`
+            );
+            const schedData = await schedRes.json();
+            if (schedData?.success && schedData?.data?.id) {
+              // PATCH estado='realizada'
+              await fetch('/api/evaluation-schedule', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: schedData.data.id, estado: 'realizada' }),
+              });
+              // Crear notif 'evaluation_completed' para el otro rol
+              const otherUserId = schedData.data.responsableId === currentUser?.id
+                ? schedData.data.empleadoId
+                : schedData.data.responsableId;
+              if (otherUserId && otherUserId !== currentUser?.id) {
+                const fechaStr = schedData.data.fechaProgramada
+                  ? schedData.data.fechaProgramada.split('-').reverse().join('/')
+                  : '';
+                await fetch('/api/notifications', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: otherUserId,
+                    type: 'evaluation_completed',
+                    title: `✓ Autoevaluación S${sStep} completada (score ${scoring.scorePercent}%)`,
+                    message: `La autoevaluación de S${sStep} programada para el ${fechaStr} se ha completado con un ${scoring.scorePercent}%. Zona: ${currentZone?.name || 'sin zona'}.`,
+                    sStep,
+                    zoneId: currentZone.id,
+                    projectId: currentProject.id,
+                  }),
+                });
+              }
+            }
+          } catch (e) {
+            console.error('[v2.74.4] Error marking schedule as realizada:', e);
+          }
+        }
+
         // ─── Create EmployeeProgress record for individual step 4 (autoevaluación) ───
         // Step 4 is individual for S1/S2/S3/S5 (done by employees) and for S4 (done by responsable)
         // We need to track individual completion so the gating system unlocks step 5
