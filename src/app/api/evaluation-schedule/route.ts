@@ -187,6 +187,9 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/evaluation-schedule — Update estado (realizada, cancelada, reprogramada, aceptada, vencida)
 // v2.74: cuando estado='aceptada', notifica al responsable que el empleado aceptó la cita.
+// v2.75: cuando estado='reprogramada', notifica al ejecutor (responsableId) con type='evaluation_rejected'.
+//        El ejecutor es: responsable (autoeval, miniStep=4) | auditor (auditoría, miniStep=5).
+//        El asistente (empleadoId) es quien rechaza.
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
@@ -210,19 +213,27 @@ export async function PATCH(request: NextRequest) {
       },
     })
 
-    // v2.74: notificar al responsable cuando el empleado acepta
+    const miniStepLabel = before.miniStep === 4 ? 'Autoevaluación' : 'Auditoría'
+    const fechaStr = before.fechaProgramada
+      ? `${before.fechaProgramada.split('-').reverse().join('/')}${before.horaProgramada ? ' a las ' + before.horaProgramada : ''}`
+      : 'fecha por confirmar'
+
+    // v2.74: notificar al ejecutor (responsableId) cuando el asistente (empleadoId) acepta
     if (estado === 'aceptada' && before.responsableId) {
-      const miniStepLabel = before.miniStep === 4 ? 'Autoevaluación' : 'Auditoría'
-      const fechaStr = before.fechaProgramada
-        ? `${before.fechaProgramada.split('-').reverse().join('/')}${before.horaProgramada ? ' a las ' + before.horaProgramada : ''}`
-        : 'fecha por confirmar'
       try {
         await db.notification.create({
           data: {
             userId: before.responsableId,
             type: 'evaluation_accepted',
             title: `✓ ${miniStepLabel} aceptada: S${before.sStep} — ${fechaStr}`,
-            message: `El empleado ha aceptado la cita de ${miniStepLabel.toLowerCase()} para S${before.sStep} programada para el ${fechaStr}. La ventana se abrirá automáticamente a la hora programada.`,
+            message: `El asistente ha aceptado la cita de ${miniStepLabel.toLowerCase()} para S${before.sStep} programada para el ${fechaStr}. La ventana se abrirá automáticamente a la hora programada.`,
+            metadata: JSON.stringify({
+              scheduleId: id,
+              miniStep: before.miniStep,
+              sStep: before.sStep,
+              fecha: before.fechaProgramada,
+              hora: before.horaProgramada,
+            }),
             sStep: before.sStep,
             zoneId: before.zoneId || null,
             projectId: before.projectId,
@@ -231,6 +242,34 @@ export async function PATCH(request: NextRequest) {
         })
       } catch (e) {
         console.error('Error notifying responsable of acceptance:', e)
+      }
+    }
+
+    // v2.75: notificar al ejecutor cuando el asistente rechaza (reprogramada)
+    if (estado === 'reprogramada' && before.responsableId) {
+      try {
+        await db.notification.create({
+          data: {
+            userId: before.responsableId,
+            type: 'evaluation_rejected',
+            title: `✗ ${miniStepLabel} rechazada: S${before.sStep} — reprogramar`,
+            message: `El asistente no puede asistir a la cita de ${miniStepLabel.toLowerCase()} para S${before.sStep} programada para el ${fechaStr}.${notas ? ` Motivo: ${notas}` : ''} Por favor, propone una nueva fecha.`,
+            metadata: JSON.stringify({
+              scheduleId: id,
+              miniStep: before.miniStep,
+              sStep: before.sStep,
+              fecha: before.fechaProgramada,
+              hora: before.horaProgramada,
+              motivo: notas || null,
+            }),
+            sStep: before.sStep,
+            zoneId: before.zoneId || null,
+            projectId: before.projectId,
+            read: false,
+          },
+        })
+      } catch (e) {
+        console.error('Error notifying responsable of rejection:', e)
       }
     }
 

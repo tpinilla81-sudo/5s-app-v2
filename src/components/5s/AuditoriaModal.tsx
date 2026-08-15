@@ -122,6 +122,24 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
   const [haMejoras, setHaMejoras] = useState<boolean | null>(null);
   const [mejoras, setMejoras] = useState<Array<{ id: string; descripcion: string; responsable: string; fecha: string }>>([]);
 
+  // v2.75: Pre-llenado de hallazgos pendientes heredados del paso 4 (autoeval) y paso 3 (inventario)
+  // El auditor debe validar cada uno: mantener NOK, verificar resuelto, o recategorizar.
+  // La deduplicacion al guardar evita crear ActionItems duplicados.
+  const [heredados, setHeredados] = useState<Array<{
+    id: string;
+    hallazgo: string;
+    itemId: string;
+    source: string;
+    prioridad: string;
+    estado: string;
+    photoRefs?: string | null;
+    fechaLimite?: string | null;
+    auditorOrig?: string | null;
+    decisionRevision: 'pendiente' | 'mantener_nok' | 'verificado_resuelto' | 'recategorizar';
+    nuevaPrioridad?: string;
+    notasAuditor?: string;
+  }>>([]);
+
 
 
   // Fetch dynamic threshold
@@ -193,7 +211,63 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
     loadScheduledDate();
     // Load previously saved results (so user can see what was saved before)
     loadSavedResults();
+    // v2.75: cargar hallazgos pendientes heredados del paso 4 (autoeval) y paso 3 (inventario)
+    loadHeredados();
   }, [open, sStep, sections]);
+
+  // v2.75: Cargar ActionItems pendientes heredados del paso 4 (autoeval) y paso 3 (inventario)
+  // El auditor debe pronunciarse sobre cada uno: mantener NOK / verificar resuelto / recategorizar
+  // Al guardar, los ActionItems verificados como resueltos se cierran con verificadoPorId=auditor.
+  // Los ActionItems mantenidos como NOK se actualizan a prioridad='alta' y source='auditoria' (dedupe).
+  const loadHeredados = async () => {
+    if (!currentProject?.id || !currentZone?.id) return;
+    try {
+      // Cargar todos los ActionItems de la zona, filtrar por source y estado
+      const res = await fetch(
+        `/api/actions?projectId=${currentProject.id}` +
+        `&source=autoevaluacion&source=inventario&source=actionplan`
+      );
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        const pendientes = json.data.filter((a: any) =>
+          (a.source === 'autoevaluacion' || a.source === 'inventario' || a.source === 'actionplan') &&
+          (a.estado === 'abierta' || a.estado === 'en_proceso') &&
+          a.zoneId === currentZone.id
+        ).map((a: any) => ({
+          id: a.id,
+          hallazgo: a.hallazgo || a.itemDescription || '',
+          itemId: a.itemId,
+          source: a.source,
+          prioridad: a.prioridad,
+          estado: a.estado,
+          photoRefs: a.photoRefs,
+          fechaLimite: a.fechaLimite,
+          auditorOrig: a.auditor,
+          decisionRevision: 'pendiente' as const,
+          nuevaPrioridad: a.prioridad,
+          notasAuditor: '',
+        }));
+        setHeredados(pendientes);
+      }
+    } catch (e) {
+      console.error('[auditoria] Error cargando heredados:', e);
+    }
+  };
+
+  // v2.75: Helper para cambiar la decisión de revisión sobre un hallazgo heredado
+  const setHeredadoDecision = (id: string, decision: 'pendiente' | 'mantener_nok' | 'verificado_resuelto' | 'recategorizar') => {
+    setHeredados(prev => prev.map(h => h.id === id ? { ...h, decisionRevision: decision } : h));
+  };
+
+  // v2.75: Helper para cambiar la nueva prioridad (en recategorización)
+  const setHeredadoPrioridad = (id: string, prioridad: string) => {
+    setHeredados(prev => prev.map(h => h.id === id ? { ...h, nuevaPrioridad: prioridad } : h));
+  };
+
+  // v2.75: Helper para añadir notas del auditor
+  const setHeredadoNotas = (id: string, notas: string) => {
+    setHeredados(prev => prev.map(h => h.id === id ? { ...h, notasAuditor: notas } : h));
+  };
 
   // Load previously saved audit results from the backend
   const loadSavedResults = async () => {
@@ -651,6 +725,73 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
           });
         }
 
+        // ─── v2.75: Procesar hallazgos heredados (autoeval/inventario/plan) ───
+        // Para cada heredado, aplicar la decisión del auditor:
+        //   - 'mantener_nok': actualizar prioridad='alta', source='auditoria', auditor=auditorName
+        //   - 'verificado_resuelto': cerrar ActionItem (estado='cerrada', verificadoPorId=auditor, fechaReal=now)
+        //   - 'recategorizar': cambiar prioridad (alta/media/baja) + source='auditoria' + notas
+        //   - 'pendiente': no hacer nada (queda para próxima auditoría)
+        if (heredados.length > 0) {
+          for (const h of heredados) {
+            try {
+              if (h.decisionRevision === 'verificado_resuelto') {
+                await fetch(`/api/actions?id=${h.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    estado: 'cerrada',
+                    verificadoPorId: currentUser?.id || null,
+                    notas: h.notasAuditor ? `Verificado resuelto en auditoría S${sStep} por ${auditorName}: ${h.notasAuditor}` : `Verificado resuelto en auditoría S${sStep} por ${auditorName}`,
+                  }),
+                });
+                // Notificar al responsable que se cerró
+                if (currentZone?.responsableId) {
+                  await fetch('/api/notifications', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      userId: currentZone.responsableId,
+                      type: 'action_verified',
+                      title: `Acción verificada: ${h.hallazgo.slice(0, 50)}`,
+                      message: `El auditor ${auditorName} ha verificado como resuelta la acción del Plan de Acción en S${sStep}. Zona: ${currentZone.name}.${h.notasAuditor ? ` Notas: ${h.notasAuditor}` : ''}\n\n[ref:${h.id}]`,
+                      metadata: JSON.stringify({
+                        actionItemId: h.id,
+                        verificadorId: currentUser?.id,
+                        verificadorName: auditorName,
+                        sStep,
+                        miniStep: 5,
+                      }),
+                      sStep,
+                      zoneId: currentZone.id,
+                      projectId: currentProject?.id,
+                    }),
+                  });
+                }
+              } else if (h.decisionRevision === 'mantener_nok' || h.decisionRevision === 'recategorizar') {
+                // Mantener como NOK: subir prioridad a 'alta' y marcar como revisado por auditor
+                const nuevaPrioridad = h.decisionRevision === 'recategorizar' && h.nuevaPrioridad
+                  ? h.nuevaPrioridad
+                  : 'alta';
+                await fetch(`/api/actions?id=${h.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    prioridad: nuevaPrioridad,
+                    source: 'auditoria',
+                    auditor: auditorName,
+                    estado: 'en_proceso',
+                    notas: h.notasAuditor
+                      ? `Confirmado NOK en auditoría S${sStep} por ${auditorName}. Prioridad: ${nuevaPrioridad}. Notas: ${h.notasAuditor}`
+                      : `Confirmado NOK en auditoría S${sStep} por ${auditorName}. Prioridad: ${nuevaPrioridad}.`,
+                  }),
+                });
+              }
+            } catch (e) {
+              console.error('[auditoria] Error procesando heredado:', e);
+            }
+          }
+        }
+
         // ─── Notify responsables of NOK disfunciones from audit ───
         if (nokResults.length > 0 && currentProject?.id && currentZone?.id) {
           try {
@@ -1080,6 +1221,108 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
               </div>
               <p className="text-[10px] text-muted-foreground">Mínimo para aprobar: {notaMinima}%</p>
             </div>
+
+            {/* v2.75: Panel de hallazgos heredados del paso 4 (autoeval) y paso 3 (inventario) */}
+            {heredados.length > 0 && (
+              <Card className="border-purple-300 bg-purple-50/50">
+                <div className="p-3 border-b border-purple-200 bg-purple-100/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-purple-700" />
+                      <span className="text-sm font-semibold text-purple-900">
+                        Hallazgos heredados para verificar ({heredados.length})
+                      </span>
+                    </div>
+                    <Badge className="bg-purple-200 text-purple-900">
+                      {heredados.filter(h => h.decisionRevision === 'pendiente').length} sin revisar
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-purple-800 mt-1">
+                    Pronúnciate sobre cada hallazgo detectado previamente: mantener como NOK, verificar resuelto, o recategorizar.
+                  </p>
+                </div>
+                <div className="divide-y divide-purple-100">
+                  {heredados.map((h) => (
+                    <div key={h.id} className="p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="outline" className="text-[10px]">
+                              {h.source === 'autoevaluacion' ? '⚠️ Autoeval' :
+                               h.source === 'inventario' ? '📦 Inventario' : '📝 Plan'}
+                            </Badge>
+                            <Badge variant="outline" className={
+                              h.prioridad === 'alta' ? 'text-[10px] border-red-300 text-red-700' :
+                              h.prioridad === 'media' ? 'text-[10px] border-amber-300 text-amber-700' :
+                              'text-[10px] border-gray-300 text-gray-600'
+                            }>
+                              {h.prioridad}
+                            </Badge>
+                            {h.fechaLimite && (
+                              <span className="text-[10px] text-gray-500">
+                                Vence: {new Date(h.fechaLimite).toLocaleDateString('es-ES')}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-800 mt-1 line-clamp-2">{h.hallazgo}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <Button
+                          size="sm" variant="outline"
+                          className={`text-[11px] h-7 ${h.decisionRevision === 'mantener_nok' ? 'bg-red-100 border-red-400 text-red-800' : ''}`}
+                          onClick={() => setHeredadoDecision(h.id, 'mantener_nok')}
+                          
+                        >
+                          <XCircle className="h-3 w-3 mr-1" /> Mantener NOK
+                        </Button>
+                        <Button
+                          size="sm" variant="outline"
+                          className={`text-[11px] h-7 ${h.decisionRevision === 'verificado_resuelto' ? 'bg-green-100 border-green-400 text-green-800' : ''}`}
+                          onClick={() => setHeredadoDecision(h.id, 'verificado_resuelto')}
+                          
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" /> Verificado resuelto
+                        </Button>
+                        <Button
+                          size="sm" variant="outline"
+                          className={`text-[11px] h-7 ${h.decisionRevision === 'recategorizar' ? 'bg-blue-100 border-blue-400 text-blue-800' : ''}`}
+                          onClick={() => setHeredadoDecision(h.id, 'recategorizar')}
+                          
+                        >
+                          Recategorizar
+                        </Button>
+                      </div>
+                      {h.decisionRevision === 'recategorizar' && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] text-gray-600">Nueva prioridad:</span>
+                          {['alta', 'media', 'baja'].map(p => (
+                            <Button
+                              key={p}
+                              size="sm" variant="ghost"
+                              className={`text-[11px] h-6 px-2 ${h.nuevaPrioridad === p ? 'bg-blue-100 text-blue-800' : ''}`}
+                              onClick={() => setHeredadoPrioridad(h.id, p)}
+                              
+                            >
+                              {p}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                      {h.decisionRevision !== 'pendiente' && (
+                        <Input
+                          placeholder="Notas del auditor..."
+                          value={h.notasAuditor}
+                          onChange={(e) => setHeredadoNotas(h.id, e.target.value)}
+                          className="text-xs h-8"
+                          
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
 
             {/* Checklist sections - same checklist as autoevaluación */}
             <div className="space-y-3">

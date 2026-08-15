@@ -3048,3 +3048,89 @@ Cuando se reactive este Task ID:
 - Re-leer diseño completo en conversación del 15 ago 2026
 - Implementar en 4 fases: modelo datos → CRUD proyectos → asistente
   zonificación → reasignación empleados
+
+---
+Task ID: v2.75-AVISOS-UNIFICACION
+Agent: Main
+Task: v2.75 — Unificación de avisos + Plan de Acción + flujo automático 3→4→5
+
+Work Log:
+- Schema (prisma/schema.prisma):
+  * ActionItem: añadidos sourceId, comunicadoPorId, personaDemandadaId,
+    verificadoPorId (FKs a User), tipo ('accion'|'inventario'|'hallazgo'),
+    status ('ok'|'nok'|'na'). Añadidas 3 relaciones a User con nombres
+    "ActionItemComunicadoPor", "ActionItemPersonaDemandada",
+    "ActionItemVerificadoPor".
+  * AuditResult: añadidos miniStep, zoneId, ejecutorId, asistenteId,
+    actionItemsGenerados, scheduleId. Nuevos índices.
+  * Notification: añadido metadata (JSON string) para datos contextuales
+    de los nuevos tipos de aviso.
+  * EvaluationSchedule: añadido rolEjecutor ('responsable'|'auditor').
+    Renombrados comentarios para aclarar la semántica:
+      responsableId = EJECUTOR de la revisión
+      empleadoId    = ASISTENTE que debe confirmar presencia
+- Store (src/lib/store.ts):
+  * Añadido NotificationItem interface
+  * Estado: notifications, unreadNotifs, notifPanelOpen, notifsLastFetch
+  * Acciones: fetchNotifications (con debounce 5s), fetchUnreadCount,
+    markNotificationRead, markAllNotificationsRead, toggleNotifPanel,
+    addLocalNotification, removeLocalNotification
+  * getMiniStepStatus (paso 4/5): ahora valida que el usuario actual sea
+    el EJECUTOR (responsableId del schedule). El asistente (empleadoId)
+    NO puede ejecutar el modal.
+- API:
+  * Creado /api/avisos/generate (unificado): cubre 3 fuentes
+    (step_completed, action_items, schedule) con un solo endpoint.
+    Sustituye a /api/notifications/auto y /api/avisos/auto.
+  * /api/notifications: POST soporta metadata; PUT soporta { markAll,
+    projectId }.
+  * /api/evaluation-schedule PATCH: añadido soporte para estado
+    'reprogramada' que dispara notificación 'evaluation_rejected' al
+    ejecutor (con motivo en notas).
+  * /api/actions POST/PUT: soportan nuevos campos sourceId,
+    comunicadoPorId, personaDemandadaId, verificadoPorId, tipo, status.
+- Componentes:
+  * AutoevaluacionModal: añadido panel "Hallazgos pendientes heredados
+    del Paso 3" que carga ActionItems con source in (inventario,
+    actionplan) y estado in (abierta, en_proceso). El responsable puede
+    marcar cada uno como 'Sigue NOK' o 'Resuelto' (con notas). Al guardar,
+    los marcados como resueltos se cierran con verificadoPorId.
+  * AuditoriaModal: añadido panel "Hallazgos heredados para verificar"
+    que carga ActionItems con source in (autoevaluacion, inventario,
+    actionplan) pendientes. El auditor puede: mantener NOK, verificar
+    resuelto (cierra el ActionItem + notifica al responsable con
+    'action_verified'), o recategorizar (cambia prioridad). Al guardar,
+    los mantenidos/recategorizados se actualizan a source='auditoria'
+    y prioridad='alta'.
+  * AutoevaluacionModal y AuditoriaModal: corregidos bugs de sintaxis
+    pre-existentes (const oraAutoevaluacion... -> const [horaAutoevaluacion...,
+    lo mismo para oraProgramada, aMejoras, ejoras).
+- page.tsx:
+  * Sacado el estado de notifs del useState local → store Zustand
+  * Reemplazadas 3 llamadas manuales a /api/notifications por
+    fetchNotifications(true) del store
+  * Reemplazado el polling de check-vencidas por /api/avisos/generate
+    que cubre todo (vencidas + step_completed + action_items) en una
+    sola llamada
+  * Reemplazados los markAllRead/markOneRead manuales por acciones del
+    store (con optimistic update)
+- Nuevos tipos de aviso:
+  * evaluation_rejected (asistente rechaza la cita → ejecutor)
+  * action_verified (auditor cierra ActionItem → responsable de zona)
+- Nuevos campos trazabilidad ActionItem: sourceId enlaza al AuditResult
+  o InventoryItem de origen (deduplicación en próxima fase).
+
+Stage Summary:
+- Build exitoso (sin nuevos errores TS, mismos 124 pre-existentes)
+- DB local SQLite actualizada (campos nuevos aplicados vía db push)
+- Schema PostgreSQL preservado para producción (necesitará migración
+  con prisma migrate en deploy)
+- PENDIENTE para siguiente iteración:
+  * Aplicar migración en producción (prisma migrate deploy)
+  * Migrar datos legacy de ActionItem: copiar responsable/comunicadoPor/
+    personaDemandada/verificadoPor (texto) a los nuevos *Id (FK) usando
+    matching por email
+  * Eliminar campos legacy una vez migrados (Fase 3 del diseño)
+  * Implementar vista unificada del Plan de Acción con pestañas por origen
+  * Implementar deduplicación estricta en el guardado (no crear ActionItem
+    nuevo si ya existe uno con mismo sourceId+itemId+zoneId)

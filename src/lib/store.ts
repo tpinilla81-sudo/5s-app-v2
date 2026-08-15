@@ -114,6 +114,21 @@ export interface PermissionMap {
   }
 }
 
+// v2.75: Notification en el store Zustand (sacada de useState en page.tsx)
+export interface NotificationItem {
+  id: string
+  userId: string
+  type: string
+  title: string
+  message: string
+  sStep: number | null
+  zoneId: string | null
+  projectId: string
+  read: boolean
+  createdAt: string
+  metadata?: string | null // JSON string con datos contextuales
+}
+
 interface FiveSState {
   // Progress & Board State
   progress: ProgressItem[]
@@ -147,6 +162,12 @@ interface FiveSState {
   // Permissions State
   permissions: PermissionMap
 
+  // v2.75: Notifications State (movidas de useState en page.tsx)
+  notifications: NotificationItem[]
+  unreadNotifs: number
+  notifPanelOpen: boolean
+  notifsLastFetch: number // timestamp del último fetch exitoso
+
   // Progress & Board Actions
   fetchProgress: () => Promise<void>
   fetchEmployeeProgress: (projectId: string, zoneId?: string) => Promise<void>
@@ -168,6 +189,15 @@ interface FiveSState {
   hasPermission: (permission: string) => boolean  // Check if current user has a permission
   canPerform: (sStep: number, miniStep: number) => boolean  // Check a1 (execute) permission
   canView: (sStep: number, miniStep: number) => boolean  // Check a0 (view) permission
+
+  // v2.75: Notification Actions (en store para acceso global)
+  fetchNotifications: (force?: boolean) => Promise<void>
+  fetchUnreadCount: () => Promise<void>
+  markNotificationRead: (id: string) => Promise<void>
+  markAllNotificationsRead: () => Promise<void>
+  toggleNotifPanel: (open?: boolean) => void
+  addLocalNotification: (n: Partial<NotificationItem>) => void // feedback inmediato
+  removeLocalNotification: (id: string) => void
 
   // Computed helpers
   getMiniStepStatus: (sStep: number, miniStep: number) => 'locked' | 'available' | 'completed'
@@ -223,6 +253,12 @@ export const use5SStore = create<FiveSState>((set, get) => ({
 
   // Permissions State
   permissions: {},
+
+  // v2.75: Notifications State
+  notifications: [],
+  unreadNotifs: 0,
+  notifPanelOpen: false,
+  notifsLastFetch: 0,
 
   // Progress & Board Actions
   fetchProgress: async () => {
@@ -427,6 +463,117 @@ export const use5SStore = create<FiveSState>((set, get) => ({
   canView: (sStep: number, miniStep: number): boolean => {
     // Check a0 (view) permission for a specific sStep + miniStep
     return get().hasPermission(`s${sStep}_step${miniStep}_a0`)
+  },
+
+  // ═══════════════════════════════════════════════════════
+  // v2.75: Notifications Actions — acceso global desde cualquier componente
+  // ═══════════════════════════════════════════════════════
+
+  fetchNotifications: async (force = false) => {
+    const { currentUser, currentProject, notifsLastFetch } = get()
+    if (!currentUser?.id || !currentProject?.id) return
+    // Debounce 5s salvo force=true (tras completar un paso)
+    if (!force && Date.now() - notifsLastFetch < 5000) return
+    try {
+      const res = await fetch(`/api/notifications?userId=${currentUser.id}&projectId=${currentProject.id}`)
+      const data = await res.json()
+      if (data.success) {
+        const notifs = (data.data || []) as NotificationItem[]
+        const unread = notifs.filter(n => !n.read).length
+        set({
+          notifications: notifs,
+          unreadNotifs: unread,
+          notifsLastFetch: Date.now(),
+        })
+      }
+    } catch (e) {
+      console.error('Error fetching notifications:', e)
+    }
+  },
+
+  fetchUnreadCount: async () => {
+    const { currentUser, currentProject } = get()
+    if (!currentUser?.id || !currentProject?.id) {
+      set({ unreadNotifs: 0 })
+      return
+    }
+    try {
+      const res = await fetch(`/api/notifications?userId=${currentUser.id}&projectId=${currentProject.id}&unread=true`)
+      const data = await res.json()
+      if (data.success) {
+        set({ unreadNotifs: data.data?.length || 0 })
+      }
+    } catch (e) {
+      console.error('Error fetching unread count:', e)
+    }
+  },
+
+  markNotificationRead: async (id: string) => {
+    const { notifications, unreadNotifs } = get()
+    // Optimistic update
+    set({
+      notifications: notifications.map(n => n.id === id ? { ...n, read: true } : n),
+      unreadNotifs: Math.max(0, unreadNotifs - 1),
+    })
+    try {
+      await fetch('/api/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+    } catch (e) {
+      console.error('Error marking notification read:', e)
+    }
+  },
+
+  markAllNotificationsRead: async () => {
+    const { notifications, currentUser, currentProject } = get()
+    if (!currentUser?.id || !currentProject?.id) return
+    set({
+      notifications: notifications.map(n => ({ ...n, read: true })),
+      unreadNotifs: 0,
+    })
+    try {
+      await fetch('/api/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id, projectId: currentProject.id, markAll: true }),
+      })
+    } catch (e) {
+      console.error('Error marking all notifications read:', e)
+    }
+  },
+
+  toggleNotifPanel: (open?: boolean) => {
+    const { notifPanelOpen } = get()
+    set({ notifPanelOpen: open !== undefined ? open : !notifPanelOpen })
+  },
+
+  addLocalNotification: (n: Partial<NotificationItem>) => {
+    // Para feedback inmediato antes del siguiente fetch
+    const newNotif: NotificationItem = {
+      id: n.id || `local_${Date.now()}`,
+      userId: n.userId || '',
+      type: n.type || 'info',
+      title: n.title || '',
+      message: n.message || '',
+      sStep: n.sStep ?? null,
+      zoneId: n.zoneId ?? null,
+      projectId: n.projectId || '',
+      read: false,
+      createdAt: n.createdAt || new Date().toISOString(),
+      metadata: n.metadata ?? null,
+    }
+    const { notifications, unreadNotifs } = get()
+    set({
+      notifications: [newNotif, ...notifications],
+      unreadNotifs: unreadNotifs + 1,
+    })
+  },
+
+  removeLocalNotification: (id: string) => {
+    const { notifications } = get()
+    set({ notifications: notifications.filter(n => n.id !== id) })
   },
 
   // ═══════════════════════════════════════════════════════
@@ -672,16 +819,18 @@ export const use5SStore = create<FiveSState>((set, get) => ({
       // INTRA-S: can't enter step until previous step is completed
       if (!isPreviousStepCompleted()) return 'locked'
 
-      // v2.73: Si es paso 4 (autoeval) o 5 (auditoría), verificar que
-      // exista una cita programada Y que estemos dentro de la ventana
-      // [fechaHora, +2h]. Si no hay cita → locked (hay que programar).
-      // Si hay pero no ha llegado la hora → locked (esperar).
-      // Si la ventana ya pasó (más de 2h) → locked (vencida, reprogramar).
+      // v2.73/v2.75: Si es paso 4 (autoeval) o 5 (auditoría), verificar:
+      // 1) exista una cita programada Y aceptada
+      // 2) estemos dentro de la ventana [fechaHora, +2h]
+      // 3) v2.75: SOLO el EJECUTOR puede entrar al modal.
+      //    - miniStep=4 (autoeval): ejecutor = responsable (responsableId del schedule)
+      //    - miniStep=5 (auditoría): ejecutor = auditor (responsableId del schedule)
+      //    El asistente (empleadoId) recibe avisos pero NO puede ejecutar.
       if (miniStep === 4 || miniStep === 5) {
         // Buscar schedule activo para este S, este miniStep, esta zona
         const sched = evaluationSchedules.find(s => {
           if (s.sStep !== sStep || s.miniStep !== miniStep) return false
-          if (s.estado === 'cancelada' || s.estado === 'realizada') return false
+          if (s.estado === 'cancelada' || s.estado === 'realizada' || s.estado === 'vencida') return false
           // Coincidir zona (null cuenta como "cualquiera")
           if (currentZone && s.zoneId && s.zoneId !== currentZone.id) return false
           return true
@@ -705,7 +854,15 @@ export const use5SStore = create<FiveSState>((set, get) => ({
           // Ventana vencida → cerrado (habrá que reprogramar)
           return 'locked'
         }
-        // Estamos dentro de la ventana → acceso abierto
+        // v2.75: dentro de la ventana — verificar que el usuario actual es el EJECUTOR
+        // El ejecutor siempre está en responsableId (reinterpretado en v2.75).
+        // El asistente (empleadoId) NO puede ejecutar el modal.
+        if (currentUser?.id !== sched.responsableId) {
+          // El asistente puede ver el estado, pero no entrar al modal
+          if (canViewStep) return 'locked'
+          return 'locked'
+        }
+        // Estamos dentro de la ventana y el usuario es el ejecutor → acceso abierto
       }
 
       return 'available'

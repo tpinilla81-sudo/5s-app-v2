@@ -176,6 +176,13 @@ export async function POST(request: NextRequest) {
       semanaReal,
       photoRefs, // v2.63: JSON array of photo URLs linked to this hallazgo
       extra, // v2.72: snapshot del inventario (JSON string o objeto)
+      // v2.75: nuevos campos de trazabilidad y unificación
+      sourceId,
+      comunicadoPorId,
+      personaDemandadaId,
+      verificadoPorId,
+      tipo,
+      status,
     } = body
 
     // Allow draft entries from actionplan source with placeholder description
@@ -241,6 +248,13 @@ export async function POST(request: NextRequest) {
         semanaReal: semanaReal || null,
         photoRefs: photoRefs || null, // v2.63: fotos del hallazgo enlazadas al ActionItem
         extra: extra ? (typeof extra === 'string' ? extra : JSON.stringify(extra)) : null, // v2.72
+        // v2.75: nuevos campos
+        sourceId: sourceId || null,
+        comunicadoPorId: comunicadoPorId || null,
+        personaDemandadaId: personaDemandadaId || null,
+        verificadoPorId: verificadoPorId || null,
+        tipo: tipo || 'accion',
+        status: status || null,
       },
     })
 
@@ -300,11 +314,20 @@ export async function PUT(request: NextRequest) {
     if (body.itemDescription !== undefined) updateData.itemDescription = body.itemDescription
     if (body.notas !== undefined) updateData.notas = body.notas
     if (body.auditor !== undefined) updateData.auditor = body.auditor
+    // v2.75: nuevos campos de trazabilidad y unificación
+    if (body.sourceId !== undefined) updateData.sourceId = body.sourceId || null
+    if (body.comunicadoPorId !== undefined) updateData.comunicadoPorId = body.comunicadoPorId || null
+    if (body.personaDemandadaId !== undefined) updateData.personaDemandadaId = body.personaDemandadaId || null
+    if (body.verificadoPorId !== undefined) updateData.verificadoPorId = body.verificadoPorId || null
+    if (body.tipo !== undefined) updateData.tipo = body.tipo
+    if (body.status !== undefined) updateData.status = body.status || null
 
     // If resolving, set resolution date
     if (body.estado === 'resuelta' || body.estado === 'cerrada') {
       updateData.fechaResolucion = new Date()
       updateData.fechaReal = updateData.fechaReal || new Date()
+      // v2.75: si se está cerrando y viene verificadoPorId, lo persistimos
+      if (body.verificadoPorId) updateData.verificadoPorId = body.verificadoPorId
     }
 
     const action = await db.actionItem.update({

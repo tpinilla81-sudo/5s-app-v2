@@ -115,15 +115,22 @@ export default function HomePage() {
     setActiveTab,
     employeeProgress,
     goToProjectSelector,
+    // v2.75: notifications desde el store (sacadas de useState local)
+    notifications: notifs,
+    unreadNotifs,
+    notifPanelOpen: showNotifs,
+    fetchNotifications,
+    fetchUnreadCount,
+    markNotificationRead,
+    markAllNotificationsRead,
+    toggleNotifPanel,
   } = use5SStore();
 
   const [isSeeding, setIsSeeding] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [showTeamManagement, setShowTeamManagement] = useState(false);
   const [showRolePermissions, setShowRolePermissions] = useState(false);
-  const [unreadNotifs, setUnreadNotifs] = useState(0);
-  const [showNotifs, setShowNotifs] = useState(false);
-  const [notifs, setNotifs] = useState<any[]>([]);
+  // v2.75: notifs, unreadNotifs, showNotifs ahora vienen del store (sacados de useState local)
   const [showUserCalendar, setShowUserCalendar] = useState(false);
   const [userTaskCount, setUserTaskCount] = useState(0);
   // v2.68: diálogo para programar fecha de autoeval/auditoría desde una notificación
@@ -312,50 +319,45 @@ export default function HomePage() {
   const canResetData = hasPermission('reset_data') || hasPermission('skip_steps'); // Testing: who can see the reset button
   const canSeePermissions = hasPermission('manage_permissions') || isAdmin || isGestor; // Only gestor/admin can see Permisos
 
-  // Fetch notifications — must be after canSeeNotifications is defined
+  // v2.75: Fetch notifications usando el store (reemplaza useState local)
+  // El store hace debounce de 5s y guarda el último fetch.
+  // Polling cada 30s para refrescar unread count.
   useEffect(() => {
     if (canSeeNotifications && currentUser?.id && currentProject?.id) {
-      const fetchNotifs = async () => {
-        try {
-          const res = await fetch(`/api/notifications?userId=${currentUser.id}&projectId=${currentProject.id}&unread=true`);
-          const data = await res.json();
-          if (data.success) {
-            setUnreadNotifs(data.data?.length || 0);
-          }
-        } catch (e) { console.error('Error fetching notifications:', e); }
-      };
-      fetchNotifs();
-      const interval = setInterval(fetchNotifs, 30000); // Poll every 30s
+      fetchUnreadCount();
+      const interval = setInterval(() => fetchUnreadCount(), 30000); // Poll every 30s
       return () => clearInterval(interval);
-    } else {
-      setUnreadNotifs(0);
     }
-  }, [canSeeNotifications, currentUser?.id, currentProject?.id]);
+  }, [canSeeNotifications, currentUser?.id, currentProject?.id, fetchUnreadCount]);
 
-  // v2.74: Comprobar si alguna cita programada ha superado la ventana de 2h.
-  // Si es así, el backend la marca como 'vencida' y envía notificaciones a
-  // responsable y empleado. Ejecutamos al montar y cada 5 minutos.
+  // v2.74/v2.75: Comprobar si alguna cita programada ha superado la ventana de 2h.
+  // v2.75: ahora también dispara el endpoint unificado /api/avisos/generate que cubre:
+  //   - step_completed (autoeval_ready, audit_ready)
+  //   - action_items (new_action_item, action_due_today, action_overdue)
+  //   - schedule (evaluation_expired)
   useEffect(() => {
     if (!currentUser?.id || !currentProject?.id) return;
     const checkVencidas = async () => {
       try {
-        const res = await fetch('/api/evaluation-schedule/check-vencidas', { method: 'POST' });
-        const data = await res.json();
-        if (data?.success && data.vencidasCount > 0) {
-          // Hubo vencidas → refrescar schedules + notifs para que la UI refleje el cambio
-          try { await use5SStore.getState().fetchEvaluationSchedules(); } catch {}
-          try {
-            const nres = await fetch(`/api/notifications?userId=${currentUser.id}&projectId=${currentProject.id}&unread=true`);
-            const ndata = await nres.json();
-            if (ndata.success) setUnreadNotifs(ndata.data?.length || 0);
-          } catch {}
-        }
+        // v2.75: usar el endpoint unificado que hace todo (vencidas + step_completed + action_items)
+        await fetch('/api/avisos/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: currentProject.id,
+            userId: currentUser.id,
+            source: 'all',
+          }),
+        });
+        // Refrescar schedules + notifs para que la UI refleje el cambio
+        try { await use5SStore.getState().fetchEvaluationSchedules(); } catch {}
+        try { await fetchUnreadCount(); } catch {}
       } catch (e) { /* silent */ }
     };
     checkVencidas();
     const interval = setInterval(checkVencidas, 5 * 60 * 1000); // cada 5 min
     return () => clearInterval(interval);
-  }, [currentUser?.id, currentProject?.id]);
+  }, [currentUser?.id, currentProject?.id, fetchUnreadCount]);
 
   // Fetch user task count for the calendar badge (vencidas + hoy)
   useEffect(() => {
@@ -483,14 +485,10 @@ export default function HomePage() {
               <Button variant={unreadNotifs > 0 ? 'default' : 'outline'} size="sm"
                 className={`relative gap-1 text-[10px] h-8 ${unreadNotifs > 0 ? 'bg-orange-500 hover:bg-orange-600 text-white border-orange-500' : 'border-orange-300 text-orange-600 hover:bg-orange-50'}`}
                 onClick={async () => {
-                  if (currentUser?.id) {
-                    try {
-                      const res = await fetch(`/api/notifications?userId=${currentUser.id}&unread=true`);
-                      const data = await res.json();
-                      if (data.success) setNotifs(data.data || []);
-                    } catch (e) { console.error(e); }
+                  if (currentUser?.id && currentProject?.id) {
+                    try { await fetchNotifications(true); } catch (e) { console.error(e); }
                   }
-                  setShowNotifs(!showNotifs);
+                  toggleNotifPanel();
                 }}>
                 {unreadNotifs > 0 ? <BellRing className="h-3.5 w-3.5" /> : <Bell className="h-3 w-3" />}
                 <span>{unreadNotifs > 0 ? `${unreadNotifs} avisos` : 'Avisos'}</span>
@@ -566,13 +564,9 @@ export default function HomePage() {
                   className={`relative w-11 h-11 ${unreadNotifs > 0 ? 'bg-orange-500 hover:bg-orange-600 text-white border-orange-500' : 'border-orange-300 text-orange-600 hover:bg-orange-50'}`}
                   onClick={async () => {
                     if (currentUser?.id && currentProject?.id) {
-                      try {
-                        const res = await fetch(`/api/notifications?userId=${currentUser.id}&projectId=${currentProject.id}`);
-                        const data = await res.json();
-                        if (data.success) setNotifs(data.data || []);
-                      } catch (e) { console.error(e); }
+                      try { await fetchNotifications(true); } catch (e) { console.error(e); }
                     }
-                    setShowNotifs(!showNotifs);
+                    toggleNotifPanel();
                   }}>
                   {unreadNotifs > 0 ? <BellRing className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
                   {unreadNotifs > 0 && (
@@ -746,13 +740,9 @@ export default function HomePage() {
                 className={`relative gap-1 text-[10px] h-8 ${unreadNotifs > 0 ? 'bg-orange-500 hover:bg-orange-600 text-white border-orange-500' : 'border-orange-300 text-orange-600 hover:bg-orange-50'}`}
                 onClick={async () => {
                   if (currentUser?.id && currentProject?.id) {
-                    try {
-                      const res = await fetch(`/api/notifications?userId=${currentUser.id}&projectId=${currentProject.id}`);
-                      const data = await res.json();
-                      if (data.success) setNotifs(data.data || []);
-                    } catch (e) { console.error(e); }
+                    try { await fetchNotifications(true); } catch (e) { console.error(e); }
                   }
-                  setShowNotifs(!showNotifs);
+                  toggleNotifPanel();
                 }}>
                 {unreadNotifs > 0 ? <BellRing className="h-3.5 w-3.5" /> : <Bell className="h-3 w-3" />}
                 <span className="hidden sm:inline">{unreadNotifs > 0 ? `${unreadNotifs} avisos` : 'Avisos'}</span>
@@ -940,8 +930,7 @@ export default function HomePage() {
               <button className="text-[10px] text-blue-600 hover:underline" onClick={async () => {
                 if (currentUser?.id) {
                   await fetch('/api/notifications', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ markAllRead: true, userId: currentUser.id }) });
-                  setUnreadNotifs(0);
-                  setNotifs(notifs.map(n => ({ ...n, read: true })));
+                  markAllNotificationsRead();
                 }
               }}>Marcar todo como leído</button>
             )}
@@ -963,9 +952,8 @@ export default function HomePage() {
                       body: JSON.stringify({ notificationId: n.id, read: true }),
                     });
                   } catch (e) { /* ignore */ }
-                  setNotifs(notifs.map((nn: any) => nn.id === n.id ? { ...nn, read: true } : nn));
-                  setUnreadNotifs(prev => Math.max(0, prev - 1));
-                  setShowNotifs(false);
+                  markNotificationRead(n.id);
+                  toggleNotifPanel(false);
                   setShowUserCalendar(true);
                 };
                 return (
@@ -1045,7 +1033,7 @@ export default function HomePage() {
                           tomorrow.setDate(tomorrow.getDate() + 1);
                           setScheduleDate(tomorrow.toISOString().slice(0, 10));
                           setScheduleTime('10:00');
-                          setShowNotifs(false);
+                          toggleNotifPanel(false);
                         }}
                       >
                         <Calendar className="h-2.5 w-2.5" />
@@ -1108,8 +1096,7 @@ export default function HomePage() {
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ notificationId: n.id, read: true }),
                             });
-                            setNotifs(notifs.map((nn: any) => nn.id === n.id ? { ...nn, read: true } : nn));
-                            setUnreadNotifs(prev => Math.max(0, prev - 1));
+                            markNotificationRead(n.id);
 
                             // Refrescar schedules en el store para que la UI se actualice
                             try { await use5SStore.getState().fetchEvaluationSchedules(); } catch {}
@@ -1164,8 +1151,7 @@ export default function HomePage() {
                               }
                             }
                             // Refresh notifications
-                            setNotifs(notifs.map((nn: any) => nn.id === n.id ? { ...nn, read: true } : nn));
-                            setUnreadNotifs(prev => Math.max(0, prev - 1));
+                            markNotificationRead(n.id);
                             alert('Reunión de auditoría aceptada. Se ha notificado al empleado.');
                           } catch (err) {
                             console.error('Error accepting meeting:', err);

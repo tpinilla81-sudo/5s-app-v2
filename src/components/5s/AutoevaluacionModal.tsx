@@ -81,6 +81,22 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
   const [auditFechaProgramada, setAuditFechaProgramada] = useState('');
   const [auditHoraProgramada, setAuditHoraProgramada] = useState('');
 
+  // v2.75: Pre-llenado de hallazgos pendientes heredados del paso 3 (inventario + plan manual)
+  // Cargamos ActionItems abiertos/en_proceso de la zona con source in ['inventario','actionplan']
+  // para que el responsable los revise durante la autoeval.
+  const [heredados, setHeredados] = useState<Array<{
+    id: string;
+    hallazgo: string;
+    itemId: string;
+    source: string;
+    prioridad: string;
+    estado: string;
+    photoRefs?: string | null;
+    fechaLimite?: string | null;
+    decisionRevision: 'pendiente' | 'sigue_nok' | 'resuelto';
+    notasResolucion: string;
+  }>>([]);
+
   // Load template from API (uses board config if zone has one)
   const { sections, isLoading: isLoadingTemplate, notaMinima: templateNotaMinima } = useChecklistTemplate('autoevaluacion', sStep, open, currentZone?.boardConfigId);
 
@@ -170,6 +186,8 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
     loadScheduledDate();
     // Load previously saved results (so user can see what was saved before)
     loadSavedResults();
+    // v2.75: cargar hallazgos pendientes heredados del paso 3 (inventario + plan manual)
+    loadHeredados();
   }, [open, sStep, sections]);
 
   // Load previously saved audit results from the backend so the user can see
@@ -212,6 +230,55 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
       setResults({});
     }
   }, [open]);
+
+  // v2.75: Cargar ActionItems pendientes heredados del paso 3 (inventario S1-S4 + plan manual S5)
+  // Estos son hallazgos que el responsable debe revisar durante la autoevaluación:
+  //   - confirmar que sigue siendo NOK (mantener)
+  //   - marcar como resuelto (cerrar con foto evidencia)
+  //   - añadir nuevos NOKs al checklist
+  // La deduplicación al guardar evita crear ActionItems duplicados para el mismo hallazgo.
+  const loadHeredados = async () => {
+    if (!currentProject?.id || !currentZone?.id) return;
+    try {
+      const res = await fetch(
+        `/api/actions?projectId=${currentProject.id}&zoneId=${currentZone.id}` +
+        `&source=inventario&source=actionplan`
+      );
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        // Filtrar: estado abierto/en_proceso, source inventario o actionplan, miniStep=3
+        const pendientes = json.data.filter((a: any) =>
+          (a.source === 'inventario' || a.source === 'actionplan') &&
+          (a.estado === 'abierta' || a.estado === 'en_proceso') &&
+          a.miniStep === 3
+        ).map((a: any) => ({
+          id: a.id,
+          hallazgo: a.hallazgo || a.itemDescription || '',
+          itemId: a.itemId,
+          source: a.source,
+          prioridad: a.prioridad,
+          estado: a.estado,
+          photoRefs: a.photoRefs,
+          fechaLimite: a.fechaLimite,
+          decisionRevision: 'pendiente' as const,
+          notasResolucion: '',
+        }));
+        setHeredados(pendientes);
+      }
+    } catch (e) {
+      console.error('[autoeval] Error cargando heredados:', e);
+    }
+  };
+
+  // v2.75: Helper para cambiar la decisión de revisión sobre un hallazgo heredado
+  const setHeredadoDecision = (id: string, decision: 'pendiente' | 'sigue_nok' | 'resuelto') => {
+    setHeredados(prev => prev.map(h => h.id === id ? { ...h, decisionRevision: decision } : h));
+  };
+
+  // v2.75: Helper para añadir notas de resolución
+  const setHeredadoNotas = (id: string, notas: string) => {
+    setHeredados(prev => prev.map(h => h.id === id ? { ...h, notasResolucion: notas } : h));
+  };
 
   // Load scheduled date/time for this autoevaluación AND the auditoría schedule
   const loadScheduledDate = async () => {
@@ -718,6 +785,45 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
           }
         }
 
+        // ─── v2.75: Procesar hallazgos heredados del paso 3 ───
+        // Para cada heredado, aplicar la decisión del responsable:
+        //   - 'sigue_nok': mantener abierto (se actúa como recordatorio de que sigue pendiente)
+        //   - 'resuelto': cerrar el ActionItem (estado='cerrada', verificadoPorId=currentUser, fechaReal=now)
+        //   - 'pendiente': no hacer nada (no se revisó, queda para próxima)
+        if (heredados.length > 0) {
+          for (const h of heredados) {
+            if (h.decisionRevision === 'resuelto') {
+              try {
+                await fetch(`/api/actions?id=${h.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    estado: 'cerrada',
+                    verificadoPorId: currentUser?.id || null,
+                    notas: h.notasResolucion ? `Resuelto en autoeval S${sStep}: ${h.notasResolucion}` : `Resuelto en autoeval S${sStep}`,
+                  }),
+                });
+              } catch (e) {
+                console.error('[autoeval] Error cerrando heredado:', e);
+              }
+            } else if (h.decisionRevision === 'sigue_nok') {
+              // Marcar como en_proceso para indicar que se revisó pero sigue pendiente
+              try {
+                await fetch(`/api/actions?id=${h.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    estado: 'en_proceso',
+                    notas: h.notasResolucion ? `Revisado en autoeval S${sStep}: ${h.notasResolucion}` : `Revisado en autoeval S${sStep}, sigue pendiente`,
+                  }),
+                });
+              } catch (e) {
+                console.error('[autoeval] Error actualizando heredado:', e);
+              }
+            }
+          }
+        }
+
         // ─── Notify responsables of NOK disfunciones ───
         if (nokResults.length > 0 && currentProject?.id && currentZone?.id) {
           try {
@@ -1068,6 +1174,91 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                 </Badge>
               </div>
             </div>
+
+            {/* v2.75: Panel de hallazgos heredados del paso 3 (inventario + plan manual) */}
+            {!isReadOnly && heredados.length > 0 && (
+              <Card className="border-amber-300 bg-amber-50/50">
+                <div className="p-3 border-b border-amber-200 bg-amber-100/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-amber-700" />
+                      <span className="text-sm font-semibold text-amber-900">
+                        Hallazgos pendientes heredados del Paso 3 ({heredados.length})
+                      </span>
+                    </div>
+                    <Badge className="bg-amber-200 text-amber-900">
+                      {heredados.filter(h => h.decisionRevision === 'pendiente').length} sin revisar
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-amber-800 mt-1">
+                    Revisa cada hallazgo: confirma si sigue NOK, márcalo como resuelto, o déjalo pendiente.
+                  </p>
+                </div>
+                <div className="divide-y divide-amber-100">
+                  {heredados.map((h) => (
+                    <div key={h.id} className="p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="outline" className="text-[10px]">
+                              {h.source === 'inventario' ? '📦 Inventario' : '📝 Plan'}
+                            </Badge>
+                            <Badge variant="outline" className={
+                              h.prioridad === 'alta' ? 'text-[10px] border-red-300 text-red-700' :
+                              h.prioridad === 'media' ? 'text-[10px] border-amber-300 text-amber-700' :
+                              'text-[10px] border-gray-300 text-gray-600'
+                            }>
+                              {h.prioridad}
+                            </Badge>
+                            {h.fechaLimite && (
+                              <span className="text-[10px] text-gray-500">
+                                Vence: {new Date(h.fechaLimite).toLocaleDateString('es-ES')}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-800 mt-1 line-clamp-2">{h.hallazgo}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <Button
+                          size="sm" variant="outline"
+                          className={`text-[11px] h-7 ${h.decisionRevision === 'sigue_nok' ? 'bg-red-100 border-red-400 text-red-800' : ''}`}
+                          onClick={() => setHeredadoDecision(h.id, 'sigue_nok')}
+                          disabled={isReadOnly}
+                        >
+                          <XCircle className="h-3 w-3 mr-1" /> Sigue NOK
+                        </Button>
+                        <Button
+                          size="sm" variant="outline"
+                          className={`text-[11px] h-7 ${h.decisionRevision === 'resuelto' ? 'bg-green-100 border-green-400 text-green-800' : ''}`}
+                          onClick={() => setHeredadoDecision(h.id, 'resuelto')}
+                          disabled={isReadOnly}
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" /> Resuelto
+                        </Button>
+                        <Button
+                          size="sm" variant="ghost"
+                          className={`text-[11px] h-7 ${h.decisionRevision === 'pendiente' ? 'text-gray-500' : ''}`}
+                          onClick={() => setHeredadoDecision(h.id, 'pendiente')}
+                          disabled={isReadOnly}
+                        >
+                          Pendiente
+                        </Button>
+                      </div>
+                      {h.decisionRevision === 'resuelto' && (
+                        <Input
+                          placeholder="Notas de resolución (cómo se resolvió)..."
+                          value={h.notasResolucion}
+                          onChange={(e) => setHeredadoNotas(h.id, e.target.value)}
+                          className="text-xs h-8"
+                          disabled={isReadOnly}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
 
             {/* Checklist sections */}
             <div className="space-y-3">

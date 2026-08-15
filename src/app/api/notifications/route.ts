@@ -28,10 +28,11 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/notifications — Create a notification (e.g., notify auditor when step 4 is completed)
+// v2.75: soporta `metadata` (JSON string) para datos contextuales de los nuevos tipos de aviso
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, type, title, message, sStep, zoneId, projectId } = body
+    const { userId, type, title, message, sStep, zoneId, projectId, metadata } = body
 
     if (!userId || !type || !title || !message || !projectId) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 })
@@ -46,6 +47,8 @@ export async function POST(request: NextRequest) {
         sStep: sStep || null,
         zoneId: zoneId || null,
         projectId,
+        // v2.75: metadata opcional (JSON string)
+        ...(metadata ? { metadata: typeof metadata === 'string' ? metadata : JSON.stringify(metadata) } : {}),
       },
     })
 
@@ -56,15 +59,20 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT /api/notifications — Mark as read
+// PUT /api/notifications — Mark as read (one or all)
+// v2.75: soporta { markAll: true, userId, projectId } para marcar todas como leídas
+//        (mantiene compat con { markAllRead, userId })
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, markAllRead, userId } = body
+    const { id, markAllRead, markAll, userId, projectId } = body
 
-    if (markAllRead && userId) {
+    // Marcar todas las del usuario (opcionalmente acotadas por projectId)
+    if ((markAllRead || markAll) && userId) {
+      const where: any = { userId, read: false }
+      if (projectId) where.projectId = projectId
       await db.notification.updateMany({
-        where: { userId, read: false },
+        where,
         data: { read: true },
       })
       return NextResponse.json({ success: true })

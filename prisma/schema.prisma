@@ -35,11 +35,15 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  memberships        ProjectMember[]
-  companyMemberships CompanyMember[]
-  employeeProgress   EmployeeProgress[]
-  responsableZones   Zone[] // Zones where this user is the responsable
-  sessions           Session[]
+  memberships                 ProjectMember[]
+  companyMemberships          CompanyMember[]
+  employeeProgress            EmployeeProgress[]
+  responsableZones            Zone[] // Zones where this user is the responsable
+  sessions                    Session[]
+  // v2.75: trazabilidad ActionItem (relaciones opcionales)
+  actionItemsComunicadoPor    ActionItem[]       @relation("ActionItemComunicadoPor")
+  actionItemsPersonaDemandada ActionItem[]       @relation("ActionItemPersonaDemandada")
+  actionItemsVerificadoPor    ActionItem[]       @relation("ActionItemVerificadoPor")
 }
 
 model Project {
@@ -96,6 +100,7 @@ model Zone {
   photos              PhotoLibrary[]
   pdcaItems           PDCAItem[]
   evaluationSchedules EvaluationSchedule[]
+  auditResults        AuditResult[]
 
   @@unique([name, projectId])
   @@index([projectId])
@@ -266,17 +271,34 @@ model AuditResult {
   result        String // "apto", "no_apto"
   score         Float?
   observations  String?
-  auditType     String   @default("quarterly") // "weekly", "monthly", "quarterly"
+  auditType     String   @default("quarterly") // "weekly", "monthly", "quarterly", "autoeval", "audit"
   checklistData String? // JSON: full checklist results for this audit
   mejorasData   String? // JSON: improvements data
   auditDate     DateTime @default(now())
   projectId     String
   createdAt     DateTime @default(now())
 
+  // ─── v2.75: Trazabilidad y unificación (NUEVOS) ─────────────────────────
+  miniStep             Int     @default(5) // 4 (autoeval) | 5 (auditoría)
+  zoneId               String? // Zona evaluada (null para audits globales)
+  // Quién ejecutó la revisión (FK User). En autoeval=responsable, en auditoría=auditor.
+  // En audits legacy puede ser null (auditorName cubre ese caso).
+  ejecutorId           String?
+  // A quién corresponde (empleado en autoeval, responsable en auditoría)
+  asistenteId          String?
+  // Contador de ActionItems generados desde los NOKs de esta revisión
+  actionItemsGenerados Int     @default(0)
+  // FK al EvaluationSchedule que originó esta revisión (si aplica)
+  scheduleId           String?
+
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  zone    Zone?   @relation(fields: [zoneId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([auditType])
+  @@index([projectId, sStep, miniStep, auditDate])
+  @@index([zoneId, sStep])
+  @@index([scheduleId])
 }
 
 model ChecklistResponse {
@@ -300,24 +322,24 @@ model ChecklistResponse {
 model ActionItem {
   id              String    @id @default(cuid())
   sStep           Int // 1-5
-  miniStep        Int // 4 (autoevaluacion) or 5 (auditoria)
-  itemId          String // e.g. "1.2.3"
+  miniStep        Int // 3 (inventario/PA), 4 (autoevaluacion), 5 (auditoria)
+  itemId          String // e.g. "1.2.3" | "inv_xxx" | "PA-S1-ts"
   itemDescription String // Checklist item description
   hallazgo        String // Descripción de la desviación detectada
   mejora          String? // Sugerencia de mejora / plan de acción
-  responsable     String? // Persona responsable de resolver
+  responsable     String? // Persona responsable de resolver (LEGACY: texto libre)
   prioridad       String    @default("media") // "alta", "media", "baja"
   estado          String    @default("abierta") // "abierta", "en_proceso", "resuelta", "cerrada"
-  fechaCompromiso DateTime? // Fecha compromiso para resolver
+  fechaCompromiso DateTime? // LEGACY: usar fechaLimite
   fechaLimite     DateTime? // Fecha límite / deadline
   fechaReal       DateTime? // Fecha real de resolución
-  fechaResolucion DateTime? // Fecha de resolución (alias)
+  fechaResolucion DateTime? // LEGACY: alias de fechaReal
   photoRefs       String? // JSON array of photo references
   notas           String? // Notas adicionales sobre la resolución
-  source          String    @default("autoevaluacion") // "autoevaluacion" or "auditoria" or "actionplan" or "inventario"
-  auditor         String? // Nombre del auditor que detectó la deficiencia
+  source          String    @default("autoevaluacion") // "autoevaluacion" | "auditoria" | "actionplan" | "inventario"
+  auditor         String? // Nombre del auditor que detectó la deficiencia (texto)
   zoneId          String? // Zona asignada (opcional, referencia a Zone)
-  verificadoPor   String? // Quién verificó que la acción fue completada
+  verificadoPor   String? // LEGACY: texto libre. Usar verificadoPorId
   projectId       String
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -327,16 +349,16 @@ model ActionItem {
   // frecuenciaUso, decision, diasCuarentena, etiquetas, zonaOrigen,
   // zonaDestino, photoUrls, inventoryItemId } para mostrar el grupo
   // "ORIGEN (INVENTARIO)" en el Plan de Acción igual que en InventarioModal.
-  extra           String?
+  extra String?
 
   // Plan de Acción table fields (matching the standard 5S action plan format)
   numeroEntrada       Int? // Nº de entrada (auto-increment per project)
   fechaEntrada        DateTime? // Fecha de la entrada
-  comunicadoPor       String? // Quién comunicó el problema
+  comunicadoPor       String? // LEGACY: texto libre. Usar comunicadoPorId
   semana              String? // Semana en que se detectó
   seccionDemandante   String? // Sección que demanda la acción
   clienteZona         String? // Cliente o zona afectada
-  personaDemandada    String? // Persona a la que se demanda
+  personaDemandada    String? // LEGACY: texto libre. Usar personaDemandadaId
   seccionDemandada    String? // Sección a la que se demanda
   impactoObjetivo     String? // Impacto objetivo esperado
   enviado             String? // Estado de envío (Sí/No/Pendiente)
@@ -346,11 +368,43 @@ model ActionItem {
   porcentaje          Float?    @default(0) // Porcentaje de completado
   semanaReal          String? // Semana real de resolución
 
+  // ─── v2.75: Trazabilidad y unificación (NUEVOS) ─────────────────────────
+  // Trazabilidad de origen: enlaza el ActionItem al registro que lo generó.
+  // Ej: sourceId = AuditResult.id (cuando source='autoevaluacion'|'auditoria')
+  //     sourceId = InventoryItem.id (cuando source='inventario')
+  //     sourceId = null (cuando source='actionplan', entrada manual)
+  sourceId String? // FK lógica al registro de origen
+
+  // FKs a User (reemplazan a los campos de texto legacy)
+  comunicadoPorId    String? // Quién comunicó el problema (FK User)
+  personaDemandadaId String? // Persona a la que se demanda (FK User)
+  verificadoPorId    String? // Quién verificó el cierre (FK User)
+
+  // Identifica el "tipo" de entrada para la vista unificada del Plan de Acción
+  // 'accion'     → entrada estándar del Plan de Acción (S5 paso 3)
+  // 'inventario' → item del inventario (S1-S4 paso 3) con decisión de retirar/eliminar/jaula
+  // 'hallazgo'   → NOK detectado en autoeval (paso 4) o auditoría (paso 5)
+  tipo String @default("accion")
+
+  // Para hallazgos (pasos 4 y 5): status del item del checklist
+  status String? // 'ok' | 'nok' | 'na'
+
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   zone    Zone?   @relation(fields: [zoneId], references: [id], onDelete: SetNull)
 
+  // Relaciones opcionales a User (las marcamos como sin relación inversa para
+  // no añadir arrays en User — usamos onDelete: SetNull para que no se rompan
+  // si el usuario se borra)
+  comunicadoPorUser    User? @relation("ActionItemComunicadoPor", fields: [comunicadoPorId], references: [id], onDelete: SetNull)
+  personaDemandadaUser User? @relation("ActionItemPersonaDemandada", fields: [personaDemandadaId], references: [id], onDelete: SetNull)
+  verificadoPorUser    User? @relation("ActionItemVerificadoPor", fields: [verificadoPorId], references: [id], onDelete: SetNull)
+
   @@index([projectId])
   @@index([zoneId])
+  @@index([source, estado])
+  @@index([personaDemandadaId, estado])
+  @@index([fechaLimite])
+  @@index([sourceId])
 }
 
 model AuditTarget {
@@ -609,7 +663,7 @@ model PDCAItem {
 model Notification {
   id        String   @id @default(cuid())
   userId    String // Target user
-  type      String // "audit_ready", "step_completed", etc.
+  type      String // "audit_ready", "step_completed", "evaluation_scheduled", etc.
   title     String
   message   String
   sStep     Int? // Related S-step
@@ -618,8 +672,21 @@ model Notification {
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 
+  // ─── v2.75: Metadata estructurada para los nuevos tipos de aviso ────────
+  // JSON con datos contextuales según el tipo:
+  //   evaluation_scheduled: { scheduleId, miniStep, fecha, hora, ejecutorName }
+  //   evaluation_accepted:  { scheduleId, asistenteName, fecha, hora }
+  //   evaluation_completed: { scheduleId, score, result, actionItemsGenerados, auditResultId }
+  //   evaluation_expired:   { scheduleId, motivo }
+  //   evaluation_rejected:  { scheduleId, motivo, asistenteName }
+  //   audit_failed:         { sStep, zoneId, score, umbral, auditResultId }
+  //   action_verified:      { actionItemId, verificadorId }
+  //   disfuncion:           { auditResultId, actionItemIds: [], count }
+  metadata String?
+
   @@index([userId, read])
   @@index([projectId])
+  @@index([type, createdAt])
 }
 
 model Session {
@@ -645,7 +712,7 @@ model SystemConfig {
 }
 
 model EvaluationSchedule {
-  id              String   @id @default(cuid())
+  id              String  @id @default(cuid())
   sStep           Int // 1-5
   miniStep        Int // 4 (autoevaluación) or 5 (auditoría)
   fechaProgramada String? // Scheduled date (YYYY-MM-DD)
@@ -653,13 +720,22 @@ model EvaluationSchedule {
   projectId       String
   zoneId          String?
   // v2.68: quién programa y quién asiste — para que aparezca en ambos calendarios
-  responsableId   String? // responsable/auditor que programa la fecha
-  empleadoId      String? // empleado que solicitó o que debe asistir
+  // v2.75: SEMÁNTICA REINTERPRETADA (nombres preservados por compatibilidad con DB existente):
+  //   - responsableId = EJECUTOR de la revisión (responsable en autoeval, auditor en auditoría)
+  //   - empleadoId    = ASISTENTE que debe confirmar presencia (empleado en autoeval, responsable en auditoría)
+  // El campo rolEjecutor aclara explícitamente el rol del ejecutor para la UI.
+  responsableId   String? // EJECUTOR (responsable de zona en autoeval, auditor en auditoría)
+  empleadoId      String? // ASISTENTE (empleado en autoeval, responsable de zona en auditoría)
   createdBy       String? // usuario que creó la entrada
-  estado          String   @default("programada") // programada | realizada | cancelada | reprogramada
+  estado          String  @default("programada") // programada | aceptada | realizada | cancelada | reprogramada | vencida
   notas           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+
+  // ─── v2.75: Aclara el rol del ejecutor (para UI y validaciones) ─────────
+  // 'responsable' (autoeval, miniStep=4) | 'auditor' (auditoría, miniStep=5)
+  rolEjecutor String? @default("responsable")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   zone    Zone?   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
@@ -669,6 +745,7 @@ model EvaluationSchedule {
   @@index([projectId, zoneId])
   @@index([responsableId])
   @@index([empleadoId])
+  @@index([estado])
 }
 
 model ContactRequest {
