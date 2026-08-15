@@ -25,6 +25,28 @@ export interface EmployeeProgressItem {
   userId: string
 }
 
+// v2.73: Schedule de autoeval/auditoría programada.
+// Estado: programada | aceptada | en_ventana | realizada | vencida | cancelada | reprogramada
+// - programada: responsable propuso fecha, pendiente de aceptación del empleado
+// - aceptada: empleado aceptó; espera a que llegue fecha/hora
+// - en_ventana: dentro de la franja [fechaHora, +2h] → paso 4/5 abierto
+// - realizada: completado dentro de la ventana
+// - vencida: pasaron +2h sin completar → paso se cierra, hay que reprogramar
+export interface EvaluationScheduleItem {
+  id: string
+  sStep: number
+  miniStep: number // 4=autoeval, 5=auditoría
+  fechaProgramada: string | null // 'YYYY-MM-DD'
+  horaProgramada: string | null // 'HH:MM'
+  projectId: string
+  zoneId: string | null
+  responsableId: string | null
+  empleadoId: string | null
+  createdBy: string | null
+  estado: string
+  notas: string | null
+}
+
 export interface User {
   id: string
   email: string
@@ -96,6 +118,10 @@ interface FiveSState {
   // Progress & Board State
   progress: ProgressItem[]
   employeeProgress: EmployeeProgressItem[]
+  // v2.73: schedules de evaluaciones (autoeval/auditoría programadas).
+  // Se cargan junto con el progreso y getMiniStepStatus los consulta para
+  // mantener cerrado el paso 4/5 hasta que llegue la fecha/hora programada.
+  evaluationSchedules: EvaluationScheduleItem[]
   currentView: 'board' | 'detail' | 'admin' | 'maintenance' | 'gerente'
   activeTab: 'board' | 'gerente' | 'admin' | 'maintenance' | 'gestion' | 'actionplan' | 'jaula' | 'activos' | 'puntoLimpio'
   selectedSStep: number | null
@@ -124,6 +150,8 @@ interface FiveSState {
   // Progress & Board Actions
   fetchProgress: () => Promise<void>
   fetchEmployeeProgress: (projectId: string, zoneId?: string) => Promise<void>
+  // v2.73: carga schedules de evaluación (autoeval/auditoría)
+  fetchEvaluationSchedules: () => Promise<void>
   selectSStep: (s: number | null) => void
   setCurrentView: (view: 'board' | 'detail' | 'admin' | 'maintenance' | 'gerente') => void
   setActiveTab: (tab: 'board' | 'gerente' | 'admin' | 'maintenance' | 'gestion' | 'actionplan') => void
@@ -143,6 +171,8 @@ interface FiveSState {
 
   // Computed helpers
   getMiniStepStatus: (sStep: number, miniStep: number) => 'locked' | 'available' | 'completed'
+  // v2.73: helper para saber si el paso 4/5 está dentro de la ventana de la cita programada
+  isStepInScheduleWindow: (sStep: number, miniStep: number) => 'no_schedule' | 'before' | 'in_window' | 'after_window'
   isZoneMiniStepComplete: (sStep: number, miniStep: number, zoneId: string) => boolean
   isQuesitoEarned: (sStep: number) => boolean
   is5SCompleted: () => boolean
@@ -169,6 +199,8 @@ export const use5SStore = create<FiveSState>((set, get) => ({
   // Progress & Board State
   progress: [],
   employeeProgress: [],
+  // v2.73: schedules de evaluación (autoeval/auditoría)
+  evaluationSchedules: [],
   currentView: 'board',
   activeTab: 'board' as 'board' | 'gerente' | 'admin' | 'maintenance' | 'gestion' | 'actionplan',
   selectedSStep: null,
@@ -214,6 +246,12 @@ export const use5SStore = create<FiveSState>((set, get) => ({
         } catch (epError) {
           console.error('Error fetching employee progress during refresh:', epError)
         }
+        // v2.73: también refrescar los schedules de evaluación
+        try {
+          await get().fetchEvaluationSchedules()
+        } catch (schedError) {
+          console.error('Error fetching evaluation schedules during refresh:', schedError)
+        }
       }
     } catch (error) {
       console.error('Error fetching progress:', error)
@@ -231,6 +269,33 @@ export const use5SStore = create<FiveSState>((set, get) => ({
       set({ employeeProgress: epData })
     } catch (error) {
       console.error('Error fetching employee progress:', error)
+    }
+  },
+
+  // v2.73: carga los schedules de evaluación del proyecto/zona actual.
+  // Llama al endpoint GET /api/evaluation-schedule que devuelve todas las
+  // citas donde el usuario actual es responsable OR empleado.
+  fetchEvaluationSchedules: async () => {
+    try {
+      const { currentProject, currentUser } = get()
+      if (!currentProject || !currentUser) {
+        set({ evaluationSchedules: [] })
+        return
+      }
+      const params = new URLSearchParams({
+        userId: currentUser.id,
+        projectId: currentProject.id,
+      })
+      const res = await fetch(`/api/evaluation-schedule?${params.toString()}`)
+      const data = await res.json()
+      if (data?.success && Array.isArray(data.data)) {
+        set({ evaluationSchedules: data.data })
+      } else {
+        set({ evaluationSchedules: [] })
+      }
+    } catch (error) {
+      console.error('Error fetching evaluation schedules:', error)
+      set({ evaluationSchedules: [] })
     }
   },
 
@@ -380,7 +445,7 @@ export const use5SStore = create<FiveSState>((set, get) => ({
   //     current user, so the employee's own completion unlocks step 2
   // ═══════════════════════════════════════════════════════
   getMiniStepStatus: (sStep, miniStep) => {
-    const { progress, employeeProgress, currentUser, adminFreeNavigation, currentZone } = get()
+    const { progress, employeeProgress, currentUser, adminFreeNavigation, currentZone, evaluationSchedules } = get()
     if (!currentUser) return 'locked'
 
     const canViewStep = get().canView(sStep, miniStep)
@@ -606,6 +671,43 @@ export const use5SStore = create<FiveSState>((set, get) => ({
       if (!isPreviousSCompleted()) return 'locked'
       // INTRA-S: can't enter step until previous step is completed
       if (!isPreviousStepCompleted()) return 'locked'
+
+      // v2.73: Si es paso 4 (autoeval) o 5 (auditoría), verificar que
+      // exista una cita programada Y que estemos dentro de la ventana
+      // [fechaHora, +2h]. Si no hay cita → locked (hay que programar).
+      // Si hay pero no ha llegado la hora → locked (esperar).
+      // Si la ventana ya pasó (más de 2h) → locked (vencida, reprogramar).
+      if (miniStep === 4 || miniStep === 5) {
+        // Buscar schedule activo para este S, este miniStep, esta zona
+        const sched = evaluationSchedules.find(s => {
+          if (s.sStep !== sStep || s.miniStep !== miniStep) return false
+          if (s.estado === 'cancelada' || s.estado === 'realizada') return false
+          // Coincidir zona (null cuenta como "cualquiera")
+          if (currentZone && s.zoneId && s.zoneId !== currentZone.id) return false
+          return true
+        })
+        if (!sched) {
+          // No hay cita programada → paso cerrado hasta que se programe
+          return 'locked'
+        }
+        // Construir fecha/hora de inicio de ventana
+        if (!sched.fechaProgramada) return 'locked'
+        const hora = sched.horaProgramada || '10:00'
+        const startMs = new Date(`${sched.fechaProgramada}T${hora}:00`).getTime()
+        if (isNaN(startMs)) return 'locked'
+        const nowMs = Date.now()
+        const VENTANA_MS = 2 * 60 * 60 * 1000 // 2 horas
+        if (nowMs < startMs) {
+          // Antes de la hora → cerrado
+          return 'locked'
+        }
+        if (nowMs > startMs + VENTANA_MS) {
+          // Ventana vencida → cerrado (habrá que reprogramar)
+          return 'locked'
+        }
+        // Estamos dentro de la ventana → acceso abierto
+      }
+
       return 'available'
     }
 
@@ -613,6 +715,28 @@ export const use5SStore = create<FiveSState>((set, get) => ({
     if (canViewStep) return 'locked'
 
     return 'locked'
+  },
+
+  // v2.73: helper expuesto para que la UI muestre el motivo del bloqueo
+  // (programada, esperando, vencida, etc.) sin tener que repetir la lógica.
+  isStepInScheduleWindow: (sStep, miniStep) => {
+    const { evaluationSchedules, currentZone } = get()
+    if (miniStep !== 4 && miniStep !== 5) return 'no_schedule'
+    const sched = evaluationSchedules.find(s => {
+      if (s.sStep !== sStep || s.miniStep !== miniStep) return false
+      if (s.estado === 'cancelada' || s.estado === 'realizada') return false
+      if (currentZone && s.zoneId && s.zoneId !== currentZone.id) return false
+      return true
+    })
+    if (!sched || !sched.fechaProgramada) return 'no_schedule'
+    const hora = sched.horaProgramada || '10:00'
+    const startMs = new Date(`${sched.fechaProgramada}T${hora}:00`).getTime()
+    if (isNaN(startMs)) return 'no_schedule'
+    const nowMs = Date.now()
+    const VENTANA_MS = 2 * 60 * 60 * 1000
+    if (nowMs < startMs) return 'before'
+    if (nowMs > startMs + VENTANA_MS) return 'after_window'
+    return 'in_window'
   },
 
   isZoneMiniStepComplete: (sStep, miniStep, zoneId) => {
