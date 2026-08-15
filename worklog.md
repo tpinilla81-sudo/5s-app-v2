@@ -2897,3 +2897,73 @@ Stage Summary:
     sobre el globo 5
   * Click → diálogo de fecha/hora → Programar → notif al empleado
   * Misma UX que el botón '🔔 Autoeval' del empleado, pero invertido
+
+---
+Task ID: v2.74
+Agent: Main
+Task: Botón Aceptar cita para empleado + auto-vencida con aviso
+
+Work Log:
+- Usuario: "sigue con la 2.74" (continúa desde v2.73 que cerraba paso 4/5
+  hasta fecha programada con ventana 2h, pero faltaba el botón Aceptar
+  del empleado y el aviso automático al vencerse la ventana)
+
+CAMBIOS:
+
+1) Botón 'Aceptar cita' para el empleado (page.tsx):
+   - Cuando un empleado recibe notif 'evaluation_scheduled' (responsable
+     acaba de programar fecha) → aparece botón verde '✓ Aceptar cita'
+   - Solo visible si: rol==='empleado' AND !n.read
+   - Click:
+     * GET /api/evaluation-schedule?sStep&miniStep&projectId&zoneId →
+       recupera el scheduleId
+     * PATCH /api/evaluation-schedule { id, estado: 'aceptada' }
+     * Marcar notif como leída
+     * Refrescar evaluationSchedules en el store
+     * Toast verde 'Cita aceptada. El responsable ha sido notificado.'
+   - miniStep se deduce del título (contiene 'Auditoría' → 5, si no → 4)
+
+2) PATCH /api/evaluation-schedule (route.ts):
+   - Antes: solo actualizaba estado, no notificaba nada
+   - Ahora: si estado='aceptada' → crea notif 'evaluation_accepted'
+     para el responsable con título y mensaje descriptivos
+   - findUnique antes del update para tener responsableId/fecha/etc.
+
+3) Nuevo endpoint POST /api/evaluation-schedule/check-vencidas:
+   - Busca schedules con estado IN ('programada','aceptada') y
+     fechaProgramada != null
+   - Para cada uno: si now > startMs + 2h →
+     * UPDATE estado='vencida'
+     * CREATE notif 'evaluation_expired' para responsable Y empleado
+       ("⏰ Autoevaluación vencida: S1 — reprogramar", mensaje con fecha)
+   - Devuelve { vencidasCount, vencidas: [...] }
+   - Idempotente: schedules ya en estado 'vencida' no se vuelven a procesar
+
+4) Frontend polling (page.tsx useEffect):
+   - Al montar el board (con currentUser + currentProject) → POST check-vencidas
+   - Polling cada 5 minutos
+   - Si vencidasCount > 0: refresca evaluationSchedules + notifs para
+     que la UI refleje inmediatamente el cambio de estado
+
+5) UI de notificaciones (page.tsx):
+   - Nuevos iconos: evaluation_scheduled (CalendarDays morado),
+     evaluation_accepted (CheckSquare verde), evaluation_expired
+     (AlertTriangle rojo)
+   - Nuevos colores de fondo: purple-50, green-50, red-50 según tipo
+   - Distinguen visualmente los tres nuevos estados de la cita
+
+Bump v2.73 → v2.74 (middleware.ts).
+Build Next.js: ✓ Compiled successfully in 22.2s.
+Commit 56b1d09 + push a GitHub. Vercel deploy automático.
+
+Stage Summary:
+- TRAS DEPLOY v2.74 (~1-2 min):
+  * Responsable programa fecha → empleado recibe notif morada
+    'evaluation_scheduled'
+  * Empleado ve botón verde '✓ Aceptar cita' → click → estado pasa a
+    'aceptada' → responsable recibe notif verde 'evaluation_accepted'
+  * Si llega la hora programada → ventana 2h abierta (paso 4/5 accesible)
+  * Si pasan 2h sin completar → check-vencidas marca estado='vencida' →
+    responsable y empleado reciben notif roja 'evaluation_expired' →
+    paso 4/5 se cierra (locked) → hay que reprogramar
+  * Check-vencidas se ejecuta al montar el board y cada 5 minutos
