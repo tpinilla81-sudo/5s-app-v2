@@ -138,15 +138,22 @@ export async function POST(request: NextRequest) {
         : 'fecha por confirmar'
       const zoneName = schedule.zone?.name || 'sin zona'
 
-      // v2.75: el asistente es empleadoId (en autoeval, el empleado de la zona)
-      // o responsableId (en auditoría, el responsable de la zona que asiste
-      // al auditor). El ejecutor es el otro campo y es quien programa, así
-      // que la notif se envía solo al asistente.
-      const ejecutorId = rolEjecutor === 'auditor' ? responsableId : responsableId
-      const asistenteId = rolEjecutor === 'auditor' ? empleadoId : empleadoId
-      // En la práctica, el asistente SIEMPRE es empleadoId (el otro campo).
-      // El ejecutor SIEMPRE es responsableId (quien programa).
-      // Solo enviamos notif al asistente si no es el mismo que el ejecutor.
+      // v2.75/v2.76: en el modelo de datos, responsableId SIEMPRE es el
+      // ejecutor (quien programa) y empleadoId SIEMPRE es el asistente
+      // (quien recibe la notif de cita). Lo que cambia según rolEjecutor
+      // es el SIGNIFICADO semántico de cada campo:
+      //
+      //   • miniStep=4 (autoeval):  ejecutor = responsable de zona
+      //                             asistente = empleado de la zona
+      //   • miniStep=5 (auditoría): ejecutor = auditor
+      //                             asistente = responsable de zona
+      //
+      // El frontend (AutoevaluacionModal / AuditoriaModal) mapea los IDs
+      // correctos a cada campo antes de enviarlos. Aquí solo decidimos a
+      // quién notificar: al asistente, siempre que no coincida con el
+      // ejecutor (caso de auto-auditoría sin delegar).
+      const ejecutorId = responsableId || null
+      const asistenteId = empleadoId || null
       const notifyTargetId = asistenteId && asistenteId !== ejecutorId ? asistenteId : null
 
       if (notifyTargetId) {
