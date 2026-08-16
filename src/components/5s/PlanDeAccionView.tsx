@@ -22,6 +22,7 @@ import {
   ListChecks, Plus, Trash2, Loader2, Filter, ChevronDown,
   FileText, User, Calendar, Target, ArrowRight, CheckCircle2,
   Clock, AlertCircle, X, Expand,
+  ArrowUp, ArrowDown, ArrowUpDown, Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { use5SStore } from '@/lib/store';
@@ -572,6 +573,51 @@ export default function PlanDeAccionView() {
     info: null,
   });
   const [deleteLoading, setDeleteLoading] = useState(false);
+  // v2.90: Filtro de texto global + ordenación por columna.
+  // sortKey: clave del campo por el que se ordena (null = sin ordenar, orden natural).
+  // sortDir: 'asc' | 'desc' | null
+  const [searchText, setSearchText] = useState('');
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null);
+
+  // v2.90: Toggle del orden de una columna — ciclo null → asc → desc → null.
+  const toggleSort = (key: string) => {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir('asc');
+    } else if (sortDir === null) {
+      setSortDir('asc');
+    } else if (sortDir === 'asc') {
+      setSortDir('desc');
+    } else {
+      setSortKey(null);
+      setSortDir(null);
+    }
+  };
+
+  // v2.90: Icono del estado de ordenación de una columna.
+  const SortIcon = ({ k }: { k: string }) => {
+    if (sortKey !== k || sortDir === null) {
+      return <ArrowUpDown className="h-2.5 w-2.5 ml-0.5 inline opacity-40" />;
+    }
+    return sortDir === 'asc'
+      ? <ArrowUp className="h-2.5 w-2.5 ml-0.5 inline text-white" />
+      : <ArrowDown className="h-2.5 w-2.5 ml-0.5 inline text-white" />;
+  };
+
+  // v2.90: Componente helper para cabeceras clicables (con tooltip + sort icon).
+  const SortableTh = ({ k, children, className, title }: { k: string; children: React.ReactNode; className: string; title?: string }) => (
+    <th
+      className={`${className} cursor-pointer hover:brightness-110 select-none`}
+      title={title || `Ordenar por ${k}`}
+      onClick={() => toggleSort(k)}
+    >
+      <span className="inline-flex items-center justify-center">
+        {children}
+        <SortIcon k={k} />
+      </span>
+    </th>
+  );
 
   // Load zones + project members
   useEffect(() => {
@@ -832,18 +878,77 @@ export default function PlanDeAccionView() {
   };
 
   // Filter actions
-  const filteredActions = actions
-    .filter(a => filterEstado === 'all' || a.estado === filterEstado)
-    .filter(a => filterS === 'all' || a.sStep === Number(filterS))
-    // v2.76: filtro por origen unificado
-    .filter(a => {
-      if (filterOrigen === 'all') return true;
-      const src = a.source || 'actionplan';
-      if (filterOrigen === 'manual') return src === 'actionplan';
-      if (filterOrigen === 'inventario') return src === 'inventario' || !!a.extra?.inventoryItemId;
-      if (filterOrigen === 'hallazgo') return src === 'autoevaluacion' || src === 'auditoria';
-      return true;
-    });
+  const filteredActions = (() => {
+    const q = searchText.trim().toLowerCase();
+    const list = actions
+      .filter(a => filterEstado === 'all' || a.estado === filterEstado)
+      .filter(a => filterS === 'all' || a.sStep === Number(filterS))
+      // v2.76: filtro por origen unificado
+      .filter(a => {
+        if (filterOrigen === 'all') return true;
+        const src = a.source || 'actionplan';
+        if (filterOrigen === 'manual') return src === 'actionplan';
+        if (filterOrigen === 'inventario') return src === 'inventario' || !!a.extra?.inventoryItemId;
+        if (filterOrigen === 'hallazgo') return src === 'autoevaluacion' || src === 'auditoria';
+        return true;
+      })
+      // v2.90: filtro de texto global — busca en hallazgo, zona, responsables, categoría, elemento
+      .filter(a => {
+        if (!q) return true;
+        const haystack = [
+          a.hallazgo || '',
+          a.zonaName || '',
+          a.comunicadoPorName || '',
+          a.personaDemandadaName || '',
+          a.verificadoPorName || '',
+          a.accionCategoria || '',
+          a.accionElemento || '',
+          a.accionDecision || '',
+          a.accionEtiqueta || '',
+          a.accionDestino || '',
+          a.accionPreventiva || '',
+          a.impacto || '',
+          a.semana || '',
+          a.itemId || '',
+        ].join(' ').toLowerCase();
+        return haystack.includes(q);
+      });
+    // v2.90: ordenación por columna
+    if (sortKey && sortDir) {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      const getField = (a: ActionItemData): string | number => {
+        switch (sortKey) {
+          case 'numero': return a.numeroEntrada || 0;
+          case 'fecha': return a.fechaEntrada || '';
+          case 'detectado': return (a.comunicadoPorName || '').toLowerCase();
+          case 'categoria': return (a.accionCategoria || '').toLowerCase();
+          case 'elemento': return (a.accionElemento || '').toLowerCase();
+          case 'cantidad': return Number(a.accionCantidad) || 0;
+          case 'semana': return a.semana || '';
+          case 'zona': return (a.zonaName || '').toLowerCase();
+          case 'responsable': return (a.personaDemandadaName || '').toLowerCase();
+          case 'impacto': return (a.impacto || '').toLowerCase();
+          case 'accionCorrectiva': return (a.accionDecision || '').toLowerCase();
+          case 'etiqueta': return (a.accionEtiqueta || '').toLowerCase();
+          case 'destino': return (a.accionDestino || '').toLowerCase();
+          case 'accionPreventiva': return (a.accionPreventiva || '').toLowerCase();
+          case 'semanaPrevista': return a.semanaPrevista || '';
+          case 'estado': return a.estado || '';
+          case 'porcentaje': return a.porcentaje || 0;
+          case 'semanaReal': return a.semanaReal || '';
+          default: return '';
+        }
+      };
+      list.sort((a, b) => {
+        const fa = getField(a);
+        const fb = getField(b);
+        if (fa < fb) return -1 * dir;
+        if (fa > fb) return 1 * dir;
+        return 0;
+      });
+    }
+    return list;
+  })();
 
   // Stats
   const totalActions = actions.length;
