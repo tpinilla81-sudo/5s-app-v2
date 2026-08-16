@@ -27,11 +27,16 @@ interface ActionItemData {
   id: string;
   numeroEntrada: number;
   fechaEntrada: string;
-  comunicadoPor: string;
+  // v2.78: FKs a User (reemplazan a los textos legacy)
+  comunicadoPorId: string | null;
+  comunicadoPorName: string; // derivado de comunicadoPorUser.name (display)
+  personaDemandadaId: string | null;
+  personaDemandadaName: string; // derivado de personaDemandadaUser.name (display)
+  verificadoPorId: string | null;
+  verificadoPorName: string; // derivado de verificadoPorUser.name (display)
   semana: string;
   seccionDemandante: string;
   clienteZona: string;
-  personaDemandada: string;
   seccionDemandada: string;
   hallazgo: string; // DESCRIPCIÓN
   impactoObjetivo: string;
@@ -39,7 +44,6 @@ interface ActionItemData {
   accionCorrectiva: string;
   accionesPreventivas: string;
   semanaPrevista: string;
-  responsable: string; // PERSONA RESPONSABLE
   porcentaje: number;
   estado: string;
   semanaReal: string;
@@ -51,9 +55,10 @@ interface ActionItemData {
   prioridad: string;
   zoneId: string;
   zoneName: string;
-  verificadoPor: string;
   sStep: number;
   miniStep: number;
+  source?: string;
+  tipo?: string;
 }
 
 interface ZoneData {
@@ -107,6 +112,9 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
   const [zones, setZones] = useState<ZoneData[]>([]);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(true);
+  // v2.78: miembros del proyecto para los User pickers (personaDemandadaId,
+  // verificadoPorId). Se cargan al abrir el modal.
+  const [projectMembers, setProjectMembers] = useState<Array<{ id: string; name: string; email: string; role: string }>>([]);
 
   // v2.77: Diálogo de decisión de cierre (cuando se pasa a resuelta/cerrada)
   const [closeDialog, setCloseDialog] = useState<{
@@ -130,6 +138,26 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
     }
   };
 
+  // v2.78: Cargar miembros del proyecto para los User pickers
+  const loadProjectMembers = async () => {
+    if (!currentProject) return;
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}/members`);
+      if (res.ok) {
+        const json = await res.json();
+        const members = (json.members || json.data || []).map((m: any) => ({
+          id: m.userId || m.id,
+          name: m.user?.name || m.name || 'Sin nombre',
+          email: m.user?.email || m.email || '',
+          role: m.role || '',
+        }));
+        setProjectMembers(members);
+      }
+    } catch (error) {
+      console.error('Error loading project members:', error);
+    }
+  };
+
   const loadActions = async () => {
     try {
       const params = new URLSearchParams();
@@ -148,11 +176,16 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
           id: a.id,
           numeroEntrada: a.numeroEntrada || 0,
           fechaEntrada: a.fechaEntrada ? new Date(a.fechaEntrada).toISOString().split('T')[0] : (a.createdAt ? new Date(a.createdAt).toISOString().split('T')[0] : ''),
-          comunicadoPor: a.comunicadoPor || '',
+          // v2.78: FKs a User (reemplazan textos legacy)
+          comunicadoPorId: a.comunicadoPorId || null,
+          comunicadoPorName: a.comunicadoPorUser?.name || a.comunicadoPor || '',
+          personaDemandadaId: a.personaDemandadaId || null,
+          personaDemandadaName: a.personaDemandadaUser?.name || a.personaDemandada || '',
+          verificadoPorId: a.verificadoPorId || null,
+          verificadoPorName: a.verificadoPorUser?.name || a.verificadoPor || '',
           semana: a.semana || '',
           seccionDemandante: a.seccionDemandante || '',
           clienteZona: a.clienteZona || a.zone?.name || '',
-          personaDemandada: a.personaDemandada || '',
           seccionDemandada: a.seccionDemandada || '',
           hallazgo: a.hallazgo || a.itemDescription || '',
           impactoObjetivo: a.impactoObjetivo || '',
@@ -160,7 +193,6 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
           accionCorrectiva: a.accionCorrectiva || a.mejora || '',
           accionesPreventivas: a.accionesPreventivas || '',
           semanaPrevista: a.semanaPrevista || '',
-          responsable: a.responsable || '',
           porcentaje: a.porcentaje || 0,
           estado: a.estado === 'abierta' ? 'abierta' : a.estado === 'en_proceso' ? 'en_proceso' : a.estado === 'resuelta' || a.estado === 'cerrada' ? 'resuelta' : 'abierta',
           semanaReal: a.semanaReal || '',
@@ -172,9 +204,10 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
           prioridad: a.prioridad || 'media',
           zoneId: a.zoneId || '',
           zoneName: a.zone?.name || '',
-          verificadoPor: a.verificadoPor || '',
           sStep: a.sStep || sStep,
           miniStep: a.miniStep || 3,
+          source: a.source || '',
+          tipo: a.tipo || '',
         })));
       }
     } catch (error) {
@@ -187,6 +220,7 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
     if (open) {
       loadActions();
       loadZones();
+      loadProjectMembers();
     }
   }, [open, sStep]);
 
@@ -272,6 +306,15 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
       }
     }
 
+    // v2.78: Mapa de campos del frontend → campos del backend.
+    // Los FK de User se mandan con su nombre real (*Id) al backend.
+    const fieldToBackend: Record<string, string> = {
+      personaDemandadaId: 'personaDemandadaId',
+      verificadoPorId: 'verificadoPorId',
+      // Los demás van tal cual
+    };
+    const backendField = fieldToBackend[field] || field;
+
     // Optimistic update
     setActions(prev => prev.map(a =>
       a.id === actionId ? { ...a, [field]: value } : a
@@ -281,7 +324,7 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
       const res = await fetch(`/api/actions?id=${actionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: value }),
+        body: JSON.stringify({ [backendField]: value }),
       });
       const json = await res.json();
       if (!json.success) {
@@ -298,6 +341,7 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
   // Si decision='Retirar', el backend crea un InventoryItem en jaula.
   // Si decision='Eliminar', el backend crea un InventoryItem efímero transferido.
   // Si decision='Resuelto', solo cierra el ActionItem sin tocar la Jaula.
+  // v2.78: al cerrar, seteamos verificadoPorId = currentUser.id (FK User).
   const confirmCloseDecision = async () => {
     if (!closeDialog) return;
     const { actionId } = closeDialog;
@@ -305,6 +349,8 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
       estado: 'cerrada',
       porcentaje: 100,
       decision: closeDecision,
+      // v2.78: el usuario actual es quien verifica el cierre (FK User).
+      verificadoPorId: currentUser?.id || null,
     };
     if (closeDecision === 'Retirar') {
       payload.diasCuarentena = closeDiasCuarentena;
@@ -492,9 +538,9 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
               <table className="w-full text-xs border-collapse min-w-[800px] md:min-w-[1200px]">
                 <thead className="sticky top-0 z-10">
                   <tr>
-                    {/* Yellow section: Demanda */}
+                    {/* v2.78: Yellow section renombrada "DEMANDA" → "HALLAZGO" */}
                     <th colSpan={9} className={`${HEADER_COLORS.demandante} px-2 py-1.5 text-center text-xs font-bold border border-amber-500`}>
-                      DEMANDA
+                      HALLAZGO
                     </th>
                     {/* Blue section: Acción */}
                     <th colSpan={4} className={`${HEADER_COLORS.accion} px-2 py-1.5 text-center text-xs font-bold border border-sky-500`}>
@@ -509,24 +555,24 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                     </th>
                   </tr>
                   <tr>
-                    {/* Yellow section headers */}
+                    {/* Yellow section headers — v2.78: renombrados */}
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Nº</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Fecha</th>
-                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Comunicado por</th>
+                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Usuario que detectó el hallazgo (automático según el paso)">Detectado por</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Semana</th>
-                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Sección Demandante</th>
+                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Sección Origen</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Cliente / Zona</th>
-                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Persona Demandada</th>
-                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Sección Demandada</th>
+                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Responsable de resolver el hallazgo (FK User)">Responsable</th>
+                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Sección Destino</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Descripción</th>
                     {/* Blue section headers */}
                     <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Impacto Objetivo</th>
                     <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Enviado</th>
                     <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Acción Correctiva</th>
                     <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Acciones Preventivas</th>
-                    {/* Orange section headers */}
+                    {/* Orange section headers — v2.78: "Persona Responsable" → "Verificado por" */}
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>Semana Prevista</th>
-                    <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>Persona Responsable</th>
+                    <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`} title="Usuario que verifica el cierre (FK User)">Verificado por</th>
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>%</th>
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>Estado</th>
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>Semana Real</th>
@@ -549,7 +595,7 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
 
                       return (
                         <tr key={action.id} className="hover:bg-muted/30 group">
-                          {/* Yellow section: Demanda */}
+                          {/* Yellow section: Hallazgo (v2.78: renombrado de Demanda) */}
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200 text-center font-bold`}>
                             {action.numeroEntrada || '-'}
                           </td>
@@ -561,14 +607,11 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                               className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-amber-400"
                             />
                           </td>
+                          {/* v2.78: "Detectado por" — read-only (comunicadoPorId = session.user.id en backend) */}
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
-                            <Input
-                              type="text"
-                              value={action.comunicadoPor}
-                              onChange={e => handleUpdateField(action.id, 'comunicadoPor', e.target.value)}
-                              placeholder="Quién comunica"
-                              className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-amber-400 w-24"
-                            />
+                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.comunicadoPorName || '—'}>
+                              {action.comunicadoPorName || '—'}
+                            </div>
                           </td>
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
                             <Select
@@ -604,14 +647,24 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                               className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-amber-400 w-24"
                             />
                           </td>
+                          {/* v2.78: "Responsable" — User picker (personaDemandadaId FK) */}
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
-                            <Input
-                              type="text"
-                              value={action.personaDemandada}
-                              onChange={e => handleUpdateField(action.id, 'personaDemandada', e.target.value)}
-                              placeholder="Persona"
-                              className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-amber-400 w-24"
-                            />
+                            <Select
+                              value={action.personaDemandadaId || '__none__'}
+                              onValueChange={val => handleUpdateField(action.id, 'personaDemandadaId', val === '__none__' ? null : val)}
+                            >
+                              <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-28">
+                                <SelectValue placeholder="—" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-60">
+                                <SelectItem value="__none__">—</SelectItem>
+                                {projectMembers.map(m => (
+                                  <SelectItem key={m.id} value={m.id} title={m.email}>
+                                    {m.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </td>
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
                             <Input
@@ -694,14 +747,24 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                               </SelectContent>
                             </Select>
                           </td>
+                          {/* v2.78: "Verificado por" — User picker (verificadoPorId FK) */}
                           <td className={`${SECTION_COLORS.seguimiento} px-1 py-1 border border-orange-200`}>
-                            <Input
-                              type="text"
-                              value={action.responsable}
-                              onChange={e => handleUpdateField(action.id, 'responsable', e.target.value)}
-                              placeholder="Responsable"
-                              className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-orange-400 w-24"
-                            />
+                            <Select
+                              value={action.verificadoPorId || '__none__'}
+                              onValueChange={val => handleUpdateField(action.id, 'verificadoPorId', val === '__none__' ? null : val)}
+                            >
+                              <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-28">
+                                <SelectValue placeholder="—" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-60">
+                                <SelectItem value="__none__">—</SelectItem>
+                                {projectMembers.map(m => (
+                                  <SelectItem key={m.id} value={m.id} title={m.email}>
+                                    {m.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </td>
                           <td className={`${SECTION_COLORS.seguimiento} px-1 py-1 border border-orange-200 text-center`}>
                             <Input

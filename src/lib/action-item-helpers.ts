@@ -4,7 +4,7 @@
  * Autoevaluación (paso 4) + Auditoría (paso 5).
  *
  * Todas estas fuentes generan ActionItems que se muestran en una
- * tabla unificada con las mismas columnas Demanda/Acción/Seguimiento.
+ * tabla unificada con las mismas columnas Hallazgo / Acción / Seguimiento.
  *
  * El campo `tipo` distingue el origen:
  *   - 'accion'     → entrada manual del Plan de Acción (S5 paso 3)
@@ -16,6 +16,13 @@
  *   - 'inventario'    → tipo='inventario'
  *   - 'autoevaluacion' → tipo='hallazgo' (miniStep=4)
  *   - 'auditoria'     → tipo='hallazgo' (miniStep=5)
+ *
+ * v2.78 — Renombrado de concepto "Demanda" → "Hallazgo":
+ *   - helper buildDemandaFromHallazgo → buildHallazgoFromNok
+ *   - helper buildDemandaFromInventario → buildHallazgoFromInventario
+ *   - El payload ya NO incluye los campos legacy de texto (comunicadoPor,
+ *     personaDemandada, responsable) — el backend los resuelve por sesión
+ *     y por FK (comunicadoPorId, personaDemandadaId).
  */
 
 export type ActionTipo = 'accion' | 'inventario' | 'hallazgo';
@@ -57,40 +64,38 @@ export const HEADER_COLORS = {
 } as const;
 
 /**
- * Construye el payload de "Demanda" para un ActionItem generado
+ * Construye el payload de "Hallazgo" para un ActionItem generado
  * automáticamente desde una autoevaluación (paso 4) o auditoría (paso 5).
  *
  * Autocompleta:
  *   - fechaEntrada: hoy
  *   - semana: semana actual
- *   - comunicadoPor: nombre del revisor (currentUser)
  *   - seccionDemandante: 'Autoevaluación' | 'Auditoría'
  *   - clienteZona: nombre de la zona revisada
- *   - personaDemandada: nombre del responsable de la zona
  *   - seccionDemandada: nombre de la zona (fallback si no hay sección)
  *   - enviado: 'Pendiente'
  *   - tipo: 'hallazgo'
  *   - status: 'nok'
  *
- * Quedan para rellenar manualmente (no se tocan aquí):
- *   - impactoObjetivo, accionCorrectiva, accionesPreventivas,
- *     semanaPrevista, porcentaje, semanaReal, estado.
+ * v2.78 — Ya NO incluye:
+ *   - comunicadoPor (texto) → el backend lo ignora y usa comunicadoPorId=session.user.id
+ *   - personaDemandada (texto) → se resuelve vía personaDemandadaId (FK)
+ *   - responsable (texto) → campo legacy eliminado, usar personaDemandadaId
+ *
+ * El caller debe pasar aparte comunicadoPorId=currentUser.id y
+ * personaDemandadaId=zone.responsableId (si existe) al hacer POST /api/actions.
  */
-export function buildDemandaFromHallazgo(params: {
+export function buildHallazgoFromNok(params: {
   miniStep: 4 | 5;
-  revisorName: string;
   zonaName?: string;
-  responsableZonaName?: string;
 }): Record<string, any> {
-  const { miniStep, revisorName, zonaName, responsableZonaName } = params;
+  const { miniStep, zonaName } = params;
   const seccionDemandante = miniStep === 5 ? 'Auditoría' : 'Autoevaluación';
   return {
     fechaEntrada: new Date().toISOString().split('T')[0],
     semana: getWeekFromDate(),
-    comunicadoPor: revisorName || null,
     seccionDemandante,
     clienteZona: zonaName || null,
-    personaDemandada: responsableZonaName || null,
     seccionDemandada: zonaName || null,
     enviado: 'Pendiente',
     tipo: 'hallazgo' as ActionTipo,
@@ -100,7 +105,26 @@ export function buildDemandaFromHallazgo(params: {
 }
 
 /**
- * Construye el payload de "Demanda" para un ActionItem generado
+ * Alias retrocompatible con v2.76 — mantener temporalmente para no romper
+ * imports antiguos. Redirige a buildHallazgoFromNok ignorando revisorName
+ * (que ya no se usa: el backend resuelve comunicadoPorId por sesión).
+ *
+ * @deprecated usar buildHallazgoFromNok
+ */
+export function buildDemandaFromHallazgo(params: {
+  miniStep: 4 | 5;
+  revisorName?: string;
+  zonaName?: string;
+  responsableZonaName?: string;
+}): Record<string, any> {
+  return buildHallazgoFromNok({
+    miniStep: params.miniStep,
+    zonaName: params.zonaName,
+  });
+}
+
+/**
+ * Construye el payload de "Hallazgo" para un ActionItem generado
  * desde un item del Inventario (paso 3, S1-S4) marcado con una decisión
  * (retirar / eliminar / jaula / recolocar / etc.).
  *
@@ -108,13 +132,40 @@ export function buildDemandaFromHallazgo(params: {
  *   Elemento + Ubicación → hallazgo (descripción)
  *   Ubicación            → clienteZona
  *   Categoría            → seccionDemandante (innecesario/dudoso/util/...)
- *   Responsable de zona  → personaDemandada
  *   Decisión             → seccionDemandada (acción demandada)
+ *
+ * v2.78 — Ya NO incluye responsable/comunicadoPor/personaDemandada (texto).
+ * El caller debe pasar comunicadoPorId (quien marca la decisión en el
+ * inventario) y personaDemandadaId (responsable de zona) al hacer POST.
  *
  * El snapshot original del inventario se guarda en `extra` para que
  * el cierre de la acción pueda disparar la entrada en la jaula con
  * todos los datos (diasCuarentena, zonaOrigen, zonaDestino, etc.).
  */
+export function buildHallazgoFromInventario(params: {
+  elemento: string;
+  ubicacion?: string;
+  categoria?: string;
+  zonaName?: string;
+  decision?: string;
+}): Record<string, any> {
+  const { elemento, ubicacion, categoria, zonaName, decision } = params;
+  const descripcion = [elemento, ubicacion && `(${ubicacion})`]
+    .filter(Boolean)
+    .join(' ');
+  return {
+    hallazgo: `${descripcion} — marcado para ${decision || 'acción'}`,
+    fechaEntrada: new Date().toISOString().split('T')[0],
+    semana: getWeekFromDate(),
+    seccionDemandante: categoria || 'Inventario',
+    clienteZona: zonaName || ubicacion || null,
+    seccionDemandada: decision || null,
+    enviado: 'Pendiente',
+    tipo: 'inventario' as ActionTipo,
+  };
+}
+
+/** @deprecated usar buildHallazgoFromInventario */
 export function buildDemandaFromInventario(params: {
   elemento: string;
   ubicacion?: string;
@@ -123,22 +174,7 @@ export function buildDemandaFromInventario(params: {
   responsableZonaName?: string;
   decision?: string;
 }): Record<string, any> {
-  const { elemento, ubicacion, categoria, zonaName, responsableZonaName, decision } = params;
-  const descripcion = [elemento, ubicacion && `(${ubicacion})`]
-    .filter(Boolean)
-    .join(' ');
-  return {
-    hallazgo: `${descripcion} — marcado para ${decision || 'acción'}`,
-    fechaEntrada: new Date().toISOString().split('T')[0],
-    semana: getWeekFromDate(),
-    comunicadoPor: responsableZonaName || null,
-    seccionDemandante: categoria || 'Inventario',
-    clienteZona: zonaName || ubicacion || null,
-    personaDemandada: responsableZonaName || null,
-    seccionDemandada: decision || null,
-    enviado: 'Pendiente',
-    tipo: 'inventario' as ActionTipo,
-  };
+  return buildHallazgoFromInventario(params);
 }
 
 /**

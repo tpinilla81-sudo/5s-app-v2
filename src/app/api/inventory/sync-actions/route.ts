@@ -104,9 +104,10 @@ export async function POST(request: NextRequest) {
 
         // Obtener el responsable de la zona si existe
         let responsableName: string | null = null
-        if (item.zone?.responsableId) {
+        let responsableId: string | null = item.zone?.responsableId || null
+        if (responsableId) {
           const responsable = await db.user.findUnique({
-            where: { id: item.zone.responsableId },
+            where: { id: responsableId },
             select: { name: true },
           })
           if (responsable) {
@@ -192,7 +193,6 @@ export async function POST(request: NextRequest) {
             itemDescription,
             hallazgo,
             mejora: null,
-            responsable: responsableName || undefined,
             prioridad,
             estado: 'abierta',
             fechaCompromiso: null,
@@ -201,15 +201,12 @@ export async function POST(request: NextRequest) {
             source: 'inventario',
             auditor: null,
             zoneId: item.zoneId || null,
-            verificadoPor: null,
             projectId,
             numeroEntrada: nextNumero++,
             fechaEntrada: new Date(),
-            comunicadoPor: 'Sistema (auto desde Inventario S1)',
             semana: `W${getWeekNumber(new Date())}`,
             seccionDemandante: zoneName,
             clienteZona: zoneName,
-            personaDemandada: responsableName || undefined,
             seccionDemandada: null,
             impactoObjetivo: decision === 'Retirar'
               ? 'Liberar espacio en zona de origen; cuarentena en jaula'
@@ -225,6 +222,16 @@ export async function POST(request: NextRequest) {
             // que el Plan de Acción pueda filtrar/agrupar por origen.
             tipo: 'inventario',
             status: 'nok',
+            // v2.78: FKs en lugar de texto legacy.
+            // comunicadoPorId = responsable de zona (quien marca la decisión
+            //   en el inventario es el responsable de la zona).
+            // personaDemandadaId = responsable de zona (a quien se demanda
+            //   la acción de retirar/eliminar el item de la jaula).
+            // sourceId = id del InventoryItem (para trazabilidad inversa y
+            //   para que la deduplicación del POST /api/actions funcione).
+            comunicadoPorId: responsableId,
+            personaDemandadaId: responsableId,
+            sourceId: item.id,
           },
         })
 

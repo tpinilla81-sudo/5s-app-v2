@@ -52,7 +52,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { buildDemandaFromHallazgo } from '@/lib/action-item-helpers';
+import { buildHallazgoFromNok } from '@/lib/action-item-helpers';
 
 interface AuditoriaModalProps {
   open: boolean;
@@ -781,19 +781,9 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
           // responsable de zona, etc.) para que aparezca en el Plan de
           // Acción con la misma estructura que las entradas manuales,
           // los items del inventario y los hallazgos de autoeval.
-          const responsableZonaNameAudit = (() => {
-            if (currentZone?.responsableId) {
-              const m = projectMembers.find(m => m.userId === currentZone.responsableId);
-              if (m?.user?.name) return m.user.name;
-            }
-            const resp = projectMembers.find(m => m.role === 'responsable');
-            return resp?.user?.name || null;
-          })();
-          const demandaFieldsAudit = buildDemandaFromHallazgo({
+          const demandaFieldsAudit = buildHallazgoFromNok({
             miniStep: 5,
-            revisorName: auditorName || currentUser?.name || 'Auditor',
             zonaName: currentZone?.name,
-            responsableZonaName: responsableZonaNameAudit || undefined,
           });
           await fetch('/api/actions', {
             method: 'POST',
@@ -805,15 +795,23 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
               itemDescription: `Disfunción detectada en auditoría: ${nok.itemId}`,
               hallazgo: nok.hallazgo || nok.itemId,
               mejora: nok.mejora || '',
-              responsable: nok.responsable || null,
+              // v2.78: responsable legacy eliminado del payload.
+              // comunicadoPorId se resuelve por sesión en el backend (= auditor).
+              // personaDemandadaId = responsable de la zona (a quien se demanda
+              //   la acción correctiva del NOK detectado en auditoría).
+              personaDemandadaId: currentZone?.responsableId || null,
               prioridad: 'alta',
               estado: 'abierta',
               source: 'auditoria',
               auditor: auditorName,
               projectId: currentProject?.id,
               zoneId: currentZone?.id || null,
+              // v2.78: sourceId se deja a null para NOKs de auditoría.
+              // La deduplicación del backend usa (itemId, zoneId, projectId, estado)
+              // para detectar NOKs repetidos entre autoeval y auditoría y hacer
+              // UPDATE en lugar de INSERT.
               photoRefs: photoUrls.length > 0 ? JSON.stringify(photoUrls) : undefined,
-              // v2.76: campos de Demanda autocompletados
+              // v2.76/v2.78: campos de Hallazgo autocompletados (sin texto legacy)
               ...demandaFieldsAudit,
             }),
           });
@@ -866,6 +864,10 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
                 const nuevaPrioridad = h.decisionRevision === 'recategorizar' && h.nuevaPrioridad
                   ? h.nuevaPrioridad
                   : 'alta';
+                // v2.78: cuando el auditor recategoriza, usamos personaDemandadaId (FK)
+                // en lugar del texto legacy 'responsable'. El responsable demandado
+                // es el responsable de la zona si está disponible.
+                const personaDemandadaIdRecat = currentZone?.responsableId || null;
                 await fetch(`/api/actions?id=${h.id}`, {
                   method: 'PUT',
                   headers: { 'Content-Type': 'application/json' },
@@ -874,6 +876,9 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
                     source: 'auditoria',
                     auditor: auditorName,
                     estado: 'en_proceso',
+                    // v2.78: FK al responsable demandado (no texto legacy).
+                    // Solo lo seteamos si está informado.
+                    ...(personaDemandadaIdRecat ? { personaDemandadaId: personaDemandadaIdRecat } : {}),
                     notas: h.notasAuditor
                       ? `Confirmado NOK en auditoría S${sStep} por ${auditorName}. Prioridad: ${nuevaPrioridad}. Notas: ${h.notasAuditor}`
                       : `Confirmado NOK en auditoría S${sStep} por ${auditorName}. Prioridad: ${nuevaPrioridad}.`,

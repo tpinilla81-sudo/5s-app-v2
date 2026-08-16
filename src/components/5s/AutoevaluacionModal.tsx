@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { buildDemandaFromHallazgo } from '@/lib/action-item-helpers';
+import { buildHallazgoFromNok } from '@/lib/action-item-helpers';
 import { toast } from 'sonner';
 
 interface AutoevaluacionModalProps {
@@ -816,11 +816,9 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
               const resp = projectMembers.find(m => m.role === 'responsable');
               return resp?.user?.name || null;
             })();
-            const demandaFields = buildDemandaFromHallazgo({
+            const demandaFields = buildHallazgoFromNok({
               miniStep: 4,
-              revisorName: currentUser?.name || 'Responsable',
               zonaName: currentZone?.name,
-              responsableZonaName: responsableZonaName || undefined,
             });
             const actionRes = await fetch('/api/actions', {
               method: 'POST',
@@ -832,15 +830,23 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
                 itemDescription: `Disfunción detectada en autoevaluación: ${nok.itemId}`,
                 hallazgo: nok.hallazgo || nok.itemId,
                 mejora: nok.mejora || '',
-                responsable: nok.responsable || null,
+                // v2.78: responsable legacy eliminado del payload.
+                // El backend resuelve comunicadoPorId por sesión (= currentUser).
+                // personaDemandadaId = responsable de la zona (a quien se
+                // demanda la acción correctiva del NOK detectado).
+                personaDemandadaId: currentZone?.responsableId || null,
                 prioridad: 'media',
                 source: 'autoevaluacion',
                 auditor: null,
                 projectId: currentProject?.id,
                 zoneId: currentZone?.id || null,
+                // v2.78: sourceId se deja a null para NOKs de autoeval.
+                // La deduplicación del backend usa (itemId, zoneId, projectId, estado)
+                // para detectar NOKs repetidos entre autoeval y auditoría y hacer
+                // UPDATE en lugar de INSERT.
                 // v2.63: enlazar fotos del hallazgo al ActionItem
                 photoRefs: photoUrls.length > 0 ? JSON.stringify(photoUrls) : undefined,
-                // v2.76: campos de Demanda autocompletados
+                // v2.76/v2.78: campos de Hallazgo autocompletados (sin texto legacy)
                 ...demandaFields,
               }),
             });

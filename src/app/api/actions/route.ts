@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getAuthUser } from '@/lib/auth-helpers'
 
 // v2.72: helper para parsear `extra` (JSON string) sin romper si está malformado
 function safeParseExtra(raw: string): any {
@@ -52,6 +53,10 @@ export async function GET(request: NextRequest) {
           include: {
             zone: { select: { id: true, name: true } },
             project: { select: { id: true, name: true, company: true } },
+            // v2.78: incluir FKs de User para mostrar nombres en el frontend
+            comunicadoPorUser: { select: { id: true, name: true, email: true } },
+            personaDemandadaUser: { select: { id: true, name: true, email: true } },
+            verificadoPorUser: { select: { id: true, name: true, email: true } },
           },
         })
         const parsed = actions.map(a => ({ ...a, extra: a.extra ? safeParseExtra(a.extra) : null }))
@@ -76,6 +81,10 @@ export async function GET(request: NextRequest) {
           include: {
             zone: { select: { id: true, name: true } },
             project: { select: { id: true, name: true, company: true } },
+            // v2.78: incluir FKs de User para mostrar nombres en el frontend
+            comunicadoPorUser: { select: { id: true, name: true, email: true } },
+            personaDemandadaUser: { select: { id: true, name: true, email: true } },
+            verificadoPorUser: { select: { id: true, name: true, email: true } },
           },
         })
         const parsed = actions.map(a => ({ ...a, extra: a.extra ? safeParseExtra(a.extra) : null }))
@@ -102,6 +111,10 @@ export async function GET(request: NextRequest) {
           include: {
             zone: { select: { id: true, name: true } },
             project: { select: { id: true, name: true, company: true } },
+            // v2.78: incluir FKs de User para mostrar nombres en el frontend
+            comunicadoPorUser: { select: { id: true, name: true, email: true } },
+            personaDemandadaUser: { select: { id: true, name: true, email: true } },
+            verificadoPorUser: { select: { id: true, name: true, email: true } },
           },
         })
         const parsed = actions.map(a => ({ ...a, extra: a.extra ? safeParseExtra(a.extra) : null }))
@@ -121,6 +134,10 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
       include: {
         zone: { select: { id: true, name: true } },
+        // v2.78: incluir FKs de User para mostrar nombres en el frontend
+        comunicadoPorUser: { select: { id: true, name: true, email: true } },
+        personaDemandadaUser: { select: { id: true, name: true, email: true } },
+        verificadoPorUser: { select: { id: true, name: true, email: true } },
       },
     })
 
@@ -178,7 +195,7 @@ export async function POST(request: NextRequest) {
       extra, // v2.72: snapshot del inventario (JSON string o objeto)
       // v2.75: nuevos campos de trazabilidad y unificación
       sourceId,
-      comunicadoPorId,
+      comunicadoPorId: bodyComunicadoPorId,
       personaDemandadaId,
       verificadoPorId,
       tipo,
@@ -202,6 +219,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: `Project with id '${projectId}' not found` }, { status: 400 })
     }
 
+    // ────────────────────────────────────────────────────────────────────
+    // v2.78: comunicadoPorId SIEMPRE = usuario de la sesión.
+    // El que detecta el hallazgo es quien hace el paso (autoeval/auditoría/
+    // plan/inventario). Ignoramos cualquier valor que venga en el body.
+    // ────────────────────────────────────────────────────────────────────
+    const sessionUser = await getAuthUser(request)
+    const comunicadoPorId = sessionUser?.id || bodyComunicadoPorId || null
+
     // Auto-increment numeroEntrada per project if not provided
     let nextNumero = numeroEntrada;
     if (nextNumero === undefined || nextNumero === null) {
@@ -212,6 +237,109 @@ export async function POST(request: NextRequest) {
       nextNumero = (lastAction?.numeroEntrada || 0) + 1;
     }
 
+    // ────────────────────────────────────────────────────────────────────
+    // v2.78: Deduplicación estricta.
+    // Si ya existe un ActionItem ABIERTO (estado in ['abierta','en_proceso'])
+    // con el mismo (itemId, zoneId, projectId), hacemos UPDATE en lugar de
+    // INSERT. Esto evita duplicados cuando el mismo NOK se detecta primero
+    // en autoeval (paso 4) y luego de nuevo en auditoría (paso 5) sin que
+    // se haya resuelto entre medias.
+    //
+    // Casos:
+    //   - sourceId + itemId informados → dedup por (sourceId, itemId, zoneId)
+    //   - solo itemId (autoeval/auditoría NOKs) → dedup por (itemId, zoneId, projectId)
+    //   - actionplan manual (itemId tipo `PA-${sStep}-${Date.now()}`) →
+    //     nunca colisiona, así que no se deduplica aunque entre en el bloque.
+    // ────────────────────────────────────────────────────────────────────
+    if (itemId) {
+      const dupWhere: any = {
+        projectId,
+        itemId,
+        estado: { in: ['abierta', 'en_proceso'] },
+      }
+      if (zoneId) {
+        dupWhere.zoneId = zoneId
+      } else {
+        // zoneId null → buscar tanto si está seteado como si no
+        dupWhere.OR = [{ zoneId: null }, { zoneId: undefined as any }]
+      }
+      // Si sourceId viene informado, restringimos por él (más preciso).
+      // Si no, dedup solo por itemId+zoneId+projectId (caso autoeval/auditoría).
+      if (sourceId) {
+        dupWhere.sourceId = sourceId
+      }
+
+      const existing = await db.actionItem.findFirst({ where: dupWhere })
+
+      if (existing) {
+        // Deduplicación: actualizar el existente en lugar de crear uno nuevo.
+        const dupUpdate: any = {}
+        // Refrescar descripción si la nueva es más informativa
+        if (hallazgo && hallazgo.length > (existing.hallazgo || '').length) {
+          dupUpdate.hallazgo = hallazgo
+          dupUpdate.itemDescription = effectiveDescription
+        }
+        if (mejora) dupUpdate.mejora = mejora
+        // Subir prioridad si la nueva es mayor (alta > media > baja)
+        const prioridadOrder: Record<string, number> = { baja: 1, media: 2, alta: 3 }
+        const newPrio = prioridad || 'media'
+        if (
+          !existing.prioridad ||
+          (prioridadOrder[newPrio] || 2) > (prioridadOrder[existing.prioridad] || 0)
+        ) {
+          dupUpdate.prioridad = newPrio
+        }
+        // Mantener comunicadoPorId si ya estaba, si no usar el nuevo
+        if (!existing.comunicadoPorId && comunicadoPorId) {
+          dupUpdate.comunicadoPorId = comunicadoPorId
+        }
+        // Mantener personaDemandadaId si ya estaba, si no usar el nuevo
+        if (!existing.personaDemandadaId && personaDemandadaId) {
+          dupUpdate.personaDemandadaId = personaDemandadaId
+        }
+        // Si el nuevo source es auditoría y el viejo era autoeval, "promocionar"
+        if (
+          source === 'auditoria' &&
+          existing.source !== 'auditoria'
+        ) {
+          dupUpdate.source = 'auditoria'
+          dupUpdate.miniStep = 5
+          dupUpdate.auditor = auditor || existing.auditor
+        }
+        // Combinar photoRefs (existing + new sin duplicados)
+        if (photoRefs) {
+          try {
+            const existingPhotos = existing.photoRefs ? JSON.parse(existing.photoRefs) : []
+            const newPhotos = JSON.parse(photoRefs)
+            if (Array.isArray(existingPhotos) && Array.isArray(newPhotos)) {
+              const merged = Array.from(new Set([...existingPhotos, ...newPhotos]))
+              dupUpdate.photoRefs = JSON.stringify(merged)
+            }
+          } catch {
+            dupUpdate.photoRefs = photoRefs
+          }
+        }
+        // Mergear extra (snapshot del inventario)
+        if (extra) {
+          try {
+            const existingExtra = existing.extra ? JSON.parse(existing.extra) : {}
+            const newExtra = typeof extra === 'string' ? JSON.parse(extra) : extra
+            dupUpdate.extra = JSON.stringify({ ...existingExtra, ...newExtra })
+          } catch {
+            dupUpdate.extra = typeof extra === 'string' ? extra : JSON.stringify(extra)
+          }
+        }
+        dupUpdate.updatedAt = new Date()
+
+        const updated = await db.actionItem.update({
+          where: { id: existing.id },
+          data: dupUpdate,
+        })
+        console.log(`[actions POST] DEDUP: ActionItem ${existing.id} actualizado en lugar de crear duplicado (sourceId=${sourceId}, itemId=${itemId})`)
+        return NextResponse.json({ success: true, data: updated, deduplicated: true })
+      }
+    }
+
     const action = await db.actionItem.create({
       data: {
         sStep: sStep || 0,
@@ -220,7 +348,8 @@ export async function POST(request: NextRequest) {
         itemDescription: effectiveDescription,
         hallazgo: effectiveDescription,
         mejora: mejora || null,
-        responsable: responsable || null,
+        // v2.78: ya NO escribimos en campos legacy de texto (responsable,
+        // verificadoPor, personaDemandada, comunicadoPor). Solo FKs.
         prioridad: prioridad || 'media',
         estado: estado || 'abierta',
         fechaCompromiso: fechaCompromiso ? new Date(fechaCompromiso) : null,
@@ -229,15 +358,12 @@ export async function POST(request: NextRequest) {
         source: source || 'actionplan',
         auditor: auditor || null,
         zoneId: zoneId || null,
-        verificadoPor: verificadoPor || null,
         projectId: projectId || '',
         numeroEntrada: nextNumero,
         fechaEntrada: fechaEntrada ? new Date(fechaEntrada) : new Date(),
-        comunicadoPor: comunicadoPor || null,
         semana: semana || null,
         seccionDemandante: seccionDemandante || null,
         clienteZona: clienteZona || null,
-        personaDemandada: personaDemandada || null,
         seccionDemandada: seccionDemandada || null,
         impactoObjetivo: impactoObjetivo || null,
         enviado: enviado || null,
@@ -248,9 +374,9 @@ export async function POST(request: NextRequest) {
         semanaReal: semanaReal || null,
         photoRefs: photoRefs || null, // v2.63: fotos del hallazgo enlazadas al ActionItem
         extra: extra ? (typeof extra === 'string' ? extra : JSON.stringify(extra)) : null, // v2.72
-        // v2.75: nuevos campos
+        // v2.75/v2.78: nuevos campos
         sourceId: sourceId || null,
-        comunicadoPorId: comunicadoPorId || null,
+        comunicadoPorId, // siempre = session.user.id (inyectado por backend)
         personaDemandadaId: personaDemandadaId || null,
         verificadoPorId: verificadoPorId || null,
         tipo: tipo || 'accion',
@@ -279,22 +405,24 @@ export async function PUT(request: NextRequest) {
 
     if (body.estado !== undefined) updateData.estado = body.estado
     if (body.prioridad !== undefined) updateData.prioridad = body.prioridad
-    if (body.responsable !== undefined) updateData.responsable = body.responsable
+    // v2.78: 'responsable' como texto legacy ya NO se escribe.
+    // Si el caller manda 'responsable' (texto), lo ignoramos — debe usar
+    // 'personaDemandadaId' (FK) para asignar responsable.
     if (body.mejora !== undefined) updateData.mejora = body.mejora
     if (body.notas !== undefined) updateData.notas = body.notas
     if (body.fechaCompromiso !== undefined) updateData.fechaCompromiso = body.fechaCompromiso ? new Date(body.fechaCompromiso) : null
     if (body.fechaLimite !== undefined) updateData.fechaLimite = body.fechaLimite ? new Date(body.fechaLimite) : null
     if (body.fechaReal !== undefined) updateData.fechaReal = body.fechaReal ? new Date(body.fechaReal) : null
     if (body.zoneId !== undefined) updateData.zoneId = body.zoneId || null
-    if (body.verificadoPor !== undefined) updateData.verificadoPor = body.verificadoPor || null
+    // v2.78: 'verificadoPor' (texto) ya NO se escribe. Usar verificadoPorId.
     // Plan de Acción table fields
     if (body.numeroEntrada !== undefined) updateData.numeroEntrada = body.numeroEntrada
     if (body.fechaEntrada !== undefined) updateData.fechaEntrada = body.fechaEntrada ? new Date(body.fechaEntrada) : null
-    if (body.comunicadoPor !== undefined) updateData.comunicadoPor = body.comunicadoPor
+    // v2.78: 'comunicadoPor' (texto) y 'personaDemandada' (texto) ya NO se
+    // escriben. Solo se actualizan vía FK (comunicadoPorId / personaDemandadaId).
     if (body.semana !== undefined) updateData.semana = body.semana
     if (body.seccionDemandante !== undefined) updateData.seccionDemandante = body.seccionDemandante
     if (body.clienteZona !== undefined) updateData.clienteZona = body.clienteZona
-    if (body.personaDemandada !== undefined) updateData.personaDemandada = body.personaDemandada
     if (body.seccionDemandada !== undefined) updateData.seccionDemandada = body.seccionDemandada
     if (body.impactoObjetivo !== undefined) updateData.impactoObjetivo = body.impactoObjetivo
     if (body.enviado !== undefined) updateData.enviado = body.enviado

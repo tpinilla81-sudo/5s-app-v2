@@ -762,14 +762,20 @@ export default function PlanDeAccionView() {
           )}
         </div>
 
-        {/* v2.76: Fila de tabs por origen — unificación de tablas */}
+        {/* v2.76/v2.78: Fila de pestañas por origen — unificación de tablas.
+            Etiquetas según definición del usuario:
+              - "Plan S5"     → entradas manuales del Plan de Acción (S5 paso 3)
+              - "Inventario"  → items del inventario (S1-S4 paso 3) con decisión
+              - "Hallazgos 4-5" → NOKs detectados en autoeval (paso 4) o auditoría (paso 5)
+              - "Todo"        → combinado con badge de origen
+        */}
         <div className="flex items-center gap-1.5 mt-1.5 overflow-x-auto pb-1">
           <span className="text-[10px] text-muted-foreground shrink-0 mr-1">Origen:</span>
           {([
-            { key: 'all', label: 'Todos', color: 'gray', count: actions.length },
-            { key: 'manual', label: '📝 Manual', color: 'rose', count: actions.filter(a => (a.source || 'actionplan') === 'actionplan').length },
+            { key: 'all', label: '📊 Todo', color: 'gray', count: actions.length },
+            { key: 'manual', label: '📋 Plan S5', color: 'rose', count: actions.filter(a => (a.source || 'actionplan') === 'actionplan').length },
             { key: 'inventario', label: '📦 Inventario', color: 'emerald', count: actions.filter(a => a.source === 'inventario' || !!a.extra?.inventoryItemId).length },
-            { key: 'hallazgo', label: '🔍 Hallazgos 4/5', color: 'purple', count: actions.filter(a => a.source === 'autoevaluacion' || a.source === 'auditoria').length },
+            { key: 'hallazgo', label: '🔍 Hallazgos 4-5', color: 'purple', count: actions.filter(a => a.source === 'autoevaluacion' || a.source === 'auditoria').length },
           ] as const).map(tab => {
             const isActive = filterOrigen === tab.key;
             const colorMap: Record<string, { active: string; inactive: string }> = {
