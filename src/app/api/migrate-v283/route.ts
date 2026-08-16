@@ -108,31 +108,55 @@ export async function POST(req: NextRequest) {
       // el ActionItem sobrevive. Inferimos:
       //   - elemento: del itemDescription, quitando "(X und.)" al final
       //   - cantidad: del "(X und.)" si existe, si no 1
-      //   - categoria: 'innecesario' (todos estos legacy son S1 Retirar/Eliminar)
-      //   - decision: del texto legacy del impactoObjetivo
+      //   - categoria: del hallazgo si dice "innecesario", "dudoso", "util", ...
+      //                fallback 'innecesario' si S1 + decision Retirar/Eliminar
+      //   - decision: del texto legacy del impactoObjetivo o del hallazgo
       //              ('liberar/cuarentena/jaula' → 'Retirar',
-      //               'eliminar/residuo'         → 'Eliminar')
+      //               'eliminar/residuo'         → 'Eliminar',
+      //               'innecesario' en hallazgo  → 'Retirar' si S1)
       let elemento: string
       let cantidad: number
       let categoria: string
       let decision: string
       let zonaOrigen: string
 
+      // Buscar pistas en el impactoObjetivo (texto legacy) Y en el hallazgo
       const legacyImpacto = (a.impactoObjetivo || '').toLowerCase()
+      const hallazgoLower = (a.hallazgo || '').toLowerCase()
+
+      // Inferir decision
       if (legacyImpacto.includes('eliminar') || legacyImpacto.includes('residuo')) {
         decision = 'Eliminar'
       } else if (legacyImpacto.includes('liberar') || legacyImpacto.includes('cuarentena') || legacyImpacto.includes('jaula')) {
         decision = 'Retirar'
+      } else if (hallazgoLower.includes('innecesario') || hallazgoLower.includes('retirar')) {
+        decision = 'Retirar'
+      } else if (hallazgoLower.includes('eliminar')) {
+        decision = 'Eliminar'
       } else if (inv?.action) {
         decision = inv.action
       } else {
         decision = 'Recolocar'
       }
 
+      // Inferir categoria
+      if (inv?.category) {
+        categoria = inv.category
+      } else if (hallazgoLower.includes('innecesario')) {
+        categoria = 'innecesario'
+      } else if (hallazgoLower.includes('dudoso')) {
+        categoria = 'dudoso'
+      } else if (hallazgoLower.includes('util')) {
+        categoria = 'util'
+      } else if (a.sStep === 1 && (decision === 'Retirar' || decision === 'Eliminar')) {
+        categoria = 'innecesario'
+      } else {
+        categoria = ''
+      }
+
       if (inv) {
         elemento = inv.name
         cantidad = inv.quantity || 1
-        categoria = inv.category || 'innecesario'
         zonaOrigen = inv.zonaOrigen || a.clienteZona || ''
       } else {
         // Inferir del itemDescription: "Silla de comedor (1 und.)" → elemento="Silla de comedor", cantidad=1
@@ -144,10 +168,6 @@ export async function POST(req: NextRequest) {
           elemento = a.itemDescription || a.hallazgo || ''
           cantidad = 1
         }
-        // Para S1 con decisión Retirar/Eliminar, la categoría siempre es 'innecesario'
-        categoria = (a.sStep === 1 && (decision === 'Retirar' || decision === 'Eliminar'))
-          ? 'innecesario'
-          : ''
         zonaOrigen = a.clienteZona || ''
       }
 
