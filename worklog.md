@@ -3709,3 +3709,82 @@ Stage Summary:
 - Para S2-S5 (necesarios), la Etiqueta muestra automáticamente 'No aplica' aunque el inventario no la tuviera
 - Producción actualizada y migrada: https://5s-app-v2.vercel.app
 - Script reutilizable: scripts/run-migrations-v284-v285.sh
+
+---
+Task ID: v2.86
+Agent: main
+Task: 1) Hacer que el sistema avise explícitamente cuando una cita de autoeval/auditoría expira y NUNCA la reprograma solo. 2) Permitir borrar citas desde el calendario con opción de reprogramar. 3) Rediseñar la tabla ACCIONES del Plan de Acción con subgrupos CORRECTIVA + PREVENTIVA como en la foto del usuario.
+
+Work Log:
+- Investigado el código: el sistema NUNCA reprograma automáticamente (no
+  existe lógica de +5 días ni similar). El "5 días más tarde" que vio el
+  usuario fue probablemente un clic manual accidental en el botón morado
+  'Programar fecha' del board (que abre el diálogo con default=mañana 10:00).
+- Añadido DELETE /api/evaluation-schedule?id=xxx (route.ts):
+  * Elimina el schedule por id
+  * Notifica al otro usuario (responsableId + empleadoId) con type='evaluation_cancelled'
+  * Body opcional { motivo?: string, reprogramar?: boolean }
+  * Si reprogramar=true → notif dice "se programará una nueva fecha próximamente"
+  * Log de auditoría en consola con todos los datos
+- UserTaskCalendar.tsx:
+  * Añadido imports: Trash2, CalendarClock
+  * Estado deleteDialog { open, scheduleId, scheduleInfo }
+  * requestDeleteSchedule(task): extrae scheduleId del virtualTask (prefijo 'eval-')
+  * confirmDeleteSchedule(reprogramar): llama DELETE, refresca data
+  * Diálogo fijo z-[100] con 3 botones:
+    - 'Borrar y reprogramar' (azul, CalendarClock icon)
+    - 'Borrar sin reprogramar' (rojo, Trash2 icon)
+    - 'Cancelar' (gris)
+  * TaskCard: botón 'Borrar' (rojo) cuando task.source === 'evaluation_schedule'
+  * Botón 'Plan' oculto para eval schedules (no son ActionItems)
+  * Prop onDeleteSchedule propagado a TaskSection → TaskCard
+- check-vencidas/route.ts (refuerzo):
+  * Notif 'evaluation_expired' con metadata: scheduleId, miniStep, sStep,
+    zoneId, projectId, fechaExpirada, horaExpirada, action='reprogramar'
+  * Mensaje más enfático: "⚠️ EXPIRADA — DEBES programar manualmente.
+    El sistema NO reprograma automáticamente."
+  * Dedupe por scheduleId en 24h (msg.contains(sched.id)) — no spamear cada 5 min
+  * Log de auditoría al marcar vencida
+- page.tsx:
+  * Botón 'Reprogramar ahora' (rojo, animate-pulse) en notif evaluation_expired
+    para responsable/auditor/admin. Abre setScheduleDialog con type='evaluation_expired'
+    y default = mañana 10:00.
+  * En el diálogo de programación: aviso rojo especial cuando type='evaluation_expired'
+    ("CITA EXPIRADA — Reprogramación manual. El sistema NO reprograma automáticamente.")
+- POST /api/evaluation-schedule (route.ts):
+  * Validación v2.86: rechaza fechas pasadas (code PAST_DATE_REJECTED)
+  * Si fecha=hoy, valida también hora pasada (PAST_TIME_REJECTED)
+  * Excepción: body.allowPastDate=true solo para tests
+  * Log de auditoría en consola al inicio del POST con todos los datos
+- AutoevaluacionModal + AuditoriaModal:
+  * loadScheduledDate: si schedule.estado === 'vencida' → NO cargar la fecha
+    antigua. Setear campos vacíos ('' + '10:00') para forzar nueva fecha.
+- PlanDeAccionView.tsx (tabla desktop):
+  * Headers superiores: 'ACCIÓN · CORRECTIVA' (sky-500, colSpan=3) +
+    'PREVENTIVA' (sky-400, colSpan=1)
+  * Sub-headers: 'Acción' | 'Etiqueta' | 'Destino' | 'Acción'
+  * Celdas Correctiva con bg-sky-50 + font-medium en 'Acción' (Decisión)
+- PlanDeAccionView.tsx (ActionCard móvil):
+  * Subgrupo 'Correctiva (auto inventario)' con border-l-2 sky-400
+  * Subgrupo 'Preventiva' separado debajo
+  * 'Decisión' renombrado a 'Acción' (coincide con la foto)
+- ActionPlanModal.tsx: mismos cambios de headers + celdas que PlanDeAccionView
+- Bump version: 2.83.0 → 2.86.0 (package.json) + middleware BUILD_VERSION
+  (20260816-104700-v2.85.0 → 20260817-103000-v2.86.0) + public/version timestamp
+- Build OK (✓ Compiled successfully)
+- Commit dbb18f4 pushed a origin/main → Vercel rebuild OK
+- Verificado deploy: https://5s-app-v2.vercel.app/version → 20260817-103000-v2.86.0
+
+Stage Summary:
+- PROBLEMA 1 RESUELTO: el sistema NO reprograma solo (no hay lógica de +5 días).
+  El "5 días más tarde" fue un clic manual accidental. Ahora hay doble barrera:
+  (a) validación backend rechaza fechas pasadas, (b) loadScheduledDate no carga
+  fechas vencidas en el modal.
+- PROBLEMA 2 RESUELTO: botón 'Borrar' en cada cita del calendario, con diálogo
+  de confirmación que pregunta si quieres reprogramar. Notifica al otro usuario.
+- PROBLEMA 3 RESUELTO: tabla ACCIONES rediseñada con subgrupos visuales
+  'CORRECTIVA' (3 cols: Acción + Etiqueta + Destino) + 'PREVENTIVA' (1 col).
+  Coincide con la foto del usuario. Etiqueta/destino siguen siendo automáticos
+  desde el inventario (S1 = etiqueta real, S2-S5 = 'No aplica').
+- Las notificaciones de expiración ahora son accionables (botón 'Reprogramar ahora').
+- Producción actualizada a v2.86.0 — visible tras Ctrl+Shift+R.
