@@ -103,50 +103,77 @@ export async function POST(req: NextRequest) {
         }).catch(() => null)
       }
 
-      // Si no hay InventoryItem, no podemos reconstruir el snapshot
-      if (!inv) {
-        notFound++
-        continue
+      // Si no hay InventoryItem, inferir el snapshot del propio ActionItem.
+      // Esto pasa con items legacy donde el InventoryItem fue borrado pero
+      // el ActionItem sobrevive. Inferimos:
+      //   - elemento: del itemDescription, quitando "(X und.)" al final
+      //   - cantidad: del "(X und.)" si existe, si no 1
+      //   - categoria: 'innecesario' (todos estos legacy son S1 Retirar/Eliminar)
+      //   - decision: del texto legacy del impactoObjetivo
+      //              ('liberar/cuarentena/jaula' → 'Retirar',
+      //               'eliminar/residuo'         → 'Eliminar')
+      let elemento: string
+      let cantidad: number
+      let categoria: string
+      let decision: string
+      let zonaOrigen: string
+
+      const legacyImpacto = (a.impactoObjetivo || '').toLowerCase()
+      if (legacyImpacto.includes('eliminar') || legacyImpacto.includes('residuo')) {
+        decision = 'Eliminar'
+      } else if (legacyImpacto.includes('liberar') || legacyImpacto.includes('cuarentena') || legacyImpacto.includes('jaula')) {
+        decision = 'Retirar'
+      } else if (inv?.action) {
+        decision = inv.action
+      } else {
+        decision = 'Recolocar'
       }
 
-      // Inferir la decisión del texto legacy del impactoObjetivo o del campo action del inventario
-      const legacyImpacto = (a.impactoObjetivo || '').toLowerCase()
-      let decision = inv.action || ''
-      if (!decision) {
-        if (legacyImpacto.includes('eliminar') || legacyImpacto.includes('residuo')) {
-          decision = 'Eliminar'
-        } else if (legacyImpacto.includes('liberar') || legacyImpacto.includes('cuarentena') || legacyImpacto.includes('jaula')) {
-          decision = 'Retirar'
+      if (inv) {
+        elemento = inv.name
+        cantidad = inv.quantity || 1
+        categoria = inv.category || 'innecesario'
+        zonaOrigen = inv.zonaOrigen || a.clienteZona || ''
+      } else {
+        // Inferir del itemDescription: "Silla de comedor (1 und.)" → elemento="Silla de comedor", cantidad=1
+        const match = (a.itemDescription || '').match(/^(.*?)\s*\((\d+)\s*und\.?\)$/i)
+        if (match) {
+          elemento = match[1].trim()
+          cantidad = parseInt(match[2], 10) || 1
         } else {
-          decision = 'Recolocar'
+          elemento = a.itemDescription || a.hallazgo || ''
+          cantidad = 1
         }
+        // Para S1 con decisión Retirar/Eliminar, la categoría siempre es 'innecesario'
+        categoria = (a.sStep === 1 && (decision === 'Retirar' || decision === 'Eliminar'))
+          ? 'innecesario'
+          : ''
+        zonaOrigen = a.clienteZona || ''
       }
 
       // Reconstruir extra snapshot (misma estructura que sync-actions)
-      let invExtraParsed: any = {}
-      try { invExtraParsed = inv.extra ? JSON.parse(inv.extra) : {} } catch { /* ignore */ }
       const newExtra = JSON.stringify({
-        inventoryItemId: inv.id,
-        elemento: inv.name,
-        ubicacion: inv.location || '',
-        categoria: inv.category || '',
-        cantidad: inv.quantity || 1,
-        precio: inv.price ?? null,
-        estado: invExtraParsed.estado || '',
-        frecuenciaUso: invExtraParsed.frecuenciaUso || '',
+        inventoryItemId: inv?.id || a.itemId,
+        elemento,
+        ubicacion: '',
+        categoria,
+        cantidad,
+        precio: inv?.price ?? null,
+        estado: '',
+        frecuenciaUso: '',
         decision,
-        diasCuarentena: invExtraParsed.diasCuarentena || null,
-        etiquetas: invExtraParsed.etiquetas || '',
-        zonaOrigen: inv.zonaOrigen || a.clienteZona || '',
-        zonaDestino: inv.zonaDestino || '',
-        sStep: a.sStep || inv.sStep,
+        diasCuarentena: null,
+        etiquetas: '',
+        zonaOrigen,
+        zonaDestino: '',
+        sStep: a.sStep,
         itemId: a.itemId,
         capturedAt: new Date().toISOString(),
       })
 
       // Recalcular impactoObjetivo
       const impacto = classifyImpacto({
-        categoria: inv.category || '',
+        categoria,
         decision,
       }) || (decision === 'Retirar' ? 'RIESGOS DE ACCIDENTES' : 'MEJORA TIEMPOS')
 
