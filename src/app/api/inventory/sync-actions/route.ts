@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { classifyImpacto } from '@/lib/action-item-helpers'
 
 /**
  * POST /api/inventory/sync-actions
@@ -208,9 +209,15 @@ export async function POST(request: NextRequest) {
             seccionDemandante: zoneName,
             clienteZona: zoneName,
             seccionDemandada: null,
-            impactoObjetivo: decision === 'Retirar'
-              ? 'Liberar espacio en zona de origen; cuarentena en jaula'
-              : 'Eliminar residuo y liberar espacio',
+            // v2.82: impacto auto-clasificado (CALIDAD / MEJORA TIEMPOS /
+            // RIESGOS DE ACCIDENTES) según la categoría del inventario y
+            // la decisión tomada. Sustituye al texto libre anterior.
+            impactoObjetivo: classifyImpacto({
+              categoria: item.category || '',
+              decision,
+            }) || (decision === 'Retirar'
+              ? 'RIESGOS DE ACCIDENTES'
+              : 'MEJORA TIEMPOS'),
             enviado: 'Sí',
             accionCorrectiva,
             accionesPreventivas: null,
