@@ -598,11 +598,11 @@ export default function PlanDeAccionView() {
   // v2.90: Icono del estado de ordenación de una columna.
   const SortIcon = ({ k }: { k: string }) => {
     if (sortKey !== k || sortDir === null) {
-      return <ArrowUpDown className="h-2.5 w-2.5 ml-0.5 inline opacity-40" />;
+      return <ArrowUpDown className="h-2.5 w-2.5 ml-0.5 inline opacity-50" />;
     }
     return sortDir === 'asc'
-      ? <ArrowUp className="h-2.5 w-2.5 ml-0.5 inline text-white" />
-      : <ArrowDown className="h-2.5 w-2.5 ml-0.5 inline text-white" />;
+      ? <ArrowUp className="h-2.5 w-2.5 ml-0.5 inline text-current font-bold" />
+      : <ArrowDown className="h-2.5 w-2.5 ml-0.5 inline text-current font-bold" />;
   };
 
   // v2.90: Componente helper para cabeceras clicables (con tooltip + sort icon).
@@ -909,7 +909,6 @@ export default function PlanDeAccionView() {
           a.accionPreventiva || '',
           a.impacto || '',
           a.semana || '',
-          a.itemId || '',
         ].join(' ').toLowerCase();
         return haystack.includes(q);
       });
@@ -1037,13 +1036,48 @@ export default function PlanDeAccionView() {
           })}
 
           {/* Reset filters */}
-          {(filterEstado !== 'all' || filterS !== 'all' || filterOrigen !== 'all') && (
+          {(filterEstado !== 'all' || filterS !== 'all' || filterOrigen !== 'all' || searchText || sortKey) && (
             <button
-              onClick={() => { setFilterEstado('all'); setFilterS('all'); setFilterOrigen('all'); }}
+              onClick={() => { setFilterEstado('all'); setFilterS('all'); setFilterOrigen('all'); setSearchText(''); setSortKey(null); setSortDir(null); }}
               className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors whitespace-nowrap"
             >
               <X className="h-3 w-3" /> Limpiar
             </button>
+          )}
+        </div>
+
+        {/* v2.90: Buscador de texto global — filtra por hallazgo, zona, responsable, categoría, etc. */}
+        <div className="flex items-center gap-2 mt-1.5">
+          <div className="relative flex-1 max-w-md">
+            <Search className="h-3.5 w-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              placeholder="Buscar en todas las columnas (hallazgo, zona, responsable, categoría, elemento...)"
+              className="w-full h-7 pl-7 pr-7 text-[11px] rounded border border-gray-200 bg-white focus:bg-white focus:border-rose-300 focus:outline-none focus:ring-1 focus:ring-rose-200"
+            />
+            {searchText && (
+              <button
+                onClick={() => setSearchText('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                title="Limpiar búsqueda"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          {sortKey && (
+            <span className="text-[10px] text-gray-500 hidden sm:inline-flex items-center gap-1">
+              Ordenado por: <strong className="text-gray-700">{sortKey}</strong>
+              <button
+                onClick={() => { setSortKey(null); setSortDir(null); }}
+                className="ml-1 text-gray-400 hover:text-gray-700"
+                title="Quitar ordenación"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </span>
           )}
         </div>
 
@@ -1143,19 +1177,20 @@ export default function PlanDeAccionView() {
                       🗑
                     </th>
                   </tr>
-                  {/* v2.87: fila 2 — sub-cabeceras CORRECTIVA + PREVENTIVA (cajas blancas con borde) y labels HALLAZGO/SEGUIMIENTO */}
+                  {/* v2.87: fila 2 — sub-cabeceras CORRECTIVA + PREVENTIVA (cajas blancas con borde) y labels HALLAZGO/SEGUIMIENTO
+                      v2.90: cabeceras clicables para ordenar por columna (SortableTh) */}
                   <tr>
                     <th className="bg-gray-500 text-white px-1 py-1 text-center font-semibold border border-gray-400 whitespace-nowrap">S</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Nº</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Fecha</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Usuario que detectó el hallazgo — automático según el paso: Paso 3 = empleado que registró el inventario, Paso 4 = responsable (autoeval), Paso 5 = auditor">Detectado por</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Categoría del inventario (innecesario/dudoso/util/...)">Categoría</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Elemento del inventario">Elemento</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Cantidad</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Semana</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Zona</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Responsable de resolver (empleado de la zona por defecto)">Responsable</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Impacto</th>
+                    <SortableTh k="numero" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por número de entrada">Nº</SortableTh>
+                    <SortableTh k="fecha" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por fecha de entrada">Fecha</SortableTh>
+                    <SortableTh k="detectado" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Usuario que detectó el hallazgo — automático según el paso: Paso 3 = empleado que registró el inventario, Paso 4 = responsable (autoeval), Paso 5 = auditor">Detectado por</SortableTh>
+                    <SortableTh k="categoria" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Categoría del inventario (innecesario/dudoso/util/...)">Categoría</SortableTh>
+                    <SortableTh k="elemento" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Elemento del inventario">Elemento</SortableTh>
+                    <SortableTh k="cantidad" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por cantidad">Cantidad</SortableTh>
+                    <SortableTh k="semana" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por semana">Semana</SortableTh>
+                    <SortableTh k="zona" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por zona">Zona</SortableTh>
+                    <SortableTh k="responsable" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Responsable de resolver (empleado de la zona por defecto)">Responsable</SortableTh>
+                    <SortableTh k="impacto" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por impacto">Impacto</SortableTh>
                     {/* v2.87: Sub-cabecera CORRECTIVA — caja blanca con borde cyan */}
                     <th colSpan={3} className="bg-white text-cyan-700 px-2 py-1 text-center font-bold border-2 border-cyan-500 border-b-1 uppercase tracking-wide text-[10px]">
                       Correctiva
@@ -1164,11 +1199,11 @@ export default function PlanDeAccionView() {
                     <th colSpan={1} className="bg-white text-cyan-700 px-2 py-1 text-center font-bold border-2 border-cyan-500 border-b-1 uppercase tracking-wide text-[10px]">
                       Preventiva
                     </th>
-                    <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Sem. Prevista</th>
+                    <SortableTh k="semanaPrevista" className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap" title="Ordenar por semana prevista">Sem. Prevista</SortableTh>
                     <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Responsable</th>
-                    <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Estado</th>
-                    <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Progreso %</th>
-                    <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Sem. Real</th>
+                    <SortableTh k="estado" className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap" title="Ordenar por estado">Estado</SortableTh>
+                    <SortableTh k="porcentaje" className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap" title="Ordenar por porcentaje de progreso">Progreso %</SortableTh>
+                    <SortableTh k="semanaReal" className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap" title="Ordenar por semana real">Sem. Real</SortableTh>
                     <th className="bg-gray-300 border border-gray-400" />
                   </tr>
                   {/* v2.87: fila 3 — labels finales solo bajo ACCIONES (Acción/Etiqueta/Destino/Acción) */}
@@ -1184,10 +1219,10 @@ export default function PlanDeAccionView() {
                     <th className="bg-amber-50 border border-amber-200" />
                     <th className="bg-amber-50 border border-amber-200" />
                     <th className="bg-amber-50 border border-amber-200" />
-                    <th className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Acción correctiva: decisión del inventario (Retirar/Eliminar/...). Automática desde el paso 3.">Acción</th>
-                    <th className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Etiqueta para imprimir (auto desde inventario S1; 'No aplica' para S2-S5)">Etiqueta</th>
-                    <th className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Destino del item: zona o Residuo (auto desde inventario)">Destino</th>
-                    <th className="bg-cyan-50 text-cyan-800 px-1 py-1 text-center font-semibold border border-cyan-300 whitespace-nowrap" title="Acción preventiva — automática 'N/A' para items del inventario, manual para otros orígenes">Acción</th>
+                    <SortableTh k="accionCorrectiva" className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Acción correctiva: decisión del inventario (Retirar/Eliminar/...). Automática desde el paso 3.">Acción</SortableTh>
+                    <SortableTh k="etiqueta" className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Etiqueta para imprimir (auto desde inventario S1; 'No aplica' para S2-S5)">Etiqueta</SortableTh>
+                    <SortableTh k="destino" className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Destino del item: zona o Residuo (auto desde inventario)">Destino</SortableTh>
+                    <SortableTh k="accionPreventiva" className="bg-cyan-50 text-cyan-800 px-1 py-1 text-center font-semibold border border-cyan-300 whitespace-nowrap" title="Acción preventiva — automática 'N/A' para items del inventario, manual para otros orígenes">Acción</SortableTh>
                     <th className="bg-orange-50 border border-orange-200" />
                     <th className="bg-orange-50 border border-orange-200" />
                     <th className="bg-orange-50 border border-orange-200" />
