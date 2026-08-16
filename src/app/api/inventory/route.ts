@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getAuthUser } from '@/lib/auth-helpers'
 
 export async function GET(request: NextRequest) {
   try {
@@ -94,6 +95,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { sStep, projectId, zoneId } = body
 
+    // v2.84: capturar el usuario (empleado) que está registrando el inventario
+    // para que el ActionItem generado al sincronizar lleve su nombre en
+    // "Detectado por" automáticamente.
+    const sessionUser = await getAuthUser(request)
+
     if (!sStep) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 })
     }
@@ -182,6 +188,8 @@ export async function POST(request: NextRequest) {
           zonaDestino: item.zonaDestino || null,
           projectId: effectiveProjectId,
           zoneId: item.zoneId || zoneId || null,
+          // v2.84: trackear el empleado que registró este item de inventario
+          createdById: sessionUser?.id || null,
         },
         include: { photos: true },
       })

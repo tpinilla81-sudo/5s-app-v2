@@ -45,6 +45,9 @@ export async function POST(request: NextRequest) {
       where,
       include: {
         zone: { select: { id: true, name: true, responsableId: true } },
+        // v2.84: incluir el createdBy para setear comunicadoPorId = empleado
+        // que registró el item (en lugar del responsable de zona).
+        createdBy: { select: { id: true, name: true } },
         photos: true,
       },
     })
@@ -115,6 +118,13 @@ export async function POST(request: NextRequest) {
             responsableName = responsable.name
           }
         }
+
+        // v2.84: "Detectado por" = empleado que registró el item en el
+        // inventario (Paso 3). Si por legacy no tenemos el createdById
+        // (items anteriores a v2.84), hacemos fallback al responsable
+        // de la zona, que era el comportamiento anterior.
+        const empleadoId = item.createdBy?.id || responsableId
+        const empleadoName = item.createdBy?.name || responsableName
 
         const zoneName = item.zone?.name || item.zonaOrigen || 'Sin zona'
         const itemDescription = `${item.name} (${item.quantity} und.)`
@@ -229,14 +239,15 @@ export async function POST(request: NextRequest) {
             // que el Plan de Acción pueda filtrar/agrupar por origen.
             tipo: 'inventario',
             status: 'nok',
-            // v2.78: FKs en lugar de texto legacy.
-            // comunicadoPorId = responsable de zona (quien marca la decisión
-            //   en el inventario es el responsable de la zona).
+            // v2.78/v2.84: FKs en lugar de texto legacy.
+            // comunicadoPorId = empleado que registró el item en el
+            //   inventario (Paso 3 = Inventario). Fallback al
+            //   responsable de la zona si no hay createdBy (legacy).
             // personaDemandadaId = responsable de zona (a quien se demanda
             //   la acción de retirar/eliminar el item de la jaula).
             // sourceId = id del InventoryItem (para trazabilidad inversa y
             //   para que la deduplicación del POST /api/actions funcione).
-            comunicadoPorId: responsableId,
+            comunicadoPorId: empleadoId,
             personaDemandadaId: responsableId,
             sourceId: item.id,
           },

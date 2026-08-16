@@ -139,6 +139,26 @@ export async function ensureDbSchema() {
       console.error('[db.ts] BoardSlotTemplate columns add failed (non-fatal):', e instanceof Error ? e.message : e)
     }
 
+    // v2.84: Añadir createdById a InventoryItem para trackear el empleado
+    // que registró cada item. Esto permite que el "Detectado por" del
+    // Plan de Acción muestre automáticamente el nombre del empleado
+    // cuando el hallazgo viene del Paso 3 (Inventario).
+    try {
+      await db.$executeRawUnsafe(`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "createdById" TEXT;`)
+      // FK es opcional — la creamos como constraint solo si no existe ya
+      try {
+        await db.$executeRawUnsafe(`ALTER TABLE "InventoryItem" ADD CONSTRAINT "InventoryItem_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;`)
+      } catch (_fkErr) {
+        // Constraint ya existe o la BD no soporta ADD CONSTRAINT (SQLite)
+        // — no es fatal, la columna ya está creada.
+      }
+      try {
+        await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "InventoryItem_createdById_idx" ON "InventoryItem"("createdById");`)
+      } catch (_idxErr) { /* non-fatal */ }
+    } catch (e) {
+      console.error('[db.ts] InventoryItem.createdById column add failed (non-fatal):', e instanceof Error ? e.message : e)
+    }
+
     globalForPrisma.dbSchemaVerified = true
   } catch (e) {
     // Don't crash on schema errors — log and continue

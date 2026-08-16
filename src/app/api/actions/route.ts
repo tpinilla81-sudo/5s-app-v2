@@ -401,6 +401,10 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
+    // v2.84: capturar sessionUser para los InventoryItem creados al cerrar
+    // ActionItems (decision='Retirar'/'Eliminar') — el creador de ese
+    // nuevo InventoryItem debe ser quien está cerrando la acción.
+    const sessionUser = await getAuthUser(request)
     const updateData: any = {}
 
     if (body.estado !== undefined) updateData.estado = body.estado
@@ -493,6 +497,9 @@ export async function PUT(request: NextRequest) {
           select: {
             source: true, extra: true, hallazgo: true, sStep: true,
             zoneId: true, projectId: true, itemId: true,
+            // v2.84: incluir comunicadoPorId para que al crear el InventoryItem
+            // derivado (jaula/residuo) podamos setear createdById.
+            comunicadoPorId: true,
           },
         })
         if (!before) {
@@ -591,6 +598,9 @@ export async function PUT(request: NextRequest) {
               jaulaFechaLimite: limite,
               zonaOrigen: zoneName,
               zonaDestino: null,
+              // v2.84: el usuario que está cerrando la acción es quien
+              // "crea" el InventoryItem en jaula (para trazabilidad).
+              createdById: sessionUser?.id || before.comunicadoPorId || null,
               extra: JSON.stringify({
                 origen: 'actionplan',
                 sourceActionItemId: id,
@@ -669,6 +679,9 @@ export async function PUT(request: NextRequest) {
               jaulaOrigen: zoneName,
               jaulaDestino: 'Residuo',
               zonaOrigen: zoneName,
+              // v2.84: el usuario que está cerrando la acción es quien
+              // "crea" el InventoryItem efímero (para trazabilidad).
+              createdById: sessionUser?.id || before.comunicadoPorId || null,
               extra: JSON.stringify({
                 origen: 'actionplan',
                 sourceActionItemId: id,

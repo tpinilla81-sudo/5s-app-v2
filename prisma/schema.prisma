@@ -44,6 +44,8 @@ model User {
   actionItemsComunicadoPor    ActionItem[]       @relation("ActionItemComunicadoPor")
   actionItemsPersonaDemandada ActionItem[]       @relation("ActionItemPersonaDemandada")
   actionItemsVerificadoPor    ActionItem[]       @relation("ActionItemVerificadoPor")
+  // v2.84: trazabilidad InventoryItem (quién registró cada item del inventario)
+  inventoryItemsCreatedBy     InventoryItem[]    @relation("InventoryItemCreatedBy")
 }
 
 model Project {
@@ -254,14 +256,23 @@ model InventoryItem {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  // v2.84: FK al usuario (empleado) que registró el item de inventario.
+  // Se usa para setear automáticamente `comunicadoPorId` en el ActionItem
+  // cuando el item se sincroniza al Plan de Acción (Paso 3 = Inventario).
+  // Si es null (items legacy anteriores a v2.84), el fallback es el
+  // responsable de la zona.
+  createdById       String?
+
   project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   zone    Zone?          @relation(fields: [zoneId], references: [id], onDelete: SetNull)
   photos  PhotoLibrary[] // Photos linked to this inventory item
+  createdBy User?        @relation("InventoryItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([sStep, projectId])
   @@index([jaulaStatus])
   @@index([zoneId])
+  @@index([createdById])
 }
 
 model AuditResult {
