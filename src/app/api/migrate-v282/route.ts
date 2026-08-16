@@ -52,9 +52,13 @@ export async function POST(req: NextRequest) {
 
     const items = await db.actionItem.findMany({
       where: {
-        // Solo items de tipo hallazgo o inventario — las entradas manuales
-        // del Plan de Acción (tipo='accion') se dejan para el usuario.
-        tipo: { in: ['hallazgo', 'inventario'] },
+        // v2.83: incluir también tipo='accion' con source='inventario' (legacy)
+        // para que el backfill les recalcule el impacto a partir del snapshot
+        // extra que haya sido reconstruido por migrate-v283.
+        OR: [
+          { tipo: { in: ['hallazgo', 'inventario'] } },
+          { source: 'inventario', tipo: 'accion' },
+        ],
       },
       select: {
         id: true,
