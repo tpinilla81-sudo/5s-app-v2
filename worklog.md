@@ -3669,3 +3669,43 @@ Stage Summary:
 - Para items legacy, hay que ejecutar POST /api/migrate-v284 (requiere admin/gestor/gerente) para backfill usando `InventoryItem.createdById` cuando esté disponible.
 - Para items legacy donde el InventoryItem NO tenga createdById (anteriores a v2.84), se mantiene el comportamiento actual: fallback al responsable de la zona.
 - En producción (Neon PostgreSQL), la migration SQL se aplicará automáticamente en el próximo deploy vía `prisma migrate deploy`. En local (SQLite), `ensureDbSchema()` aplica el ALTER al arrancar.
+
+---
+Task ID: v2.85
+Agent: main
+Task: Hacer que la sección "Acciones" (Correctiva + Preventiva) del Plan de Acción se autorellene según el origen del hallazgo. S1 (innecesarios): etiqueta + destino auto desde inventario, preventiva='N/A' auto. S2 (necesarios): igual pero etiqueta='No aplica' auto. Luego desplegar en Vercel y ejecutar migraciones.
+
+Work Log:
+- Analizadas dos capturas del usuario describiendo las reglas:
+  · Imagen 1: "si el correctivo viene de necesidades S1, tiene que poner... el motivo, la ética para imprimir... esto automático, la preventiva también automático... Si viene de necesidades2.Sa el motivo por el equipado no aplica tampoco, esto es automático"
+  · Imagen 2: "si la correctiva viene de innecesarios S1, tiene que poner... la etiqueta para imprimir, el destino igual, el que pone en la tabla paso 3, esto automático, la preventiva también automático, no aplica. Si viene de necesarios S2 es lo mismo pero la etiqueta no aplica también, esto en automático"
+- Interpretación final:
+  · Acción Correctiva (Decisión+Etiqueta+Destino) ya se autorellena desde inventario ✓
+  · Acción Preventiva: automática='N/A' para items del inventario (S1/S2); manual para otros orígenes
+  · Etiqueta: S1 → etiqueta del inventario (o 'No aplica' si vacía); S2-S5 → 'No aplica' (no se etiquetan para impresión)
+- src/app/api/inventory/sync-actions/route.ts:
+  · Añadido `accionesPreventivasAuto = 'N/A'` y usado en db.actionItem.create
+  · Añadido `etiquetaSnapshot` que según item.sStep devuelve la etiqueta del inventario (S1) o 'No aplica' (S2-S5)
+  · extraSnapshot usa etiquetaSnapshot
+- src/components/5s/PlanDeAccionView.tsx:
+  · Mapping de accionEtiqueta: si source='inventario' y etiqueta vacía → 'No aplica' (auto)
+  · Vista tarjeta y tabla: Acción Preventiva read-only 'N/A (auto)' cuando source='inventario'; Select manual para otros orígenes
+- src/components/5s/ActionPlanModal.tsx: mismos cambios aplicados + actualizado el header "Acción Preventiva (auto inventario · manual otros)"
+- src/app/api/migrate-v285/route.ts: backfill idempotente para ActionItems legacy del inventario:
+  · accionesPreventivas: null → 'N/A'
+  · extra.etiquetas: '' → 'No aplica'
+- Bump BUILD_VERSION a v2.85.0 en src/middleware.ts
+- Commit: 1ffc09a + push a origin/main
+- Vercel deploy verificado: https://5s-app-v2.vercel.app/version → '20260816-104700-v2.85.0'
+- Ejecutado scripts/run-migrations-v284-v285.sh en producción:
+  · migrate-v284: 0 items backfilled (los 5 legacy no tienen InventoryItem.createdById — son anteriores a v2.84)
+  · migrate-v285: 5 items backfilled (accionesPreventivas='N/A' + extra.etiquetas='No aplica')
+
+Stage Summary:
+- La sección "Acciones" del Plan de Acción ahora es 100% automática para items del inventario:
+  · Correctiva: Decisión + Etiqueta + Destino auto desde el inventario (Paso 3)
+  · Preventiva: 'N/A' auto (no se puede editar manualmente)
+- Para hallazgos de autoeval/auditoría/plan, la Acción Preventiva sigue siendo manual con opciones (N/A, Formación, Procedimiento, etc.)
+- Para S2-S5 (necesarios), la Etiqueta muestra automáticamente 'No aplica' aunque el inventario no la tuviera
+- Producción actualizada y migrada: https://5s-app-v2.vercel.app
+- Script reutilizable: scripts/run-migrations-v284-v285.sh
