@@ -3615,3 +3615,27 @@ Stage Summary:
   necesario ejecutarlo si no se hizo antes, para backfill de FKs. El
   endpoint /api/migrate-v276 también si no se hizo (backfill de columnas
   y tipos v2.76).
+
+---
+Task ID: v2.82
+Agent: main
+Task: Implementar auto-clasificación del campo Impacto (CALIDAD / MEJORA TIEMPOS / RIESGOS DE ACCIDENTES), actualizar manual, desplegar a producción y ejecutar backfill.
+
+Work Log:
+- Creada función classifyImpacto() en src/lib/action-item-helpers.ts con reglas basadas en sStep+itemId (NOKs paso 4/5) y categoria+decision (inventario paso 3). Prioridad RIESGOS > CALIDAD > MEJORA TIEMPOS.
+- Actualizadas buildHallazgoFromNok() y buildHallazgoFromInventario() para setear impactoObjetivo automáticamente.
+- Actualizado POST /api/inventory/sync-actions para usar classifyImpacto() en lugar de texto libre.
+- UI: columna Impacto en ActionPlanModal.tsx y PlanDeAccionView.tsx (tanto tabla como card) cambia de Textarea editable a badge read-only con colores (azul CALIDAD / verde MEJORA TIEMPOS / rojo RIESGOS).
+- Creado endpoint POST /api/migrate-v282 para backfill de impactoObjetivo en ActionItems existentes (idempotente, requiere admin/gestor).
+- Fix menor en migrate-v281: añadido 'source' al select de Prisma (TS error preexistente).
+- Manual: añadida sección 18 "Cambios recientes (v2.78 - v2.82)" con explicación detallada de cada versión y tabla de reglas de clasificación del Impacto.
+- Bump version a v2.82.0 (middleware + package.json + public/version timestamp).
+- Build OK, commit 0c12168 pushed, Vercel deploy success.
+- Commit e4e13a9 (sync-actions classifyImpacto) pushed, Vercel deploy success.
+- Ejecutados migrate-v281 y migrate-v282 en producción (https://5s-app-v2.vercel.app) como gestor t_pinilla@outlook.com: ambos devolvieron total=0 (no hay ActionItems de tipo hallazgo o inventario en DB producción — los 5 existentes son tipo='accion' manual con source='inventario' legacy, no clasificables).
+
+Stage Summary:
+- Producción actualizada a v2.82.0 — cambios visibles tras Ctrl+Shift+R.
+- Las nuevas auto-clasificaciones se aplicarán a todos los ActionItems creados a partir de ahora desde autoeval (paso 4), auditoría (paso 5) e inventario (paso 3).
+- Las migraciones son idempotentes y pueden re-ejecutarse cuando se quiera.
+- Manual PDF regenerado en /home/z/my-project/download/Manual_Usuario_5S.pdf.
