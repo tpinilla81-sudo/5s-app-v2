@@ -508,17 +508,21 @@ export async function DELETE(request: NextRequest) {
     const ejecutorId = sched.responsableId || null
     const asistenteId = sched.empleadoId || null
 
-    // Notificación al EJECUTOR (responsable/auditor) — solo si no es el propio borrador
+    // v2.89: Notificación al EJECUTOR (responsable/auditor) — SIEMPRE se envía,
+    // incluso si el propio ejecutor es quien borra la cita. Así el responsable
+    // recibe el aviso accionable ("vuelve a programar") aunque haya sido él
+    // quien canceló, porque la cita sigue pendiente de reprogramar.
     let notifiedCount = 0
-    if (ejecutorId && ejecutorId !== borradoPor) {
+    if (ejecutorId) {
       // v2.87: type accionable según miniStep — dispara botón "Programar fecha" en la UI
       const typeEjecutor = sched.miniStep === 4 ? 'autoeval_requested' : 'audit_requested'
       const tituloEjecutor = reprogramar
         ? `🔄 ${miniStepLabel} S${sched.sStep} cancelada — debes reprogramar`
         : `↩ ${miniStepLabel} S${sched.sStep} cancelada — debes volver a programarla`
+      const selfDeleted = ejecutorId === borradoPor
       const mensajeEjecutor = reprogramar
-        ? `La cita de ${miniStepLabel.toLowerCase()} para S${sched.sStep} programada para el ${fechaStr} ha sido cancelada por ${borradoPor ? 'el asistente' : 'el sistema'}.${motivo ? ` Motivo: ${motivo}.` : ''} DEBES programar una nueva fecha lo antes posible. Usa el botón "Programar fecha" en este aviso.`
-        : `La cita de ${miniStepLabel.toLowerCase()} para S${sched.sStep} programada para el ${fechaStr} ha sido cancelada por ${borradoPor ? 'el asistente' : 'el sistema'}.${motivo ? ` Motivo: ${motivo}.` : ''} El proceso vuelve a estar SOLICITADO — pendiente de que programes una nueva fecha. Usa el botón "Programar fecha" en este aviso.`
+        ? `La cita de ${miniStepLabel.toLowerCase()} para S${sched.sStep} programada para el ${fechaStr} ha sido cancelada${selfDeleted ? '' : ' por el asistente'}.${motivo ? ` Motivo: ${motivo}.` : ''} DEBES programar una nueva fecha lo antes posible. Usa el botón "Programar fecha" en este aviso.`
+        : `La cita de ${miniStepLabel.toLowerCase()} para S${sched.sStep} programada para el ${fechaStr} ha sido cancelada${selfDeleted ? '' : ' por el asistente'}.${motivo ? ` Motivo: ${motivo}.` : ''} El proceso vuelve a estar SOLICITADO — pendiente de que programes una nueva fecha. Usa el botón "Programar fecha" en este aviso.`
       try {
         await db.notification.create({
           data: {

@@ -563,6 +563,15 @@ export default function PlanDeAccionView() {
   // v2.79: miembros del proyecto para los User pickers (Responsable, Verificado por)
   const [projectMembers, setProjectMembers] = useState<Array<{ id: string; name: string; email: string; role: string }>>([]);
   const [showNewDialog, setShowNewDialog] = useState(false);
+  // v2.89: Diálogo personalizado para eliminar fila del Plan de Acción.
+  // Dos botones: "Eliminar Correctiva" / "Eliminar Preventiva" — ambos borran
+  // la fila, pero el usuario identifica qué tipo de acción está eliminando.
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; actionId: string | null; info: { numero: number; hallazgo: string; correctiva: string; preventiva: string } | null }>({
+    open: false,
+    actionId: null,
+    info: null,
+  });
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Load zones + project members
   useEffect(() => {
@@ -783,20 +792,42 @@ export default function PlanDeAccionView() {
     }
   };
 
-  const handleDeleteAction = async (id: string) => {
-    if (!confirm('¿Eliminar esta entrada?')) return;
+  // v2.89: Abre diálogo personalizado con dos botones "Correctiva" / "Preventiva"
+  // — ambos eliminan la fila, pero el usuario identifica qué tipo de acción elimina.
+  const handleDeleteAction = (id: string) => {
+    const action = actions.find(a => a.id === id);
+    if (!action) return;
+    setDeleteDialog({
+      open: true,
+      actionId: id,
+      info: {
+        numero: action.numeroEntrada || 0,
+        hallazgo: action.hallazgo || '',
+        correctiva: action.accionDecision || '',
+        preventiva: action.accionPreventiva || '',
+      },
+    });
+  };
+
+  // v2.89: Eliminación efectiva — llamada al backend y cierre del diálogo.
+  const performDeleteAction = async (tipo: 'correctiva' | 'preventiva') => {
+    if (!deleteDialog.actionId) return;
+    setDeleteLoading(true);
     try {
-      const res = await fetch(`/api/actions?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/actions?id=${deleteDialog.actionId}`, { method: 'DELETE' });
       const json = await res.json();
       if (json.success) {
-        setActions(prev => prev.filter(a => a.id !== id));
-        toast.success('Entrada eliminada');
+        setActions(prev => prev.filter(a => a.id !== deleteDialog.actionId));
+        toast.success(`Fila eliminada (acción ${tipo})`);
+        setDeleteDialog({ open: false, actionId: null, info: null });
       } else {
         toast.error(`Error al eliminar: ${json.error || 'Error desconocido'}`);
       }
     } catch (e) {
       console.error('Error deleting action:', e);
       toast.error('Error de conexión');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -1291,6 +1322,76 @@ export default function PlanDeAccionView() {
         onClose={() => setShowNewDialog(false)}
         onConfirm={handleAddAction}
       />
+
+      {/* v2.89: Diálogo personalizado de eliminación — dos botones
+          "Eliminar Correctiva" / "Eliminar Preventiva". Ambos eliminan la fila,
+          pero el usuario identifica qué tipo de acción está eliminando. */}
+      <Dialog open={deleteDialog.open} onOpenChange={(v) => !v && setDeleteDialog({ open: false, actionId: null, info: null })}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-700">
+              <Trash2 className="h-4 w-4" />
+              Eliminar fila del Plan de Acción
+            </DialogTitle>
+          </DialogHeader>
+          {deleteDialog.info && (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-700">
+                Vas a eliminar la entrada <strong>#{deleteDialog.info.numero}</strong>:
+              </p>
+              <div className="bg-gray-50 border border-gray-200 rounded p-2 text-xs">
+                <div className="text-gray-500 mb-0.5">Hallazgo:</div>
+                <div className="text-gray-800 font-medium line-clamp-2">{deleteDialog.info.hallazgo || '—'}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-sky-50 border border-sky-200 rounded p-2">
+                  <div className="text-[10px] text-sky-700 uppercase font-bold mb-0.5">Correctiva</div>
+                  <div className="text-xs text-gray-800 truncate" title={deleteDialog.info.correctiva}>
+                    {deleteDialog.info.correctiva || '—'}
+                  </div>
+                </div>
+                <div className="bg-cyan-50 border border-cyan-200 rounded p-2">
+                  <div className="text-[10px] text-cyan-700 uppercase font-bold mb-0.5">Preventiva</div>
+                  <div className="text-xs text-gray-800 truncate" title={deleteDialog.info.preventiva}>
+                    {deleteDialog.info.preventiva || '—'}
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                Elige qué acción quieres eliminar — se borrará la fila completa.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={deleteLoading}
+                  onClick={() => performDeleteAction('correctiva')}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-sky-700 bg-sky-100 hover:bg-sky-200 px-3 py-2 rounded border border-sky-300 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Eliminar Correctiva
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteLoading}
+                  onClick={() => performDeleteAction('preventiva')}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-cyan-700 bg-cyan-100 hover:bg-cyan-200 px-3 py-2 rounded border border-cyan-300 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Eliminar Preventiva
+                </button>
+              </div>
+              <button
+                type="button"
+                disabled={deleteLoading}
+                onClick={() => setDeleteDialog({ open: false, actionId: null, info: null })}
+                className="w-full text-xs text-gray-500 hover:text-gray-700 py-1 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
