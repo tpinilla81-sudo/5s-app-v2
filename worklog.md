@@ -3639,3 +3639,33 @@ Stage Summary:
 - Las nuevas auto-clasificaciones se aplicarán a todos los ActionItems creados a partir de ahora desde autoeval (paso 4), auditoría (paso 5) e inventario (paso 3).
 - Las migraciones son idempotentes y pueden re-ejecutarse cuando se quiera.
 - Manual PDF regenerado en /home/z/my-project/download/Manual_Usuario_5S.pdf.
+
+---
+Task ID: v2.84
+Agent: main
+Task: Hacer que "Detectado por" en el Plan de Acción muestre automáticamente el usuario que hizo el paso (Paso 3 = empleado, Paso 4 = responsable, Paso 5 = auditor), además del texto del paso que ya aparecía subrayado.
+
+Work Log:
+- Inspeccionado el código actual: la columna "Detectado por" ya mostraba `action.comunicadoPorName` (derivado de `comunicadoPorUser?.name || comunicadoPor`) + el paso subrayado debajo. Para los items legacy de inventario caía al texto "Sistema (auto desde Inventario S1)" porque no había FK.
+- Detectada la causa raíz: el InventoryItem no trackeaba quién lo había registrado (no había `createdById`), y sync-actions seteaba `comunicadoPorId = responsableId` (responsable de zona) en lugar del empleado.
+- Añadido campo `createdById` (FK User, relación `InventoryItemCreatedBy`) al modelo InventoryItem en prisma/schema.prisma.
+- Creada migration SQL en prisma/migrations/20260816103331_add_inventoryitem_createdby/migration.sql (ALTER TABLE + FK + index).
+- Añadido ALTER TABLE IF NOT EXISTS en src/lib/db.ts::ensureDbSchema() para que el esquema se aplique automáticamente en local (SQLite) y en producción PostgreSQL al arrancar.
+- Modificado src/app/api/inventory/route.ts POST para capturar `sessionUser = await getAuthUser(request)` y guardar `createdById: sessionUser?.id`.
+- Modificado src/app/api/actions/route.ts PUT para capturar sessionUser y setear `createdById: sessionUser?.id || before.comunicadoPorId` al crear InventoryItem en jaula (Retirar) o residuo (Eliminar).
+- Modificado src/app/api/inventory/sync-actions/route.ts para hacer `include: { createdBy: { id, name } }` y setear `comunicadoPorId = item.createdBy?.id || responsableId` (empleado con fallback al responsable de zona para legacy).
+- Creado src/app/api/migrate-v284/route.ts: backfill idempotente que para cada ActionItem con source='inventario' y sourceId no nulo, busca el InventoryItem original y setea `comunicadoPorId = invItem.createdById` (si existe). También cubre auditorías/autoevals sin FK que tengan `auditor` (texto) matcheable por nombre.
+- Verificado type-check: sin errores nuevos en los ficheros editados.
+- Actualizado tooltip de la cabecera "Detectado por" en PlanDeAccionView.tsx.
+- Bump BUILD_VERSION a v2.84.0 en src/middleware.ts.
+- Commit: 8f03844
+
+Stage Summary:
+- El campo "Detectado por" ahora muestra automáticamente:
+  - Paso 3 (Inventario): el empleado que registró el item (vía InventoryItem.createdById)
+  - Paso 4 (Autoeval): el responsable (vía session.user.id, ya venía así)
+  - Paso 5 (Auditoría): el auditor (vía session.user.id, ya venía así)
+- El fallback al texto "Sistema (auto desde Inventario S1)" ya NO aparecerá para items nuevos — el FK siempre se resuelve.
+- Para items legacy, hay que ejecutar POST /api/migrate-v284 (requiere admin/gestor/gerente) para backfill usando `InventoryItem.createdById` cuando esté disponible.
+- Para items legacy donde el InventoryItem NO tenga createdById (anteriores a v2.84), se mantiene el comportamiento actual: fallback al responsable de la zona.
+- En producción (Neon PostgreSQL), la migration SQL se aplicará automáticamente en el próximo deploy vía `prisma migrate deploy`. En local (SQLite), `ensureDbSchema()` aplica el ALTER al arrancar.
