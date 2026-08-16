@@ -3947,3 +3947,100 @@ Stage Summary:
 - Para items legacy (5 existentes en producción), la migración v288
   reconstruye el snapshot con los datos reales del inventario.
 - Producción actualizada a v2.88.1 — visible tras Ctrl+Shift+R.
+
+---
+Task ID: PENDIENTE-S1
+Agent: Main
+Task: PENDIENTE — Crear zona JAULA físicamente cuando el admin crea las zonas (CONGELADO hasta acabar S1)
+
+Work Log:
+- Tarea apuntada pero NO ejecutada. Queda congelada hasta que se termine
+  de programar la S1 en su totalidad.
+- Criterios acordados con el usuario (según charla previa en el chat):
+  · La zona JAULA se debe crear físicamente (como registro en tabla Zone)
+    en el momento en que el administrador crea las zonas del proyecto.
+  · Debe estar marcada/identificada como zona especial (no es una zona
+    regular de trabajo).
+  · Es donde el inventario S1 con decisión='Retirar' debe acabar
+    físicamente (jaula de cuarentena).
+  · Habrá que definir: nombre ('Jaula'), color distintivo, responsable,
+    y si es visible u oculta en el switcher de zonas del HeaderIndicators.
+  · Probablemente también haya que crear zonas similares para
+    'Residuo' y 'Punto Limpio' (a confirmar con el usuario).
+
+Estado actual del código (lo que ya existe y NO se ha tocado):
+- src/components/5s/JaulaView.tsx y JaulaModal.tsx ya existen como
+  componentes que muestran el contenido de la jaula.
+- src/components/5s/InventarioModal.tsx: cuando un item S1 se marca
+  'Retirar', se setea zonaDestino='Jaula' como STRING (no como FK).
+- src/app/api/inventory/sync-actions/route.ts: los items con
+  decision='Retirar' generan ActionItems con
+  accionCorrectiva='Retirar a Jaula de cuarentena'.
+- NO existe todavía una Zone física con name='Jaula' — solo se
+  referencia como string en zonaDestino.
+
+Próximos pasos cuando se desbloquee la tarea:
+1. Decidir dónde crearla:
+   · Opción A: en POST /api/projects/[projectId]/zones (cuando el admin
+     crea zonas manualmente, se crea también la Jaula automáticamente).
+   · Opción B: en POST /api/projects (al crear el proyecto, se crea la
+     Jaula junto con zonas por defecto).
+   · El usuario dijo "en el momento que el administrador crea las zonas"
+     → parece decantarse por Opción A.
+2. Añadir flag al modelo Zone en Prisma: isJaula Boolean @default(false)
+   (o un campo type String con valores 'normal' | 'jaula' | 'residuo' |
+   'punto_limpio').
+3. Modificar JaulaView para que busque por isJaula=true en vez de por
+   nombre.
+4. Vincular los items con zonaDestino='Jaula' a esta zona física (FK
+   zoneId).
+5. Migración de datos para proyectos existentes (crear la zona Jaula
+   retroactivamente).
+
+Stage Summary:
+- Tarea PENDIENTE — no se ha empezado.
+- Congelada hasta terminar la programación completa de S1.
+- Criterios y plan de ejecución apuntados arriba para no perderlos.
+
+---
+Task ID: v2.89
+Agent: Main
+Task: Varios arreglos UX en Plan de Acción + notificaciones de reprogramación
+
+Work Log:
+- src/components/5s/PlanDeAccionView.tsx:
+  · 'Detectado por' simplificado: solo nombre de usuario + paso (Paso 3/4/5),
+    sin 'S1 · Inventario' ni 'Plan S5'.
+  · 'Fecha de entrada' ahora es read-only (antes era un Input type=date editable).
+  · 'Semana' ahora es auto-calculada desde fechaEntrada (ISO 8601 week number),
+    read-only. Se eliminó el Select con WEEK_OPTIONS.
+  · Helper getWeekFromDate() añadido.
+  · 'Acción' (CORRECTIVA) ahora muestra 'Retirar a Jaula' o 'Eliminar a Residuo'
+    en vez del valor crudo 'Retirar'/'Eliminar'. Usa accionCorrectiva de la DB
+    si está disponible, si no deriva de extra.decision.
+  · Botón 🗑 reemplazado por un diálogo personalizado con dos botones:
+    'Eliminar Correctiva' / 'Eliminar Preventiva' — ambos eliminan la fila,
+    pero el usuario identifica qué tipo de acción está eliminando.
+- src/components/5s/ActionPlanModal.tsx: mismos cambios (Detectado por,
+  Fecha entrada read-only, Semana auto-calculada, Acción CORRECTIVA con
+  label completo).
+- src/app/api/evaluation-schedule/route.ts (DELETE):
+  · Notificación al EJECUTOR (responsable/auditor) ahora se envía SIEMPRE,
+    incluso si el propio ejecutor es quien borra la cita.
+    Antes: `if (ejecutorId && ejecutorId !== borradoPor)` — se saltaba
+    la notificación cuando el responsable borraba su propia cita.
+    Ahora: `if (ejecutorId)` — siempre se notifica al responsable/auditor
+    con type='autoeval_requested' o 'audit_requested' para que vea el
+    botón 'Programar fecha'.
+  · Mensaje ajustado: si selfDeleted, no menciona 'por el asistente'.
+
+Stage Summary:
+- PlanDeAccionView y ActionPlanModal alineados con los requisitos del usuario:
+  · Detectado por → solo usuario + paso
+  · Semana → auto-calculada, no editable
+  · Fecha entrada → no editable
+  · Acción CORRECTIVA → 'Retirar a Jaula' / 'Eliminar a Residuo' (label completo)
+  · Eliminar fila → diálogo con dos botones Correctiva/Preventiva
+- Notificación de reprogramación ahora siempre llega al responsable/auditor
+  (incluso si es él mismo quien cancela la cita).
+- v2.89 — pendiente de build + deploy.
