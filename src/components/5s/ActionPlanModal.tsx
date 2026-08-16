@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+// v2.82: Textarea ya no se usa (Impacto ahora es auto-clasificado read-only).
 import {
   Select,
   SelectContent,
@@ -730,15 +730,26 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                               </SelectContent>
                             </Select>
                           </td>
-                          {/* v2.79: Impacto — editable (lo trabajaremos luego) */}
+                          {/* v2.82: Impacto — auto-clasificado (CALIDAD / MEJORA TIEMPOS /
+                              RIESGOS DE ACCIDENTES). Se calcula al crear el ActionItem
+                              desde paso 3/4/5 y se guarda en impactoObjetivo. Read-only:
+                              el usuario no edita este campo. */}
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
-                            <Textarea
-                              value={action.impacto}
-                              onChange={e => handleUpdateField(action.id, 'impactoObjetivo', e.target.value)}
-                              placeholder="—"
-                              className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-amber-400 min-w-[80px] resize-none"
-                              rows={1}
-                            />
+                            <div
+                              className="h-6 text-[9px] px-1 flex items-center justify-center text-center font-semibold truncate"
+                              title={`Impacto auto-clasificado: ${action.impacto || '—'}`}
+                            >
+                              {action.impacto ? (
+                                <span className={
+                                  action.impacto === 'CALIDAD' ? 'text-blue-700 bg-blue-50 px-1 py-0.5 rounded' :
+                                  action.impacto === 'MEJORA TIEMPOS' ? 'text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded' :
+                                  action.impacto === 'RIESGOS DE ACCIDENTES' ? 'text-red-700 bg-red-50 px-1 py-0.5 rounded' :
+                                  'text-gray-700'
+                                }>
+                                  {action.impacto}
+                                </span>
+                              ) : '—'}
+                            </div>
                           </td>
 
                           {/* ── ACCIÓN — v2.79: 3 columnas (decisión / etiqueta / destino).

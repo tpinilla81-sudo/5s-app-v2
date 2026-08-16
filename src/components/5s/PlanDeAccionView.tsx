@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+// v2.82: Textarea ya no se usa (Impacto ahora es auto-clasificado read-only).
 import {
   Select,
   SelectContent,
@@ -380,8 +380,18 @@ function ActionCard({
                 </Select>
               </Field>
               <Field label="Impacto" compact>
-                <Textarea value={action.impacto} onChange={e => onUpdateField(action.id, 'impactoObjetivo', e.target.value)}
-                  className="text-xs p-1.5 border rounded resize-none min-h-[40px]" placeholder="—" rows={2} />
+                <div className="text-xs p-1.5 border rounded min-h-[40px] flex items-center" title={`Impacto auto-clasificado: ${action.impacto || '—'}`}>
+                  {action.impacto ? (
+                    <span className={
+                      action.impacto === 'CALIDAD' ? 'text-blue-700 bg-blue-50 px-2 py-0.5 rounded text-[10px] font-semibold' :
+                      action.impacto === 'MEJORA TIEMPOS' ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[10px] font-semibold' :
+                      action.impacto === 'RIESGOS DE ACCIDENTES' ? 'text-red-700 bg-red-50 px-2 py-0.5 rounded text-[10px] font-semibold' :
+                      'text-gray-700 text-[10px]'
+                    }>
+                      {action.impacto}
+                    </span>
+                  ) : <span className="text-gray-400 text-[10px]">—</span>}
+                </div>
               </Field>
             </div>
           </div>
@@ -1049,10 +1059,22 @@ export default function PlanDeAccionView() {
                             </SelectContent>
                           </Select>
                         </td>
-                        {/* v2.79: Impacto — editable */}
+                        {/* v2.82: Impacto — auto-clasificado (CALIDAD / MEJORA TIEMPOS /
+                            RIESGOS DE ACCIDENTES). Read-only: se rellena al crear el
+                            ActionItem desde paso 3/4/5. */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
-                          <Textarea value={action.impacto} onChange={e => handleUpdateField(action.id, 'impactoObjetivo', e.target.value)}
-                            className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent resize-none min-h-[24px]" placeholder="—" rows={1} />
+                          <div className="h-6 text-[9px] px-1 flex items-center justify-center text-center font-semibold truncate" title={`Impacto auto-clasificado: ${action.impacto || '—'}`}>
+                            {action.impacto ? (
+                              <span className={
+                                action.impacto === 'CALIDAD' ? 'text-blue-700 bg-blue-50 px-1 py-0.5 rounded' :
+                                action.impacto === 'MEJORA TIEMPOS' ? 'text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded' :
+                                action.impacto === 'RIESGOS DE ACCIDENTES' ? 'text-red-700 bg-red-50 px-1 py-0.5 rounded' :
+                                'text-gray-700'
+                              }>
+                                {action.impacto}
+                              </span>
+                            ) : '—'}
+                          </div>
                         </td>
                         {/* ── ACCIÓN — v2.80: 3 columnas (decisión / etiqueta / destino) ── */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>

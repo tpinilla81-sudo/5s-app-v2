@@ -2046,6 +2046,130 @@ story.append(Paragraph('Tabla 14. Glosario de terminos', style_caption))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# SECTION 18: CAMBIOS RECIENTES (v2.78 - v2.82)
+# ═══════════════════════════════════════════════════════════════════════════
+
+story.append(Spacer24())
+story.append(add_heading('<b>18. Cambios recientes en el Plan de Accion (v2.78 - v2.82)</b>', style_h1, level=0))
+story.append(Spacer6())
+
+story.append(Body(
+    'Esta seccion resume las modificaciones mas recientes aplicadas a la tabla del Plan de Accion, '
+    'que es la herramienta central donde se consolidan todos los hallazgos detectados en los pasos 3 '
+    '(inventario), 4 (autoevaluacion) y 5 (auditoria). El objetivo de estos cambios es automatizar al '
+    'maximo el relleno de la tabla, de modo que el usuario solo tenga que introducir manualmente la '
+    'informacion que el sistema no puede inferir del contexto de origen.'))
+
+# v2.78
+story.append(add_heading('<b>18.1 v2.78 — Renombrado DEMANDA a HALLAZGO y FKs a User</b>', style_h2, level=1))
+story.append(Body(
+    'La seccion amarilla de la tabla, que historicamente se llamaba DEMANDA, se ha renombrado a '
+    'HALLAZGO para reflejar mejor su contenido: lo que se ha detectado, no lo que se demanda. Ademas, '
+    'los campos de texto libre "Comunicado por", "Persona demandada" y "Verificado por" se han '
+    'sustituido por claves foraneas a User, de modo que el sistema siempre muestra el nombre real del '
+    'usuario y mantiene la trazabilidad aunque el usuario cambie de nombre.'))
+
+# v2.79
+story.append(add_heading('<b>18.2 v2.79 — Simplificacion de columnas HALLAZGO</b>', style_h2, level=1))
+story.append(Body(
+    'Se eliminan las columnas Cliente y Secciones ( Demandante/Demandada) por considerarse redundantes '
+    'con la columna Zona. La seccion HALLAZGO queda con: Nº, Fecha, Detectado por, Semana, Zona, '
+    'Responsable, Impacto. La seccion ACCION se reduce a 3 columnas (Decision, Etiqueta, Destino) que '
+    'se autorellenan desde el snapshot del inventario.'))
+
+# v2.80
+story.append(add_heading('<b>18.3 v2.80 — Categorias/Elemento/Cantidad en HALLAZGO</b>', style_h2, level=1))
+story.append(Body(
+    'Las tres columnas que antes estaban en la seccion ACCION (Categoria, Elemento, Cantidad) se '
+    'mueven a la seccion HALLAZGO, justo despues de "Detectado por". La razon es que describen el '
+    'objeto del hallazgo, no la accion a tomar. Para items del inventario (paso 3, S1-S4), estas '
+    'columnas se autorellenan desde el snapshot del inventario. La seccion ACCION queda con 3 '
+    'columnas (Decision, Etiqueta, Destino). Este cambio se aplica tanto al modal ActionPlanModal '
+    'como a la vista unificada PlanDeAccionView.'))
+
+# v2.81
+story.append(add_heading('<b>18.4 v2.81 — Detectado por, auto-fill desde paso 3/4/5, Accion Preventiva</b>', style_h2, level=1))
+story.append(Body(
+    'Esta version introduce varias mejoras de autorelleno en la tabla del Plan de Accion:'))
+
+story.append(Bullet(
+    '<b>Detectado por:</b> ahora muestra el formato "S{n} - Paso {3|4|5} - {origen}", donde el '
+    'paso y el origen se infieren automaticamente del ActionItem. Para inventarios muestra '
+    '"Paso 3 - Inventario", para autoevaluaciones muestra "Paso 4 - Autoeval" y para auditorias '
+    '"Paso 5 - Auditoria". El usuario que detecto el hallazgo es el usuario autenticado que ejecuto '
+    'el paso, por lo que tambien se conoce automaticamente.'))
+
+story.append(Bullet(
+    '<b>Categoria, Elemento, Cantidad (auto-fill desde paso 4/5):</b> para los NOKs de autoevaluacion '
+    'o auditoria, estas columnas se resuelven a partir del checklist de auditoria (AUDIT_CHECKLISTS). '
+    'El itemId tipo "1.1.3" se descompone en su seccion (1.1 - MATERIALES) y su item (1.1.3 - Producto '
+    'acabado o en proceso), de modo que Categoria = titulo de la seccion, Elemento = descripcion del '
+    'item, y Cantidad = "1" (un hallazgo por NOK). Para items del inventario (paso 3), estas columnas '
+    'ya venian autorellenadas desde v2.72.'))
+
+story.append(Bullet(
+    '<b>Accion subdividida en Correctiva + Preventiva:</b> la seccion ACCION (azul) ahora tiene dos '
+    'sub-secciones. <b>Accion Correctiva</b> (3 columnas: Decision, Etiqueta, Destino) se autorellena '
+    'desde el snapshot del inventario o, en NOKs, desde el paso de origen (Autoevaluar/Auditar). '
+    '<b>Accion Preventiva</b> (1 columna: Decision) es de introduccion manual, con un selector que '
+    'incluye las opciones: N/A (no aplica, por defecto), Formacion, Procedimiento, Signalizacion, '
+    'Poka-yoke, Mantenimiento, 5S y Otra. Se persiste en el campo legacy accionesPreventivas.'))
+
+story.append(Bullet(
+    '<b>Backfill v2.81:</b> los ActionItems de hallazgo creados antes de v2.81 sin snapshot extra se '
+    'pueden migrar llamando al endpoint POST /api/migrate-v281 (requiere rol admin/gestor). El '
+    'endpoint es idempotente: si el extra ya tiene categoria, se salta.'))
+
+# v2.82
+story.append(add_heading('<b>18.5 v2.82 - Auto-clasificacion del Impacto (CALIDAD / MEJORA TIEMPOS / RIESGOS DE ACCIDENTES)</b>', style_h2, level=1))
+story.append(Body(
+    'El campo Impacto (en la seccion HALLAZGO) ahora se autorellena automaticamente con uno de tres '
+    'indicadores. La columna deja de ser editable y pasa a mostrarse como una etiqueta de color: azul '
+    'para CALIDAD, verde para MEJORA TIEMPOS, rojo para RIESGOS DE ACCIDENTES. La logica de '
+    'clasificacion prioriza la seguridad sobre la calidad y la eficiencia cuando un hallazgo podria '
+    'encajar en varias categorias.'))
+
+story.append(H3('Categorias de Impacto y secciones del checklist asociadas'))
+
+impacto_rules = [
+    ['RIESGOS DE ACCIDENTES',
+     'S1.2 Maquinas y equipos, S1.4 Mobiliario, S2.3 Signalizacion, S3.1 Maquinas o puestos de trabajo, '
+     'S3.4 Mantener limpio (EPIs, resbaladicidad), S3.5 Kit de limpieza (residuos peligrosos), '
+     'S4.3 Inspeccion y mantenimiento, S4.4.4 Instrucciones de emergencia. '
+     'Inventario: categoria innecesario/dudoso/elevacion/epi/transporte/maquina/equipo, o decision Retirar/Eliminar.'],
+    ['CALIDAD',
+     'S1.1 Materiales, S1.3 Transporte y almacenaje, S2.4 Stocks de material, S2.5 Layout, '
+     'S5.2 Gestion de anomalias, S4.4.2 Productos quimicos identificados con ficha de seguridad. '
+     'Inventario: categoria producto/materia/consumible/stock/material/almacen.'],
+    ['MEJORA TIEMPOS',
+     'Resto de secciones: S1.5 Informacion, S2.1/S2.2/S2.6 (identificacion, ubicaciones, codigo de '
+     'colores), S3.2/S3.3 (entorno, herramientas), S4.1/S4.2 (estandarizacion, respetar estandares), '
+     'S4.4 resto (instrucciones visuales), S4.5 Indicadores visuales, S5.1 Auditorias, S5.3 Accion '
+     '(PDCA). Inventario: resto de categorias (util, herramienta, mobiliario, informacion, limpieza).'],
+]
+story.append(make_table(
+    ['Impacto', 'Secciones / reglas de clasificacion'],
+    impacto_rules,
+    col_ratios=[0.28, 0.72]
+))
+story.append(Spacer6())
+story.append(Paragraph('Tabla 15. Reglas de auto-clasificacion del Impacto (v2.82)', style_caption))
+
+story.append(Body(
+    '<b>Backfill v2.82:</b> los ActionItems creados antes de v2.82 sin impacto clasificado se pueden '
+    'migrar llamando al endpoint POST /api/migrate-v282 (requiere rol admin/gestor). El endpoint es '
+    'idempotente: si impactoObjetivo ya tiene uno de los tres valores validos, se salta. Las entradas '
+    'manuales del Plan de Accion (tipo=accion) no se clasifican automaticamente porque no tienen '
+    'sStep/itemId ni categoria; en esos casos el campo queda vacio.'))
+
+story.append(Note(
+    'Para forzar la visualizacion de los cambios en el navegador despues de un despliegue, hay que '
+    'pulsar Ctrl+Shift+R (o Cmd+Shift+R en Mac) para invalidar la cache del Service Worker. La '
+    'aplicacion bump-automaticamente el fichero /public/version en cada release para forzar la '
+    'invalidacion, pero algunos navegadores siguen sirviendo la version cacheada durante unos minutos.'))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # BUILD
 # ═══════════════════════════════════════════════════════════════════════════
 

@@ -36,6 +36,133 @@ export function getWeekFromDate(date: Date = new Date()): string {
   return `W${Math.ceil((diff / oneWeek) + start.getDay() / 7)}`;
 }
 
+// ─── v2.82: Auto-clasificación del campo Impacto ───────────────────────────
+//
+// El campo `impactoObjetivo` (mostrado como "Impacto" en la tabla HALLAZGO)
+// ahora se autorellena con uno de tres indicadores:
+//
+//   • CALIDAD DE PRODUCTO        — hallazgos que afectan a materiales,
+//                                   productos, identificación de stock,
+//                                   anomalías de calidad.
+//   • MEJORA TIEMPOS             — hallazgos que afectan a estandarización,
+//                                   organización del flujo, indicadores,
+//                                   documentación, eficiencia del puesto.
+//   • RIESGOS DE ACCIDENTES      — hallazgos que afectan a máquinas, equipos
+//                                   de elevación, EPIs, señalización de
+//                                   seguridad, inspecciones de mantenimiento,
+//                                   emergencias, suelos/pasillos.
+//
+// La lógica se basa en el sStep + itemId (NOKs de paso 4/5) y en la
+// categoría + decisión (items del inventario, paso 3). Se elige la
+// categoría más relevante; cuando un hallazgo podría encajar en varias
+// (p. ej. una máquina mal señalizada), se prioriza RIESGOS DE ACCIDENTES
+// porque la seguridad prevalece sobre calidad y eficiencia.
+//
+// Para items manuales del Plan de Acción (tipo='accion', sin sStep/itemId
+// ni categoría), el Impacto se deja vacío — el usuario podrá rellenarlo
+// manualmente.
+
+export type ImpactoClasificacion =
+  | 'CALIDAD'
+  | 'MEJORA TIEMPOS'
+  | 'RIESGOS DE ACCIDENTES';
+
+/** Section IDs del checklist de auditoría que se consideran RIESGO. */
+const RIESGO_SECTION_IDS = new Set([
+  '1.2', // MÁQUINAS Y EQUIPOS (incluye elevación, transporte, ensayo)
+  '1.4', // MOBILIARIO (bancos, paneles, sillas — obstáculos)
+  '2.3', // SEÑALIZACIÓN (mandos, peligro, evacuación)
+  '3.1', // MÁQUINAS O PUESTOS DE TRABAJO (físicos)
+  '3.4', // MANTENER LIMPIO (EPIs, resbaladicidad, rutina)
+  '3.5', // KIT DE LIMPIEZA (residuos peligrosos, contenedores)
+  '4.3', // INSPECCIÓN Y MANTENIMIENTO (planes de inspección)
+]);
+
+/** Section IDs del checklist de auditoría que se consideran CALIDAD. */
+const CALIDAD_SECTION_IDS = new Set([
+  '1.1', // MATERIALES (consumibles, MP, producto acabado/en proceso)
+  '1.3', // TRANSPORTE Y ALMACENAJE (contenedores, pallets, embalaje)
+  '2.4', // STOCKS DE MATERIAL (identificación, etiquetas, referencias)
+  '2.5', // LAYOUT (flujo de materiales, actualización)
+  '5.2', // GESTIÓN DE ANOMALÍAS (declaración de anomalías = calidad)
+]);
+
+/** Items específicos de riesgo/seguridad dentro de secciones de calidad/mejora. */
+const RIESGO_ITEM_IDS = new Set([
+  '4.4.4', // Instrucciones visuales de emergencia (incendio, evacuación, derrame)
+]);
+
+/** Items específicos de calidad dentro de secciones de mejora. */
+const CALIDAD_ITEM_IDS = new Set([
+  '4.4.2', // Productos químicos identificados + ficha de seguridad
+]);
+
+/** Categorías del inventario (S1-S4) que implican RIESGO. */
+const RIESGO_CATEGORIAS = /^(innecesario|dudoso|elevacion|epi|transporte|maquina|equipo)/i;
+
+/** Decisiones del inventario que implican RIESGO (retirar = peligro inmediato). */
+const RIESGO_DECISIONES = /^(retirar|eliminar|rebutir|deshechar|desechar)/i;
+
+/** Categorías del inventario que implican CALIDAD (producto/material). */
+const CALIDAD_CATEGORIAS = /^(producto|materia|consumible|stock|material|almacen)/i;
+
+/**
+ * Clasifica el impacto de un ActionItem en una de las tres categorías.
+ *
+ * @returns la clasificación, o `null` si no hay datos suficientes (entrada
+ *          manual del Plan de Acción sin sStep/itemId/categoría).
+ */
+export function classifyImpacto(params: {
+  sStep?: number | null;
+  itemId?: string | null;
+  categoria?: string | null;
+  decision?: string | null;
+}): ImpactoClasificacion | null {
+  const { sStep, itemId, categoria, decision } = params;
+
+  // 1) NOK de paso 4/5 — clasificar por sectionId del checklist
+  if (sStep && itemId) {
+    const sectionId = itemId.split('.').slice(0, 2).join('.');
+
+    // Prioridad 1: RIESGOS DE ACCIDENTES (seguridad prevalece)
+    if (RIESGO_ITEM_IDS.has(itemId) || RIESGO_SECTION_IDS.has(sectionId)) {
+      return 'RIESGOS DE ACCIDENTES';
+    }
+    // Prioridad 2: CALIDAD DE PRODUCTO
+    if (CALIDAD_ITEM_IDS.has(itemId) || CALIDAD_SECTION_IDS.has(sectionId)) {
+      return 'CALIDAD';
+    }
+    // Resto de secciones (1.5, 2.1, 2.2, 2.6, 3.2, 3.3, 4.1, 4.2, 4.4 resto,
+    // 4.5, 5.1, 5.3) → MEJORA TIEMPOS (estandarización, flujo, indicadores)
+    return 'MEJORA TIEMPOS';
+  }
+
+  // 2) Inventario (paso 3) — clasificar por categoría + decisión
+  if (categoria || decision) {
+    const cat = categoria || '';
+    const dec = decision || '';
+
+    // Si la decisión es Retirar/Eliminar → es un peligro físico inmediato
+    if (RIESGO_DECISIONES.test(dec)) {
+      return 'RIESGOS DE ACCIDENTES';
+    }
+    // Categoría de máquina/equipo/EPI/elevación → riesgo
+    if (RIESGO_CATEGORIAS.test(cat)) {
+      return 'RIESGOS DE ACCIDENTES';
+    }
+    // Categoría de material/producto/stock → calidad
+    if (CALIDAD_CATEGORIAS.test(cat)) {
+      return 'CALIDAD';
+    }
+    // Resto (util, herramienta, mobiliario, información, limpieza, etc.)
+    // → mejora de tiempos / eficiencia
+    return 'MEJORA TIEMPOS';
+  }
+
+  // 3) Entrada manual del Plan de Acción — sin datos para clasificar
+  return null;
+}
+
 /** Lista de semanas para selects (W1..W53). */
 export const WEEK_OPTIONS = Array.from({ length: 53 }, (_, i) => `W${i + 1}`);
 
@@ -133,6 +260,9 @@ export function buildHallazgoFromNok(params: {
     capturedAt: new Date().toISOString(),
   }) : undefined;
 
+  // v2.82: auto-clasificar el Impacto (CALIDAD / MEJORA TIEMPOS / RIESGOS)
+  const impacto = classifyImpacto({ sStep, itemId, categoria, decision: miniStep === 5 ? 'Auditar' : 'Autoevaluar' });
+
   return {
     fechaEntrada: new Date().toISOString().split('T')[0],
     semana: getWeekFromDate(),
@@ -143,6 +273,8 @@ export function buildHallazgoFromNok(params: {
     tipo: 'hallazgo' as ActionTipo,
     status: 'nok',
     porcentaje: 0,
+    // v2.82: impacto auto-clasificado
+    ...(impacto ? { impactoObjetivo: impacto } : {}),
     // v2.81: snapshot `extra` para Categoría/Elemento/Cantidad en el Plan
     ...(extraSnapshot ? { extra: extraSnapshot } : {}),
   };
@@ -197,6 +329,10 @@ export function buildHallazgoFromInventario(params: {
   const descripcion = [elemento, ubicacion && `(${ubicacion})`]
     .filter(Boolean)
     .join(' ');
+  // v2.82: auto-clasificar el Impacto según la categoría y la decisión
+  // del inventario (Retirar/Eliminar → RIESGOS; Producto/Material → CALIDAD;
+  // resto → MEJORA TIEMPOS).
+  const impacto = classifyImpacto({ categoria, decision });
   return {
     hallazgo: `${descripcion} — marcado para ${decision || 'acción'}`,
     fechaEntrada: new Date().toISOString().split('T')[0],
@@ -206,6 +342,8 @@ export function buildHallazgoFromInventario(params: {
     seccionDemandada: decision || null,
     enviado: 'Pendiente',
     tipo: 'inventario' as ActionTipo,
+    // v2.82: impacto auto-clasificado
+    ...(impacto ? { impactoObjetivo: impacto } : {}),
   };
 }
 

@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
         id: true,
         sStep: true,
         itemId: true,
+        source: true,
         extra: true,
       },
     })
