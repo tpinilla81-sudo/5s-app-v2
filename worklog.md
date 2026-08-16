@@ -3855,3 +3855,43 @@ Stage Summary:
   pendiente de programar. El POST ya gestionaba este caso correctamente
   (findFirst encuentra el schedule existente y hace update).
 - Producción actualizada a v2.87.0 — visible tras Ctrl+Shift+R.
+
+---
+Task ID: v2.87.1
+Agent: main
+Task: Cuando se borra una cita sin reprogramar, el aviso de "volver a programar"
+debe salirle al que tiene que programar — responsable en paso 4 (autoeval),
+auditor en paso 5 (auditoría). No al asistente.
+
+Work Log:
+- Revisado el modelo de datos:
+  · responsableId = EJECUTOR (responsable en miniStep=4, auditor en miniStep=5)
+  · empleadoId    = ASISTENTE (empleado en autoeval, responsable de zona en auditoría)
+- DELETE /api/evaluation-schedule (route.ts) — notificaciones diferenciadas:
+  · Al EJECUTOR (si no es el propio borrador):
+    - type = 'autoeval_requested' (miniStep=4) o 'audit_requested' (miniStep=5)
+    - Estos tipos YA disparan el botón "Programar fecha" en la UI de avisos
+    - Mensaje: "DEBES volver a programarla — Usa el botón 'Programar fecha'"
+    - Título con ↩ (sin reprogramar) o 🔄 (reprogramar)
+  · Al ASISTENTE (si no es el propio borrador):
+    - type = 'evaluation_cancelled' (informativo)
+    - Mensaje: "pendiente de nueva fecha — el responsable te avisará"
+  · No se notifica al propio borrador (body.borradoPor)
+- UserTaskCalendar.tsx (confirmDeleteSchedule):
+  · body ahora incluye borradoPor: userId
+- Bump version: 2.87.0 → 2.87.1; BUILD_VERSION 20260816-192644-v2.87.0 →
+  20260816-193335-v2.87.1; public/version epoch actualizado
+- Build OK (✓ Compiled successfully)
+- Commit cc6ceb7 pushed a origin/main → Vercel rebuild OK
+- Verificado: https://5s-app-v2.vercel.app/version → 20260816-193335-v2.87.1
+
+Stage Summary:
+- Cuando el responsable/auditor borra una cita sin reprogramar:
+  · NO se notifica a sí mismo (era el caso problemático anterior)
+  · El asistente recibe aviso informativo 'evaluation_cancelled'
+- Cuando el ASISTENTE borra una cita (caso raro):
+  · El responsable/auditor recibe aviso 'autoeval_requested' o 'audit_requested'
+    CON el botón "Programar fecha" habilitado → puede reprogramar directo
+  · El asistente no se notifica a sí mismo
+- El aviso al ejecutor usa los types existentes que ya disparan el botón de
+  programación en page.tsx — no requiere cambios adicionales en la UI.
