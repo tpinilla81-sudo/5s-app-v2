@@ -3510,3 +3510,108 @@ Stage Summary:
   (responsable, comunicadoPor, personaDemandada, verificadoPor,
   fechaCompromiso, fechaResolucion) y se hará migrate-v279 con DROP
   COLUMN IF EXISTS.
+
+---
+Task ID: v2.79-DEPLOY
+Agent: Main
+Task: v2.79 — Rediseño del Plan de Acción según definición del usuario.
+Quitar "caja" OrigenInventarioPanel. HALLAZGO 7 columnas simplificadas.
+ACCIÓN 6 columnas autorellenadas desde el inventario. SEGUIMIENTO igual.
+
+Definición del usuario (textual):
+- "el origen lo veo bien, lo unico no entiendo para qeu sirve la caja, yo
+  lo quitaria" → quitar OrigenInventarioPanel (la caja expandible).
+- "vamos con demanda que ahora sera hallazgo":
+  · numero y fecha: OK.
+  · comunicado por: "se sabe quien lo comunica, el que hace el paso de
+    donde viene, poner el paso en origen, estaria bien" → "Detectado por"
+    read-only con el paso debajo (Paso 3/4/5).
+  · semana: OK.
+  · "Seccion lo quitaria, solo dejaria zona que esta bien" → quitar
+    Sección Demandante y Sección Demandada, dejar solo Zona (read-only).
+  · "Persona demandada sera el empleado de la zona, aqui con posibilidad
+    de cambio a los otros usuarios de la zona, hacer despegable pero de
+    primeras poner el empleado" → User picker con default = primer
+    empleado del proyecto, fallback a responsable.
+  · "Seccion quitar" → ya hecho.
+  · "Impacto dejarlo, trabajaremos luego aqui" → dejar Impacto (editable).
+  · "TODO ESTO ES AUTORELLENABLE DEL PASO 3-4-5" → Zona, Detectado por,
+    Semana y Responsable se autorellenan desde el paso de origen.
+- "Vamos con ACCION. Quitarlo todo y tiene qeu aparecer de la tabla del
+  paso 3, primero categoria, elemento, cantidad, decision, etiqueta,
+  destino. Todo esto en automatico":
+  · ACCIÓN: 6 columnas (Categoría, Elemento, Cantidad, Decisión, Etiqueta,
+    Destino) autorellenadas desde el snapshot del inventario (extra).
+  · Quitados: Impacto Objetivo (movido a HALLAZGO), Enviado, Acción
+    Correctiva, Acciones Preventivas.
+- "luego seguimos con seguimiento" → SEGUIMIENTO sin cambios por ahora.
+
+Work Log:
+- src/components/5s/ActionPlanModal.tsx:
+  * Interface ActionItemData: quitados seccionDemandante, clienteZona,
+    seccionDemandada, impactoObjetivo, enviado, accionCorrectiva,
+    accionesPreventivas, zoneName; añadidos zonaName, impacto,
+    accionCategoria, accionElemento, accionCantidad, accionDecision,
+    accionEtiqueta, accionDestino.
+  * loadActions: mapea los nuevos campos desde a.extra del inventario
+    (categoria, elemento, cantidad, decision, etiquetas, zonaDestino).
+  * Headers rediseñados:
+      HALLAZGO (7 cols): Nº | Fecha | Detectado por | Semana | Zona |
+                         Responsable | Impacto
+      ACCIÓN   (6 cols): Categoría | Elemento | Cantidad | Decisión |
+                         Etiqueta | Destino
+      SEGUIMIENTO (5):  Semana Prevista | Verificado por | % | Estado |
+                         Semana Real
+  * Cells HALLAZGO:
+      - Nº, Fecha (input date)
+      - Detectado por: read-only con nombre + paso debajo
+        (Paso 5 · Auditoría / Paso 4 · Autoeval / Paso 3 · Inventario /
+         Paso 3 · Plan S5)
+      - Semana (Select W1-W53)
+      - Zona: read-only (viene del paso)
+      - Responsable: User picker (Select). Default = primer miembro con
+        role='empleado' del proyecto, fallback al primer 'responsable'.
+        Muestra rol al lado del nombre. Escribe personaDemandadaId (FK).
+      - Impacto: Textarea editable (escribe impactoObjetivo en backend).
+  * Cells ACCIÓN: 6 columnas read-only mostrando datos del inventario
+    (extra). Para ActionItems sin inventario (actionplan, autoeval,
+    auditoría) se muestra '—'.
+  * Quitadas las cells legacy: Sección Demandante, Cliente/Zona (input),
+    Sección Demandada, Descripción (textarea), Impacto Objetivo (input),
+    Enviado (select), Acción Correctiva (textarea), Acciones Preventivas
+    (textarea).
+
+- src/components/5s/PlanDeAccionView.tsx:
+  * Interface ActionItemData: mismo rediseño que ActionPlanModal.
+  * loadActions: mismo mapeo.
+  * Quitado OrigenInventarioPanel (componente), isInventarioSource
+    (helper), expandedRows (estado), setExpandedRows.
+  * Quitada la sección plegable "ORIGEN INVENTARIO" en ActionCard (mobile).
+  * Quitada la columna 📦 toggle en tabla desktop.
+  * Quitada la fila expandible <tr> con OrigenInventarioPanel en desktop.
+  * Añadido estado projectMembers + loadProjectMembers (fetch
+    /api/projects/{id}/members al abrir).
+  * Headers rediseñados (igual que ActionPlanModal).
+  * Cells desktop rediseñadas (igual que ActionPlanModal).
+  * ActionCard (mobile) rediseñada: misma estructura que la tabla
+    desktop pero en formato grid 2 cols con Field wrappers. Recibe
+    projectMembers como prop.
+  * Compact summary line (mobile, !expanded): ahora muestra
+    personaDemandadaName en vez de responsable (texto).
+
+- Bump package.json 2.78.0 → 2.79.0.
+- Bump middleware BUILD_VERSION → 20260816-143000-v2.79.0.
+- Build Next.js OK (✓ Compiled successfully in 21.0s).
+- Commit 78125b3 v2.79 y push a origin/main → Vercel rebuild OK.
+- Verificado deploy: https://5s-app-v2.vercel.app/version devuelve
+  20260816-143000-v2.79.0.
+
+Stage Summary:
+- v2.79.0 desplegado en producción.
+- 4 archivos cambiados (+332/-301).
+- Pendiente: el usuario dijo "trabajaremos luego aqui" sobre Impacto y
+  "luego seguimos con seguimiento" — esas secciones se pulirán en v2.80.
+- IMPORTANTE: el endpoint /api/migrate-v278 (creado en v2.78) SIGUE siendo
+  necesario ejecutarlo si no se hizo antes, para backfill de FKs. El
+  endpoint /api/migrate-v276 también si no se hizo (backfill de columnas
+  y tipos v2.76).
