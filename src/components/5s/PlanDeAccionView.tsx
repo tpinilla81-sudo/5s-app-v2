@@ -1052,7 +1052,7 @@ export default function PlanDeAccionView() {
                           <Input type="date" value={action.fechaEntrada} onChange={e => handleUpdateField(action.id, 'fechaEntrada', e.target.value)}
                             className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent" />
                         </td>
-                        {/* v2.80: Detectado por — read-only, con paso debajo */}
+                        {/* v2.89: Detectado por — solo usuario + paso que hace */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
                           <div className="min-h-[24px] text-[10px] px-1 flex flex-col justify-center text-gray-700">
                             <div className="truncate font-medium" title={action.comunicadoPorName || '—'}>
@@ -1060,11 +1060,9 @@ export default function PlanDeAccionView() {
                             </div>
                             <div className="text-[9px] text-amber-700/80 truncate">
                               {(() => {
-                                const s = action.sStep ? `S${action.sStep} · ` : '';
-                                if (action.miniStep === 5) return `${s}Paso 5 · Auditoría`;
-                                if (action.miniStep === 4) return `${s}Paso 4 · Autoeval`;
-                                if (action.source === 'inventario') return `${s}Paso 3 · Inventario`;
-                                return `${s}Paso 3 · Plan S5`;
+                                if (action.miniStep === 5) return 'Paso 5';
+                                if (action.miniStep === 4) return 'Paso 4';
+                                return 'Paso 3';
                               })()}
                             </div>
                           </div>
