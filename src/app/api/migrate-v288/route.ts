@@ -65,8 +65,13 @@ export async function POST(request: NextRequest) {
 
       try {
         const extra = JSON.parse(action.extra)
-        // Buscar el InventoryItem original — usar sourceId o extra.inventoryItemId
-        const inventoryItemId = action.sourceId || extra?.inventoryItemId
+        // Buscar el InventoryItem original — usar sourceId o extra.inventoryItemId.
+        // El extra.inventoryItemId puede tener el prefijo 'inv_' (es el itemId del
+        // ActionItem, no el id real del InventoryItem). Hacemos strip del prefijo.
+        let inventoryItemId = action.sourceId || extra?.inventoryItemId || ''
+        if (inventoryItemId.startsWith('inv_')) {
+          inventoryItemId = inventoryItemId.substring(4)
+        }
         if (!inventoryItemId) {
           stats.skipped_no_inventory_item++
           continue
