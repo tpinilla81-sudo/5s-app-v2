@@ -144,11 +144,21 @@ export async function POST(request: NextRequest) {
         // no tenga que elegirla manualmente.
         const accionesPreventivasAuto = 'N/A'
 
-        // v2.85: Etiqueta automática según S-step del inventario.
-        //   S1 (innecesarios): la etiqueta del inventario (para imprimir)
+        // v2.88: Etiqueta automática según S-step del inventario.
+        //   S1 (innecesarios): refleja la columna "Etiquetas" del inventario:
+        //     - Si extra.etiquetaGenerada=true → "Impresa"
+        //     - Si decisión=Retirar pero no generada → "Pendiente"
+        //     - Si decisión=Eliminar → "—" (no aplica)
+        //     - Sin decisión → "—"
         //   S2-S5: "No aplica" (los necesarios no se etiquetan para impresión)
         const etiquetaSnapshot = item.sStep === 1
-          ? (extra.etiquetas && extra.etiquetas.trim() ? extra.etiquetas : 'No aplica')
+          ? (extra.decision === 'Eliminar'
+              ? '—'
+              : extra.etiquetaGenerada
+                ? 'Impresa'
+                : extra.decision === 'Retirar'
+                  ? 'Pendiente'
+                  : '—')
           : 'No aplica'
 
         // v2.72: Snapshot completo del inventario para el grupo
@@ -184,6 +194,10 @@ export async function POST(request: NextRequest) {
           // S2-S5 = "No aplica" porque los necesarios no se etiquetan para
           // impresión).
           etiquetas: etiquetaSnapshot,
+          // v2.88: incluir etiquetaGenerada para que el Plan de Acción pueda
+          // mostrar "Impresa" en lugar de "Pendiente" si ya se generó.
+          etiquetaGenerada: !!extra.etiquetaGenerada,
+          etiquetaFecha: extra.etiquetaFecha || null,
           zonaOrigen: item.zonaOrigen || zoneName,
           zonaDestino: item.zonaDestino || '',
           photoUrls,

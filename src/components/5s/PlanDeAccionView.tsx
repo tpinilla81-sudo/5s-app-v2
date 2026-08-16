@@ -628,17 +628,27 @@ export default function PlanDeAccionView() {
           accionElemento: a.extra?.elemento || '',
           accionCantidad: a.extra?.cantidad != null ? String(a.extra.cantidad) : '',
           accionDecision: a.extra?.decision || '',
-          // v2.85: Etiqueta auto según S-step.
-          //   S1 (innecesarios): etiqueta del inventario (para imprimir)
-          //   S2-S5: "No aplica" (los necesarios no se etiquetan para impresión)
+          // v2.88: Etiqueta auto según S-step — refleja la columna "Etiquetas"
+          // del inventario Paso 3 (Impresa/Pendiente/—).
+          //   S1 (innecesarios):
+          //     - decisión=Eliminar → "—"
+          //     - etiquetaGenerada=true → "Impresa"
+          //     - decisión=Retirar sin generar → "Pendiente"
+          //   S2-S5: "No aplica"
           accionEtiqueta: (() => {
-            const raw = a.extra?.etiquetas || ''
-            if (raw && raw.trim()) return raw
-            // Si no hay etiqueta y viene de inventario S2-S5, mostrar "No aplica"
             if (a.source === 'inventario' && a.sStep && a.sStep !== 1) return 'No aplica'
-            // Si no hay etiqueta y viene de inventario S1, también "No aplica"
-            if (a.source === 'inventario' && a.sStep === 1) return 'No aplica'
-            return ''
+            if (a.source === 'inventario' && a.sStep === 1) {
+              // v2.88: reflejar el estado real de la etiqueta en el inventario
+              const decision = a.extra?.decision || ''
+              const etiquetaGenerada = !!(a.extra as any)?.etiquetaGenerada
+              if (decision === 'Eliminar') return '—'
+              if (etiquetaGenerada) return 'Impresa'
+              if (decision === 'Retirar') return 'Pendiente'
+              return '—'
+            }
+            // Para otros orígenes, usar el valor guardado en extra.etiquetas
+            const raw = a.extra?.etiquetas || ''
+            return raw && raw.trim() ? raw : ''
           })(),
           accionDestino: a.extra?.zonaDestino || '',
           // v2.85: Acción Preventiva — automática "N/A" para items del

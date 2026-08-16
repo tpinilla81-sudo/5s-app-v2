@@ -213,15 +213,20 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
           accionElemento: a.extra?.elemento || '',
           accionCantidad: a.extra?.cantidad != null ? String(a.extra.cantidad) : '',
           accionDecision: a.extra?.decision || '',
-          // v2.85: Etiqueta auto según S-step.
-          //   S1 (innecesarios): etiqueta del inventario (para imprimir)
-          //   S2-S5: "No aplica" (los necesarios no se etiquetan para impresión)
+          // v2.88: Etiqueta auto según S-step — refleja la columna "Etiquetas"
+          // del inventario Paso 3 (Impresa/Pendiente/—).
           accionEtiqueta: (() => {
-            const raw = a.extra?.etiquetas || ''
-            if (raw && raw.trim()) return raw
             if (a.source === 'inventario' && a.sStep && a.sStep !== 1) return 'No aplica'
-            if (a.source === 'inventario' && a.sStep === 1) return 'No aplica'
-            return ''
+            if (a.source === 'inventario' && a.sStep === 1) {
+              const decision = a.extra?.decision || ''
+              const etiquetaGenerada = !!(a.extra as any)?.etiquetaGenerada
+              if (decision === 'Eliminar') return '—'
+              if (etiquetaGenerada) return 'Impresa'
+              if (decision === 'Retirar') return 'Pendiente'
+              return '—'
+            }
+            const raw = a.extra?.etiquetas || ''
+            return raw && raw.trim() ? raw : ''
           })(),
           accionDestino: a.extra?.zonaDestino || '',
           // v2.85: Acción Preventiva — automática "N/A" para items del
