@@ -545,12 +545,12 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
               <table className="w-full text-xs border-collapse min-w-[800px] md:min-w-[1200px]">
                 <thead className="sticky top-0 z-10">
                   <tr>
-                    {/* v2.79: HALLAZGO 7 cols (antes 9), ACCIÓN 6 cols (antes 4) */}
-                    <th colSpan={7} className={`${HEADER_COLORS.demandante} px-2 py-1.5 text-center text-xs font-bold border border-amber-500`}>
+                    {/* v2.79: HALLAZGO 10 cols (incl. categoría/elemento/cantidad), ACCIÓN 3 cols (decisión/etiqueta/destino) */}
+                    <th colSpan={10} className={`${HEADER_COLORS.demandante} px-2 py-1.5 text-center text-xs font-bold border border-amber-500`}>
                       HALLAZGO
                     </th>
-                    {/* Blue section: Acción (autorelleno desde inventario paso 3) */}
-                    <th colSpan={6} className={`${HEADER_COLORS.accion} px-2 py-1.5 text-center text-xs font-bold border border-sky-500`}>
+                    {/* Blue section: Acción (decisión / etiqueta / destino) */}
+                    <th colSpan={3} className={`${HEADER_COLORS.accion} px-2 py-1.5 text-center text-xs font-bold border border-sky-500`}>
                       ACCIÓN
                     </th>
                     {/* Orange section: Seguimiento */}
@@ -566,14 +566,14 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Nº</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Fecha</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Usuario que detectó el hallazgo (automático según el paso)">Detectado por</th>
+                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Categoría del inventario (innecesario/dudoso/util/...)">Categoría</th>
+                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Elemento del inventario">Elemento</th>
+                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Cantidad</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Semana</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Zona</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Responsable de resolver el hallazgo (empleado de la zona por defecto, editable)">Responsable</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Impacto objetivo — trabajaremos en esto luego">Impacto</th>
-                    {/* ACCIÓN headers — v2.79: autorelleno desde el inventario (extra) */}
-                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Categoría del inventario (innecesario/dudoso/util/...)">Categoría</th>
-                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Elemento del inventario">Elemento</th>
-                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Cantidad</th>
+                    {/* ACCIÓN headers — v2.79: decisión / etiqueta / destino (lo que se hace con el hallazgo) */}
                     <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Decisión del inventario (Retirar/Eliminar/...)">Decisión</th>
                     <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Etiqueta</th>
                     <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Destino del item (zona o Residuo)">Destino</th>
@@ -615,7 +615,8 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                             />
                           </td>
                           {/* v2.79: "Detectado por" — read-only, con paso debajo.
-                              comunicadoPorId se resuelve por sesión en el backend. */}
+                              comunicadoPorId se resuelve por sesión en el backend.
+                              El usuario que aparece es el que hizo el paso (3/4/5). */}
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
                             <div className="h-auto min-h-[24px] text-[10px] px-1 flex flex-col justify-center text-gray-700">
                               <div className="truncate font-medium" title={action.comunicadoPorName || '—'}>
@@ -629,6 +630,23 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                                   return 'Paso 3 · Plan S5';
                                 })()}
                               </div>
+                            </div>
+                          </td>
+                          {/* v2.79: Categoría / Elemento / Cantidad — autorellenados desde el snapshot `extra`
+                              del ActionItem (linkado al inventario del paso 3). Read-only. */}
+                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
+                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionCategoria || '—'}>
+                              {action.accionCategoria || '—'}
+                            </div>
+                          </td>
+                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
+                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionElemento || '—'}>
+                              {action.accionElemento || '—'}
+                            </div>
+                          </td>
+                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200 text-center`}>
+                            <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-700 truncate">
+                              {action.accionCantidad || '—'}
                             </div>
                           </td>
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
@@ -690,24 +708,9 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                             />
                           </td>
 
-                          {/* ── ACCIÓN — v2.79: 6 columnas autorellenadas desde el inventario (extra).
+                          {/* ── ACCIÓN — v2.79: 3 columnas (decisión / etiqueta / destino).
                               Solo source='inventario' trae estos datos; para otros orígenes
                               se muestran vacíos (—) ya que no hay inventario asociado. ── */}
-                          <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
-                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionCategoria || '—'}>
-                              {action.accionCategoria || '—'}
-                            </div>
-                          </td>
-                          <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
-                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionElemento || '—'}>
-                              {action.accionElemento || '—'}
-                            </div>
-                          </td>
-                          <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200 text-center`}>
-                            <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-700 truncate">
-                              {action.accionCantidad || '—'}
-                            </div>
-                          </td>
                           <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
                             <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionDecision || '—'}>
                               {action.accionDecision || '—'}
