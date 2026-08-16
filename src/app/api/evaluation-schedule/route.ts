@@ -74,6 +74,57 @@ export async function POST(request: NextRequest) {
     }
 
     // ──────────────────────────────────────────────────────────────────
+    // v2.86: VALIDACIÓN DE FECHA PASADA
+    // ──────────────────────────────────────────────────────────────────
+    // Si se envía fechaProgramada, comprobar que NO sea una fecha pasada.
+    // Esto previene reprogramaciones accidentales con fechas antiguas (p.ej.
+    // cuando el modal carga la fecha de un schedule vencido y el usuario
+    // guarda sin cambiarla). El sistema NUNCA debe aceptar fechas pasadas.
+    //
+    // Excepción: allowPastDate=true solo para tests manuales.
+    if (fechaProgramada && !body.allowPastDate) {
+      const now = new Date()
+      const todayStr = now.toISOString().slice(0, 10) // YYYY-MM-DD en UTC
+      if (fechaProgramada < todayStr) {
+        return NextResponse.json({
+          success: false,
+          error: `No se puede programar una cita en una fecha pasada (${fechaProgramada}). Selecciona una fecha de hoy en adelante.`,
+          code: 'PAST_DATE_REJECTED',
+        }, { status: 400 })
+      }
+      // Si la fecha es hoy, comprobar la hora también
+      if (fechaProgramada === todayStr && horaProgramada) {
+        const nowHours = String(now.getHours()).padStart(2, '0')
+        const nowMinutes = String(now.getMinutes()).padStart(2, '0')
+        const nowTime = `${nowHours}:${nowMinutes}`
+        if (horaProgramada < nowTime) {
+          return NextResponse.json({
+            success: false,
+            error: `No se puede programar una cita a una hora pasada (${horaProgramada}). La hora actual es ${nowTime}.`,
+            code: 'PAST_TIME_REJECTED',
+          }, { status: 400 })
+        }
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // v2.86: LOG DE AUDITORÍA — Registrar quién programa/reprograma
+    // ──────────────────────────────────────────────────────────────────
+    // Para detectar auto-reprogramaciones misteriosas, dejamos un rastro
+    // en consola con todos los datos de quién llama al POST.
+    console.log(`[evaluation-schedule POST][v2.86]`, {
+      sStep, miniStep, projectId, zoneId: zoneId || null,
+      fechaProgramada, horaProgramada,
+      responsableId: responsableId || null,
+      empleadoId: empleadoId || null,
+      createdBy: createdBy || null,
+      estado: estado || 'programada',
+      rolEjecutor: rolEjecutor || null,
+      notifyUser,
+      timestamp: new Date().toISOString(),
+    })
+
+    // ──────────────────────────────────────────────────────────────────
     // v2.77: VALIDACIÓN DE HALLAZGOS PENDIENTES
     // ──────────────────────────────────────────────────────────────────
     // Antes de programar una autoeval (miniStep=4) o auditoría (miniStep=5),
@@ -362,5 +413,112 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     console.error('Error updating evaluation schedule:', error)
     return NextResponse.json({ success: false, error: 'Error updating evaluation schedule' }, { status: 500 })
+  }
+}
+
+// DELETE /api/evaluation-schedule?id=xxx
+// v2.86: Elimina una cita programada (cualquier estado). Útil cuando se
+// programó mal y se quiere empezar de cero. Notifica al otro usuario
+// (asistente o ejecutor, según quién borra) que la cita se ha cancelado.
+//
+// Body opcional: { motivo?: string, reprogramar?: boolean }
+//   • motivo: texto libre que se incluye en la notificación
+//   • reprogramar: si true, la notificación incluye "se reprogramará pronto"
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: 'id es requerido' },
+        { status: 400 }
+      )
+    }
+
+    let body: any = {}
+    try {
+      body = await request.json()
+    } catch {
+      // body opcional
+    }
+    const motivo = body.motivo || null
+    const reprogramar = body.reprogramar === true
+
+    // Cargar el schedule antes de borrar para tener los datos de notif
+    const sched = await db.evaluationSchedule.findUnique({ where: { id } })
+    if (!sched) {
+      return NextResponse.json(
+        { success: false, error: 'Schedule no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    // Borrar el schedule
+    await db.evaluationSchedule.delete({ where: { id } })
+
+    // Construir notificación para los involucrados
+    const miniStepLabel = sched.miniStep === 4 ? 'Autoevaluación' : 'Auditoría'
+    const fechaStr = sched.fechaProgramada
+      ? `${sched.fechaProgramada.split('-').reverse().join('/')}${sched.horaProgramada ? ' a las ' + sched.horaProgramada : ''}`
+      : 'fecha por confirmar'
+
+    const titulo = reprogramar
+      ? `🔄 ${miniStepLabel} S${sched.sStep} cancelada — se reprogramará`
+      : `✗ ${miniStepLabel} S${sched.sStep} cancelada`
+    const mensaje = `La cita de ${miniStepLabel.toLowerCase()} para S${sched.sStep} programada para el ${fechaStr} ha sido cancelada.${
+      motivo ? ` Motivo: ${motivo}` : ''
+    }${reprogramar ? ' Se programará una nueva fecha próximamente.' : ' Si necesitas una nueva cita, contacta con el responsable.'}`
+
+    const notifTargets = [sched.responsableId, sched.empleadoId].filter(Boolean) as string[]
+    for (const userId of notifTargets) {
+      try {
+        await db.notification.create({
+          data: {
+            userId,
+            type: 'evaluation_cancelled',
+            title: titulo,
+            message: mensaje,
+            metadata: JSON.stringify({
+              scheduleId: id,
+              miniStep: sched.miniStep,
+              sStep: sched.sStep,
+              zoneId: sched.zoneId || null,
+              projectId: sched.projectId,
+              motivo,
+              reprogramar,
+            }),
+            sStep: sched.sStep,
+            zoneId: sched.zoneId || null,
+            projectId: sched.projectId,
+            read: false,
+          },
+        })
+      } catch (e) {
+        console.error('[DELETE schedule] Error notificando a usuario:', userId, e)
+      }
+    }
+
+    console.log(`[evaluation-schedule DELETE][v2.86] Schedule ${id} eliminado`, {
+      sStep: sched.sStep,
+      miniStep: sched.miniStep,
+      projectId: sched.projectId,
+      zoneId: sched.zoneId,
+      motivo,
+      reprogramar,
+      timestamp: new Date().toISOString(),
+    })
+
+    return NextResponse.json({
+      success: true,
+      deleted: id,
+      notified: notifTargets.length,
+    })
+  } catch (error: any) {
+    console.error('Error deleting evaluation schedule:', error)
+    return NextResponse.json(
+      { success: false, error: error?.message || 'Error deleting evaluation schedule' },
+      { status: 500 }
+    )
   }
 }

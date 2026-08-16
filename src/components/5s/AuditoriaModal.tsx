@@ -310,14 +310,23 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
   }, [open]);
 
   // Load scheduled date/time for this auditoría
+  // v2.86: Si el schedule está en estado 'vencida', NO cargar la fecha antigua
+  // (forzar al usuario a elegir una nueva). La fecha vencida ya no es válida.
   const loadScheduledDate = async () => {
     if (!currentProject?.id || !currentZone?.id) return;
     try {
       const res = await fetch(`/api/evaluation-schedule?sStep=${sStep}&miniStep=5&projectId=${currentProject.id}&zoneId=${currentZone.id}`);
       const json = await res.json();
       if (json.success && json.data) {
-        setFechaProgramada(json.data.fechaProgramada || '');
-        setHoraProgramada(json.data.horaProgramada || '');
+        const sched = json.data;
+        // v2.86: si está vencida, NO cargar la fecha antigua
+        if (sched.estado === 'vencida') {
+          setFechaProgramada('');
+          setHoraProgramada('10:00');
+        } else {
+          setFechaProgramada(sched.fechaProgramada || '');
+          setHoraProgramada(sched.horaProgramada || '');
+        }
       }
     } catch (e) {
       console.error('Error loading scheduled date:', e);

@@ -282,6 +282,8 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
   };
 
   // Load scheduled date/time for this autoevaluación AND the auditoría schedule
+  // v2.86: Si el schedule está en estado 'vencida', NO cargar la fecha antigua
+  // (forzar al usuario a elegir una nueva). La fecha vencida ya no es válida.
   const loadScheduledDate = async () => {
     if (!currentProject?.id || !currentZone?.id) return;
     try {
@@ -289,15 +291,30 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
       const res = await fetch(`/api/evaluation-schedule?sStep=${sStep}&miniStep=4&projectId=${currentProject.id}&zoneId=${currentZone.id}`);
       const json = await res.json();
       if (json.success && json.data) {
-        setFechaProgramada(json.data.fechaProgramada || '');
-        setHoraProgramada(json.data.horaProgramada || '');
+        const sched = json.data;
+        // v2.86: si está vencida, NO cargar la fecha antigua — el usuario
+        // debe elegir una nueva fecha manualmente.
+        if (sched.estado === 'vencida') {
+          setFechaProgramada('');
+          setHoraProgramada('10:00');
+        } else {
+          setFechaProgramada(sched.fechaProgramada || '');
+          setHoraProgramada(sched.horaProgramada || '');
+        }
       }
       // Also load auditoría schedule (miniStep 5) — employee sees if auditor has set a date
       const auditRes = await fetch(`/api/evaluation-schedule?sStep=${sStep}&miniStep=5&projectId=${currentProject.id}&zoneId=${currentZone.id}`);
       const auditJson = await auditRes.json();
       if (auditJson.success && auditJson.data) {
-        setAuditFechaProgramada(auditJson.data.fechaProgramada || '');
-        setAuditHoraProgramada(auditJson.data.horaProgramada || '');
+        const auditSched = auditJson.data;
+        // v2.86: igual para auditoría — no cargar fecha vencida
+        if (auditSched.estado === 'vencida') {
+          setAuditFechaProgramada('');
+          setAuditHoraProgramada('10:00');
+        } else {
+          setAuditFechaProgramada(auditSched.fechaProgramada || '');
+          setAuditHoraProgramada(auditSched.horaProgramada || '');
+        }
       }
     } catch (e) {
       console.error('Error loading scheduled date:', e);

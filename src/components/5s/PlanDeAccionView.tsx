@@ -396,10 +396,14 @@ function ActionCard({
             </div>
           </div>
 
-          {/* ACCIÓN (autorelleno desde inventario) */}
+          {/* ACCIÓN — v2.86: subdividida en Correctiva + Preventiva */}
           <div>
             <div className="text-[10px] font-bold text-sky-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
               <ArrowRight className="h-3 w-3" /> Acción
+            </div>
+            {/* v2.86: subgrupo CORRECTIVA */}
+            <div className="text-[9px] font-bold text-sky-700 uppercase tracking-wider mb-1 mt-1 pl-1 border-l-2 border-sky-400">
+              Correctiva (auto inventario)
             </div>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               <Field label="Categoría" compact>
@@ -411,8 +415,8 @@ function ActionCard({
               <Field label="Cantidad" compact>
                 <div className="text-[11px] px-1 py-1 text-gray-700">{action.accionCantidad || '—'}</div>
               </Field>
-              <Field label="Decisión" compact>
-                <div className="text-[11px] px-1 py-1 text-gray-700 truncate">{action.accionDecision || '—'}</div>
+              <Field label="Acción" compact>
+                <div className="text-[11px] px-1 py-1 text-gray-700 truncate font-medium">{action.accionDecision || '—'}</div>
               </Field>
               <Field label="Etiqueta" compact>
                 <div className="text-[11px] px-1 py-1 text-gray-700 truncate">{action.accionEtiqueta || '—'}</div>
@@ -420,6 +424,12 @@ function ActionCard({
               <Field label="Destino" compact>
                 <div className="text-[11px] px-1 py-1 text-gray-700 truncate">{action.accionDestino || '—'}</div>
               </Field>
+            </div>
+            {/* v2.86: subgrupo PREVENTIVA */}
+            <div className="text-[9px] font-bold text-sky-700 uppercase tracking-wider mb-1 mt-2 pl-1 border-l-2 border-sky-400">
+              Preventiva
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               {/* v2.85: Acción Preventiva — automática "N/A" para items del
                   inventario (S1/S2). Para otros orígenes, manual. */}
               <Field label="Acción Preventiva" compact>
@@ -944,8 +954,12 @@ export default function PlanDeAccionView() {
                     <th colSpan={10} className="bg-amber-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-amber-500">
                       HALLAZGO
                     </th>
-                    <th colSpan={4} className="bg-sky-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-500">
-                      ACCIÓN
+                    {/* v2.86: ACCIÓN subdividida visualmente en CORRECTIVA (3 cols) + PREVENTIVA (1 col) */}
+                    <th colSpan={3} className="bg-sky-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-600">
+                      ACCIÓN · CORRECTIVA
+                    </th>
+                    <th colSpan={1} className="bg-sky-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-500">
+                      PREVENTIVA
                     </th>
                     <th colSpan={5} className="bg-orange-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-orange-500">
                       SEGUIMIENTO
@@ -968,11 +982,11 @@ export default function PlanDeAccionView() {
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Zona</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Responsable de resolver (empleado de la zona por defecto)">Responsable</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Impacto</th>
-                    {/* ACCIÓN headers — v2.81: 3 Correctiva + 1 Preventiva */}
-                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Decisión del inventario (Retirar/Eliminar/...)">Decisión</th>
-                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap">Etiqueta</th>
-                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Destino del item (zona o Residuo)">Destino</th>
-                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Acción preventiva — manual, N/A si no aplica">Decisión</th>
+                    {/* ACCIÓN headers — v2.86: CORRECTIVA (Decisión+Etiqueta+Destino) + PREVENTIVA */}
+                    <th className="bg-sky-500 text-white px-1 py-1 text-center font-semibold border border-sky-500 whitespace-nowrap" title="Acción correctiva: decisión del inventario (Retirar/Eliminar/...). Automática desde el paso 3.">Acción</th>
+                    <th className="bg-sky-500 text-white px-1 py-1 text-center font-semibold border border-sky-500 whitespace-nowrap" title="Etiqueta para imprimir (auto desde inventario S1; 'No aplica' para S2-S5)">Etiqueta</th>
+                    <th className="bg-sky-500 text-white px-1 py-1 text-center font-semibold border border-sky-500 whitespace-nowrap" title="Destino del item: zona o Residuo (auto desde inventario)">Destino</th>
+                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Acción preventiva — automática 'N/A' para items del inventario, manual para otros orígenes">Acción</th>
                     {/* SEGUIMIENTO headers */}
                     <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Sem. Prevista</th>
                     <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Responsable</th>
@@ -1095,18 +1109,18 @@ export default function PlanDeAccionView() {
                             ) : '—'}
                           </div>
                         </td>
-                        {/* ── ACCIÓN — v2.80: 3 columnas (decisión / etiqueta / destino) ── */}
-                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
-                          <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionDecision || '—'}>
+                        {/* ── ACCIÓN · CORRECTIVA — v2.86: 3 columnas (Acción+Etiqueta+Destino) ── */}
+                        <td className={`px-1 py-1 border bg-sky-50`}>
+                          <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate font-medium" title={action.accionDecision || '—'}>
                             {action.accionDecision || '—'}
                           </div>
                         </td>
-                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
+                        <td className={`px-1 py-1 border bg-sky-50`}>
                           <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionEtiqueta || '—'}>
                             {action.accionEtiqueta || '—'}
                           </div>
                         </td>
-                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
+                        <td className={`px-1 py-1 border bg-sky-50`}>
                           <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionDestino || '—'}>
                             {action.accionDestino || '—'}
                           </div>

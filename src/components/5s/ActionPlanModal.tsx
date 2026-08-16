@@ -577,9 +577,12 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                     <th colSpan={10} className={`${HEADER_COLORS.demandante} px-2 py-1.5 text-center text-xs font-bold border border-amber-500`}>
                       HALLAZGO
                     </th>
-                    {/* Blue section: Acción (Correctiva autorelleno + Preventiva manual) */}
-                    <th colSpan={4} className={`${HEADER_COLORS.accion} px-2 py-1.5 text-center text-xs font-bold border border-sky-500`}>
-                      ACCIÓN
+                    {/* v2.86: ACCIÓN subdividida visualmente en CORRECTIVA (3 cols) + PREVENTIVA (1 col) */}
+                    <th colSpan={3} className="bg-sky-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-600">
+                      ACCIÓN · CORRECTIVA
+                    </th>
+                    <th colSpan={1} className="bg-sky-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-500">
+                      PREVENTIVA
                     </th>
                     {/* Orange section: Seguimiento */}
                     <th colSpan={5} className={`${HEADER_COLORS.seguimiento} px-2 py-1.5 text-center text-xs font-bold border border-orange-500`}>
@@ -588,18 +591,6 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                     <th className="bg-gray-400 text-white px-1 py-1.5 text-center text-xs font-bold border border-gray-500 w-8">
                       🗑
                     </th>
-                  </tr>
-                  {/* v2.81: Sub-headers dentro de ACCIÓN: Correctiva (3) | Preventiva (1) */}
-                  <tr>
-                    <th colSpan={10} className="bg-amber-100 text-amber-900 px-1 py-0.5 text-[10px] font-medium border border-amber-300"></th>
-                    <th colSpan={3} className="bg-sky-200 text-sky-900 px-1 py-0.5 text-[10px] font-bold border border-sky-300 text-center">
-                      Acción Correctiva <span className="font-normal opacity-70">(autorelleno)</span>
-                    </th>
-                    <th colSpan={1} className="bg-sky-200 text-sky-900 px-1 py-0.5 text-[10px] font-bold border border-sky-300 text-center">
-                      Acción Preventiva <span className="font-normal opacity-70">(auto inventario · manual otros)</span>
-                    </th>
-                    <th colSpan={5} className="bg-orange-100 text-orange-900 px-1 py-0.5 text-[10px] font-medium border border-orange-300"></th>
-                    <th className="bg-gray-100 px-1 py-0.5 border border-gray-200 w-8"></th>
                   </tr>
                   <tr>
                     {/* HALLAZGO headers — v2.79: simplificado */}
@@ -613,11 +604,11 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Zona</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Responsable de resolver el hallazgo (empleado de la zona por defecto, editable)">Responsable</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Impacto objetivo — trabajaremos en esto luego">Impacto</th>
-                    {/* ACCIÓN headers — v2.81: 3 Correctiva + 1 Preventiva */}
-                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Decisión del inventario (Retirar/Eliminar/...)">Decisión</th>
-                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Etiqueta</th>
-                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Destino del item (zona o Residuo)">Destino</th>
-                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Acción preventiva — manual, N/A si no aplica">Decisión</th>
+                    {/* ACCIÓN headers — v2.86: CORRECTIVA (Acción+Etiqueta+Destino) + PREVENTIVA */}
+                    <th className="bg-sky-500 text-white px-1 py-1 text-center font-semibold border border-sky-500 whitespace-nowrap" title="Acción correctiva: decisión del inventario (Retirar/Eliminar/...). Automática desde el paso 3.">Acción</th>
+                    <th className="bg-sky-500 text-white px-1 py-1 text-center font-semibold border border-sky-500 whitespace-nowrap" title="Etiqueta para imprimir (auto desde inventario S1; 'No aplica' para S2-S5)">Etiqueta</th>
+                    <th className="bg-sky-500 text-white px-1 py-1 text-center font-semibold border border-sky-500 whitespace-nowrap" title="Destino del item: zona o Residuo (auto desde inventario)">Destino</th>
+                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Acción preventiva — automática 'N/A' para items del inventario, manual para otros orígenes">Acción</th>
                     {/* SEGUIMIENTO headers — v2.78 */}
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>Semana Prevista</th>
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`} title="Usuario que verifica el cierre (FK User)">Verificado por</th>
@@ -761,20 +752,20 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                             </div>
                           </td>
 
-                          {/* ── ACCIÓN — v2.79: 3 columnas (decisión / etiqueta / destino).
+                          {/* ── ACCIÓN · CORRECTIVA — v2.86: 3 columnas (Acción+Etiqueta+Destino).
                               Solo source='inventario' trae estos datos; para otros orígenes
                               se muestran vacíos (—) ya que no hay inventario asociado. ── */}
-                          <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
-                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionDecision || '—'}>
+                          <td className="bg-sky-50 px-1 py-1 border border-sky-200">
+                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate font-medium" title={action.accionDecision || '—'}>
                               {action.accionDecision || '—'}
                             </div>
                           </td>
-                          <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
+                          <td className="bg-sky-50 px-1 py-1 border border-sky-200">
                             <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionEtiqueta || '—'}>
                               {action.accionEtiqueta || '—'}
                             </div>
                           </td>
-                          <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
+                          <td className="bg-sky-50 px-1 py-1 border border-sky-200">
                             <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionDestino || '—'}>
                               {action.accionDestino || '—'}
                             </div>

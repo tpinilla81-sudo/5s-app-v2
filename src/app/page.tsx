@@ -1131,6 +1131,62 @@ export default function HomePage() {
                         Aceptar cita
                       </button>
                     )}
+                    {/* v2.86: Botón "Reprogramar ahora" para notificaciones de cita expirada.
+                        - Visible para responsable/auditor/admin SIEMPRE (leída o no).
+                        - Abre el diálogo de programación con los datos del schedule vencido.
+                        - El backend ya rechazará fechas pasadas (validación v2.86). */}
+                    {n.type === 'evaluation_expired' && (isResponsable || currentUser?.role === 'auditor' || isAdmin) && (() => {
+                      // Extraer scheduleId y datos del metadata
+                      let meta: any = null;
+                      try { meta = typeof n.metadata === 'string' ? JSON.parse(n.metadata) : n.metadata; } catch {}
+                      const miniStep = meta?.miniStep || (n.title?.toLowerCase().includes('audit') ? 5 : 4);
+                      return (
+                        <button
+                          className="text-[10px] font-semibold text-red-700 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded border border-red-300 transition-colors flex items-center gap-0.5 animate-pulse"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            // Buscar empleado de la zona (para notificarle)
+                            let empleadoId: string | undefined;
+                            try {
+                              const membersRes = await fetch(`/api/projects/${currentProject?.id}/members`);
+                              const membersData = await membersRes.json();
+                              const empleados = (membersData?.members || []).filter((m: any) => m.role === 'empleado');
+                              if (n.zoneId) {
+                                const zoneEmps = empleados.filter((m: any) => m.zoneId === n.zoneId);
+                                if (zoneEmps.length >= 1) {
+                                  empleadoId = zoneEmps[0].userId;
+                                }
+                              }
+                              if (!empleadoId && empleados.length >= 1) {
+                                empleadoId = empleados[0].userId;
+                              }
+                            } catch (e) { /* ignore */ }
+
+                            // Abrir diálogo con datos del schedule vencido
+                            setScheduleDialog({
+                              open: true,
+                              notifId: n.id,
+                              sStep: n.sStep,
+                              miniStep,
+                              zoneId: n.zoneId,
+                              projectId: n.projectId || currentProject?.id,
+                              empleadoId,
+                              responsableId: currentUser?.id,
+                              type: 'evaluation_expired',
+                            });
+                            // v2.86: Default = mañana a las 10:00 (NO usar la fecha vencida)
+                            const tomorrow = new Date();
+                            tomorrow.setDate(tomorrow.getDate() + 1);
+                            setScheduleDate(tomorrow.toISOString().slice(0, 10));
+                            setScheduleTime('10:00');
+                            toggleNotifPanel(false);
+                          }}
+                        >
+                          <Calendar className="h-2.5 w-2.5" />
+                          Reprogramar ahora
+                        </button>
+                      );
+                    })()}
                     {/* Accept audit meeting button — only for audit_requested notifications and users with accept_audit_meeting permission */}
                     {n.type === 'audit_requested' && !n.read && canAcceptAuditMeeting && (
                       <button
@@ -1923,6 +1979,16 @@ export default function HomePage() {
               Selecciona fecha y hora. Se creará una entrada en tu calendario y en el del empleado,
               y se le notificará automáticamente.
             </p>
+            {/* v2.86: Aviso especial cuando se está reprogramando una cita vencida */}
+            {scheduleDialog.type === 'evaluation_expired' && (
+              <div className="bg-red-50 border border-red-300 rounded-md p-2.5 text-xs text-red-800 flex items-start gap-2 animate-pulse">
+                <span className="font-bold text-red-600">⚠️</span>
+                <div>
+                  <p className="font-bold">CITA EXPIRADA — Reprogramación manual</p>
+                  <p>La cita anterior superó la ventana de 2 horas sin completarse. El sistema NO reprograma automáticamente. Debes elegir una nueva fecha y hora manualmente.</p>
+                </div>
+              </div>
+            )}
             {/* v2.74.5: Aviso recordatorio de hablar con el empleado fuera de la app */}
             <div className="bg-amber-50 border border-amber-200 rounded-md p-2.5 text-xs text-amber-800 flex items-start gap-2">
               <span className="font-bold text-amber-600">⚠</span>

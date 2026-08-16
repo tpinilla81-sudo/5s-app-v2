@@ -9,6 +9,16 @@ import { db } from '@/lib/db'
 // Devuelve el número de schedules vencidos en esta pasada.
 //
 // Llamado por el frontend al montar el board y cada 5 minutos (polling).
+//
+// v2.86: REFUERZO —
+//   • La notificación ahora incluye metadata con scheduleId, miniStep, sStep,
+//     zoneId, projectId y un flag action='reprogramar' para que el frontend
+//     pueda mostrar un botón "Reprogramar ahora" que abra directamente el
+//     diálogo de programación.
+//   • Mensaje más enfático: "⚠️ EXPIRADA — Debes programar una nueva fecha
+//     manualmente. El sistema NO reprograma automáticamente."
+//   • Dedupe: si ya existe una notif 'evaluation_expired' para este scheduleId
+//     en las últimas 24h, NO se crea otra (evita spam cada 5 min de polling).
 export async function POST() {
   try {
     const VENTANA_MS = 2 * 60 * 60 * 1000 // 2 horas
@@ -37,13 +47,45 @@ export async function POST() {
       })
       vencidas.push(updated)
 
-      // Construir mensaje
+      // Construir mensaje v2.86 (más enfático + orientado a acción)
       const miniStepLabel = sched.miniStep === 4 ? 'Autoevaluación' : 'Auditoría'
       const fechaStr = `${sched.fechaProgramada.split('-').reverse().join('/')}${sched.horaProgramada ? ' a las ' + sched.horaProgramada : ''}`
-      const titulo = `⏰ ${miniStepLabel} vencida: S${sched.sStep} — reprogramar`
-      const mensaje = `La ventana de 2h para la ${miniStepLabel.toLowerCase()} de S${sched.sStep} programada para el ${fechaStr} ha expirado sin completarse. Por favor, programa una nueva fecha.`
+      const titulo = `⚠️ ${miniStepLabel} EXPIRADA: S${sched.sStep} — reprogramar`
+      const mensaje = `La ventana de 2 horas para la ${miniStepLabel.toLowerCase()} de S${sched.sStep} programada para el ${fechaStr} ha expirado sin completarse.\n\n` +
+        `DEBES programar una nueva fecha manualmente. El sistema NO reprograma automáticamente.\n\n` +
+        `Pulsa "Reprogramar ahora" para elegir una nueva fecha y hora.`
 
-      // Notificar al responsable
+      // Metadata para que el frontend muestre botón "Reprogramar ahora"
+      const metadata = JSON.stringify({
+        scheduleId: sched.id,
+        miniStep: sched.miniStep,
+        sStep: sched.sStep,
+        zoneId: sched.zoneId || null,
+        projectId: sched.projectId,
+        fechaExpirada: sched.fechaProgramada,
+        horaExpirada: sched.horaProgramada || null,
+        action: 'reprogramar',
+      })
+
+      // v2.86: Dedupe por scheduleId en 24h — evita notificar cada 5 min
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      const existingNotif = await db.notification.findFirst({
+        where: {
+          type: 'evaluation_expired',
+          sStep: sched.sStep,
+          zoneId: sched.zoneId || null,
+          projectId: sched.projectId,
+          createdAt: { gte: oneDayAgo },
+          // Match por scheduleId en metadata (JSON string)
+          message: { contains: sched.id },
+        },
+      })
+      if (existingNotif) {
+        // Ya notificado en las últimas 24h — saltar
+        continue
+      }
+
+      // Notificar al responsable (ejecutor)
       if (sched.responsableId) {
         try {
           await db.notification.create({
@@ -51,7 +93,8 @@ export async function POST() {
               userId: sched.responsableId,
               type: 'evaluation_expired',
               title: titulo,
-              message: mensaje,
+              message: `${mensaje}\n\n[ref:${sched.id}]`,
+              metadata,
               sStep: sched.sStep,
               zoneId: sched.zoneId || null,
               projectId: sched.projectId,
@@ -63,7 +106,7 @@ export async function POST() {
         }
       }
 
-      // Notificar al empleado
+      // Notificar al empleado (asistente)
       if (sched.empleadoId) {
         try {
           await db.notification.create({
@@ -71,7 +114,8 @@ export async function POST() {
               userId: sched.empleadoId,
               type: 'evaluation_expired',
               title: titulo,
-              message: mensaje,
+              message: `${mensaje}\n\n[ref:${sched.id}]`,
+              metadata,
               sStep: sched.sStep,
               zoneId: sched.zoneId || null,
               projectId: sched.projectId,
@@ -82,6 +126,21 @@ export async function POST() {
           console.error('[check-vencidas] Error notifying empleado:', e)
         }
       }
+
+      // v2.86: Log de auditoría — Registrar en consola para detectar futuros
+      // casos de "auto-reprogramación misteriosa"
+      console.log(`[check-vencidas][v2.86] Schedule ${sched.id} marcado como vencido`, {
+        scheduleId: sched.id,
+        sStep: sched.sStep,
+        miniStep: sched.miniStep,
+        projectId: sched.projectId,
+        zoneId: sched.zoneId,
+        fechaProgramada: sched.fechaProgramada,
+        horaProgramada: sched.horaProgramada,
+        responsableId: sched.responsableId,
+        empleadoId: sched.empleadoId,
+        markedAt: new Date().toISOString(),
+      })
     }
 
     return NextResponse.json({

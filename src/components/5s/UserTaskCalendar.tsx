@@ -18,6 +18,8 @@ import {
   ListTodo,
   ArrowDownToLine,
   ExternalLink,
+  Trash2,
+  CalendarClock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -82,6 +84,13 @@ export function UserTaskCalendar({
   const [view, setView] = React.useState<'calendar' | 'list'>('calendar')
   // v2.74.5: citas de evaluación programadas (autoeval/auditoría)
   const [evalSchedules, setEvalSchedules] = React.useState<any[]>([])
+  // v2.86: diálogo para confirmar borrado de cita (con opción a reprogramar)
+  const [deleteDialog, setDeleteDialog] = React.useState<{
+    open: boolean
+    scheduleId: string | null
+    scheduleInfo: { miniStep: number; sStep: number; fechaProgramada: string | null; horaProgramada: string | null; zoneName?: string }
+  }>({ open: false, scheduleId: null, scheduleInfo: { miniStep: 4, sStep: 1, fechaProgramada: null, horaProgramada: null } })
+  const [deleteLoading, setDeleteLoading] = React.useState(false)
 
   const fetchData = React.useCallback(async () => {
     if (!userId) return
@@ -246,6 +255,51 @@ export function UserTaskCalendar({
       console.error('Error updating task:', e)
     } finally {
       setUpdatingId(null)
+    }
+  }
+
+  // v2.86: Pedir confirmación antes de borrar una cita
+  const requestDeleteSchedule = (task: TaskItem) => {
+    // El id de los virtualTasks empieza con 'eval-' — extraer el scheduleId real
+    const scheduleId = task.id.startsWith('eval-') ? task.id.substring(5) : task.id
+    // Buscar el schedule original en evalSchedules para tener info completa
+    const sched = evalSchedules.find(s => s.id === scheduleId)
+    setDeleteDialog({
+      open: true,
+      scheduleId,
+      scheduleInfo: {
+        miniStep: task.miniStep,
+        sStep: task.sStep,
+        fechaProgramada: task.fechaLimite, // en virtualTasks, fechaLimite = fechaProgramada
+        horaProgramada: sched?.horaProgramada || null,
+        zoneName: task.zone?.name,
+      },
+    })
+  }
+
+  // v2.86: Borrar cita — reprogramar=true → el mensaje incluye "se reprogramará"
+  const confirmDeleteSchedule = async (reprogramar: boolean) => {
+    if (!deleteDialog.scheduleId) return
+    setDeleteLoading(true)
+    try {
+      const res = await fetch(`/api/evaluation-schedule?id=${deleteDialog.scheduleId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reprogramar }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        await fetchData()
+        setDeleteDialog({ open: false, scheduleId: null, scheduleInfo: { miniStep: 4, sStep: 1, fechaProgramada: null, horaProgramada: null } })
+      } else {
+        console.error('Error borrando schedule:', json.error)
+        alert(`Error: ${json.error || 'desconocido'}`)
+      }
+    } catch (e: any) {
+      console.error('Error borrando schedule:', e)
+      alert(`Error: ${e?.message || 'desconocido'}`)
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -448,6 +502,7 @@ export function UserTaskCalendar({
                         onUpdate={updateTask}
                         updating={updatingId === t.id}
                         onOpenActionPlan={onOpenActionPlan}
+                        onDeleteSchedule={requestDeleteSchedule}
                       />
                     ))}
                   </div>
@@ -471,6 +526,7 @@ export function UserTaskCalendar({
                         onUpdate={updateTask}
                         updating={updatingId === t.id}
                         onOpenActionPlan={onOpenActionPlan}
+                        onDeleteSchedule={requestDeleteSchedule}
                       />
                     ))}
                   </div>
@@ -497,6 +553,7 @@ export function UserTaskCalendar({
                 onUpdate={updateTask}
                 updatingId={updatingId}
                 onOpenActionPlan={onOpenActionPlan}
+                onDeleteSchedule={requestDeleteSchedule}
               />
             )}
             {hoy.length > 0 && (
@@ -509,6 +566,7 @@ export function UserTaskCalendar({
                 onUpdate={updateTask}
                 updatingId={updatingId}
                 onOpenActionPlan={onOpenActionPlan}
+                onDeleteSchedule={requestDeleteSchedule}
               />
             )}
             {(proximas.length > 0 || evalProximas.length > 0) && (
@@ -521,6 +579,7 @@ export function UserTaskCalendar({
                 onUpdate={updateTask}
                 updatingId={updatingId}
                 onOpenActionPlan={onOpenActionPlan}
+                onDeleteSchedule={requestDeleteSchedule}
               />
             )}
             {sinFecha.length > 0 && (
@@ -533,6 +592,7 @@ export function UserTaskCalendar({
                 onUpdate={updateTask}
                 updatingId={updatingId}
                 onOpenActionPlan={onOpenActionPlan}
+                onDeleteSchedule={requestDeleteSchedule}
               />
             )}
             {tasks.length === 0 && (
@@ -541,6 +601,64 @@ export function UserTaskCalendar({
                 <p className="text-sm">No tienes acciones asignadas.</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* v2.86: Diálogo de confirmación para borrar una cita de evaluación */}
+        {deleteDialog.open && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="bg-red-100 rounded-full p-2 shrink-0">
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Borrar cita de {deleteDialog.scheduleInfo.miniStep === 4 ? 'autoevaluación' : 'auditoría'}
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Vas a eliminar la cita de <strong>S{deleteDialog.scheduleInfo.sStep}</strong>
+                    {deleteDialog.scheduleInfo.fechaProgramada && (
+                      <> del <strong>{deleteDialog.scheduleInfo.fechaProgramada.split('-').reverse().join('/')}</strong></>
+                    )}
+                    {deleteDialog.scheduleInfo.horaProgramada && (
+                      <> a las <strong>{deleteDialog.scheduleInfo.horaProgramada}</strong></>
+                    )}
+                    {deleteDialog.scheduleInfo.zoneName && (
+                      <> (zona: <strong>{deleteDialog.scheduleInfo.zoneName}</strong>)</>
+                    )}.
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Se notificará al otro usuario de la cancelación. El proceso volverá a estar disponible para reprogramar.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 pt-2 border-t">
+                <button
+                  className="w-full px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                  onClick={() => confirmDeleteSchedule(true)}
+                  disabled={deleteLoading}
+                >
+                  {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
+                  Borrar y reprogramar
+                </button>
+                <button
+                  className="w-full px-4 py-2 rounded-md bg-red-50 text-red-700 border border-red-300 text-sm font-semibold hover:bg-red-100 disabled:opacity-50 flex items-center justify-center gap-2"
+                  onClick={() => confirmDeleteSchedule(false)}
+                  disabled={deleteLoading}
+                >
+                  {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  Borrar sin reprogramar
+                </button>
+                <button
+                  className="w-full px-4 py-2 rounded-md border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 disabled:opacity-50"
+                  onClick={() => setDeleteDialog({ open: false, scheduleId: null, scheduleInfo: { miniStep: 4, sStep: 1, fechaProgramada: null, horaProgramada: null } })}
+                  disabled={deleteLoading}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </SheetContent>
@@ -587,6 +705,7 @@ function TaskSection({
   onUpdate,
   updatingId,
   onOpenActionPlan,
+  onDeleteSchedule,
 }: {
   title: string
   count: number
@@ -596,6 +715,7 @@ function TaskSection({
   onUpdate: (id: string, estado: string) => void
   updatingId: string | null
   onOpenActionPlan?: (itemId?: string) => void
+  onDeleteSchedule?: (task: TaskItem) => void
 }) {
   const colors = {
     red: 'text-red-700 bg-red-50',
@@ -618,6 +738,7 @@ function TaskSection({
             onUpdate={onUpdate}
             updating={updatingId === t.id}
             onOpenActionPlan={onOpenActionPlan}
+            onDeleteSchedule={onDeleteSchedule}
           />
         ))}
       </div>
@@ -631,12 +752,14 @@ function TaskCard({
   updating,
   highlight,
   onOpenActionPlan,
+  onDeleteSchedule,
 }: {
   task: TaskItem
   onUpdate: (id: string, estado: string) => void
   updating: boolean
   highlight?: 'entrada' | 'vencimiento'
   onOpenActionPlan?: (itemId?: string) => void
+  onDeleteSchedule?: (task: TaskItem) => void
 }) {
   const prioridadColors: Record<string, string> = {
     alta: 'bg-red-100 text-red-700',
@@ -651,6 +774,8 @@ function TaskCard({
   }
   const isResolved = ['resuelta', 'cerrada'].includes(task.estado)
   const isFromInventory = task.source === 'inventario' || (task.itemId || '').startsWith('inv_')
+  // v2.86: detectar si es una cita de evaluación (virtualTask de schedule)
+  const isEvalSchedule = task.source === 'evaluation_schedule'
 
   return (
     <div className={cn(
@@ -754,7 +879,7 @@ function TaskCard({
           </div>
         )}
         {/* v2.61: botón Abrir en Plan de Acción */}
-        {onOpenActionPlan && (
+        {onOpenActionPlan && !isEvalSchedule && (
           <Button
             size="sm"
             variant="ghost"
@@ -764,6 +889,19 @@ function TaskCard({
           >
             <ExternalLink className="h-3 w-3" />
             <span className="hidden sm:inline">Plan</span>
+          </Button>
+        )}
+        {/* v2.86: botón Borrar cita de evaluación */}
+        {isEvalSchedule && onDeleteSchedule && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={() => onDeleteSchedule(task)}
+            title="Borrar cita — pregunta si quieres reprogramar"
+          >
+            <Trash2 className="h-3 w-3" />
+            <span className="hidden sm:inline">Borrar</span>
           </Button>
         )}
       </div>
