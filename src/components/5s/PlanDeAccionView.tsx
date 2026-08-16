@@ -576,9 +576,16 @@ export default function PlanDeAccionView() {
   // v2.90: Filtro de texto global + ordenación por columna.
   // sortKey: clave del campo por el que se ordena (null = sin ordenar, orden natural).
   // sortDir: 'asc' | 'desc' | null
+  // v2.90.1: Filtros por columna tipo Excel (autofiltro con lista de valores únicos).
   const [searchText, setSearchText] = useState('');
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null);
+  // columnFilters: map de { fieldKey -> Set<value> } — si el Set existe, solo se
+  // muestran las filas cuyo valor para esa columna está en el Set.
+  // Si el Set está vacío, se muestran todas (filtro inactivo).
+  const [columnFilters, setColumnFilters] = useState<Record<string, Set<string>>>({});
+  // qué popover de filtro está abierto (solo uno a la vez)
+  const [openFilterCol, setOpenFilterCol] = useState<string | null>(null);
 
   // v2.90: Toggle del orden de una columna — ciclo null → asc → desc → null.
   const toggleSort = (key: string) => {
@@ -618,6 +625,155 @@ export default function PlanDeAccionView() {
       </span>
     </th>
   );
+
+  // v2.90.1: Valor de una fila para una columna dada (string plano para comparar).
+  const getCellValue = (a: ActionItemData, k: string): string => {
+    switch (k) {
+      case 'numero': return String(a.numeroEntrada || '');
+      case 'fecha': return a.fechaEntrada || '';
+      case 'detectado': return a.comunicadoPorName || '';
+      case 'categoria': return a.accionCategoria || '';
+      case 'elemento': return a.accionElemento || '';
+      case 'cantidad': return String(a.accionCantidad || '');
+      case 'semana': return a.semana || '';
+      case 'zona': return a.zonaName || '';
+      case 'responsable': return a.personaDemandadaName || '';
+      case 'impacto': return a.impacto || '';
+      case 'accionCorrectiva': return a.accionDecision || '';
+      case 'etiqueta': return a.accionEtiqueta || '';
+      case 'destino': return a.accionDestino || '';
+      case 'accionPreventiva': return a.accionPreventiva || '';
+      case 'semanaPrevista': return a.semanaPrevista || '';
+      case 'estado': return a.estado || '';
+      case 'porcentaje': return String(a.porcentaje || 0);
+      case 'semanaReal': return a.semanaReal || '';
+      default: return '';
+    }
+  };
+
+  // v2.90.1: Valores únicos para una columna (para mostrar en el desplegable tipo Excel).
+  const getUniqueValues = (k: string): string[] => {
+    const set = new Set<string>();
+    for (const a of actions) {
+      const v = getCellValue(a, k);
+      if (v && v.trim()) set.add(v);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+  };
+
+  // v2.90.1: Toggle de un valor dentro del filtro de una columna.
+  const toggleFilterValue = (col: string, value: string) => {
+    setColumnFilters(prev => {
+      const next = { ...prev };
+      const current = new Set(next[col] || []);
+      if (current.has(value)) current.delete(value);
+      else current.add(value);
+      if (current.size === 0) delete next[col];
+      else next[col] = current;
+      return next;
+    });
+  };
+
+  // v2.90.1: Limpiar filtro de una columna.
+  const clearColumnFilter = (col: string) => {
+    setColumnFilters(prev => {
+      const next = { ...prev };
+      delete next[col];
+      return next;
+    });
+  };
+
+  // v2.90.1: Componente de filtro tipo Excel — botón con icono de embudo que
+  // abre un popover con la lista de valores únicos y checkboxes.
+  const ColumnFilterButton = ({ col, dark = false }: { col: string; dark?: boolean }) => {
+    const isOpen = openFilterCol === col;
+    const active = columnFilters[col];
+    const activeCount = active ? active.size : 0;
+    return (
+      <div className="relative inline-block">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenFilterCol(isOpen ? null : col);
+          }}
+          className={`ml-0.5 p-0.5 rounded hover:bg-black/10 transition-colors ${activeCount > 0 ? (dark ? 'text-yellow-300' : 'text-rose-600') : (dark ? 'text-white/70' : 'text-gray-500')}`}
+          title={activeCount > 0 ? `Filtro activo (${activeCount} valores seleccionados)` : 'Filtrar columna'}
+        >
+          <Filter className="h-2.5 w-2.5" />
+        </button>
+        {isOpen && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setOpenFilterCol(null)} />
+            <div className="absolute top-full left-0 mt-0.5 z-40 bg-white border border-gray-300 rounded shadow-lg min-w-[180px] max-w-[260px] max-h-[280px] overflow-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-2 py-1 flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold text-gray-700 uppercase">{col}</span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); clearColumnFilter(col); }}
+                  className="text-[9px] text-gray-500 hover:text-rose-600"
+                  title="Limpiar filtro"
+                >
+                  Limpiar
+                </button>
+              </div>
+              <div className="py-0.5">
+                {getUniqueValues(col).length === 0 ? (
+                  <div className="px-2 py-2 text-[10px] text-gray-400 italic">Sin valores</div>
+                ) : (
+                  getUniqueValues(col).map(v => {
+                    const checked = active ? active.has(v) : false;
+                    return (
+                      <label
+                        key={v}
+                        className="flex items-center gap-1.5 px-2 py-0.5 hover:bg-gray-50 cursor-pointer text-[10px] text-gray-700"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleFilterValue(col, v)}
+                          className="h-2.5 w-2.5 rounded"
+                        />
+                        <span className="truncate" title={v}>{v}</span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+              <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-2 py-1 text-[9px] text-gray-500 text-center">
+                {activeCount > 0 ? `${activeCount} seleccionado(s)` : 'Todos visibles'}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // v2.90.1: Cabecera con sort + filtro tipo Excel combinados.
+  const FilterableTh = ({ k, children, className, title }: { k: string; children: React.ReactNode; className: string; title?: string }) => {
+    // Detectar si la cabecera es "oscura" (fondo amber/orange) o "clara" (sky/cyan)
+    const dark = className.includes('bg-amber-400') || className.includes('bg-orange-400') || className.includes('bg-gray-500');
+    return (
+      <th
+        className={`${className} select-none`}
+        title={title}
+      >
+        <div className="flex items-center justify-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => toggleSort(k)}
+            className="cursor-pointer hover:brightness-110 flex items-center"
+            title={title || `Ordenar por ${k}`}
+          >
+            {children}
+            <SortIcon k={k} />
+          </button>
+          <ColumnFilterButton col={k} dark={dark} />
+        </div>
+      </th>
+    );
+  };
 
   // Load zones + project members
   useEffect(() => {
@@ -911,6 +1067,17 @@ export default function PlanDeAccionView() {
           a.semana || '',
         ].join(' ').toLowerCase();
         return haystack.includes(q);
+      })
+      // v2.90.1: filtros por columna tipo Excel — si hay un Set de valores para
+      // una columna, la fila solo pasa si su valor para esa columna está en el Set.
+      .filter(a => {
+        for (const col of Object.keys(columnFilters)) {
+          const allowed = columnFilters[col];
+          if (!allowed || allowed.size === 0) continue;
+          const v = getCellValue(a, col);
+          if (!allowed.has(v)) return false;
+        }
+        return true;
       });
     // v2.90: ordenación por columna
     if (sortKey && sortDir) {
@@ -1036,12 +1203,17 @@ export default function PlanDeAccionView() {
           })}
 
           {/* Reset filters */}
-          {(filterEstado !== 'all' || filterS !== 'all' || filterOrigen !== 'all' || searchText || sortKey) && (
+          {(filterEstado !== 'all' || filterS !== 'all' || filterOrigen !== 'all' || searchText || sortKey || Object.keys(columnFilters).length > 0) && (
             <button
-              onClick={() => { setFilterEstado('all'); setFilterS('all'); setFilterOrigen('all'); setSearchText(''); setSortKey(null); setSortDir(null); }}
+              onClick={() => { setFilterEstado('all'); setFilterS('all'); setFilterOrigen('all'); setSearchText(''); setSortKey(null); setSortDir(null); setColumnFilters({}); }}
               className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors whitespace-nowrap"
             >
               <X className="h-3 w-3" /> Limpiar
+              {Object.keys(columnFilters).length > 0 && (
+                <span className="bg-rose-100 text-rose-700 rounded-full px-1.5 ml-0.5 font-bold">
+                  {Object.keys(columnFilters).length}
+                </span>
+              )}
             </button>
           )}
         </div>
@@ -1181,16 +1353,16 @@ export default function PlanDeAccionView() {
                       v2.90: cabeceras clicables para ordenar por columna (SortableTh) */}
                   <tr>
                     <th className="bg-gray-500 text-white px-1 py-1 text-center font-semibold border border-gray-400 whitespace-nowrap">S</th>
-                    <SortableTh k="numero" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por número de entrada">Nº</SortableTh>
-                    <SortableTh k="fecha" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por fecha de entrada">Fecha</SortableTh>
-                    <SortableTh k="detectado" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Usuario que detectó el hallazgo — automático según el paso: Paso 3 = empleado que registró el inventario, Paso 4 = responsable (autoeval), Paso 5 = auditor">Detectado por</SortableTh>
-                    <SortableTh k="categoria" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Categoría del inventario (innecesario/dudoso/util/...)">Categoría</SortableTh>
-                    <SortableTh k="elemento" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Elemento del inventario">Elemento</SortableTh>
-                    <SortableTh k="cantidad" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por cantidad">Cantidad</SortableTh>
-                    <SortableTh k="semana" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por semana">Semana</SortableTh>
-                    <SortableTh k="zona" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por zona">Zona</SortableTh>
-                    <SortableTh k="responsable" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Responsable de resolver (empleado de la zona por defecto)">Responsable</SortableTh>
-                    <SortableTh k="impacto" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por impacto">Impacto</SortableTh>
+                    <FilterableTh k="numero" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por número de entrada">Nº</FilterableTh>
+                    <FilterableTh k="fecha" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por fecha de entrada">Fecha</FilterableTh>
+                    <FilterableTh k="detectado" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Usuario que detectó el hallazgo — automático según el paso: Paso 3 = empleado que registró el inventario, Paso 4 = responsable (autoeval), Paso 5 = auditor">Detectado por</FilterableTh>
+                    <FilterableTh k="categoria" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Categoría del inventario (innecesario/dudoso/util/...)">Categoría</FilterableTh>
+                    <FilterableTh k="elemento" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Elemento del inventario">Elemento</FilterableTh>
+                    <FilterableTh k="cantidad" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por cantidad">Cantidad</FilterableTh>
+                    <FilterableTh k="semana" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por semana">Semana</FilterableTh>
+                    <FilterableTh k="zona" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por zona">Zona</FilterableTh>
+                    <FilterableTh k="responsable" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Responsable de resolver (empleado de la zona por defecto)">Responsable</FilterableTh>
+                    <FilterableTh k="impacto" className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Ordenar por impacto">Impacto</FilterableTh>
                     {/* v2.87: Sub-cabecera CORRECTIVA — caja blanca con borde cyan */}
                     <th colSpan={3} className="bg-white text-cyan-700 px-2 py-1 text-center font-bold border-2 border-cyan-500 border-b-1 uppercase tracking-wide text-[10px]">
                       Correctiva
@@ -1199,11 +1371,11 @@ export default function PlanDeAccionView() {
                     <th colSpan={1} className="bg-white text-cyan-700 px-2 py-1 text-center font-bold border-2 border-cyan-500 border-b-1 uppercase tracking-wide text-[10px]">
                       Preventiva
                     </th>
-                    <SortableTh k="semanaPrevista" className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap" title="Ordenar por semana prevista">Sem. Prevista</SortableTh>
+                    <FilterableTh k="semanaPrevista" className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap" title="Ordenar por semana prevista">Sem. Prevista</FilterableTh>
                     <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Responsable</th>
-                    <SortableTh k="estado" className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap" title="Ordenar por estado">Estado</SortableTh>
-                    <SortableTh k="porcentaje" className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap" title="Ordenar por porcentaje de progreso">Progreso %</SortableTh>
-                    <SortableTh k="semanaReal" className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap" title="Ordenar por semana real">Sem. Real</SortableTh>
+                    <FilterableTh k="estado" className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap" title="Ordenar por estado">Estado</FilterableTh>
+                    <FilterableTh k="porcentaje" className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap" title="Ordenar por porcentaje de progreso">Progreso %</FilterableTh>
+                    <FilterableTh k="semanaReal" className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap" title="Ordenar por semana real">Sem. Real</FilterableTh>
                     <th className="bg-gray-300 border border-gray-400" />
                   </tr>
                   {/* v2.87: fila 3 — labels finales solo bajo ACCIONES (Acción/Etiqueta/Destino/Acción) */}
@@ -1219,10 +1391,10 @@ export default function PlanDeAccionView() {
                     <th className="bg-amber-50 border border-amber-200" />
                     <th className="bg-amber-50 border border-amber-200" />
                     <th className="bg-amber-50 border border-amber-200" />
-                    <SortableTh k="accionCorrectiva" className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Acción correctiva: decisión del inventario (Retirar/Eliminar/...). Automática desde el paso 3.">Acción</SortableTh>
-                    <SortableTh k="etiqueta" className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Etiqueta para imprimir (auto desde inventario S1; 'No aplica' para S2-S5)">Etiqueta</SortableTh>
-                    <SortableTh k="destino" className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Destino del item: zona o Residuo (auto desde inventario)">Destino</SortableTh>
-                    <SortableTh k="accionPreventiva" className="bg-cyan-50 text-cyan-800 px-1 py-1 text-center font-semibold border border-cyan-300 whitespace-nowrap" title="Acción preventiva — automática 'N/A' para items del inventario, manual para otros orígenes">Acción</SortableTh>
+                    <FilterableTh k="accionCorrectiva" className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Acción correctiva: decisión del inventario (Retirar/Eliminar/...). Automática desde el paso 3.">Acción</FilterableTh>
+                    <FilterableTh k="etiqueta" className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Etiqueta para imprimir (auto desde inventario S1; 'No aplica' para S2-S5)">Etiqueta</FilterableTh>
+                    <FilterableTh k="destino" className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Destino del item: zona o Residuo (auto desde inventario)">Destino</FilterableTh>
+                    <FilterableTh k="accionPreventiva" className="bg-cyan-50 text-cyan-800 px-1 py-1 text-center font-semibold border border-cyan-300 whitespace-nowrap" title="Acción preventiva — automática 'N/A' para items del inventario, manual para otros orígenes">Acción</FilterableTh>
                     <th className="bg-orange-50 border border-orange-200" />
                     <th className="bg-orange-50 border border-orange-200" />
                     <th className="bg-orange-50 border border-orange-200" />
