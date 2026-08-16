@@ -3895,3 +3895,55 @@ Stage Summary:
   · El asistente no se notifica a sí mismo
 - El aviso al ejecutor usa los types existentes que ya disparan el botón de
   programación en page.tsx — no requiere cambios adicionales en la UI.
+
+---
+Task ID: v2.88
+Agent: main
+Task: En Plan de Acción, las columnas Correctiva (Acción/Etiqueta/Destino) tienen
+que poner automáticamente lo que aparezca en Paso 3:
+  · Acción ← Paso 3 → Clasificación INNECESARIO → Decisión (Retirar/Eliminar)
+  · Etiqueta ← Paso 3 → Clasificación INNECESARIO → Etiquetas (Impresa/Pendiente)
+  · Destino ← Paso 3 → Ubicación → Z. Destino (Jaula/Residuo)
+
+Work Log:
+- Investigación:
+  · Acción: ya funcionaba (extra.decision del snapshot) ✓
+  · Destino: ya funcionaba (extra.zonaDestino del snapshot) ✓
+  · Etiqueta: NO funcionaba — sync-actions usaba extra.etiquetas (texto vacío)
+    en lugar de extra.etiquetaGenerada (bool). El snapshot tampoco incluía
+    etiquetaGenerada ni etiquetaFecha.
+- src/app/api/inventory/sync-actions/route.ts:
+  · etiquetaSnapshot ahora se construye así para S1:
+    - decision=Eliminar → '—'
+    - etiquetaGenerada=true → 'Impresa'
+    - decision=Retirar sin generar → 'Pendiente'
+    - sin decision → '—'
+  · S2-S5 sigue siendo 'No aplica'
+  · Snapshot incluye etiquetaGenerada y etiquetaFecha
+- src/components/5s/PlanDeAccionView.tsx + ActionPlanModal.tsx:
+  · accionEtiqueta reconstruye el valor desde decision + etiquetaGenerada
+    para items S1 del inventario (igual que la lógica del backend)
+  · S2-S5 sigue mostrando 'No aplica'
+- src/app/api/migrate-v288/route.ts (nuevo):
+  · Backfill de ActionItems legacy del inventario S1
+  · Lee el InventoryItem original (via sourceId o extra.inventoryItemId)
+  · Hace strip del prefijo 'inv_' si está presente (caso legacy)
+  · Recupera etiquetaGenerada y etiquetaFecha del inventario
+  · Reconstruye etiquetas y zonaDestino en el snapshot
+- scripts/run-migrations-v288.sh: ejecuta la migración en producción
+- v2.88.0: build + commit + push + deploy OK
+- Ejecutada migración: 5 ActionItems migrados correctamente
+  · 2 → 'Impresa' (ya estaban generadas)
+  · 3 → 'Pendiente' (pendientes de generar)
+  · todos con decision='Retirar' y zonaDestino='Jaula' o 'Residuo'
+- v2.88.1: fix del prefijo 'inv_' (la primera iteración fallaba porque
+  extra.inventoryItemId incluye el prefijo)
+
+Stage Summary:
+- Plan de Acción → CORRECTIVA ahora muestra automáticamente:
+  · Acción = 'Retirar' o 'Eliminar' (desde decision del inventario)
+  · Etiqueta = 'Impresa' / 'Pendiente' / '—' / 'No aplica' (según S-step y estado)
+  · Destino = 'Jaula' / 'Residuo' (desde zonaDestino del inventario)
+- Para items legacy (5 existentes en producción), la migración v288
+  reconstruye el snapshot con los datos reales del inventario.
+- Producción actualizada a v2.88.1 — visible tras Ctrl+Shift+R.
