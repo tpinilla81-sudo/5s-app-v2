@@ -3371,3 +3371,142 @@ Stage Summary:
   4e279d5) SIGUE SIENDO NECESARIO ejecutarlo una vez en producción
   para backfill de las columnas y tipos. Una vez desplegado v2.77:
     curl -X POST https://<dominio-vercel>/api/migrate-v276
+
+---
+Task ID: v2.78-DEPLOY
+Agent: Main
+Task: v2.78 — Renombrar "Demanda" → "Hallazgo" + FKs User + deduplicación
+estricta al guardar ActionItems + pestañas unificadas por origen en
+PlanDeAccionView + recategorización con FK en AuditoriaModal.
+
+Definición del usuario (base del diseño):
+- La "demanda" se tiene que llamar "hallazgo" en toda la app.
+- comunicadoPor = usuario que ha detectado el hallazgo (= currentUser que
+  hace el paso). No es un campo editable: lo setea el backend desde la
+  sesión.
+- Migrar campos legacy de texto a FK (responsable, comunicadoPor,
+  personaDemandada, verificadoPor → *Id) y dejar de escribir en los
+  campos legacy.
+- Deduplicación estricta al guardar ActionItems (mismo NOK detectado en
+  autoeval y luego en auditoría → UPDATE, no INSERT).
+- Recategorización con FK en AuditoriaModal (personaDemandadaId en lugar
+  del texto legacy 'responsable').
+- Vista unificada del Plan de Acción con pestañas por origen:
+  Plan S5 / Inventario / Hallazgos 4-5 / Todo.
+
+Work Log:
+- src/lib/action-item-helpers.ts:
+  * Renombrado buildDemandaFromHallazgo → buildHallazgoFromNok (sin
+    campos legacy texto en el payload; el backend los resuelve por
+    sesión y FK).
+  * Renombrado buildDemandaFromInventario → buildHallazgoFromInventario.
+  * Alias retrocompatibles @deprecated para no romper imports antiguos.
+
+- src/app/api/actions/route.ts:
+  * POST: inyecta comunicadoPorId = getAuthUser(request).id SIEMPRE
+    (ignora cualquier valor que venga en el body).
+  * POST: deduplicación estricta. Si existe ActionItem con mismo
+    (itemId, zoneId, projectId) y estado in ['abierta','en_proceso'],
+    hace UPDATE en lugar de INSERT. Merges hallazgo (si nueva es más
+    larga), mejora, photoRefs, extra. Sube prioridad si la nueva es
+    mayor. Promociona source 'autoevaluacion' → 'auditoria' si el nuevo
+    source es auditoría y el viejo no.
+  * POST: ya no escribe en campos legacy de texto (responsable,
+    verificadoPor, personaDemandada, comunicadoPor). Solo FKs.
+  * GET: incluye relaciones comunicadoPorUser, personaDemandadaUser,
+    verificadoPorUser para que el frontend muestre nombres sin llamadas
+    extra.
+  * PUT: ya no acepta escribir en campos legacy texto. Solo actualiza
+    vía FK (personaDemandadaId, verificadoPorId, comunicadoPorId).
+
+- src/app/api/inventory/sync-actions/route.ts:
+  * Setea comunicadoPorId = zone.responsableId (quien marca la decisión
+    en el inventario).
+  * Setea personaDemandadaId = zone.responsableId (a quien se demanda).
+  * Setea sourceId = inventoryItem.id para trazabilidad inversa y para
+    que la deduplicación del POST /api/actions funcione.
+  * Eliminado el texto legacy 'Sistema (auto desde Inventario S1)' en
+    comunicadoPor y los textos legacy responsable/personaDemandada.
+
+- src/components/5s/AutoevaluacionModal.tsx:
+  * Import cambiado a buildHallazgoFromNok.
+  * Al crear ActionItem envía personaDemandadaId = zone.responsableId.
+    comunicadoPorId lo resuelve el backend por sesión.
+  * Eliminado del payload el campo legacy 'responsable' (texto).
+
+- src/components/5s/AuditoriaModal.tsx:
+  * Import cambiado a buildHallazgoFromNok.
+  * Al crear ActionItem envía personaDemandadaId = zone.responsableId.
+  * Al recategorizar (decisionRevision='mantener_nok' o 'recategorizar')
+    envía personaDemandadaId = zone.responsableId (FK) en lugar del
+    texto legacy 'responsable'.
+
+- src/components/5s/ActionPlanModal.tsx:
+  * Interface ActionItemData actualizado: comunicadoPor/personaDemandada/
+    verificadoPor/responsable (textos) → comunicadoPorId/Name,
+    personaDemandadaId/Name, verificadoPorId/Name (FKs + display).
+  * loadActions lee comunicadoPorUser/personaDemandadaUser/verificadoPorUser
+    (vienen del GET /api/actions actualizado).
+  * Carga projectMembers (GET /api/projects/{id}/members) al abrir el
+    modal, para los User pickers.
+  * Columna "Comunicado por" → "Detectado por" (read-only display del
+    nombre resuelto desde comunicadoPorUser.name).
+  * Columna "Persona Demandada" → "Responsable" (User picker Select que
+    escribe personaDemandadaId FK).
+  * Columna "Persona Responsable" (Seguimiento) → "Verificado por"
+    (User picker Select que escribe verificadoPorId FK).
+  * Header "DEMANDA" → "HALLAZGO".
+  * Headers "Sección Demandante/Demandada" → "Sección Origen/Destino".
+  * confirmCloseDecision: al cerrar envía verificadoPorId = currentUser.id.
+  * handleUpdateField: mapa fieldToBackend para enviar el campo FK
+    correcto al backend (personaDemandadaId, verificadoPorId).
+
+- src/components/5s/PlanDeAccionView.tsx:
+  * Pestañas por origen renombradas según especificación del usuario:
+      "Todos / Manual / Inventario / Hallazgos 4/5"
+    → "Todo / Plan S5 / Inventario / Hallazgos 4-5"
+  * Icons actualizados: 📊 Todo, 📋 Plan S5, 📦 Inventario, 🔍 Hallazgos.
+
+- src/app/api/migrate-v278/route.ts (NUEVO):
+  * Endpoint POST one-shot idempotente.
+  * Requiere admin/gestor/gerente.
+  * Backfill comunicadoPorId desde texto 'comunicadoPor' (match por
+    User.name exacto, case-insensitive). Excluye textos genéricos del
+    sistema ('Sistema (auto desde Inventario S1)', '—', etc.).
+  * Si no match por texto y source='auditoria'/'autoevaluacion', intenta
+    por el campo 'auditor' (texto).
+  * Si no match por texto y source='inventario', intenta por
+    extra.inventoryItemId → zone.responsableId.
+  * Backfill personaDemandadaId desde 'personaDemandada' o 'responsable'
+    (texto), con fallback a zone.responsableId.
+  * Backfill verificadoPorId desde 'verificadoPor' (texto).
+  * Reporta stats: backfilled counts, noMatch, fromInventario, fromAuditor.
+  * NO hace DROP de columnas legacy (se hará en v2.79 tras verificar
+    producción).
+
+- Bump package.json 2.77.0 → 2.78.0.
+- Bump middleware BUILD_VERSION → 20260816-120000-v2.78.0.
+- Build Next.js OK (✓ Compiled successfully in 21.6s).
+- Commit 4a371e2 v2.78 y push a origin/main → Vercel rebuild OK.
+- Verificado deploy: https://5s-app-v2.vercel.app/version devuelve
+  20260816-120000-v2.78.0.
+
+Stage Summary:
+- v2.78.0 desplegado en producción.
+- 10 archivos cambiados (+587/-103), 1 archivo nuevo (migrate-v278/route.ts).
+- PRÓXIMO PASO para el usuario: una vez desplegado v2.78, ejecutar
+  el endpoint de migración one-shot:
+
+    curl -X POST https://5s-app-v2.vercel.app/api/migrate-v278
+
+  (desde el navegador autenticado como admin/gestor/gerente, o con
+  cookie de sesión válida). El endpoint es idempotente y reporta
+  cuántos registros se migraron.
+- IMPORTANTE: el endpoint /api/migrate-v276 SIGUE siendo necesario
+  ejecutarlo si no se hizo antes (para backfill de columnas y tipos
+  v2.76). Si ya se ejecutó, no hace nada.
+- Tras verificar que v2.78 + migrate-v278 funcionan bien en producción,
+  en v2.79 se eliminarán las columnas legacy del schema Prisma
+  (responsable, comunicadoPor, personaDemandada, verificadoPor,
+  fechaCompromiso, fechaResolucion) y se hará migrate-v279 con DROP
+  COLUMN IF EXISTS.
