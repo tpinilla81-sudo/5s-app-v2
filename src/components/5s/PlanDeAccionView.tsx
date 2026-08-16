@@ -627,7 +627,22 @@ export default function PlanDeAccionView() {
           accionCategoria: a.extra?.categoria || '',
           accionElemento: a.extra?.elemento || '',
           accionCantidad: a.extra?.cantidad != null ? String(a.extra.cantidad) : '',
-          accionDecision: a.extra?.decision || '',
+          // v2.89: Acción correctiva — label completo ("Retirar a Jaula" / "Eliminar a Residuo")
+          // desde accionCorrectiva (DB). Si no está, derivar de extra.decision.
+          accionDecision: (() => {
+            const dbLabel = (a as any).accionCorrectiva || '';
+            if (dbLabel && dbLabel.trim()) {
+              // Simplificar el label: quitar "de cuarentena" / "y enviar a" para mostrarlo limpio
+              const dec = a.extra?.decision || '';
+              if (dec === 'Retirar') return 'Retirar a Jaula';
+              if (dec === 'Eliminar') return 'Eliminar a Residuo';
+              return dbLabel;
+            }
+            const dec = a.extra?.decision || '';
+            if (dec === 'Retirar' || dec === 'Jaula') return 'Retirar a Jaula';
+            if (dec === 'Eliminar' || dec === 'Tirar') return 'Eliminar a Residuo';
+            return dec || '';
+          })(),
           // v2.88: Etiqueta auto según S-step — refleja la columna "Etiquetas"
           // del inventario Paso 3 (Impresa/Pendiente/—).
           //   S1 (innecesarios):
@@ -687,6 +702,23 @@ export default function PlanDeAccionView() {
     const diff = now.getTime() - start.getTime();
     const oneWeek = 1000 * 60 * 60 * 24 * 7;
     return `W${Math.ceil((diff / oneWeek) + start.getDay() / 7)}`;
+  };
+
+  // v2.89: Semana automática — calculada desde fechaEntrada (ISO 8601 week number).
+  // Si no hay fecha, usa la semana actual. Es read-only en la UI.
+  const getWeekFromDate = (dateStr: string): string => {
+    try {
+      const d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+      if (isNaN(d.getTime())) return getCurrentWeek();
+      const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dayNum = tmp.getUTCDay() || 7;
+      tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+      const weekNum = Math.ceil((((tmp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+      return `W${weekNum}`;
+    } catch {
+      return getCurrentWeek();
+    }
   };
 
   const handleAddAction = async (sStep: number) => {
@@ -1048,9 +1080,11 @@ export default function PlanDeAccionView() {
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante} text-center font-mono font-bold`}>
                           {action.numeroEntrada || '—'}
                         </td>
+                        {/* v2.89: Fecha de entrada — read-only (no cambiable) */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
-                          <Input type="date" value={action.fechaEntrada} onChange={e => handleUpdateField(action.id, 'fechaEntrada', e.target.value)}
-                            className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent" />
+                          <div className="h-6 text-[10px] px-1 flex items-center text-gray-700" title={action.fechaEntrada || '—'}>
+                            {action.fechaEntrada || '—'}
+                          </div>
                         </td>
                         {/* v2.89: Detectado por — solo usuario + paso que hace */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
@@ -1083,15 +1117,11 @@ export default function PlanDeAccionView() {
                             {action.accionCantidad || '—'}
                           </div>
                         </td>
+                        {/* v2.89: Semana — auto-calculada desde fechaEntrada (read-only) */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante} text-center`}>
-                          <Select value={action.semana || 'W1'} onValueChange={v => handleUpdateField(action.id, 'semana', v)}>
-                            <SelectTrigger className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent w-16">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="max-h-48">
-                              {WEEK_OPTIONS.map(w => <SelectItem key={w} value={w} className="text-xs">{w}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                          <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-700 font-medium" title={`Semana automática según fecha de entrada (${action.fechaEntrada || 'hoy'})`}>
+                            {getWeekFromDate(action.fechaEntrada)}
+                          </div>
                         </td>
                         {/* v2.79: Zona — read-only */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>

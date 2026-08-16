@@ -212,7 +212,20 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
           accionCategoria: a.extra?.categoria || '',
           accionElemento: a.extra?.elemento || '',
           accionCantidad: a.extra?.cantidad != null ? String(a.extra.cantidad) : '',
-          accionDecision: a.extra?.decision || '',
+          // v2.89: Acción correctiva — label completo ("Retirar a Jaula" / "Eliminar a Residuo")
+          accionDecision: (() => {
+            const dbLabel = (a as any).accionCorrectiva || '';
+            if (dbLabel && dbLabel.trim()) {
+              const dec = a.extra?.decision || '';
+              if (dec === 'Retirar') return 'Retirar a Jaula';
+              if (dec === 'Eliminar') return 'Eliminar a Residuo';
+              return dbLabel;
+            }
+            const dec = a.extra?.decision || '';
+            if (dec === 'Retirar' || dec === 'Jaula') return 'Retirar a Jaula';
+            if (dec === 'Eliminar' || dec === 'Tirar') return 'Eliminar a Residuo';
+            return dec || '';
+          })(),
           // v2.88: Etiqueta auto según S-step — refleja la columna "Etiquetas"
           // del inventario Paso 3 (Impresa/Pendiente/—).
           accionEtiqueta: (() => {
@@ -275,6 +288,23 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
     const diff = now.getTime() - start.getTime();
     const oneWeek = 1000 * 60 * 60 * 24 * 7;
     return `W${Math.ceil((diff / oneWeek) + start.getDay() / 7)}`;
+  };
+
+  // v2.89: Semana automática — calculada desde fechaEntrada (ISO 8601 week number).
+  // Si no hay fecha, usa la semana actual. Es read-only en la UI.
+  const getWeekFromDate = (dateStr: string): string => {
+    try {
+      const d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+      if (isNaN(d.getTime())) return getCurrentWeek();
+      const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dayNum = tmp.getUTCDay() || 7;
+      tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+      const weekNum = Math.ceil((((tmp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+      return `W${weekNum}`;
+    } catch {
+      return getCurrentWeek();
+    }
   };
 
   const handleAddAction = async () => {
@@ -664,17 +694,13 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200 text-center font-bold`}>
                             {action.numeroEntrada || '-'}
                           </td>
+                          {/* v2.89: Fecha de entrada — read-only (no cambiable) */}
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
-                            <Input
-                              type="date"
-                              value={action.fechaEntrada}
-                              onChange={e => handleUpdateField(action.id, 'fechaEntrada', e.target.value)}
-                              className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-amber-400"
-                            />
+                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700" title={action.fechaEntrada || '—'}>
+                              {action.fechaEntrada || '—'}
+                            </div>
                           </td>
-                          {/* v2.79: "Detectado por" — read-only, con paso debajo.
-                              comunicadoPorId se resuelve por sesión en el backend.
-                              El usuario que aparece es el que hizo el paso (3/4/5). */}
+                          {/* v2.89: Detectado por — solo usuario + paso que hace */}
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
                             <div className="h-auto min-h-[24px] text-[10px] px-1 flex flex-col justify-center text-gray-700">
                               <div className="truncate font-medium" title={action.comunicadoPorName || '—'}>
@@ -682,11 +708,9 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                               </div>
                               <div className="text-[9px] text-amber-700/80 truncate">
                                 {(() => {
-                                  const s = action.sStep ? `S${action.sStep} · ` : '';
-                                  if (action.miniStep === 5) return `${s}Paso 5 · Auditoría`;
-                                  if (action.miniStep === 4) return `${s}Paso 4 · Autoeval`;
-                                  if (action.source === 'inventario') return `${s}Paso 3 · Inventario`;
-                                  return `${s}Paso 3 · Plan S5`;
+                                  if (action.miniStep === 5) return 'Paso 5';
+                                  if (action.miniStep === 4) return 'Paso 4';
+                                  return 'Paso 3';
                                 })()}
                               </div>
                             </div>
@@ -708,21 +732,11 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                               {action.accionCantidad || '—'}
                             </div>
                           </td>
-                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
-                            <Select
-                              value={action.semana || '__none__'}
-                              onValueChange={val => handleUpdateField(action.id, 'semana', val === '__none__' ? '' : val)}
-                            >
-                              <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-16">
-                                <SelectValue placeholder="Sem" />
-                              </SelectTrigger>
-                              <SelectContent className="max-h-48">
-                                <SelectItem value="__none__">—</SelectItem>
-                                {WEEK_OPTIONS.map(w => (
-                                  <SelectItem key={w} value={w}>{w}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          {/* v2.89: Semana — auto-calculada desde fechaEntrada (read-only) */}
+                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200 text-center`}>
+                            <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-700 font-medium" title={`Semana automática según fecha de entrada (${action.fechaEntrada || 'hoy'})`}>
+                              {getWeekFromDate(action.fechaEntrada)}
+                            </div>
                           </td>
                           {/* v2.79: Zona — read-only (viene del paso donde se detectó) */}
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
