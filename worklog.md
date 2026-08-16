@@ -3788,3 +3788,70 @@ Stage Summary:
   desde el inventario (S1 = etiqueta real, S2-S5 = 'No aplica').
 - Las notificaciones de expiración ahora son accionables (botón 'Reprogramar ahora').
 - Producción actualizada a v2.86.0 — visible tras Ctrl+Shift+R.
+
+---
+Task ID: v2.87
+Agent: main
+Task: Tres peticiones del usuario:
+  1) Poner la parte de ACCIONES de la tabla del Plan de Acción como en la foto:
+     una cabecera única "ACCIONES" arriba + sub-cajas blancas con borde
+     "CORRECTIVA" y "PREVENTIVA" debajo.
+  2) Añadir botón para cerrar el cuadro de diálogo de avisos (se queda abierto).
+  3) Al borrar una cita sin reprogramar, debe volver al inicio en estado
+     "solicitado" (no eliminarla del todo).
+
+Work Log:
+- Análisis de la foto (VLM z-ai vision): estructura detectada:
+  · Fila superior: "ACCIONES" centrado en fondo cyan/turquesa brillante
+  · Debajo: dos recuadros blancos con borde — "CORRECTIVA" (colSpan 3) y
+    "PREVENTIVA" (colSpan 1)
+  · Columnas finales: Acción | Etiqueta | Destino | Acción(preventiva)
+  · Items del inventario: Acción="Retirar", Etiqueta=—, Destino=—, Preventiva="N/A"
+- PlanDeAccionView.tsx (tabla desktop):
+  · Fila 1: [Origen] [HALLAZGO(10)] [ACCIONES(4, cyan-500)] [SEGUIMIENTO(5)] [🗑]
+  · Fila 2: HALLAZGO labels + CORRECTIVA(3) y PREVENTIVA(1) en cajas blancas
+    bg-white con border-2 border-cyan-500 y texto cyan-700 + SEGUIMIENTO labels
+  · Fila 3: empty cells bajo Origen/HALLAZGO + Acción/Etiqueta/Destino/Acción
+    bajo ACCIONES + empty cells bajo SEGUIMIENTO
+- ActionPlanModal.tsx: mismos 3 niveles de cabecera replicados (sin columna Origen)
+- page.tsx:
+  · Importado icono X de lucide-react
+  · Añadido botón X en la cabecera del panel de avisos (junto a 'Marcar todo
+    como leído'), onClick → toggleNotifPanel(false)
+- DELETE /api/evaluation-schedule (route.ts):
+  · v2.87: si reprogramar=false → NO elimina el schedule, hace UPDATE:
+    estado='solicitado', fechaProgramada=null, horaProgramada=null,
+    notas='Cancelada sin reprogramar — vuelve a estar solicitada.'
+  · Si reprogramar=true → elimina (comportamiento anterior, para crear uno nuevo)
+  · Notificación al otro usuario:
+    reprogramar=true  → type='evaluation_cancelled', título con 🔄
+    reprogramar=false → type='autoeval_requested', título con ↩ y mensaje
+                        "El proceso vuelve a estar SOLICITADO — pendiente de
+                        programar una nueva fecha desde el inicio."
+  · Response JSON incluye resetToSolicitado:bool y scheduleId (cuando resetea)
+- AutoevaluacionModal + AuditoriaModal (loadScheduledDate):
+  · Si sched.estado === 'solicitado' → setFechaProgramada('') + setHoraProgramada('10:00')
+    (igual que para 'vencida'). Así el modal no carga fecha antigua.
+- UserTaskCalendar.tsx (diálogo de borrado):
+  · Texto actualizado explicando los dos comportamientos:
+    - "Borrar y reprogramar": cita eliminada, programar nueva desde inicio
+    - "Borrar sin reprogramar": cita reseteada a estado SOLICITADO,
+      vuelve a aparecer como pendiente de programar en el inicio
+- Bump version: 2.86.0 → 2.87.0 (package.json) + middleware BUILD_VERSION
+  (20260817-103000-v2.86.0 → 20260816-192644-v2.87.0) + public/version epoch
+- Build OK (✓ Compiled successfully)
+- Commit 4bfc46f pushed a origin/main → Vercel rebuild OK
+- Verificado deploy: https://5s-app-v2.vercel.app/version → 20260816-192644-v2.87.0
+
+Stage Summary:
+- CABECERA ACCIONES: ahora visualmente como en la foto del usuario — una
+  única celda cyan "ACCIONES" arriba que abarca las 4 columnas, y debajo
+  dos cajas blancas con borde cyan "CORRECTIVA" (3 cols) y "PREVENTIVA"
+  (1 col). Los labels Acción/Etiqueta/Destino/Acción aparecen en una
+  tercera fila solo bajo ACCIONES.
+- AVISOS: botón X añadido en la cabecera del panel para cerrarlo fácilmente.
+- BORRAR SIN REPROGRAMAR: el schedule se resetea a estado 'solicitado' en
+  lugar de eliminarse. El aviso vuelve a aparecer en el panel como
+  pendiente de programar. El POST ya gestionaba este caso correctamente
+  (findFirst encuentra el schedule existente y hace update).
+- Producción actualizada a v2.87.0 — visible tras Ctrl+Shift+R.
