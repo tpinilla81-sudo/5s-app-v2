@@ -320,7 +320,8 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
       if (json.success && json.data) {
         const sched = json.data;
         // v2.86: si está vencida, NO cargar la fecha antigua
-        if (sched.estado === 'vencida') {
+        // v2.87: si está 'solicitado' (borrada sin reprogramar), tampoco cargar fecha
+        if (sched.estado === 'vencida' || sched.estado === 'solicitado') {
           setFechaProgramada('');
           setHoraProgramada('10:00');
         } else {

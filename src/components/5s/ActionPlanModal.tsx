@@ -572,19 +572,15 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
             <div className="flex-1 overflow-auto border rounded-lg">
               <table className="w-full text-xs border-collapse min-w-[800px] md:min-w-[1200px]">
                 <thead className="sticky top-0 z-10">
+                  {/* v2.87: fila 1 — cabeceras de sección */}
                   <tr>
-                    {/* v2.81: HALLAZGO 10 cols, ACCIÓN 4 cols (3 Correctiva + 1 Preventiva) */}
                     <th colSpan={10} className={`${HEADER_COLORS.demandante} px-2 py-1.5 text-center text-xs font-bold border border-amber-500`}>
                       HALLAZGO
                     </th>
-                    {/* v2.86: ACCIÓN subdividida visualmente en CORRECTIVA (3 cols) + PREVENTIVA (1 col) */}
-                    <th colSpan={3} className="bg-sky-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-600">
-                      ACCIÓN · CORRECTIVA
+                    {/* v2.87: ACCIONES como cabecera única que abarca Correctiva (3) + Preventiva (1) */}
+                    <th colSpan={4} className="bg-cyan-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-cyan-600 uppercase tracking-wider">
+                      Acciones
                     </th>
-                    <th colSpan={1} className="bg-sky-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-500">
-                      PREVENTIVA
-                    </th>
-                    {/* Orange section: Seguimiento */}
                     <th colSpan={5} className={`${HEADER_COLORS.seguimiento} px-2 py-1.5 text-center text-xs font-bold border border-orange-500`}>
                       SEGUIMIENTO
                     </th>
@@ -592,8 +588,8 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                       🗑
                     </th>
                   </tr>
+                  {/* v2.87: fila 2 — sub-cabeceras CORRECTIVA + PREVENTIVA (cajas blancas con borde cyan) + labels HALLAZGO/SEGUIMIENTO */}
                   <tr>
-                    {/* HALLAZGO headers — v2.79: simplificado */}
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Nº</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Fecha</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Usuario que detectó el hallazgo (automático según el paso)">Detectado por</th>
@@ -604,18 +600,43 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Zona</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Responsable de resolver el hallazgo (empleado de la zona por defecto, editable)">Responsable</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Impacto objetivo — trabajaremos en esto luego">Impacto</th>
-                    {/* ACCIÓN headers — v2.86: CORRECTIVA (Acción+Etiqueta+Destino) + PREVENTIVA */}
-                    <th className="bg-sky-500 text-white px-1 py-1 text-center font-semibold border border-sky-500 whitespace-nowrap" title="Acción correctiva: decisión del inventario (Retirar/Eliminar/...). Automática desde el paso 3.">Acción</th>
-                    <th className="bg-sky-500 text-white px-1 py-1 text-center font-semibold border border-sky-500 whitespace-nowrap" title="Etiqueta para imprimir (auto desde inventario S1; 'No aplica' para S2-S5)">Etiqueta</th>
-                    <th className="bg-sky-500 text-white px-1 py-1 text-center font-semibold border border-sky-500 whitespace-nowrap" title="Destino del item: zona o Residuo (auto desde inventario)">Destino</th>
-                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Acción preventiva — automática 'N/A' para items del inventario, manual para otros orígenes">Acción</th>
-                    {/* SEGUIMIENTO headers — v2.78 */}
+                    {/* v2.87: Sub-cabecera CORRECTIVA — caja blanca con borde cyan */}
+                    <th colSpan={3} className="bg-white text-cyan-700 px-2 py-1 text-center font-bold border-2 border-cyan-500 border-b-1 uppercase tracking-wide text-[10px]">
+                      Correctiva
+                    </th>
+                    {/* v2.87: Sub-cabecera PREVENTIVA — caja blanca con borde cyan */}
+                    <th colSpan={1} className="bg-white text-cyan-700 px-2 py-1 text-center font-bold border-2 border-cyan-500 border-b-1 uppercase tracking-wide text-[10px]">
+                      Preventiva
+                    </th>
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>Semana Prevista</th>
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`} title="Usuario que verifica el cierre (FK User)">Verificado por</th>
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>%</th>
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>Estado</th>
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>Semana Real</th>
                     <th className="bg-gray-300 text-gray-700 px-1 py-1 border border-gray-400 w-8"></th>
+                  </tr>
+                  {/* v2.87: fila 3 — labels finales solo bajo ACCIONES */}
+                  <tr>
+                    <th className="bg-amber-50 border border-amber-200" />
+                    <th className="bg-amber-50 border border-amber-200" />
+                    <th className="bg-amber-50 border border-amber-200" />
+                    <th className="bg-amber-50 border border-amber-200" />
+                    <th className="bg-amber-50 border border-amber-200" />
+                    <th className="bg-amber-50 border border-amber-200" />
+                    <th className="bg-amber-50 border border-amber-200" />
+                    <th className="bg-amber-50 border border-amber-200" />
+                    <th className="bg-amber-50 border border-amber-200" />
+                    <th className="bg-amber-50 border border-amber-200" />
+                    <th className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Acción correctiva: decisión del inventario (Retirar/Eliminar/...). Automática desde el paso 3.">Acción</th>
+                    <th className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Etiqueta para imprimir (auto desde inventario S1; 'No aplica' para S2-S5)">Etiqueta</th>
+                    <th className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Destino del item: zona o Residuo (auto desde inventario)">Destino</th>
+                    <th className="bg-cyan-50 text-cyan-800 px-1 py-1 text-center font-semibold border border-cyan-300 whitespace-nowrap" title="Acción preventiva — automática 'N/A' para items del inventario, manual para otros orígenes">Acción</th>
+                    <th className="bg-orange-50 border border-orange-200" />
+                    <th className="bg-orange-50 border border-orange-200" />
+                    <th className="bg-orange-50 border border-orange-200" />
+                    <th className="bg-orange-50 border border-orange-200" />
+                    <th className="bg-orange-50 border border-orange-200" />
+                    <th className="bg-gray-50 border border-gray-200" />
                   </tr>
                 </thead>
                 <tbody>

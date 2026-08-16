@@ -294,7 +294,8 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
         const sched = json.data;
         // v2.86: si está vencida, NO cargar la fecha antigua — el usuario
         // debe elegir una nueva fecha manualmente.
-        if (sched.estado === 'vencida') {
+        // v2.87: si está 'solicitado' (borrada sin reprogramar), tampoco cargar fecha.
+        if (sched.estado === 'vencida' || sched.estado === 'solicitado') {
           setFechaProgramada('');
           setHoraProgramada('10:00');
         } else {
@@ -308,7 +309,8 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
       if (auditJson.success && auditJson.data) {
         const auditSched = auditJson.data;
         // v2.86: igual para auditoría — no cargar fecha vencida
-        if (auditSched.estado === 'vencida') {
+        // v2.87: igual para solicitado
+        if (auditSched.estado === 'vencida' || auditSched.estado === 'solicitado') {
           setAuditFechaProgramada('');
           setAuditHoraProgramada('10:00');
         } else {

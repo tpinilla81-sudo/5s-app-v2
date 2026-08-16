@@ -629,7 +629,11 @@ export function UserTaskCalendar({
                     )}.
                   </p>
                   <p className="text-xs text-gray-500 mt-2">
-                    Se notificará al otro usuario de la cancelación. El proceso volverá a estar disponible para reprogramar.
+                    Se notificará al otro usuario de la cancelación.
+                    <br />
+                    <strong className="text-gray-700">Borrar y reprogramar</strong>: la cita se elimina y podrás programar una nueva fecha desde el inicio.
+                    <br />
+                    <strong className="text-gray-700">Borrar sin reprogramar</strong>: la cita se resetea a estado <em className="text-cyan-700 font-semibold">SOLICITADO</em> — volverá a aparecer como pendiente de programar en el inicio.
                   </p>
                 </div>
               </div>

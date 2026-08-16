@@ -420,10 +420,17 @@ export async function PATCH(request: NextRequest) {
 // v2.86: Elimina una cita programada (cualquier estado). Útil cuando se
 // programó mal y se quiere empezar de cero. Notifica al otro usuario
 // (asistente o ejecutor, según quién borra) que la cita se ha cancelado.
+// v2.87: si reprogramar=false, NO se elimina el schedule — se resetea a
+// estado='solicitado' con fechaProgramada=null y horaProgramada=null.
+// Así el proceso vuelve a estar "pendiente de programar" desde el inicio,
+// y el aviso sigue apareciendo en el panel para que se pueda volver a
+// programar. Solo si reprogramar=true se elimina completamente (para
+// forzar una nueva creación limpia desde el diálogo de programación).
 //
 // Body opcional: { motivo?: string, reprogramar?: boolean }
 //   • motivo: texto libre que se incluye en la notificación
-//   • reprogramar: si true, la notificación incluye "se reprogramará pronto"
+//   • reprogramar: si true → elimina el schedule (se creará uno nuevo al programar).
+//                  si false (default) → resetea a estado='solicitado' manteniendo el registro.
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -454,8 +461,24 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Borrar el schedule
-    await db.evaluationSchedule.delete({ where: { id } })
+    // v2.87: Si reprogramar=false → NO borrar, solo resetear a 'solicitado'.
+    // El schedule sigue existiendo (mantiene su id, responsableId, empleadoId,
+    // projectId, zoneId, miniStep, sStep) pero sin fecha/hora. La UI mostrará
+    // el aviso como "solicitud pendiente de programar".
+    if (!reprogramar) {
+      await db.evaluationSchedule.update({
+        where: { id },
+        data: {
+          estado: 'solicitado',
+          fechaProgramada: null,
+          horaProgramada: null,
+          notas: `Cancelada sin reprogramar — vuelve a estar solicitada. ${motivo ? `Motivo: ${motivo}` : ''}`.trim(),
+        },
+      })
+    } else {
+      // Borrar el schedule completamente (se creará uno nuevo al programar)
+      await db.evaluationSchedule.delete({ where: { id } })
+    }
 
     // Construir notificación para los involucrados
     const miniStepLabel = sched.miniStep === 4 ? 'Autoevaluación' : 'Auditoría'
@@ -463,12 +486,17 @@ export async function DELETE(request: NextRequest) {
       ? `${sched.fechaProgramada.split('-').reverse().join('/')}${sched.horaProgramada ? ' a las ' + sched.horaProgramada : ''}`
       : 'fecha por confirmar'
 
+    // v2.87: mensajes distintos según reprogramar
     const titulo = reprogramar
       ? `🔄 ${miniStepLabel} S${sched.sStep} cancelada — se reprogramará`
-      : `✗ ${miniStepLabel} S${sched.sStep} cancelada`
-    const mensaje = `La cita de ${miniStepLabel.toLowerCase()} para S${sched.sStep} programada para el ${fechaStr} ha sido cancelada.${
-      motivo ? ` Motivo: ${motivo}` : ''
-    }${reprogramar ? ' Se programará una nueva fecha próximamente.' : ' Si necesitas una nueva cita, contacta con el responsable.'}`
+      : `↩ ${miniStepLabel} S${sched.sStep} cancelada — vuelve a estado solicitado`
+    const mensaje = reprogramar
+      ? `La cita de ${miniStepLabel.toLowerCase()} para S${sched.sStep} programada para el ${fechaStr} ha sido cancelada.${
+          motivo ? ` Motivo: ${motivo}` : ''
+        } Se programará una nueva fecha próximamente.`
+      : `La cita de ${miniStepLabel.toLowerCase()} para S${sched.sStep} programada para el ${fechaStr} ha sido cancelada.${
+          motivo ? ` Motivo: ${motivo}` : ''
+        } El proceso vuelve a estar SOLICITADO — pendiente de programar una nueva fecha desde el inicio.`
 
     const notifTargets = [sched.responsableId, sched.empleadoId].filter(Boolean) as string[]
     for (const userId of notifTargets) {
@@ -476,7 +504,7 @@ export async function DELETE(request: NextRequest) {
         await db.notification.create({
           data: {
             userId,
-            type: 'evaluation_cancelled',
+            type: reprogramar ? 'evaluation_cancelled' : 'autoeval_requested',
             title: titulo,
             message: mensaje,
             metadata: JSON.stringify({
@@ -487,6 +515,7 @@ export async function DELETE(request: NextRequest) {
               projectId: sched.projectId,
               motivo,
               reprogramar,
+              resetToSolicitado: !reprogramar,
             }),
             sStep: sched.sStep,
             zoneId: sched.zoneId || null,
@@ -499,7 +528,7 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    console.log(`[evaluation-schedule DELETE][v2.86] Schedule ${id} eliminado`, {
+    console.log(`[evaluation-schedule DELETE][v2.87] Schedule ${id} ${reprogramar ? 'eliminado' : 'reseteado a solicitado'}`, {
       sStep: sched.sStep,
       miniStep: sched.miniStep,
       projectId: sched.projectId,
@@ -511,7 +540,9 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      deleted: id,
+      deleted: reprogramar ? id : null,
+      resetToSolicitado: !reprogramar,
+      scheduleId: reprogramar ? null : id,
       notified: notifTargets.length,
     })
   } catch (error: any) {

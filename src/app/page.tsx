@@ -48,6 +48,7 @@ import {
   Lock as LockIcon, AlertTriangle, Building2, Zap, Bell, BellRing, BookOpen, Image as ImageIcon,
   Package, BoxSelect, Menu, Droplets, CalendarDays,
   Calendar, // v2.68: icono para programar evaluación
+  X, // v2.87: botón cerrar panel de avisos
 } from 'lucide-react';
 import { toast } from 'sonner'; // v2.68: notificaciones toast para schedule
 
@@ -945,14 +946,25 @@ export default function HomePage() {
         <div className="fixed top-12 right-2 sm:right-16 left-2 sm:left-auto z-50 sm:w-80 w-[calc(100vw-16px)] bg-white border rounded-lg shadow-xl max-h-96 overflow-y-auto">
           <div className="p-3 border-b flex items-center justify-between">
             <span className="text-sm font-semibold">Notificaciones</span>
-            {notifs.length > 0 && (
-              <button className="text-[10px] text-blue-600 hover:underline" onClick={async () => {
-                if (currentUser?.id) {
-                  await fetch('/api/notifications', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ markAllRead: true, userId: currentUser.id }) });
-                  markAllNotificationsRead();
-                }
-              }}>Marcar todo como leído</button>
-            )}
+            <div className="flex items-center gap-2">
+              {notifs.length > 0 && (
+                <button className="text-[10px] text-blue-600 hover:underline" onClick={async () => {
+                  if (currentUser?.id) {
+                    await fetch('/api/notifications', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ markAllRead: true, userId: currentUser.id }) });
+                    markAllNotificationsRead();
+                  }
+                }}>Marcar todo como leído</button>
+              )}
+              {/* v2.87: botón X para cerrar el panel de avisos */}
+              <button
+                className="text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded p-0.5 transition-colors"
+                onClick={() => toggleNotifPanel(false)}
+                title="Cerrar avisos"
+                aria-label="Cerrar avisos"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
           {notifs.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">No hay notificaciones</div>
