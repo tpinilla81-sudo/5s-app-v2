@@ -420,21 +420,28 @@ function ActionCard({
               <Field label="Destino" compact>
                 <div className="text-[11px] px-1 py-1 text-gray-700 truncate">{action.accionDestino || '—'}</div>
               </Field>
-              {/* v2.81: Acción Preventiva — Decisión manual (N/A por defecto) */}
+              {/* v2.85: Acción Preventiva — automática "N/A" para items del
+                  inventario (S1/S2). Para otros orígenes, manual. */}
               <Field label="Acción Preventiva" compact>
-                <Select
-                  value={action.accionPreventiva || 'N/A'}
-                  onValueChange={val => onUpdateField(action.id, 'accionesPreventivas', val)}
-                >
-                  <SelectTrigger className="h-7 text-xs p-0 px-1.5 border rounded w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {ACCION_PREVENTIVA_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {action.source === 'inventario' ? (
+                  <div className="h-7 text-[11px] px-1.5 py-1 flex items-center text-gray-500 italic" title="Automática: los items del inventario no llevan acción preventiva">
+                    N/A <span className="ml-1 text-[8px] text-gray-400">(auto)</span>
+                  </div>
+                ) : (
+                  <Select
+                    value={action.accionPreventiva || 'N/A'}
+                    onValueChange={val => onUpdateField(action.id, 'accionesPreventivas', val)}
+                  >
+                    <SelectTrigger className="h-7 text-xs p-0 px-1.5 border rounded w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {ACCION_PREVENTIVA_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </Field>
             </div>
           </div>
@@ -611,9 +618,21 @@ export default function PlanDeAccionView() {
           accionElemento: a.extra?.elemento || '',
           accionCantidad: a.extra?.cantidad != null ? String(a.extra.cantidad) : '',
           accionDecision: a.extra?.decision || '',
-          accionEtiqueta: a.extra?.etiquetas || '',
+          // v2.85: Etiqueta auto según S-step.
+          //   S1 (innecesarios): etiqueta del inventario (para imprimir)
+          //   S2-S5: "No aplica" (los necesarios no se etiquetan para impresión)
+          accionEtiqueta: (() => {
+            const raw = a.extra?.etiquetas || ''
+            if (raw && raw.trim()) return raw
+            // Si no hay etiqueta y viene de inventario S2-S5, mostrar "No aplica"
+            if (a.source === 'inventario' && a.sStep && a.sStep !== 1) return 'No aplica'
+            // Si no hay etiqueta y viene de inventario S1, también "No aplica"
+            if (a.source === 'inventario' && a.sStep === 1) return 'No aplica'
+            return ''
+          })(),
           accionDestino: a.extra?.zonaDestino || '',
-          // v2.81: Acción Preventiva — manual, default 'N/A', persiste en accionesPreventivas
+          // v2.85: Acción Preventiva — automática "N/A" para items del
+          // inventario (S1/S2). Para otros orígenes, manual con default 'N/A'.
           accionPreventiva: a.accionesPreventivas || 'N/A',
           // SEGUIMIENTO
           semanaPrevista: a.semanaPrevista || '',
@@ -1092,23 +1111,30 @@ export default function PlanDeAccionView() {
                             {action.accionDestino || '—'}
                           </div>
                         </td>
-                        {/* v2.81: Acción Preventiva — Decisión manual (N/A por defecto) */}
+                        {/* v2.85: Acción Preventiva — automática "N/A" para items
+                            del inventario (S1/S2). Para otros orígenes, manual. */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
-                          <Select
-                            value={action.accionPreventiva || 'N/A'}
-                            onValueChange={val => handleUpdateField(action.id, 'accionesPreventivas', val)}
-                          >
-                            <SelectTrigger className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent w-24">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="max-h-60">
-                              {ACCION_PREVENTIVA_OPTIONS.map(opt => (
-                                <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {action.source === 'inventario' ? (
+                            <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-500 italic" title="Automática: los items del inventario no llevan acción preventiva">
+                              N/A <span className="ml-1 text-[8px] text-gray-400">(auto)</span>
+                            </div>
+                          ) : (
+                            <Select
+                              value={action.accionPreventiva || 'N/A'}
+                              onValueChange={val => handleUpdateField(action.id, 'accionesPreventivas', val)}
+                            >
+                              <SelectTrigger className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent w-24">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-60">
+                                {ACCION_PREVENTIVA_OPTIONS.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </td>
                         {/* Orange: Seguimiento */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.seguimiento} text-center`}>

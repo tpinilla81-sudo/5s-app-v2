@@ -213,10 +213,19 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
           accionElemento: a.extra?.elemento || '',
           accionCantidad: a.extra?.cantidad != null ? String(a.extra.cantidad) : '',
           accionDecision: a.extra?.decision || '',
-          accionEtiqueta: a.extra?.etiquetas || '',
+          // v2.85: Etiqueta auto según S-step.
+          //   S1 (innecesarios): etiqueta del inventario (para imprimir)
+          //   S2-S5: "No aplica" (los necesarios no se etiquetan para impresión)
+          accionEtiqueta: (() => {
+            const raw = a.extra?.etiquetas || ''
+            if (raw && raw.trim()) return raw
+            if (a.source === 'inventario' && a.sStep && a.sStep !== 1) return 'No aplica'
+            if (a.source === 'inventario' && a.sStep === 1) return 'No aplica'
+            return ''
+          })(),
           accionDestino: a.extra?.zonaDestino || '',
-          // v2.81: Acción Preventiva — manual, default 'N/A'. Se persiste en
-          // el campo legacy `accionesPreventivas` (ya existente en DB).
+          // v2.85: Acción Preventiva — automática "N/A" para items del
+          // inventario (S1/S2). Para otros orígenes, manual con default 'N/A'.
           accionPreventiva: a.accionesPreventivas || 'N/A',
           // SEGUIMIENTO
           semanaPrevista: a.semanaPrevista || '',
@@ -587,7 +596,7 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                       Acción Correctiva <span className="font-normal opacity-70">(autorelleno)</span>
                     </th>
                     <th colSpan={1} className="bg-sky-200 text-sky-900 px-1 py-0.5 text-[10px] font-bold border border-sky-300 text-center">
-                      Acción Preventiva <span className="font-normal opacity-70">(manual)</span>
+                      Acción Preventiva <span className="font-normal opacity-70">(auto inventario · manual otros)</span>
                     </th>
                     <th colSpan={5} className="bg-orange-100 text-orange-900 px-1 py-0.5 text-[10px] font-medium border border-orange-300"></th>
                     <th className="bg-gray-100 px-1 py-0.5 border border-gray-200 w-8"></th>
@@ -770,23 +779,30 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                               {action.accionDestino || '—'}
                             </div>
                           </td>
-                          {/* v2.81: Acción Preventiva — Decisión manual (N/A por defecto) */}
+                          {/* v2.85: Acción Preventiva — automática "N/A" para items
+                              del inventario (S1/S2). Para otros orígenes, manual. */}
                           <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
-                            <Select
-                              value={action.accionPreventiva || 'N/A'}
-                              onValueChange={val => handleUpdateField(action.id, 'accionesPreventivas', val)}
-                            >
-                              <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-24">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="max-h-60">
-                                {ACCION_PREVENTIVA_OPTIONS.map(opt => (
-                                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                                    {opt.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            {action.source === 'inventario' ? (
+                              <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-500 italic" title="Automática: los items del inventario no llevan acción preventiva">
+                                N/A <span className="ml-1 text-[8px] text-gray-400">(auto)</span>
+                              </div>
+                            ) : (
+                              <Select
+                                value={action.accionPreventiva || 'N/A'}
+                                onValueChange={val => handleUpdateField(action.id, 'accionesPreventivas', val)}
+                              >
+                                <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-24">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-60">
+                                  {ACCION_PREVENTIVA_OPTIONS.map(opt => (
+                                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                      {opt.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
                           </td>
 
                           {/* Orange section: Seguimiento */}

@@ -137,6 +137,20 @@ export async function POST(request: NextRequest) {
           ? `Retirar a Jaula de cuarentena${extra.diasCuarentena ? ` (${extra.diasCuarentena} días)` : ''}`
           : 'Eliminar y enviar a Residuo'
 
+        // v2.85: Acción Preventiva automática para items del inventario.
+        // Los items del inventario (S1 innecesarios o S2 necesarios que
+        // pasan a Retirar/Eliminar) NO llevan acción preventiva — el
+        // sistema la setea automáticamente a "N/A" para que el usuario
+        // no tenga que elegirla manualmente.
+        const accionesPreventivasAuto = 'N/A'
+
+        // v2.85: Etiqueta automática según S-step del inventario.
+        //   S1 (innecesarios): la etiqueta del inventario (para imprimir)
+        //   S2-S5: "No aplica" (los necesarios no se etiquetan para impresión)
+        const etiquetaSnapshot = item.sStep === 1
+          ? (extra.etiquetas && extra.etiquetas.trim() ? extra.etiquetas : 'No aplica')
+          : 'No aplica'
+
         // v2.72: Snapshot completo del inventario para el grupo
         // "ORIGEN (INVENTARIO)" en el Plan de Acción. Reproduce las
         // columnas del InventarioModal S1 (y compatibilidad S2-S5).
@@ -166,7 +180,10 @@ export async function POST(request: NextRequest) {
           frecuenciaUso: extra.frecuenciaUso || '',
           decision: decision,
           diasCuarentena: extra.diasCuarentena || null,
-          etiquetas: extra.etiquetas || '',
+          // v2.85: etiqueta auto según S-step (S1 = etiqueta del inventario,
+          // S2-S5 = "No aplica" porque los necesarios no se etiquetan para
+          // impresión).
+          etiquetas: etiquetaSnapshot,
           zonaOrigen: item.zonaOrigen || zoneName,
           zonaDestino: item.zonaDestino || '',
           photoUrls,
@@ -230,7 +247,9 @@ export async function POST(request: NextRequest) {
               : 'MEJORA TIEMPOS'),
             enviado: 'Sí',
             accionCorrectiva,
-            accionesPreventivas: null,
+            // v2.85: Acción Preventiva automática = "N/A" para items del
+            // inventario (S1/S2). El usuario no la elige manualmente.
+            accionesPreventivas: accionesPreventivasAuto,
             semanaPrevista: `W${getWeekNumber(fechaLimite || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))}`,
             porcentaje: 0,
             semanaReal: null,
