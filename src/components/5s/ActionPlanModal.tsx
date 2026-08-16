@@ -43,9 +43,12 @@ interface ActionItemData {
   accionCategoria: string;
   accionElemento: string;
   accionCantidad: string;
-  accionDecision: string;
-  accionEtiqueta: string;
-  accionDestino: string;
+  // v2.81: ACCIÓN subdividida en Correctiva (3 cols autorellenas) y
+  // Preventiva (1 col manual, default 'N/A').
+  accionDecision: string;       // Correctiva — Decisión (de extra)
+  accionEtiqueta: string;       // Correctiva — Etiqueta (de extra)
+  accionDestino: string;        // Correctiva — Destino (de extra)
+  accionPreventiva: string;     // Preventiva — Decisión manual (N/A por defecto)
   // SEGUIMIENTO
   semanaPrevista: string;
   porcentaje: number;
@@ -84,6 +87,19 @@ const ESTADO_OPTIONS = [
 ];
 
 const ENVIADO_OPTIONS = ['Sí', 'No', 'Pendiente'];
+
+// v2.81: Opciones para la decisión de Acción Preventiva (manual).
+// El usuario elige una; por defecto 'N/A' (no aplica).
+const ACCION_PREVENTIVA_OPTIONS = [
+  { value: 'N/A', label: 'N/A' },
+  { value: 'Formación', label: 'Formación' },
+  { value: 'Procedimiento', label: 'Procedimiento' },
+  { value: 'Señalización', label: 'Señalización' },
+  { value: 'Poka-yoke', label: 'Poka-yoke' },
+  { value: 'Mantenimiento', label: 'Mantenimiento' },
+  { value: '5S', label: '5S' },
+  { value: 'Otra', label: 'Otra' },
+];
 
 // Generate week options (W1-W52)
 const WEEK_OPTIONS = Array.from({ length: 53 }, (_, i) => `W${i + 1}`);
@@ -199,6 +215,9 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
           accionDecision: a.extra?.decision || '',
           accionEtiqueta: a.extra?.etiquetas || '',
           accionDestino: a.extra?.zonaDestino || '',
+          // v2.81: Acción Preventiva — manual, default 'N/A'. Se persiste en
+          // el campo legacy `accionesPreventivas` (ya existente en DB).
+          accionPreventiva: a.accionesPreventivas || 'N/A',
           // SEGUIMIENTO
           semanaPrevista: a.semanaPrevista || '',
           porcentaje: a.porcentaje || 0,
@@ -545,12 +564,12 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
               <table className="w-full text-xs border-collapse min-w-[800px] md:min-w-[1200px]">
                 <thead className="sticky top-0 z-10">
                   <tr>
-                    {/* v2.79: HALLAZGO 10 cols (incl. categoría/elemento/cantidad), ACCIÓN 3 cols (decisión/etiqueta/destino) */}
+                    {/* v2.81: HALLAZGO 10 cols, ACCIÓN 4 cols (3 Correctiva + 1 Preventiva) */}
                     <th colSpan={10} className={`${HEADER_COLORS.demandante} px-2 py-1.5 text-center text-xs font-bold border border-amber-500`}>
                       HALLAZGO
                     </th>
-                    {/* Blue section: Acción (decisión / etiqueta / destino) */}
-                    <th colSpan={3} className={`${HEADER_COLORS.accion} px-2 py-1.5 text-center text-xs font-bold border border-sky-500`}>
+                    {/* Blue section: Acción (Correctiva autorelleno + Preventiva manual) */}
+                    <th colSpan={4} className={`${HEADER_COLORS.accion} px-2 py-1.5 text-center text-xs font-bold border border-sky-500`}>
                       ACCIÓN
                     </th>
                     {/* Orange section: Seguimiento */}
@@ -560,6 +579,18 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                     <th className="bg-gray-400 text-white px-1 py-1.5 text-center text-xs font-bold border border-gray-500 w-8">
                       🗑
                     </th>
+                  </tr>
+                  {/* v2.81: Sub-headers dentro de ACCIÓN: Correctiva (3) | Preventiva (1) */}
+                  <tr>
+                    <th colSpan={10} className="bg-amber-100 text-amber-900 px-1 py-0.5 text-[10px] font-medium border border-amber-300"></th>
+                    <th colSpan={3} className="bg-sky-200 text-sky-900 px-1 py-0.5 text-[10px] font-bold border border-sky-300 text-center">
+                      Acción Correctiva <span className="font-normal opacity-70">(autorelleno)</span>
+                    </th>
+                    <th colSpan={1} className="bg-sky-200 text-sky-900 px-1 py-0.5 text-[10px] font-bold border border-sky-300 text-center">
+                      Acción Preventiva <span className="font-normal opacity-70">(manual)</span>
+                    </th>
+                    <th colSpan={5} className="bg-orange-100 text-orange-900 px-1 py-0.5 text-[10px] font-medium border border-orange-300"></th>
+                    <th className="bg-gray-100 px-1 py-0.5 border border-gray-200 w-8"></th>
                   </tr>
                   <tr>
                     {/* HALLAZGO headers — v2.79: simplificado */}
@@ -573,10 +604,11 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Zona</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Responsable de resolver el hallazgo (empleado de la zona por defecto, editable)">Responsable</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Impacto objetivo — trabajaremos en esto luego">Impacto</th>
-                    {/* ACCIÓN headers — v2.79: decisión / etiqueta / destino (lo que se hace con el hallazgo) */}
+                    {/* ACCIÓN headers — v2.81: 3 Correctiva + 1 Preventiva */}
                     <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Decisión del inventario (Retirar/Eliminar/...)">Decisión</th>
                     <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Etiqueta</th>
                     <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Destino del item (zona o Residuo)">Destino</th>
+                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Acción preventiva — manual, N/A si no aplica">Decisión</th>
                     {/* SEGUIMIENTO headers — v2.78 */}
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>Semana Prevista</th>
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`} title="Usuario que verifica el cierre (FK User)">Verificado por</th>
@@ -589,7 +621,7 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                 <tbody>
                   {actions.length === 0 ? (
                     <tr>
-                      <td colSpan={19} className="text-center py-12 text-muted-foreground">
+                      <td colSpan={20} className="text-center py-12 text-muted-foreground">
                         <ListChecks className="h-8 w-8 mx-auto mb-2 opacity-50" />
                         <p className="text-sm">No hay entradas en el Plan de Acción</p>
                         <p className="text-xs mt-1">Haga clic en &quot;Nueva Entrada&quot; para agregar acciones</p>
@@ -624,10 +656,11 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                               </div>
                               <div className="text-[9px] text-amber-700/80 truncate">
                                 {(() => {
-                                  if (action.miniStep === 5) return 'Paso 5 · Auditoría';
-                                  if (action.miniStep === 4) return 'Paso 4 · Autoeval';
-                                  if (action.source === 'inventario') return 'Paso 3 · Inventario';
-                                  return 'Paso 3 · Plan S5';
+                                  const s = action.sStep ? `S${action.sStep} · ` : '';
+                                  if (action.miniStep === 5) return `${s}Paso 5 · Auditoría`;
+                                  if (action.miniStep === 4) return `${s}Paso 4 · Autoeval`;
+                                  if (action.source === 'inventario') return `${s}Paso 3 · Inventario`;
+                                  return `${s}Paso 3 · Plan S5`;
                                 })()}
                               </div>
                             </div>
@@ -725,6 +758,24 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                             <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionDestino || '—'}>
                               {action.accionDestino || '—'}
                             </div>
+                          </td>
+                          {/* v2.81: Acción Preventiva — Decisión manual (N/A por defecto) */}
+                          <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
+                            <Select
+                              value={action.accionPreventiva || 'N/A'}
+                              onValueChange={val => handleUpdateField(action.id, 'accionesPreventivas', val)}
+                            >
+                              <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-24">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-60">
+                                {ACCION_PREVENTIVA_OPTIONS.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </td>
 
                           {/* Orange section: Seguimiento */}

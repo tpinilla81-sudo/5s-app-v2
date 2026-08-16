@@ -819,6 +819,9 @@ export default function AutoevaluacionModal({ open, onClose, sStep, miniStep }: 
             const demandaFields = buildHallazgoFromNok({
               miniStep: 4,
               zonaName: currentZone?.name,
+              sStep,
+              itemId: nok.itemId,
+              hallazgo: nok.hallazgo,
             });
             const actionRes = await fetch('/api/actions', {
               method: 'POST',

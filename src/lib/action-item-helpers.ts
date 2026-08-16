@@ -88,9 +88,51 @@ export const HEADER_COLORS = {
 export function buildHallazgoFromNok(params: {
   miniStep: 4 | 5;
   zonaName?: string;
+  sStep?: number;
+  itemId?: string;
+  hallazgo?: string;
 }): Record<string, any> {
-  const { miniStep, zonaName } = params;
+  const { miniStep, zonaName, sStep, itemId, hallazgo } = params;
   const seccionDemandante = miniStep === 5 ? 'Auditoría' : 'Autoevaluación';
+
+  // v2.81: resolver categoría/elemento desde el checklist de auditoría
+  // (AUDIT_CHECKLISTS). El itemId tipo "1.1.3" se descompone en:
+  //   - sectionId = "1.1" → buscar el title de la sección (categoría)
+  //   - item.id = "1.1.3" → buscar la description del ítem (elemento)
+  // La cantidad para NOKs de autoeval/auditoría siempre es 1 (un hallazgo).
+  let categoria = '';
+  let elemento = '';
+  let cantidad = '';
+  if (sStep && itemId) {
+    try {
+      // Import dinámico para evitar dependencia circular
+      const { AUDIT_CHECKLISTS } = require('./5s-constants');
+      const sections = AUDIT_CHECKLISTS[sStep] || [];
+      const sectionId = itemId.split('.').slice(0, 2).join('.');
+      const section = sections.find((s: any) => s.id === sectionId);
+      const item = section?.items.find((i: any) => i.id === itemId);
+      categoria = section?.title || '';
+      elemento = item?.description || itemId;
+      cantidad = '1';
+    } catch { /* fallback: dejar vacío */ }
+  }
+
+  // v2.81: snapshot `extra` para NOKs de autoeval/auditoría con la misma
+  // estructura que los items del inventario. Permite que el Plan de Acción
+  // muestre Categoría/Elemento/Cantidad en la sección HALLAZGO.
+  const extraSnapshot = (sStep && itemId) ? JSON.stringify({
+    categoria,
+    elemento,
+    cantidad,
+    decision: miniStep === 5 ? 'Auditar' : 'Autoevaluar',
+    etiquetas: `S${sStep}`,
+    zonaOrigen: zonaName || '',
+    zonaDestino: '',
+    sStep,
+    itemId,
+    capturedAt: new Date().toISOString(),
+  }) : undefined;
+
   return {
     fechaEntrada: new Date().toISOString().split('T')[0],
     semana: getWeekFromDate(),
@@ -101,6 +143,8 @@ export function buildHallazgoFromNok(params: {
     tipo: 'hallazgo' as ActionTipo,
     status: 'nok',
     porcentaje: 0,
+    // v2.81: snapshot `extra` para Categoría/Elemento/Cantidad en el Plan
+    ...(extraSnapshot ? { extra: extraSnapshot } : {}),
   };
 }
 

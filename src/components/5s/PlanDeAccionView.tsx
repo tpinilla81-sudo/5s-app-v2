@@ -50,9 +50,11 @@ interface ActionItemData {
   accionCategoria: string;
   accionElemento: string;
   accionCantidad: string;
-  accionDecision: string;
-  accionEtiqueta: string;
-  accionDestino: string;
+  // v2.81: ACCIÓN subdividida en Correctiva (3 cols) + Preventiva (1 col manual)
+  accionDecision: string;       // Correctiva
+  accionEtiqueta: string;       // Correctiva
+  accionDestino: string;        // Correctiva
+  accionPreventiva: string;     // Preventiva — Decisión manual (N/A por defecto)
   // SEGUIMIENTO
   semanaPrevista: string;
   porcentaje: number;
@@ -131,6 +133,18 @@ const ESTADO_OPTIONS = [
   { value: 'en_proceso', label: 'En Proceso', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
   { value: 'resuelta', label: 'Resuelta', color: 'bg-green-100 text-green-800', icon: CheckCircle2 },
   { value: 'cerrada', label: 'Cerrada', color: 'bg-gray-100 text-gray-600', icon: X },
+];
+
+// v2.81: Opciones para la decisión de Acción Preventiva (manual).
+const ACCION_PREVENTIVA_OPTIONS = [
+  { value: 'N/A', label: 'N/A' },
+  { value: 'Formación', label: 'Formación' },
+  { value: 'Procedimiento', label: 'Procedimiento' },
+  { value: 'Señalización', label: 'Señalización' },
+  { value: 'Poka-yoke', label: 'Poka-yoke' },
+  { value: 'Mantenimiento', label: 'Mantenimiento' },
+  { value: '5S', label: '5S' },
+  { value: 'Otra', label: 'Otra' },
 ];
 
 const WEEK_OPTIONS = Array.from({ length: 53 }, (_, i) => `W${i + 1}`);
@@ -335,10 +349,11 @@ function ActionCard({
                   <span className="font-medium">{action.comunicadoPorName || '—'}</span>
                   <span className="text-[9px] text-amber-700/80">
                     {(() => {
-                      if (action.miniStep === 5) return 'Paso 5 · Auditoría';
-                      if (action.miniStep === 4) return 'Paso 4 · Autoeval';
-                      if (action.source === 'inventario') return 'Paso 3 · Inventario';
-                      return 'Paso 3 · Plan S5';
+                      const s = action.sStep ? `S${action.sStep} · ` : '';
+                      if (action.miniStep === 5) return `${s}Paso 5 · Auditoría`;
+                      if (action.miniStep === 4) return `${s}Paso 4 · Autoeval`;
+                      if (action.source === 'inventario') return `${s}Paso 3 · Inventario`;
+                      return `${s}Paso 3 · Plan S5`;
                     })()}
                   </span>
                 </div>
@@ -394,6 +409,22 @@ function ActionCard({
               </Field>
               <Field label="Destino" compact>
                 <div className="text-[11px] px-1 py-1 text-gray-700 truncate">{action.accionDestino || '—'}</div>
+              </Field>
+              {/* v2.81: Acción Preventiva — Decisión manual (N/A por defecto) */}
+              <Field label="Acción Preventiva" compact>
+                <Select
+                  value={action.accionPreventiva || 'N/A'}
+                  onValueChange={val => onUpdateField(action.id, 'accionesPreventivas', val)}
+                >
+                  <SelectTrigger className="h-7 text-xs p-0 px-1.5 border rounded w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {ACCION_PREVENTIVA_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
             </div>
           </div>
@@ -572,6 +603,8 @@ export default function PlanDeAccionView() {
           accionDecision: a.extra?.decision || '',
           accionEtiqueta: a.extra?.etiquetas || '',
           accionDestino: a.extra?.zonaDestino || '',
+          // v2.81: Acción Preventiva — manual, default 'N/A', persiste en accionesPreventivas
+          accionPreventiva: a.accionesPreventivas || 'N/A',
           // SEGUIMIENTO
           semanaPrevista: a.semanaPrevista || '',
           porcentaje: a.porcentaje || 0,
@@ -878,11 +911,11 @@ export default function PlanDeAccionView() {
                     <th colSpan={1} className="bg-gray-600 text-white px-1.5 py-1.5 text-center font-bold border border-gray-500">
                       Origen
                     </th>
-                    {/* v2.80: HALLAZGO 10 cols (incl. categoría/elemento/cantidad), ACCIÓN 3 cols */}
+                    {/* v2.81: HALLAZGO 10 cols, ACCIÓN 4 cols (3 Correctiva + 1 Preventiva) */}
                     <th colSpan={10} className="bg-amber-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-amber-500">
                       HALLAZGO
                     </th>
-                    <th colSpan={3} className="bg-sky-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-500">
+                    <th colSpan={4} className="bg-sky-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-500">
                       ACCIÓN
                     </th>
                     <th colSpan={5} className="bg-orange-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-orange-500">
@@ -906,10 +939,11 @@ export default function PlanDeAccionView() {
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Zona</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Responsable de resolver (empleado de la zona por defecto)">Responsable</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Impacto</th>
-                    {/* ACCIÓN headers — v2.80: decisión / etiqueta / destino (lo que se hace con el hallazgo) */}
+                    {/* ACCIÓN headers — v2.81: 3 Correctiva + 1 Preventiva */}
                     <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Decisión del inventario (Retirar/Eliminar/...)">Decisión</th>
                     <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap">Etiqueta</th>
                     <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Destino del item (zona o Residuo)">Destino</th>
+                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Acción preventiva — manual, N/A si no aplica">Decisión</th>
                     {/* SEGUIMIENTO headers */}
                     <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Sem. Prevista</th>
                     <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Responsable</th>
@@ -950,10 +984,11 @@ export default function PlanDeAccionView() {
                             </div>
                             <div className="text-[9px] text-amber-700/80 truncate">
                               {(() => {
-                                if (action.miniStep === 5) return 'Paso 5 · Auditoría';
-                                if (action.miniStep === 4) return 'Paso 4 · Autoeval';
-                                if (action.source === 'inventario') return 'Paso 3 · Inventario';
-                                return 'Paso 3 · Plan S5';
+                                const s = action.sStep ? `S${action.sStep} · ` : '';
+                                if (action.miniStep === 5) return `${s}Paso 5 · Auditoría`;
+                                if (action.miniStep === 4) return `${s}Paso 4 · Autoeval`;
+                                if (action.source === 'inventario') return `${s}Paso 3 · Inventario`;
+                                return `${s}Paso 3 · Plan S5`;
                               })()}
                             </div>
                           </div>
@@ -1034,6 +1069,24 @@ export default function PlanDeAccionView() {
                           <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionDestino || '—'}>
                             {action.accionDestino || '—'}
                           </div>
+                        </td>
+                        {/* v2.81: Acción Preventiva — Decisión manual (N/A por defecto) */}
+                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
+                          <Select
+                            value={action.accionPreventiva || 'N/A'}
+                            onValueChange={val => handleUpdateField(action.id, 'accionesPreventivas', val)}
+                          >
+                            <SelectTrigger className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent w-24">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                              {ACCION_PREVENTIVA_OPTIONS.map(opt => (
+                                <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </td>
                         {/* Orange: Seguimiento */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.seguimiento} text-center`}>

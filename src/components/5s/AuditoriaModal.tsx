@@ -784,6 +784,9 @@ export default function AuditoriaModal({ open, onClose, sStep, miniStep }: Audit
           const demandaFieldsAudit = buildHallazgoFromNok({
             miniStep: 5,
             zonaName: currentZone?.name,
+            sStep,
+            itemId: nok.itemId,
+            hallazgo: nok.hallazgo,
           });
           await fetch('/api/actions', {
             method: 'POST',
