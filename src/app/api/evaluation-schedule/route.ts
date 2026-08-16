@@ -451,6 +451,8 @@ export async function DELETE(request: NextRequest) {
     }
     const motivo = body.motivo || null
     const reprogramar = body.reprogramar === true
+    // v2.87: ID del usuario que borra (para no notificarse a sí mismo)
+    const borradoPor = body.borradoPor || null
 
     // Cargar el schedule antes de borrar para tener los datos de notif
     const sched = await db.evaluationSchedule.findUnique({ where: { id } })
@@ -480,33 +482,50 @@ export async function DELETE(request: NextRequest) {
       await db.evaluationSchedule.delete({ where: { id } })
     }
 
-    // Construir notificación para los involucrados
+    // ──────────────────────────────────────────────────────────────────
+    // v2.87: Notificaciones diferenciadas por rol
+    // ──────────────────────────────────────────────────────────────────
+    // El modelo de datos:
+    //   • responsableId = EJECUTOR (responsable en autoeval=4, auditor en auditoría=5)
+    //   • empleadoId    = ASISTENTE (empleado en autoeval, responsable de zona en auditoría)
+    //
+    // Cuando se borra sin reprogramar, el proceso vuelve a "solicitado".
+    // El EJECUTOR (responsable/auditor) es quien tiene que volver a programar.
+    // Le enviamos un aviso accionable:
+    //   • miniStep=4 → type='autoeval_requested' (dispara botón "Programar fecha" en la UI)
+    //   • miniStep=5 → type='audit_requested'    (dispara botón "Programar fecha" en la UI)
+    //
+    // Al ASISTENTE (empleadoId) le enviamos un aviso informativo de cancelación.
+    //
+    // Si el borrador es el propio ejecutor (caso normal: responsable/auditor
+    // borra su propia cita), NO se notifica a sí mismo — solo al asistente.
+    // Si el borrador es el asistente (caso raro), se notifica al ejecutor.
     const miniStepLabel = sched.miniStep === 4 ? 'Autoevaluación' : 'Auditoría'
     const fechaStr = sched.fechaProgramada
       ? `${sched.fechaProgramada.split('-').reverse().join('/')}${sched.horaProgramada ? ' a las ' + sched.horaProgramada : ''}`
       : 'fecha por confirmar'
 
-    // v2.87: mensajes distintos según reprogramar
-    const titulo = reprogramar
-      ? `🔄 ${miniStepLabel} S${sched.sStep} cancelada — se reprogramará`
-      : `↩ ${miniStepLabel} S${sched.sStep} cancelada — vuelve a estado solicitado`
-    const mensaje = reprogramar
-      ? `La cita de ${miniStepLabel.toLowerCase()} para S${sched.sStep} programada para el ${fechaStr} ha sido cancelada.${
-          motivo ? ` Motivo: ${motivo}` : ''
-        } Se programará una nueva fecha próximamente.`
-      : `La cita de ${miniStepLabel.toLowerCase()} para S${sched.sStep} programada para el ${fechaStr} ha sido cancelada.${
-          motivo ? ` Motivo: ${motivo}` : ''
-        } El proceso vuelve a estar SOLICITADO — pendiente de programar una nueva fecha desde el inicio.`
+    const ejecutorId = sched.responsableId || null
+    const asistenteId = sched.empleadoId || null
 
-    const notifTargets = [sched.responsableId, sched.empleadoId].filter(Boolean) as string[]
-    for (const userId of notifTargets) {
+    // Notificación al EJECUTOR (responsable/auditor) — solo si no es el propio borrador
+    let notifiedCount = 0
+    if (ejecutorId && ejecutorId !== borradoPor) {
+      // v2.87: type accionable según miniStep — dispara botón "Programar fecha" en la UI
+      const typeEjecutor = sched.miniStep === 4 ? 'autoeval_requested' : 'audit_requested'
+      const tituloEjecutor = reprogramar
+        ? `🔄 ${miniStepLabel} S${sched.sStep} cancelada — debes reprogramar`
+        : `↩ ${miniStepLabel} S${sched.sStep} cancelada — debes volver a programarla`
+      const mensajeEjecutor = reprogramar
+        ? `La cita de ${miniStepLabel.toLowerCase()} para S${sched.sStep} programada para el ${fechaStr} ha sido cancelada por ${borradoPor ? 'el asistente' : 'el sistema'}.${motivo ? ` Motivo: ${motivo}.` : ''} DEBES programar una nueva fecha lo antes posible. Usa el botón "Programar fecha" en este aviso.`
+        : `La cita de ${miniStepLabel.toLowerCase()} para S${sched.sStep} programada para el ${fechaStr} ha sido cancelada por ${borradoPor ? 'el asistente' : 'el sistema'}.${motivo ? ` Motivo: ${motivo}.` : ''} El proceso vuelve a estar SOLICITADO — pendiente de que programes una nueva fecha. Usa el botón "Programar fecha" en este aviso.`
       try {
         await db.notification.create({
           data: {
-            userId,
-            type: reprogramar ? 'evaluation_cancelled' : 'autoeval_requested',
-            title: titulo,
-            message: mensaje,
+            userId: ejecutorId,
+            type: typeEjecutor,
+            title: tituloEjecutor,
+            message: mensajeEjecutor,
             metadata: JSON.stringify({
               scheduleId: id,
               miniStep: sched.miniStep,
@@ -516,6 +535,8 @@ export async function DELETE(request: NextRequest) {
               motivo,
               reprogramar,
               resetToSolicitado: !reprogramar,
+              borradoPor,
+              rolDestinatario: 'ejecutor',
             }),
             sStep: sched.sStep,
             zoneId: sched.zoneId || null,
@@ -523,8 +544,46 @@ export async function DELETE(request: NextRequest) {
             read: false,
           },
         })
+        notifiedCount++
       } catch (e) {
-        console.error('[DELETE schedule] Error notificando a usuario:', userId, e)
+        console.error('[DELETE schedule] Error notificando al ejecutor:', ejecutorId, e)
+      }
+    }
+
+    // Notificación al ASISTENTE (empleadoId) — solo si no es el propio borrador
+    if (asistenteId && asistenteId !== borradoPor) {
+      const tituloAsistente = reprogramar
+        ? `🔄 ${miniStepLabel} S${sched.sStep} cancelada — se reprogramará`
+        : `ℹ ${miniStepLabel} S${sched.sStep} cancelada — pendiente de nueva fecha`
+      const mensajeAsistente = `La cita de ${miniStepLabel.toLowerCase()} para S${sched.sStep} programada para el ${fechaStr} ha sido cancelada.${motivo ? ` Motivo: ${motivo}.` : ''}${reprogramar ? ' Se programará una nueva fecha próximamente.' : ' El responsable debe programar una nueva fecha — te avisará cuando lo haga.'}`
+      try {
+        await db.notification.create({
+          data: {
+            userId: asistenteId,
+            type: 'evaluation_cancelled',
+            title: tituloAsistente,
+            message: mensajeAsistente,
+            metadata: JSON.stringify({
+              scheduleId: id,
+              miniStep: sched.miniStep,
+              sStep: sched.sStep,
+              zoneId: sched.zoneId || null,
+              projectId: sched.projectId,
+              motivo,
+              reprogramar,
+              resetToSolicitado: !reprogramar,
+              borradoPor,
+              rolDestinatario: 'asistente',
+            }),
+            sStep: sched.sStep,
+            zoneId: sched.zoneId || null,
+            projectId: sched.projectId,
+            read: false,
+          },
+        })
+        notifiedCount++
+      } catch (e) {
+        console.error('[DELETE schedule] Error notificando al asistente:', asistenteId, e)
       }
     }
 
@@ -535,6 +594,10 @@ export async function DELETE(request: NextRequest) {
       zoneId: sched.zoneId,
       motivo,
       reprogramar,
+      borradoPor,
+      ejecutorId,
+      asistenteId,
+      notifiedCount,
       timestamp: new Date().toISOString(),
     })
 
@@ -543,7 +606,7 @@ export async function DELETE(request: NextRequest) {
       deleted: reprogramar ? id : null,
       resetToSolicitado: !reprogramar,
       scheduleId: reprogramar ? null : id,
-      notified: notifTargets.length,
+      notified: notifiedCount,
     })
   } catch (error: any) {
     console.error('Error deleting evaluation schedule:', error)

@@ -285,7 +285,10 @@ export function UserTaskCalendar({
       const res = await fetch(`/api/evaluation-schedule?id=${deleteDialog.scheduleId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reprogramar }),
+        body: JSON.stringify({
+          reprogramar,
+          borradoPor: userId, // v2.87: para no notificar al propio borrador
+        }),
       })
       const json = await res.json()
       if (json.success) {
