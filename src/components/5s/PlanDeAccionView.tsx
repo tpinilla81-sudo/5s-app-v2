@@ -878,10 +878,11 @@ export default function PlanDeAccionView() {
                     <th colSpan={1} className="bg-gray-600 text-white px-1.5 py-1.5 text-center font-bold border border-gray-500">
                       Origen
                     </th>
-                    <th colSpan={7} className="bg-amber-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-amber-500">
+                    {/* v2.80: HALLAZGO 10 cols (incl. categoría/elemento/cantidad), ACCIÓN 3 cols */}
+                    <th colSpan={10} className="bg-amber-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-amber-500">
                       HALLAZGO
                     </th>
-                    <th colSpan={6} className="bg-sky-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-500">
+                    <th colSpan={3} className="bg-sky-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-500">
                       ACCIÓN
                     </th>
                     <th colSpan={5} className="bg-orange-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-orange-500">
@@ -898,14 +899,14 @@ export default function PlanDeAccionView() {
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Nº</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Fecha</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Usuario que detectó el hallazgo (automático según el paso)">Detectado por</th>
+                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Categoría del inventario (innecesario/dudoso/util/...)">Categoría</th>
+                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Elemento del inventario">Elemento</th>
+                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Cantidad</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Semana</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Zona</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Responsable de resolver (empleado de la zona por defecto)">Responsable</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Impacto</th>
-                    {/* ACCIÓN headers — v2.79: autorelleno desde inventario (extra) */}
-                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Categoría del inventario">Categoría</th>
-                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Elemento del inventario">Elemento</th>
-                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap">Cantidad</th>
+                    {/* ACCIÓN headers — v2.80: decisión / etiqueta / destino (lo que se hace con el hallazgo) */}
                     <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Decisión del inventario (Retirar/Eliminar/...)">Decisión</th>
                     <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap">Etiqueta</th>
                     <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Destino del item (zona o Residuo)">Destino</th>
@@ -941,7 +942,7 @@ export default function PlanDeAccionView() {
                           <Input type="date" value={action.fechaEntrada} onChange={e => handleUpdateField(action.id, 'fechaEntrada', e.target.value)}
                             className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent" />
                         </td>
-                        {/* v2.79: Detectado por — read-only, con paso debajo */}
+                        {/* v2.80: Detectado por — read-only, con paso debajo */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
                           <div className="min-h-[24px] text-[10px] px-1 flex flex-col justify-center text-gray-700">
                             <div className="truncate font-medium" title={action.comunicadoPorName || '—'}>
@@ -955,6 +956,22 @@ export default function PlanDeAccionView() {
                                 return 'Paso 3 · Plan S5';
                               })()}
                             </div>
+                          </div>
+                        </td>
+                        {/* v2.80: Categoría / Elemento / Cantidad — autorellenados desde `extra` snapshot del ActionItem */}
+                        <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
+                          <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionCategoria || '—'}>
+                            {action.accionCategoria || '—'}
+                          </div>
+                        </td>
+                        <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
+                          <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionElemento || '—'}>
+                            {action.accionElemento || '—'}
+                          </div>
+                        </td>
+                        <td className={`px-1 py-1 border ${SECTION_COLORS.demandante} text-center`}>
+                          <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-700 truncate">
+                            {action.accionCantidad || '—'}
                           </div>
                         </td>
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante} text-center`}>
@@ -1002,22 +1019,7 @@ export default function PlanDeAccionView() {
                           <Textarea value={action.impacto} onChange={e => handleUpdateField(action.id, 'impactoObjetivo', e.target.value)}
                             className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent resize-none min-h-[24px]" placeholder="—" rows={1} />
                         </td>
-                        {/* ── ACCIÓN — v2.79: 6 columnas autorellenadas desde inventario (extra) ── */}
-                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
-                          <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionCategoria || '—'}>
-                            {action.accionCategoria || '—'}
-                          </div>
-                        </td>
-                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
-                          <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionElemento || '—'}>
-                            {action.accionElemento || '—'}
-                          </div>
-                        </td>
-                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion} text-center`}>
-                          <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-700 truncate">
-                            {action.accionCantidad || '—'}
-                          </div>
-                        </td>
+                        {/* ── ACCIÓN — v2.80: 3 columnas (decisión / etiqueta / destino) ── */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
                           <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionDecision || '—'}>
                             {action.accionDecision || '—'}
