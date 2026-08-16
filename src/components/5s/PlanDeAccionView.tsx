@@ -34,27 +34,35 @@ interface ActionItemData {
   id: string;
   numeroEntrada: number;
   fechaEntrada: string;
-  comunicadoPor: string;
+  // v2.78: FKs a User (reemplazan a los textos legacy)
+  comunicadoPorId: string | null;
+  comunicadoPorName: string; // derivado de comunicadoPorUser.name (display)
+  personaDemandadaId: string | null;
+  personaDemandadaName: string; // derivado de personaDemandadaUser.name (display)
+  verificadoPorId: string | null;
+  verificadoPorName: string; // derivado de verificadoPorUser.name (display)
   semana: string;
-  seccionDemandante: string;
-  clienteZona: string;
-  personaDemandada: string;
-  seccionDemandada: string;
+  // v2.79: simplificado — solo Zona (sin Cliente ni Secciones)
+  zonaName: string;
   hallazgo: string;
-  impactoObjetivo: string;
-  enviado: string;
-  accionCorrectiva: string;
-  accionesPreventivas: string;
+  impacto: string; // v2.79: en HALLAZGO (antes impactoObjetivo en ACCIÓN)
+  // v2.79: campos de ACCIÓN autorellenos desde el inventario (extra snapshot)
+  accionCategoria: string;
+  accionElemento: string;
+  accionCantidad: string;
+  accionDecision: string;
+  accionEtiqueta: string;
+  accionDestino: string;
+  // SEGUIMIENTO
   semanaPrevista: string;
-  responsable: string;
   porcentaje: number;
   estado: string;
   semanaReal: string;
   sStep: number;
   miniStep: number;
   zoneName: string;
-  source?: string; // v2.72: 'inventario' | 'autoevaluacion' | 'auditoria' | 'actionplan'
-  extra?: any | null; // v2.72: snapshot del inventario
+  source?: string;
+  extra?: any | null;
 }
 
 // v2.72: helper para saber si una entrada viene del inventario
@@ -254,14 +262,14 @@ function ActionCard({
   action,
   onUpdateField,
   onDelete,
+  projectMembers,
 }: {
   action: ActionItemData;
   onUpdateField: (id: string, field: string, value: any) => void;
   onDelete: (id: string) => void;
+  projectMembers: Array<{ id: string; name: string; email: string; role: string }>;
 }) {
   const [expanded, setExpanded] = useState(false);
-  // v2.72: toggle del panel ORIGEN-INVENTARIO dentro de la mobile card
-  const [showInventario, setShowInventario] = useState(false);
   const estadoInfo = ESTADO_OPTIONS.find(e => e.value === action.estado) || ESTADO_OPTIONS[0];
 
   return (
@@ -289,8 +297,8 @@ function ActionCard({
       {/* Compact summary line */}
       {!expanded && (
         <div className="px-3 pb-2.5 flex items-center gap-3 text-[11px] text-muted-foreground">
-          {action.responsable && (
-            <span className="flex items-center gap-1"><User className="h-3 w-3" />{action.responsable}</span>
+          {action.personaDemandadaName && (
+            <span className="flex items-center gap-1"><User className="h-3 w-3" />{action.personaDemandadaName}</span>
           )}
           {action.semanaPrevista && (
             <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{action.semanaPrevista}</span>
@@ -302,10 +310,10 @@ function ActionCard({
       {/* Expanded details */}
       {expanded && (
         <div className="border-t px-3 py-3 space-y-3">
-          {/* DEMANDA */}
+          {/* HALLAZGO */}
           <div>
             <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-              <FileText className="h-3 w-3" /> Demanda
+              <FileText className="h-3 w-3" /> Hallazgo
             </div>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               <Field label="Fecha" compact>
@@ -322,62 +330,70 @@ function ActionCard({
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Comunicado por" compact>
-                <Input value={action.comunicadoPor} onChange={e => onUpdateField(action.id, 'comunicadoPor', e.target.value)}
-                  className="h-7 text-xs p-0 px-1.5 border rounded" placeholder="Auditor" />
+              <Field label="Detectado por" compact>
+                <div className="text-[11px] px-1 py-1 flex flex-col">
+                  <span className="font-medium">{action.comunicadoPorName || '—'}</span>
+                  <span className="text-[9px] text-amber-700/80">
+                    {(() => {
+                      if (action.miniStep === 5) return 'Paso 5 · Auditoría';
+                      if (action.miniStep === 4) return 'Paso 4 · Autoeval';
+                      if (action.source === 'inventario') return 'Paso 3 · Inventario';
+                      return 'Paso 3 · Plan S5';
+                    })()}
+                  </span>
+                </div>
               </Field>
-              <Field label="Sección Demand." compact>
-                <Input value={action.seccionDemandante} onChange={e => onUpdateField(action.id, 'seccionDemandante', e.target.value)}
-                  className="h-7 text-xs p-0 px-1.5 border rounded" placeholder="Sección" />
+              <Field label="Zona" compact>
+                <div className="text-[11px] px-1 py-1 text-gray-700 truncate">{action.zonaName || '—'}</div>
               </Field>
-              <Field label="Zona / Cliente" compact>
-                <Input value={action.clienteZona} onChange={e => onUpdateField(action.id, 'clienteZona', e.target.value)}
-                  className="h-7 text-xs p-0 px-1.5 border rounded" placeholder="Zona" />
+              <Field label="Responsable" compact>
+                <Select
+                  value={action.personaDemandadaId || '__none__'}
+                  onValueChange={val => onUpdateField(action.id, 'personaDemandadaId', val === '__none__' ? null : val)}
+                >
+                  <SelectTrigger className="h-7 text-xs p-0 px-1.5 border rounded w-full">
+                    <SelectValue placeholder="—" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="__none__" className="text-xs">—</SelectItem>
+                    {projectMembers.map(m => (
+                      <SelectItem key={m.id} value={m.id} className="text-xs" title={`${m.email} (${m.role})`}>
+                        {m.name} <span className="text-[9px] opacity-60">· {m.role}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
-              <Field label="Persona Demand." compact>
-                <Input value={action.personaDemandada} onChange={e => onUpdateField(action.id, 'personaDemandada', e.target.value)}
-                  className="h-7 text-xs p-0 px-1.5 border rounded" placeholder="Persona" />
-              </Field>
-              <Field label="Sección Recept." compact>
-                <Input value={action.seccionDemandada} onChange={e => onUpdateField(action.id, 'seccionDemandada', e.target.value)}
-                  className="h-7 text-xs p-0 px-1.5 border rounded" placeholder="Sección" />
-              </Field>
-              <Field label="Impacto Obj." compact>
-                <Input value={action.impactoObjetivo} onChange={e => onUpdateField(action.id, 'impactoObjetivo', e.target.value)}
-                  className="h-7 text-xs p-0 px-1.5 border rounded" placeholder="Impacto" />
+              <Field label="Impacto" compact>
+                <Textarea value={action.impacto} onChange={e => onUpdateField(action.id, 'impactoObjetivo', e.target.value)}
+                  className="text-xs p-1.5 border rounded resize-none min-h-[40px]" placeholder="—" rows={2} />
               </Field>
             </div>
           </div>
 
-          {/* ACCIÓN */}
+          {/* ACCIÓN (autorelleno desde inventario) */}
           <div>
             <div className="text-[10px] font-bold text-sky-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
               <ArrowRight className="h-3 w-3" /> Acción
             </div>
-            <div className="space-y-1.5">
-              <Field label="Descripción / Hallazgo" compact>
-                <Textarea value={action.hallazgo} onChange={e => onUpdateField(action.id, 'hallazgo', e.target.value)}
-                  className="text-xs p-1.5 border rounded resize-none min-h-[48px]" placeholder="Descripción de la deficiencia" rows={2} />
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              <Field label="Categoría" compact>
+                <div className="text-[11px] px-1 py-1 text-gray-700 truncate">{action.accionCategoria || '—'}</div>
               </Field>
-              <Field label="Acción Correctiva" compact>
-                <Textarea value={action.accionCorrectiva} onChange={e => onUpdateField(action.id, 'accionCorrectiva', e.target.value)}
-                  className="text-xs p-1.5 border rounded resize-none min-h-[48px]" placeholder="Acción correctiva" rows={2} />
+              <Field label="Elemento" compact>
+                <div className="text-[11px] px-1 py-1 text-gray-700 truncate">{action.accionElemento || '—'}</div>
               </Field>
-              <Field label="Acciones Preventivas" compact>
-                <Textarea value={action.accionesPreventivas} onChange={e => onUpdateField(action.id, 'accionesPreventivas', e.target.value)}
-                  className="text-xs p-1.5 border rounded resize-none min-h-[48px]" placeholder="Acciones preventivas" rows={2} />
+              <Field label="Cantidad" compact>
+                <div className="text-[11px] px-1 py-1 text-gray-700">{action.accionCantidad || '—'}</div>
               </Field>
-              <Field label="Enviado" compact>
-                <Select value={action.enviado || 'Pendiente'} onValueChange={v => onUpdateField(action.id, 'enviado', v)}>
-                  <SelectTrigger className="h-7 text-xs p-0 px-1.5 border rounded w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Sí" className="text-xs">Sí</SelectItem>
-                    <SelectItem value="No" className="text-xs">No</SelectItem>
-                    <SelectItem value="Pendiente" className="text-xs">Pendiente</SelectItem>
-                  </SelectContent>
-                </Select>
+              <Field label="Decisión" compact>
+                <div className="text-[11px] px-1 py-1 text-gray-700 truncate">{action.accionDecision || '—'}</div>
+              </Field>
+              <Field label="Etiqueta" compact>
+                <div className="text-[11px] px-1 py-1 text-gray-700 truncate">{action.accionEtiqueta || '—'}</div>
+              </Field>
+              <Field label="Destino" compact>
+                <div className="text-[11px] px-1 py-1 text-gray-700 truncate">{action.accionDestino || '—'}</div>
               </Field>
             </div>
           </div>
@@ -398,9 +414,23 @@ function ActionCard({
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Responsable" compact>
-                <Input value={action.responsable} onChange={e => onUpdateField(action.id, 'responsable', e.target.value)}
-                  className="h-7 text-xs p-0 px-1.5 border rounded" placeholder="Responsable" />
+              <Field label="Verificado por" compact>
+                <Select
+                  value={action.verificadoPorId || '__none__'}
+                  onValueChange={val => onUpdateField(action.id, 'verificadoPorId', val === '__none__' ? null : val)}
+                >
+                  <SelectTrigger className="h-7 text-xs p-0 px-1.5 border rounded w-full">
+                    <SelectValue placeholder="—" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="__none__" className="text-xs">—</SelectItem>
+                    {projectMembers.map(m => (
+                      <SelectItem key={m.id} value={m.id} className="text-xs" title={`${m.email} (${m.role})`}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
               <Field label="Estado" compact>
                 <Select value={action.estado} onValueChange={v => onUpdateField(action.id, 'estado', v)}>
@@ -431,25 +461,6 @@ function ActionCard({
               </Field>
             </div>
           </div>
-
-          {/* v2.72: sección plegable ORIGEN-INVENTARIO (mobile) */}
-          {isInventarioSource(action) && (
-            <div className="border-t pt-2 mt-2">
-              <button
-                onClick={() => setShowInventario(!showInventario)}
-                className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 uppercase tracking-wider w-full"
-              >
-                <span>📦</span>
-                <span>Origen Inventario</span>
-                <ChevronDown className={`h-3 w-3 ml-auto transition-transform ${showInventario ? 'rotate-180' : ''}`} />
-              </button>
-              {showInventario && (
-                <div className="mt-2 p-2 bg-emerald-50/60 rounded border border-emerald-200">
-                  <OrigenInventarioPanel extra={action.extra} compact />
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Delete button */}
           <div className="flex justify-end pt-1">
@@ -491,11 +502,11 @@ export default function PlanDeAccionView() {
   //   'hallazgo'   → source in ['autoevaluacion','auditoria'] (NOKs de pasos 4 y 5)
   const [filterOrigen, setFilterOrigen] = useState<string>('all');
   const [zones, setZones] = useState<ZoneData[]>([]);
+  // v2.79: miembros del proyecto para los User pickers (Responsable, Verificado por)
+  const [projectMembers, setProjectMembers] = useState<Array<{ id: string; name: string; email: string; role: string }>>([]);
   const [showNewDialog, setShowNewDialog] = useState(false);
-  // v2.72: filas expandidas (mostrar grupo ORIGEN-INVENTARIO)
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
-  // Load zones
+  // Load zones + project members
   useEffect(() => {
     if (!currentProject) return;
     const loadZones = async () => {
@@ -507,7 +518,23 @@ export default function PlanDeAccionView() {
         }
       } catch (e) { console.error('Error loading zones:', e); }
     };
+    const loadProjectMembers = async () => {
+      try {
+        const res = await fetch(`/api/projects/${currentProject.id}/members`);
+        if (res.ok) {
+          const json = await res.json();
+          const members = (json.members || json.data || []).map((m: any) => ({
+            id: m.userId || m.id,
+            name: m.user?.name || m.name || 'Sin nombre',
+            email: m.user?.email || m.email || '',
+            role: m.role || '',
+          }));
+          setProjectMembers(members);
+        }
+      } catch (e) { console.error('Error loading project members:', e); }
+    };
     loadZones();
+    loadProjectMembers();
   }, [currentProject?.id]);
 
   // Load ALL actions for the project
@@ -526,19 +553,27 @@ export default function PlanDeAccionView() {
           id: a.id,
           numeroEntrada: a.numeroEntrada || 0,
           fechaEntrada: a.fechaEntrada ? new Date(a.fechaEntrada).toISOString().split('T')[0] : (a.createdAt ? new Date(a.createdAt).toISOString().split('T')[0] : ''),
-          comunicadoPor: a.comunicadoPor || '',
+          // v2.78/v2.79: FKs a User
+          comunicadoPorId: a.comunicadoPorId || null,
+          comunicadoPorName: a.comunicadoPorUser?.name || a.comunicadoPor || '',
+          personaDemandadaId: a.personaDemandadaId || null,
+          personaDemandadaName: a.personaDemandadaUser?.name || a.personaDemandada || '',
+          verificadoPorId: a.verificadoPorId || null,
+          verificadoPorName: a.verificadoPorUser?.name || a.verificadoPor || '',
           semana: a.semana || '',
-          seccionDemandante: a.seccionDemandante || '',
-          clienteZona: a.clienteZona || a.zone?.name || '',
-          personaDemandada: a.personaDemandada || '',
-          seccionDemandada: a.seccionDemandada || '',
+          // v2.79: simplificado — solo Zona
+          zonaName: a.zone?.name || a.clienteZona || '',
           hallazgo: a.hallazgo || a.itemDescription || '',
-          impactoObjetivo: a.impactoObjetivo || '',
-          enviado: a.enviado || '',
-          accionCorrectiva: a.accionCorrectiva || a.mejora || '',
-          accionesPreventivas: a.accionesPreventivas || '',
+          impacto: a.impactoObjetivo || '',
+          // v2.79: campos de ACCIÓN autorellenos desde el inventario (extra)
+          accionCategoria: a.extra?.categoria || '',
+          accionElemento: a.extra?.elemento || '',
+          accionCantidad: a.extra?.cantidad != null ? String(a.extra.cantidad) : '',
+          accionDecision: a.extra?.decision || '',
+          accionEtiqueta: a.extra?.etiquetas || '',
+          accionDestino: a.extra?.zonaDestino || '',
+          // SEGUIMIENTO
           semanaPrevista: a.semanaPrevista || '',
-          responsable: a.responsable || '',
           porcentaje: a.porcentaje || 0,
           estado: a.estado || 'abierta',
           semanaReal: a.semanaReal || '',
@@ -546,7 +581,7 @@ export default function PlanDeAccionView() {
           miniStep: a.miniStep || 4,
           zoneName: a.zone?.name || '',
           source: a.source || '',
-          extra: a.extra || null, // v2.72: snapshot del inventario
+          extra: a.extra || null,
         })));
       }
     } catch (e) {
@@ -829,6 +864,7 @@ export default function PlanDeAccionView() {
                 action={action}
                 onUpdateField={handleUpdateField}
                 onDelete={handleDeleteAction}
+                projectMembers={projectMembers}
               />
             ))}
           </div>
@@ -839,13 +875,13 @@ export default function PlanDeAccionView() {
               <table className="w-full text-xs border-collapse min-w-[1200px]">
                 <thead className="sticky top-0 z-10">
                   <tr>
-                    <th colSpan={2} className="bg-gray-600 text-white px-1.5 py-1.5 text-center font-bold border border-gray-500">
+                    <th colSpan={1} className="bg-gray-600 text-white px-1.5 py-1.5 text-center font-bold border border-gray-500">
                       Origen
                     </th>
-                    <th colSpan={9} className="bg-amber-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-amber-500">
-                      DEMANDA
+                    <th colSpan={7} className="bg-amber-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-amber-500">
+                      HALLAZGO
                     </th>
-                    <th colSpan={4} className="bg-sky-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-500">
+                    <th colSpan={6} className="bg-sky-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-sky-500">
                       ACCIÓN
                     </th>
                     <th colSpan={5} className="bg-orange-400 text-white px-2 py-1.5 text-center text-xs font-bold border border-orange-500">
@@ -858,24 +894,22 @@ export default function PlanDeAccionView() {
                   <tr>
                     {/* Origen column */}
                     <th className="bg-gray-500 text-white px-1 py-1 text-center font-semibold border border-gray-400 whitespace-nowrap">S</th>
-                    {/* v2.72: toggle 📦 para expandir ORIGEN (INVENTARIO) */}
-                    <th className="bg-gray-500 text-white px-1 py-1 text-center font-semibold border border-gray-400 w-8">📦</th>
-                    {/* Yellow section headers */}
+                    {/* HALLAZGO headers — v2.79: simplificado */}
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Nº</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Fecha</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Comunicado por</th>
+                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Usuario que detectó el hallazgo (automático según el paso)">Detectado por</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Semana</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Sección Demand.</th>
                     <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Zona</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Persona Demand.</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Sección Recept.</th>
-                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Impacto Obj.</th>
-                    {/* Blue section headers */}
-                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap">Descripción</th>
-                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap">Acción Correctiva</th>
-                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap">Acciones Preventivas</th>
-                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap">Enviado</th>
-                    {/* Orange section headers */}
+                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap" title="Responsable de resolver (empleado de la zona por defecto)">Responsable</th>
+                    <th className="bg-amber-400 text-white px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap">Impacto</th>
+                    {/* ACCIÓN headers — v2.79: autorelleno desde inventario (extra) */}
+                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Categoría del inventario">Categoría</th>
+                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Elemento del inventario">Elemento</th>
+                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap">Cantidad</th>
+                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Decisión del inventario (Retirar/Eliminar/...)">Decisión</th>
+                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap">Etiqueta</th>
+                    <th className="bg-sky-400 text-white px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap" title="Destino del item (zona o Residuo)">Destino</th>
+                    {/* SEGUIMIENTO headers */}
                     <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Sem. Prevista</th>
                     <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Responsable</th>
                     <th className="bg-orange-400 text-white px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap">Estado</th>
@@ -886,8 +920,6 @@ export default function PlanDeAccionView() {
                 <tbody>
                   {filteredActions.map((action) => {
                     const estadoInfo = getEstadoBadge(action.estado);
-                    const isExpanded = expandedRows.has(action.id);
-                    const hasInventario = isInventarioSource(action);
                     return (
                       <Fragment key={action.id}>
                       <tr className={`border-b hover:bg-gray-50 ${action.estado === 'resuelta' || action.estado === 'cerrada' ? 'bg-green-50/50' : ''}`}>
@@ -901,30 +933,7 @@ export default function PlanDeAccionView() {
                             S{action.sStep}
                           </span>
                         </td>
-                        {/* v2.72: toggle 📦 para expandir ORIGEN-INVENTARIO */}
-                        <td className="px-1 py-1 border text-center bg-gray-50">
-                          {hasInventario ? (
-                            <button
-                              onClick={() => setExpandedRows(prev => {
-                                const next = new Set(prev);
-                                if (next.has(action.id)) next.delete(action.id);
-                                else next.add(action.id);
-                                return next;
-                              })}
-                              className={`w-6 h-6 rounded text-xs font-bold transition-all ${
-                                isExpanded
-                                  ? 'bg-emerald-500 text-white shadow-sm'
-                                  : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300'
-                              }`}
-                              title={isExpanded ? 'Cerrar origen inventario' : 'Ver origen inventario'}
-                            >
-                              {isExpanded ? '−' : <span style={{ fontSize: '11px' }}>📦</span>}
-                            </button>
-                          ) : (
-                            <span className="text-gray-300 text-xs" title="Entrada manual — sin origen inventario">·</span>
-                          )}
-                        </td>
-                        {/* Yellow: Demanda */}
+                        {/* ── HALLAZGO — v2.79: 7 columnas ── */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante} text-center font-mono font-bold`}>
                           {action.numeroEntrada || '—'}
                         </td>
@@ -932,9 +941,21 @@ export default function PlanDeAccionView() {
                           <Input type="date" value={action.fechaEntrada} onChange={e => handleUpdateField(action.id, 'fechaEntrada', e.target.value)}
                             className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent" />
                         </td>
+                        {/* v2.79: Detectado por — read-only, con paso debajo */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
-                          <Input value={action.comunicadoPor} onChange={e => handleUpdateField(action.id, 'comunicadoPor', e.target.value)}
-                            className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent" placeholder="Auditor" />
+                          <div className="min-h-[24px] text-[10px] px-1 flex flex-col justify-center text-gray-700">
+                            <div className="truncate font-medium" title={action.comunicadoPorName || '—'}>
+                              {action.comunicadoPorName || '—'}
+                            </div>
+                            <div className="text-[9px] text-amber-700/80 truncate">
+                              {(() => {
+                                if (action.miniStep === 5) return 'Paso 5 · Auditoría';
+                                if (action.miniStep === 4) return 'Paso 4 · Autoeval';
+                                if (action.source === 'inventario') return 'Paso 3 · Inventario';
+                                return 'Paso 3 · Plan S5';
+                              })()}
+                            </div>
+                          </div>
                         </td>
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante} text-center`}>
                           <Select value={action.semana || 'W1'} onValueChange={v => handleUpdateField(action.id, 'semana', v)}>
@@ -946,50 +967,71 @@ export default function PlanDeAccionView() {
                             </SelectContent>
                           </Select>
                         </td>
+                        {/* v2.79: Zona — read-only */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
-                          <Input value={action.seccionDemandante} onChange={e => handleUpdateField(action.id, 'seccionDemandante', e.target.value)}
-                            className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent" placeholder="Sección" />
+                          <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.zonaName || '—'}>
+                            {action.zonaName || '—'}
+                          </div>
                         </td>
+                        {/* v2.79: Responsable — User picker (FK). Default = primer empleado del proyecto, fallback responsable */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
-                          <Input value={action.clienteZona} onChange={e => handleUpdateField(action.id, 'clienteZona', e.target.value)}
-                            className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent" placeholder="Zona" />
-                        </td>
-                        <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
-                          <Input value={action.personaDemandada} onChange={e => handleUpdateField(action.id, 'personaDemandada', e.target.value)}
-                            className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent" placeholder="Persona" />
-                        </td>
-                        <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
-                          <Input value={action.seccionDemandada} onChange={e => handleUpdateField(action.id, 'seccionDemandada', e.target.value)}
-                            className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent" placeholder="Sección" />
-                        </td>
-                        <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
-                          <Input value={action.impactoObjetivo} onChange={e => handleUpdateField(action.id, 'impactoObjetivo', e.target.value)}
-                            className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent" placeholder="Impacto" />
-                        </td>
-                        {/* Blue: Acción */}
-                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
-                          <Textarea value={action.hallazgo} onChange={e => handleUpdateField(action.id, 'hallazgo', e.target.value)}
-                            className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent resize-none min-h-[24px]" placeholder="Descripción deficiencia" rows={1} />
-                        </td>
-                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
-                          <Textarea value={action.accionCorrectiva} onChange={e => handleUpdateField(action.id, 'accionCorrectiva', e.target.value)}
-                            className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent resize-none min-h-[24px]" placeholder="Acción correctiva" rows={1} />
-                        </td>
-                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
-                          <Textarea value={action.accionesPreventivas} onChange={e => handleUpdateField(action.id, 'accionesPreventivas', e.target.value)}
-                            className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent resize-none min-h-[24px]" placeholder="Acciones preventivas" rows={1} />
-                        </td>
-                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion} text-center`}>
-                          <Select value={action.enviado || 'Pendiente'} onValueChange={v => handleUpdateField(action.id, 'enviado', v)}>
-                            <SelectTrigger className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent w-16">
-                              <SelectValue />
+                          <Select
+                            value={
+                              action.personaDemandadaId ||
+                              projectMembers.find(m => m.role === 'empleado')?.id ||
+                              projectMembers.find(m => m.role === 'responsable')?.id ||
+                              '__none__'
+                            }
+                            onValueChange={val => handleUpdateField(action.id, 'personaDemandadaId', val === '__none__' ? null : val)}
+                          >
+                            <SelectTrigger className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent w-28">
+                              <SelectValue placeholder="—" />
                             </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Sí" className="text-xs">Sí</SelectItem>
-                              <SelectItem value="No" className="text-xs">No</SelectItem>
-                              <SelectItem value="Pendiente" className="text-xs">Pendiente</SelectItem>
+                            <SelectContent className="max-h-60">
+                              <SelectItem value="__none__" className="text-xs">—</SelectItem>
+                              {projectMembers.map(m => (
+                                <SelectItem key={m.id} value={m.id} className="text-xs" title={`${m.email} (${m.role})`}>
+                                  {m.name} <span className="text-[9px] opacity-60">· {m.role}</span>
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
+                        </td>
+                        {/* v2.79: Impacto — editable */}
+                        <td className={`px-1 py-1 border ${SECTION_COLORS.demandante}`}>
+                          <Textarea value={action.impacto} onChange={e => handleUpdateField(action.id, 'impactoObjetivo', e.target.value)}
+                            className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent resize-none min-h-[24px]" placeholder="—" rows={1} />
+                        </td>
+                        {/* ── ACCIÓN — v2.79: 6 columnas autorellenadas desde inventario (extra) ── */}
+                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
+                          <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionCategoria || '—'}>
+                            {action.accionCategoria || '—'}
+                          </div>
+                        </td>
+                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
+                          <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionElemento || '—'}>
+                            {action.accionElemento || '—'}
+                          </div>
+                        </td>
+                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion} text-center`}>
+                          <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-700 truncate">
+                            {action.accionCantidad || '—'}
+                          </div>
+                        </td>
+                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
+                          <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionDecision || '—'}>
+                            {action.accionDecision || '—'}
+                          </div>
+                        </td>
+                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
+                          <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionEtiqueta || '—'}>
+                            {action.accionEtiqueta || '—'}
+                          </div>
+                        </td>
+                        <td className={`px-1 py-1 border ${SECTION_COLORS.accion}`}>
+                          <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionDestino || '—'}>
+                            {action.accionDestino || '—'}
+                          </div>
                         </td>
                         {/* Orange: Seguimiento */}
                         <td className={`px-1 py-1 border ${SECTION_COLORS.seguimiento} text-center`}>
@@ -1003,8 +1045,22 @@ export default function PlanDeAccionView() {
                           </Select>
                         </td>
                         <td className={`px-1 py-1 border ${SECTION_COLORS.seguimiento}`}>
-                          <Input value={action.responsable} onChange={e => handleUpdateField(action.id, 'responsable', e.target.value)}
-                            className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent" placeholder="Responsable" />
+                          <Select
+                            value={action.verificadoPorId || '__none__'}
+                            onValueChange={val => handleUpdateField(action.id, 'verificadoPorId', val === '__none__' ? null : val)}
+                          >
+                            <SelectTrigger className="h-6 text-[10px] p-0 px-1 border-0 bg-transparent w-28">
+                              <SelectValue placeholder="—" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                              <SelectItem value="__none__" className="text-xs">—</SelectItem>
+                              {projectMembers.map(m => (
+                                <SelectItem key={m.id} value={m.id} className="text-xs" title={`${m.email} (${m.role})`}>
+                                  {m.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className={`px-1 py-1 border ${SECTION_COLORS.seguimiento} text-center`}>
                           <Select value={action.estado} onValueChange={v => handleUpdateField(action.id, 'estado', v)}>
@@ -1041,25 +1097,6 @@ export default function PlanDeAccionView() {
                           </button>
                         </td>
                       </tr>
-                      {/* v2.72: fila expandible ORIGEN-INVENTARIO */}
-                      {isExpanded && (
-                        <tr className="bg-emerald-50/40 border-b">
-                          <td colSpan={22} className="px-3 py-2 border">
-                            <div className="flex items-center gap-1.5 mb-2">
-                              <span className="text-[10px]">📦</span>
-                              <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
-                                Origen Inventario
-                              </span>
-                              {action.extra?.capturedAt && (
-                                <span className="text-[9px] text-gray-500 ml-auto">
-                                  Snapshot: {new Date(action.extra.capturedAt).toLocaleString('es-ES')}
-                                </span>
-                              )}
-                            </div>
-                            <OrigenInventarioPanel extra={action.extra} />
-                          </td>
-                        </tr>
-                      )}
                       </Fragment>
                     );
                   })}

@@ -35,14 +35,18 @@ interface ActionItemData {
   verificadoPorId: string | null;
   verificadoPorName: string; // derivado de verificadoPorUser.name (display)
   semana: string;
-  seccionDemandante: string;
-  clienteZona: string;
-  seccionDemandada: string;
+  // v2.79: simplificado — solo Zona (sin Cliente ni Secciones)
+  zonaName: string;
   hallazgo: string; // DESCRIPCIÓN
-  impactoObjetivo: string;
-  enviado: string;
-  accionCorrectiva: string;
-  accionesPreventivas: string;
+  impacto: string; // v2.79: renombrado de impactoObjetivo, ahora en HALLAZGO
+  // v2.79: campos de ACCIÓN autorellenos desde el inventario (extra snapshot)
+  accionCategoria: string;
+  accionElemento: string;
+  accionCantidad: string;
+  accionDecision: string;
+  accionEtiqueta: string;
+  accionDestino: string;
+  // SEGUIMIENTO
   semanaPrevista: string;
   porcentaje: number;
   estado: string;
@@ -54,7 +58,6 @@ interface ActionItemData {
   fechaReal: string;
   prioridad: string;
   zoneId: string;
-  zoneName: string;
   sStep: number;
   miniStep: number;
   source?: string;
@@ -184,14 +187,19 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
           verificadoPorId: a.verificadoPorId || null,
           verificadoPorName: a.verificadoPorUser?.name || a.verificadoPor || '',
           semana: a.semana || '',
-          seccionDemandante: a.seccionDemandante || '',
-          clienteZona: a.clienteZona || a.zone?.name || '',
-          seccionDemandada: a.seccionDemandada || '',
+          // v2.79: simplificado — solo Zona
+          zonaName: a.zone?.name || a.clienteZona || '',
           hallazgo: a.hallazgo || a.itemDescription || '',
-          impactoObjetivo: a.impactoObjetivo || '',
-          enviado: a.enviado || '',
-          accionCorrectiva: a.accionCorrectiva || a.mejora || '',
-          accionesPreventivas: a.accionesPreventivas || '',
+          // v2.79: renombrado de impactoObjetivo
+          impacto: a.impactoObjetivo || '',
+          // v2.79: campos de ACCIÓN autorellenos desde el inventario (extra snapshot)
+          accionCategoria: a.extra?.categoria || '',
+          accionElemento: a.extra?.elemento || '',
+          accionCantidad: a.extra?.cantidad != null ? String(a.extra.cantidad) : '',
+          accionDecision: a.extra?.decision || '',
+          accionEtiqueta: a.extra?.etiquetas || '',
+          accionDestino: a.extra?.zonaDestino || '',
+          // SEGUIMIENTO
           semanaPrevista: a.semanaPrevista || '',
           porcentaje: a.porcentaje || 0,
           estado: a.estado === 'abierta' ? 'abierta' : a.estado === 'en_proceso' ? 'en_proceso' : a.estado === 'resuelta' || a.estado === 'cerrada' ? 'resuelta' : 'abierta',
@@ -203,7 +211,6 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
           fechaReal: a.fechaReal ? new Date(a.fechaReal).toISOString().split('T')[0] : '',
           prioridad: a.prioridad || 'media',
           zoneId: a.zoneId || '',
-          zoneName: a.zone?.name || '',
           sStep: a.sStep || sStep,
           miniStep: a.miniStep || 3,
           source: a.source || '',
@@ -538,12 +545,12 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
               <table className="w-full text-xs border-collapse min-w-[800px] md:min-w-[1200px]">
                 <thead className="sticky top-0 z-10">
                   <tr>
-                    {/* v2.78: Yellow section renombrada "DEMANDA" → "HALLAZGO" */}
-                    <th colSpan={9} className={`${HEADER_COLORS.demandante} px-2 py-1.5 text-center text-xs font-bold border border-amber-500`}>
+                    {/* v2.79: HALLAZGO 7 cols (antes 9), ACCIÓN 6 cols (antes 4) */}
+                    <th colSpan={7} className={`${HEADER_COLORS.demandante} px-2 py-1.5 text-center text-xs font-bold border border-amber-500`}>
                       HALLAZGO
                     </th>
-                    {/* Blue section: Acción */}
-                    <th colSpan={4} className={`${HEADER_COLORS.accion} px-2 py-1.5 text-center text-xs font-bold border border-sky-500`}>
+                    {/* Blue section: Acción (autorelleno desde inventario paso 3) */}
+                    <th colSpan={6} className={`${HEADER_COLORS.accion} px-2 py-1.5 text-center text-xs font-bold border border-sky-500`}>
                       ACCIÓN
                     </th>
                     {/* Orange section: Seguimiento */}
@@ -555,22 +562,22 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                     </th>
                   </tr>
                   <tr>
-                    {/* Yellow section headers — v2.78: renombrados */}
+                    {/* HALLAZGO headers — v2.79: simplificado */}
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Nº</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Fecha</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Usuario que detectó el hallazgo (automático según el paso)">Detectado por</th>
                     <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Semana</th>
-                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Sección Origen</th>
-                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Cliente / Zona</th>
-                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Responsable de resolver el hallazgo (FK User)">Responsable</th>
-                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Sección Destino</th>
-                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Descripción</th>
-                    {/* Blue section headers */}
-                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Impacto Objetivo</th>
-                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Enviado</th>
-                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Acción Correctiva</th>
-                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Acciones Preventivas</th>
-                    {/* Orange section headers — v2.78: "Persona Responsable" → "Verificado por" */}
+                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Zona</th>
+                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Responsable de resolver el hallazgo (empleado de la zona por defecto, editable)">Responsable</th>
+                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Impacto objetivo — trabajaremos en esto luego">Impacto</th>
+                    {/* ACCIÓN headers — v2.79: autorelleno desde el inventario (extra) */}
+                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Categoría del inventario (innecesario/dudoso/util/...)">Categoría</th>
+                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Elemento del inventario">Elemento</th>
+                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Cantidad</th>
+                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Decisión del inventario (Retirar/Eliminar/...)">Decisión</th>
+                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`}>Etiqueta</th>
+                    <th className={`${HEADER_COLORS.accion} px-1 py-1 text-center font-semibold border border-sky-400 whitespace-nowrap`} title="Destino del item (zona o Residuo)">Destino</th>
+                    {/* SEGUIMIENTO headers — v2.78 */}
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>Semana Prevista</th>
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`} title="Usuario que verifica el cierre (FK User)">Verificado por</th>
                     <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>%</th>
@@ -595,7 +602,7 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
 
                       return (
                         <tr key={action.id} className="hover:bg-muted/30 group">
-                          {/* Yellow section: Hallazgo (v2.78: renombrado de Demanda) */}
+                          {/* ── HALLAZGO — v2.79: 7 columnas ── */}
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200 text-center font-bold`}>
                             {action.numeroEntrada || '-'}
                           </td>
@@ -607,10 +614,21 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                               className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-amber-400"
                             />
                           </td>
-                          {/* v2.78: "Detectado por" — read-only (comunicadoPorId = session.user.id en backend) */}
+                          {/* v2.79: "Detectado por" — read-only, con paso debajo.
+                              comunicadoPorId se resuelve por sesión en el backend. */}
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
-                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.comunicadoPorName || '—'}>
-                              {action.comunicadoPorName || '—'}
+                            <div className="h-auto min-h-[24px] text-[10px] px-1 flex flex-col justify-center text-gray-700">
+                              <div className="truncate font-medium" title={action.comunicadoPorName || '—'}>
+                                {action.comunicadoPorName || '—'}
+                              </div>
+                              <div className="text-[9px] text-amber-700/80 truncate">
+                                {(() => {
+                                  if (action.miniStep === 5) return 'Paso 5 · Auditoría';
+                                  if (action.miniStep === 4) return 'Paso 4 · Autoeval';
+                                  if (action.source === 'inventario') return 'Paso 3 · Inventario';
+                                  return 'Paso 3 · Plan S5';
+                                })()}
+                              </div>
                             </div>
                           </td>
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
@@ -629,28 +647,23 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                               </SelectContent>
                             </Select>
                           </td>
+                          {/* v2.79: Zona — read-only (viene del paso donde se detectó) */}
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
-                            <Input
-                              type="text"
-                              value={action.seccionDemandante}
-                              onChange={e => handleUpdateField(action.id, 'seccionDemandante', e.target.value)}
-                              placeholder="Sección"
-                              className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-amber-400 w-24"
-                            />
+                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.zonaName || '—'}>
+                              {action.zonaName || '—'}
+                            </div>
                           </td>
-                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
-                            <Input
-                              type="text"
-                              value={action.clienteZona}
-                              onChange={e => handleUpdateField(action.id, 'clienteZona', e.target.value)}
-                              placeholder="Zona"
-                              className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-amber-400 w-24"
-                            />
-                          </td>
-                          {/* v2.78: "Responsable" — User picker (personaDemandadaId FK) */}
+                          {/* v2.79: Responsable — User picker. Default = empleado de la zona,
+                              fallback a responsable del proyecto si no hay empleado.
+                              El usuario puede cambiar a cualquier otro miembro. */}
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
                             <Select
-                              value={action.personaDemandadaId || '__none__'}
+                              value={
+                                action.personaDemandadaId ||
+                                projectMembers.find(m => m.role === 'empleado')?.id ||
+                                projectMembers.find(m => m.role === 'responsable')?.id ||
+                                '__none__'
+                              }
                               onValueChange={val => handleUpdateField(action.id, 'personaDemandadaId', val === '__none__' ? null : val)}
                             >
                               <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-28">
@@ -659,75 +672,56 @@ export default function ActionPlanModal({ open, onClose, sStep, miniStep }: Acti
                               <SelectContent className="max-h-60">
                                 <SelectItem value="__none__">—</SelectItem>
                                 {projectMembers.map(m => (
-                                  <SelectItem key={m.id} value={m.id} title={m.email}>
-                                    {m.name}
+                                  <SelectItem key={m.id} value={m.id} title={`${m.email} (${m.role})`}>
+                                    {m.name} <span className="text-[9px] opacity-60">· {m.role}</span>
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </td>
-                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
-                            <Input
-                              type="text"
-                              value={action.seccionDemandada}
-                              onChange={e => handleUpdateField(action.id, 'seccionDemandada', e.target.value)}
-                              placeholder="Sección"
-                              className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-amber-400 w-24"
-                            />
-                          </td>
+                          {/* v2.79: Impacto — editable (lo trabajaremos luego) */}
                           <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
                             <Textarea
-                              value={action.hallazgo}
-                              onChange={e => handleUpdateField(action.id, 'hallazgo', e.target.value)}
-                              placeholder="Descripción del problema..."
-                              className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-amber-400 min-w-[120px] resize-none"
+                              value={action.impacto}
+                              onChange={e => handleUpdateField(action.id, 'impactoObjetivo', e.target.value)}
+                              placeholder="—"
+                              className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-amber-400 min-w-[80px] resize-none"
                               rows={1}
                             />
                           </td>
 
-                          {/* Blue section: Acción */}
+                          {/* ── ACCIÓN — v2.79: 6 columnas autorellenadas desde el inventario (extra).
+                              Solo source='inventario' trae estos datos; para otros orígenes
+                              se muestran vacíos (—) ya que no hay inventario asociado. ── */}
                           <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
-                            <Input
-                              type="text"
-                              value={action.impactoObjetivo}
-                              onChange={e => handleUpdateField(action.id, 'impactoObjetivo', e.target.value)}
-                              placeholder="Impacto"
-                              className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-sky-400 w-24"
-                            />
+                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionCategoria || '—'}>
+                              {action.accionCategoria || '—'}
+                            </div>
                           </td>
                           <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
-                            <Select
-                              value={action.enviado || '__none__'}
-                              onValueChange={val => handleUpdateField(action.id, 'enviado', val === '__none__' ? '' : val)}
-                            >
-                              <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-20">
-                                <SelectValue placeholder="—"/>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">—</SelectItem>
-                                {ENVIADO_OPTIONS.map(opt => (
-                                  <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionElemento || '—'}>
+                              {action.accionElemento || '—'}
+                            </div>
+                          </td>
+                          <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200 text-center`}>
+                            <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-700 truncate">
+                              {action.accionCantidad || '—'}
+                            </div>
                           </td>
                           <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
-                            <Textarea
-                              value={action.accionCorrectiva}
-                              onChange={e => handleUpdateField(action.id, 'accionCorrectiva', e.target.value)}
-                              placeholder="Acción correctiva..."
-                              className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-sky-400 min-w-[120px] resize-none"
-                              rows={1}
-                            />
+                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionDecision || '—'}>
+                              {action.accionDecision || '—'}
+                            </div>
                           </td>
                           <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
-                            <Textarea
-                              value={action.accionesPreventivas}
-                              onChange={e => handleUpdateField(action.id, 'accionesPreventivas', e.target.value)}
-                              placeholder="Acciones preventivas..."
-                              className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 focus:bg-white focus:border focus:border-sky-400 min-w-[120px] resize-none"
-                              rows={1}
-                            />
+                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionEtiqueta || '—'}>
+                              {action.accionEtiqueta || '—'}
+                            </div>
+                          </td>
+                          <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
+                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionDestino || '—'}>
+                              {action.accionDestino || '—'}
+                            </div>
                           </td>
 
                           {/* Orange section: Seguimiento */}
