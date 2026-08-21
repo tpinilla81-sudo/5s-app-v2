@@ -19,7 +19,7 @@ function computeBuildVersion(): string {
   //    fallback '2.90.0', por eso el badge de versión nunca se actualizaba.
   const pkgVersion = process.env.NEXT_PUBLIC_APP_VERSION
     || process.env.npm_package_version
-    || '0.0.0';
+    || '3.0.0';  // Fallback for testing
   const now = new Date();
   const pad = (n: number) => n.toString().padStart(2, '0');
   const ts =

@@ -1,7 +1,0 @@
-var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/photo-library/company-fotos/route.js")
-R.c("server/chunks/[root-of-the-server]__18dg4tk._.js")
-R.c("server/chunks/[root-of-the-server]__15bjnu5._.js")
-R.c("server/chunks/node_modules_next_1zc5q0a._.js")
-R.c("server/chunks/_next-internal_server_app_api_photo-library_company-fotos_route_actions_0fhow-o.js")
-R.m(16)
-module.exports=R.m(16).exports
