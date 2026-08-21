@@ -4,15 +4,15 @@ import fs from 'fs';
 async function editLogo() {
   const zai = await ZAI.create();
   
-  // Read the original logo image (with B)
+  // Read the original logo image
   const imageBuffer = fs.readFileSync('/home/z/my-project/upload/bill-by-metodo-logo.png');
   const base64Image = imageBuffer.toString('base64');
   const dataUrl = `data:image/png;base64,${base64Image}`;
   
-  console.log('Editing logo: transparent background + 5S text...');
+  console.log('Making logo with transparent background...');
   
   const response = await zai.images.generations.edit({
-    prompt: "Two changes: 1) Make background completely transparent (remove black square). 2) Change the letter B in the center to bold '5S' text. Keep the circular green lime design with 5 segments, white center circle, cream dividers, dark green outer ring. Final result: clean circular logo with 5S in center, NO background.",
+    prompt: "Make this a PNG with completely TRANSPARENT background (alpha channel, no white, no black, truly transparent). Keep only the circular green lime logo with 5 segments. In the white center circle put bold dark green '5S' text. The circle must have transparent area around it so the app background shows through.",
     images: [{ url: dataUrl }],
     size: '1024x1024'
   });
@@ -21,7 +21,7 @@ async function editLogo() {
   const buffer = Buffer.from(editedBase64, 'base64');
   fs.writeFileSync('/home/z/my-project/public/5s-logo.png', buffer);
   
-  console.log('✅ Logo saved (transparent + 5S)');
+  console.log('✅ Logo saved with transparent background');
 }
 
 editLogo().catch(console.error);
