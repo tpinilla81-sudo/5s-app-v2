@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
-import { db, verifyDatabaseConfig } from '@/lib/db'
-import { getAuthUser, SESSION_COOKIE, getSessionExpiry } from '@/lib/auth-helpers'
-import { hashPassword, verifyAndMigratePassword, isLegacyHash } from '@/lib/password'
+import { db, verifyDatabaseConfig } from '../../../lib/db'
+import { getAuthUser, SESSION_COOKIE, getSessionExpiry } from '../../../lib/auth-helpers'
+import { hashPassword, verifyAndMigratePassword, isLegacyHash } from '../../../lib/password'
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 

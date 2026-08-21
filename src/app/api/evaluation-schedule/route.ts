@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '../../../lib/db'
 
 // GET /api/evaluation-schedule?sStep=1&miniStep=4&projectId=xxx&zoneId=yyy
 // Returns the scheduled date/time for an evaluation step

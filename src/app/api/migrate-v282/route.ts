@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getAuthUser } from '@/lib/auth-helpers'
-import { AUDIT_CHECKLISTS } from '@/lib/5s-constants'
-import { classifyImpacto } from '@/lib/action-item-helpers'
+import { db } from '../../../lib/db'
+import { getAuthUser } from '../../../lib/auth-helpers'
+import { AUDIT_CHECKLISTS } from '../../../lib/5s-constants'
+import { classifyImpacto } from '../../../lib/action-item-helpers'
 
 /**
  * POST /api/migrate-v282

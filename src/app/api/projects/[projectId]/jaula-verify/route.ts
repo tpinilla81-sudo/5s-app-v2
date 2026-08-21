@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getAuthUser } from '@/lib/auth-helpers'
-import { uploadToStorage, isStorageConfigured } from '@/lib/supabase-storage'
+import { db } from '../../../../../lib/db'
+import { getAuthUser } from '../../../../../lib/auth-helpers'
+import { uploadToStorage, isStorageConfigured } from '../../../../../lib/supabase-storage'
 
 /**
  * GET /api/projects/[projectId]/jaula-verify

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { AUDIT_CHECKLISTS } from '@/lib/5s-constants'
-import type { AuditSection } from '@/lib/5s-constants'
+import { AUDIT_CHECKLISTS } from './5s-constants'
+import type { AuditSection } from './5s-constants'
 
 /**
  * Convert template content (from API) to AuditSection[] format.

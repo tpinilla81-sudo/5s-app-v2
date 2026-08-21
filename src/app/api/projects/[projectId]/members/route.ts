@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { hashPassword } from '@/lib/password'
+import { db } from '../../../../../lib/db'
+import { hashPassword } from '../../../../../lib/password'
 
 // GET /api/projects/[projectId]/members - List members with zones, role, and password
 export async function GET(

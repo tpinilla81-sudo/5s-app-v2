@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { db } from '../../../lib/db'
+import { getAuthUser } from '../../../lib/auth-helpers'
 
 // GET /api/companies - List companies
 // Gestor sees all; admin/gerente sees their assigned companies only

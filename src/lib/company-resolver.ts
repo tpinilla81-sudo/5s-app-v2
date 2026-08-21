@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
-import { db } from '@/lib/db'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { db } from './db'
+import { getAuthUser } from './auth-helpers'
 
 export interface AuthContext {
   user: {

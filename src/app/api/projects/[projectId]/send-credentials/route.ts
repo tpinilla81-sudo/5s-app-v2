@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { sendResourceWelcomeEmail } from '@/lib/email'
+import { db } from '../../../../../lib/db'
+import { sendResourceWelcomeEmail } from '../../../../../lib/email'
 
 // POST /api/projects/[projectId]/send-credentials — Send welcome email with credentials to a member
 export async function POST(

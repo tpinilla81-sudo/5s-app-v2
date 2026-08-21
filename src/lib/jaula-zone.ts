@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { db } from './db'
 
 /**
  * v2.101 — PENDIENTE-S1 (Opción A)

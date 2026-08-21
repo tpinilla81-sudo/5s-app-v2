@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { db, ensureSystemConfigTable } from '@/lib/db'
+import { db, ensureSystemConfigTable } from '../../../lib/db'
 
 /**
  * POST /api/fix-templates

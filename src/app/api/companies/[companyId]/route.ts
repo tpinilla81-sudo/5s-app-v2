@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { db } from '../../../../lib/db'
+import { getAuthUser } from '../../../../lib/auth-helpers'
 
 // GET /api/companies/[companyId] - Get company with projects and members
 export async function GET(

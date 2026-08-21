@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { db } from '../../../lib/db'
+import { getAuthUser } from '../../../lib/auth-helpers'
 
 // Valores por defecto del algoritmo de zonificación.
 // Se aplican si todavía no existe ningún ZoneAlgorithmConfig en la DB.

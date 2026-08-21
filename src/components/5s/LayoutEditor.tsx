@@ -1,24 +1,24 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { use5SStore } from '@/lib/store'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
+import { use5SStore } from '../../lib/store'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Badge } from '../ui/badge'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '../ui/dialog'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '../ui/select'
 import {
   Square, Circle, Minus, Type, MousePointer, Trash2, Download,
   Upload, Save, X, Undo2, RotateCcw, Image as ImageIcon, Palette

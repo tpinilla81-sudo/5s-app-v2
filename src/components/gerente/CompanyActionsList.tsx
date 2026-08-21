@@ -2,19 +2,19 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { use5SStore } from '@/lib/store'
-import { S_STEPS } from '@/lib/5s-constants'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { use5SStore } from '../../lib/store'
+import { S_STEPS } from '../../lib/5s-constants'
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { Badge } from '../ui/badge'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
+} from '../ui/select'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
+} from '../ui/dialog'
+import { Label } from '../ui/label'
 import {
   Zap, Filter, ArrowLeft, Clock, User, AlertTriangle,
   CheckCircle2, XCircle, Loader2, Building2, Calendar,

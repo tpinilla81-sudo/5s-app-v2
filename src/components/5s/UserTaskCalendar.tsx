@@ -1,8 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import { Calendar } from '@/components/ui/calendar'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '../ui/sheet'
+import { Calendar } from '../ui/calendar'
 import { es } from 'date-fns/locale'
 import { format, isToday, isPast, isSameDay, parseISO, addDays, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns'
 import {
@@ -21,9 +21,9 @@ import {
   Trash2,
   CalendarClock,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { cn } from '../../lib/utils'
+import { Button } from '../ui/button'
+import { Badge } from '../ui/badge'
 
 interface TaskItem {
   id: string

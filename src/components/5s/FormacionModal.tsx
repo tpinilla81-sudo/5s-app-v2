@@ -6,14 +6,14 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+} from '../ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Button } from '../ui/button';
+import { Card, CardContent } from '../ui/card';
+import { Badge } from '../ui/badge';
 import { GraduationCap, CheckCircle, XCircle, AlertCircle, Maximize2, Minimize2, BookOpen } from 'lucide-react';
-import { use5SStore } from '@/lib/store';
-import { S_STEPS } from '@/lib/5s-constants';
+import { use5SStore } from '../../lib/store';
+import { S_STEPS } from '../../lib/5s-constants';
 
 interface FormacionModalProps {
   open: boolean;

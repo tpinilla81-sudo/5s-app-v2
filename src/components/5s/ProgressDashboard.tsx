@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { S_STEPS } from '@/lib/5s-constants';
-import { use5SStore } from '@/lib/store';
-import { Progress } from '@/components/ui/progress';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { S_STEPS } from '../../lib/5s-constants';
+import { use5SStore } from '../../lib/store';
+import { Progress } from '../ui/progress';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import {
   ShieldCheck, TrendingUp, Zap, Trophy, CheckCircle2, AlertCircle, CircleDot
 } from 'lucide-react';

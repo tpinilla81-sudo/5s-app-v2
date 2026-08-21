@@ -1,23 +1,23 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Card, CardContent } from '../ui/card'
+import { Badge } from '../ui/badge'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Checkbox } from '../ui/checkbox'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
+} from '../ui/select'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog'
+} from '../ui/dialog'
 import {
   Loader2, X, FileText, Award, Settings2, Plus, Trash2, Edit3, Save,
   ChevronDown, ChevronUp, Star, Copy, LayoutGrid, Building2,
 } from 'lucide-react'
-import { S_STEPS } from '@/lib/5s-constants'
+import { S_STEPS } from '../../lib/5s-constants'
 
 // ═══════════════════════════════════════════════════════
 // TYPES

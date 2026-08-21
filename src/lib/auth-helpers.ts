@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from './db'
 
 export const SESSION_COOKIE = '5s_session'
 export const SESSION_DURATION_DAYS = 7

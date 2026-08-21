@@ -22,23 +22,23 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { use5SStore } from '@/lib/store'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { use5SStore } from '../../lib/store'
+import { Button } from '../ui/button'
+import { Badge } from '../ui/badge'
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetDescription,
-} from '@/components/ui/sheet'
+} from '../ui/sheet'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '../ui/select'
 import {
   BookOpen,
   LayoutGrid,
@@ -51,7 +51,7 @@ import {
   AlertTriangle,
   Camera,
 } from 'lucide-react'
-import { S_STEPS } from '@/lib/5s-constants'
+import { S_STEPS } from '../../lib/5s-constants'
 import TemplateManager from './TemplateManager'
 
 // Paleta de colores por S step (debe coincidir con TemplateManager.tsx)

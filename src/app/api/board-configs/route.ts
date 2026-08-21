@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '../../../lib/db'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Auto-poblar los 25 slots (5 S × 5 mini-steps) de una BoardConfiguration

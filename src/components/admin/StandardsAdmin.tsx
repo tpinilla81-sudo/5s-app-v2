@@ -2,20 +2,20 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { use5SStore } from '@/lib/store';
-import { S_STEPS } from '@/lib/5s-constants';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { use5SStore } from '../../lib/store';
+import { S_STEPS } from '../../lib/5s-constants';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
+import { Label } from '../ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+} from '../ui/select';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
+} from '../ui/dialog';
 import {
   BookOpen, Plus, Trash2, Edit3, Save, Loader2, Layout, Paintbrush,
   Camera, ArrowRight, Shield, Award, Truck, Cog, User, Phone,
@@ -23,8 +23,8 @@ import {
   Search, Filter,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import LayoutEditor from '@/components/5s/LayoutEditor';
-import ColorCodeTable from '@/components/5s/ColorCodeTable';
+import LayoutEditor from '../5s/LayoutEditor';
+import ColorCodeTable from '../5s/ColorCodeTable';
 
 // ═══════════════════════════════════════════════════════
 // TYPES & CONFIG

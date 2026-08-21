@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUser } from '@/lib/auth-helpers'
-import { db } from '@/lib/db'
+import { getAuthUser } from '../../../lib/auth-helpers'
+import { db } from '../../../lib/db'
 
 // POST /api/migrate — Apply pending migrations (gestor only)
 // This endpoint applies the cascade-delete migration for Project→Company

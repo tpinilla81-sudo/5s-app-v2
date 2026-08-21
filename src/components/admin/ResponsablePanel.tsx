@@ -1,21 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { use5SStore } from '@/lib/store'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
+import { use5SStore } from '../../lib/store'
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { Badge } from '../ui/badge'
+import { Button } from '../ui/button'
+import { Progress } from '../ui/progress'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
+} from '../ui/select'
 import {
   MapPin, Users, TrendingUp, CheckCircle2, Clock, AlertTriangle,
   ChevronDown, ChevronUp, ShieldCheck, BarChart3, Eye,
   ClipboardList, Camera, BookOpen, Award, FileCheck,
   Calendar, ListTodo, Package, Trash2, ArrowRight,
 } from 'lucide-react'
-import { S_STEPS } from '@/lib/5s-constants'
+import { S_STEPS } from '../../lib/5s-constants'
 import { toast } from 'sonner'
 
 // ═══════════════════════════════════════════════════════

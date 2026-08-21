@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '../../../../lib/db'
 
 // GET /api/inventory/company-jaula
 // Returns all jaula items (sStep=1, jaulaStatus!='') across all projects of a given company

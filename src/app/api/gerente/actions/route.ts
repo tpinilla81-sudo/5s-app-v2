@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getGerenteUser } from '@/lib/auth-helpers'
+import { db } from '../../../../lib/db'
+import { getGerenteUser } from '../../../../lib/auth-helpers'
 
 /**
  * GET /api/gerente/actions?company=Empresa+Demo&estado=abierta&prioridad=alta&projectId=xxx&sStep=1

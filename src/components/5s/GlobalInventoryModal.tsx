@@ -6,17 +6,17 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+} from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { Input } from '../ui/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '../ui/select';
 import {
   Table,
   TableBody,
@@ -24,12 +24,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+} from '../ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ClipboardList, Package, Search, Filter, Download, Trash2, ArrowUpDown, Maximize2, Minimize2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { use5SStore } from '@/lib/store';
-import { S_STEPS, INVENTORY_CONFIGS } from '@/lib/5s-constants';
+import { use5SStore } from '../../lib/store';
+import { S_STEPS, INVENTORY_CONFIGS } from '../../lib/5s-constants';
 
 interface InventoryItemData {
   id: string;

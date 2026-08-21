@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { db } from '../../../lib/db'
+import { getAuthUser } from '../../../lib/auth-helpers'
 
 // GET /api/platform-stats - Platform-wide statistics for Gestor (dueño de la app)
 // ✅ UPDATED: Ahora incluye `adminUser` en cada empresa (el primer admin_empresa encontrado)

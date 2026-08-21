@@ -6,13 +6,13 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+} from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Card, CardContent } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
+import { Label } from '../ui/label';
 import {
   ShieldCheck,
   CheckCircle,
@@ -37,27 +37,27 @@ import {
   Sparkles,
   Paperclip,
 } from 'lucide-react';
-import { use5SStore } from '@/lib/store';
+import { use5SStore } from '../../lib/store';
 import {
   S_STEPS,
   AUDIT_PASS_THRESHOLD,
-} from '@/lib/5s-constants';
-import type { AuditSection, AuditItemResult } from '@/lib/5s-constants';
-import { useChecklistTemplate } from '@/lib/checklist-templates';
+} from '../../lib/5s-constants';
+import type { AuditSection, AuditItemResult } from '../../lib/5s-constants';
+import { useChecklistTemplate } from '../../lib/checklist-templates';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '../ui/select';
 import { toast } from 'sonner';
-import { buildHallazgoFromNok } from '@/lib/action-item-helpers';
+import { buildHallazgoFromNok } from '../../lib/action-item-helpers';
 import NokInventarioRow, {
   DEFAULT_NOK_INVENTORY_DATA,
   DEFAULT_NOK_INVENTORY_ROWS,
   type NokInventoryData,
-} from '@/components/5s/NokInventarioRow';
+} from './NokInventarioRow';
 
 interface AuditoriaModalProps {
   open: boolean;

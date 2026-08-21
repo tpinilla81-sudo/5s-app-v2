@@ -1,7 +1,7 @@
 'use client';
 
-import { S_STEPS } from '@/lib/5s-constants';
-import { use5SStore } from '@/lib/store';
+import { S_STEPS } from '../../lib/5s-constants';
+import { use5SStore } from '../../lib/store';
 
 interface QuesitoDisplayProps {
   sStep?: number; // If provided, show only that S's quesito

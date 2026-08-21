@@ -1,8 +1,8 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { MINI_STEPS, EXAM_PASS_THRESHOLD, AUDIT_PASS_THRESHOLD } from '@/lib/5s-constants';
-import type { MiniStep } from '@/lib/5s-constants';
+import { MINI_STEPS, EXAM_PASS_THRESHOLD, AUDIT_PASS_THRESHOLD } from '../../lib/5s-constants';
+import type { MiniStep } from '../../lib/5s-constants';
 import {
   GraduationCap,
   Camera,
@@ -12,7 +12,7 @@ import {
   Lock,
   ChevronRight,
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '../ui/card';
 
 interface MiniStepCardProps {
   miniStep: MiniStep;

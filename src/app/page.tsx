@@ -2,44 +2,44 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { use5SStore } from '@/lib/store';
-import { S_STEPS, MINI_STEPS } from '@/lib/5s-constants';
-import Board5S from '@/components/5s/Board5S';
-import FormacionModal from '@/components/5s/FormacionModal';
-import FotosModal from '@/components/5s/FotosModal';
-import InventarioModal from '@/components/5s/InventarioModal';
-import ActionPlanModal from '@/components/5s/ActionPlanModal';
-import GlobalInventoryModal from '@/components/5s/GlobalInventoryModal';
-import AuditResultsModal from '@/components/5s/AuditResultsModal';
-import StandardsLibrary from '@/components/5s/StandardsLibrary';
-import PhotoLibrary from '@/components/5s/PhotoLibrary';
-import AutoevaluacionModal from '@/components/5s/AutoevaluacionModal';
-import AuditoriaModal from '@/components/5s/AuditoriaModal';
-import JaulaView from '@/components/5s/JaulaView';
-import ActivosView from '@/components/5s/ActivosView';
-import PuntoLimpioView from '@/components/5s/PuntoLimpioView';
-import PlanDeAccionView from '@/components/5s/PlanDeAccionView';
-import LoginPage from '@/components/auth/LoginPage';
-import LandingPage from '@/components/auth/LandingPage';
-import ProjectSetup from '@/components/auth/ProjectSetup';
-import { ProjectSelector } from '@/components/auth/ProjectSelector';
-import TeamManagement from '@/components/auth/TeamManagement';
-import RolePermissions from '@/components/auth/RolePermissions';
-import AdminPanel from '@/components/admin/AdminPanel';
-import ConstructorPanel from '@/components/admin/ConstructorPanel';
-import GerentePanel from '@/components/auth/GerentePanel';
-import { UserTaskCalendar } from '@/components/5s/UserTaskCalendar';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { use5SStore } from '../lib/store';
+import { S_STEPS, MINI_STEPS } from '../lib/5s-constants';
+import Board5S from '../components/5s/Board5S';
+import FormacionModal from '../components/5s/FormacionModal';
+import FotosModal from '../components/5s/FotosModal';
+import InventarioModal from '../components/5s/InventarioModal';
+import ActionPlanModal from '../components/5s/ActionPlanModal';
+import GlobalInventoryModal from '../components/5s/GlobalInventoryModal';
+import AuditResultsModal from '../components/5s/AuditResultsModal';
+import StandardsLibrary from '../components/5s/StandardsLibrary';
+import PhotoLibrary from '../components/5s/PhotoLibrary';
+import AutoevaluacionModal from '../components/5s/AutoevaluacionModal';
+import AuditoriaModal from '../components/5s/AuditoriaModal';
+import JaulaView from '../components/5s/JaulaView';
+import ActivosView from '../components/5s/ActivosView';
+import PuntoLimpioView from '../components/5s/PuntoLimpioView';
+import PlanDeAccionView from '../components/5s/PlanDeAccionView';
+import LoginPage from '../components/auth/LoginPage';
+import LandingPage from '../components/auth/LandingPage';
+import ProjectSetup from '../components/auth/ProjectSetup';
+import { ProjectSelector } from '../components/auth/ProjectSelector';
+import TeamManagement from '../components/auth/TeamManagement';
+import RolePermissions from '../components/auth/RolePermissions';
+import AdminPanel from '../components/admin/AdminPanel';
+import ConstructorPanel from '../components/admin/ConstructorPanel';
+import GerentePanel from '../components/auth/GerentePanel';
+import { UserTaskCalendar } from '../components/5s/UserTaskCalendar';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../components/ui/sheet';
+import { useIsMobile } from '../hooks/use-mobile';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '../components/ui/dropdown-menu';
 import {
   Loader2, RefreshCw, LogOut, Settings, ChevronDown, Shield, ShieldCheck, Unlock, Lock,
   LayoutDashboard, Wrench, BarChart3, FileText, MapPin, ListChecks,

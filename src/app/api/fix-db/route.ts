@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { db, verifyDatabaseConfig } from '@/lib/db'
+import { db, verifyDatabaseConfig } from '../../../lib/db'
 
 /**
  * POST /api/fix-db

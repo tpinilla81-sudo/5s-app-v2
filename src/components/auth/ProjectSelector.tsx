@@ -3,10 +3,10 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LogOut, MapPin, ChevronDown, Building2, Loader2, Shield } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { use5SStore } from '@/lib/store'
-import { JaulaVerifyCard } from '@/components/5s/JaulaVerifyCard'
+import { Button } from '../ui/button'
+import { Badge } from '../ui/badge'
+import { use5SStore } from '../../lib/store'
+import { JaulaVerifyCard } from '../5s/JaulaVerifyCard'
 
 interface ProjectSelectorProps {
   onLogout: () => void

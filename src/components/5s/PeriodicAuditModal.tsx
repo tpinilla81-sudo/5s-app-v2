@@ -6,12 +6,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+} from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Card, CardContent } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
 import {
   ShieldCheck,
   CheckCircle,
@@ -26,20 +26,20 @@ import {
   UserCircle,
   CheckCheck,
 } from 'lucide-react';
-import { use5SStore } from '@/lib/store';
+import { use5SStore } from '../../lib/store';
 import {
   S_STEPS,
   AUDIT_PASS_THRESHOLD,
   type AuditSection,
   type AuditItemResult,
-} from '@/lib/5s-constants';
+} from '../../lib/5s-constants';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '../ui/select';
 
 interface PeriodicAuditModalProps {
   open: boolean;

@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { use5SStore } from '@/lib/store'
-import { S_STEPS } from '@/lib/5s-constants'
-import { Progress } from '@/components/ui/progress'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { use5SStore } from '../../lib/store'
+import { S_STEPS } from '../../lib/5s-constants'
+import { Progress } from '../ui/progress'
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { Badge } from '../ui/badge'
 import {
   Building2, MapPin, TrendingUp, Camera, ClipboardList,
   CheckSquare, ShieldCheck, Zap, AlertTriangle, Euro,

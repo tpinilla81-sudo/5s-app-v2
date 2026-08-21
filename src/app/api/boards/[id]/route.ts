@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '../../../../lib/db'
 
 // GET /api/boards/[id] - Get a single board with slots
 export async function GET(

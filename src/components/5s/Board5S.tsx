@@ -1,9 +1,9 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { S_STEPS, MINI_STEPS } from '@/lib/5s-constants';
-import { use5SStore } from '@/lib/store';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { S_STEPS, MINI_STEPS } from '../../lib/5s-constants';
+import { use5SStore } from '../../lib/store';
+import { useIsMobile } from '../../hooks/use-mobile';
 
 interface Board5SProps {
   onSStepClick: (sStep: number) => void;

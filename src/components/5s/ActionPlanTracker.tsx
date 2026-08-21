@@ -6,21 +6,21 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+} from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Card, CardContent } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
+import { Label } from '../ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '../ui/select';
 import {
   AlertTriangle,
   CheckCircle,
@@ -37,9 +37,9 @@ import {
   Maximize2,
   Minimize2,
 } from 'lucide-react';
-import { S_STEPS } from '@/lib/5s-constants';
-import { use5SStore } from '@/lib/store';
-import { fetchChecklistTemplate } from '@/lib/checklist-templates';
+import { S_STEPS } from '../../lib/5s-constants';
+import { use5SStore } from '../../lib/store';
+import { fetchChecklistTemplate } from '../../lib/checklist-templates';
 
 interface ActionItem {
   id: string;

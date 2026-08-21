@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '../../../../lib/db'
 
 // GET /api/photo-library/company-fotos
 // Returns all photos across all projects of a given company

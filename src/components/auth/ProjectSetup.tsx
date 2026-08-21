@@ -1,20 +1,20 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { use5SStore } from '@/lib/store'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { use5SStore } from '../../lib/store'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Textarea } from '../ui/textarea'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
+} from '../ui/select'
+import { Badge } from '../ui/badge'
 import {
   Table,
   TableBody,
@@ -22,14 +22,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from '../ui/table'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '../ui/dropdown-menu'
 import {
   Loader2,
   Plus,
@@ -58,7 +58,7 @@ import {
   Sparkles,
   HelpCircle,
 } from 'lucide-react'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Checkbox } from '../ui/checkbox'
 
 const PRESET_COLORS = [
   '#8B5CF6', '#EAB308', '#3B82F6', '#F43F5E',
@@ -91,7 +91,7 @@ interface MemberInput {
   emailSent?: boolean // Track if welcome email was sent
 }
 
-import { calculateZonesFromTotals, type SplitResult } from '@/lib/zone-generator'
+import { calculateZonesFromTotals, type SplitResult } from '../../lib/zone-generator'
 
 interface CompanyData {
   id: string

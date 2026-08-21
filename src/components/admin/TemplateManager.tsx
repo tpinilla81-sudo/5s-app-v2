@@ -2,16 +2,16 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { use5SStore } from '@/lib/store'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Textarea } from '@/components/ui/textarea'
+import { use5SStore } from '../../lib/store'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { Badge } from '../ui/badge'
+import { Textarea } from '../ui/textarea'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
+} from '../ui/select'
 import {
   Plus, Trash2, Edit3, Save, Loader2, BookOpen, FileCheck, ClipboardCheck, Camera,
   ChevronDown, ChevronUp, AlertTriangle, Copy, RotateCcw, X,
@@ -20,7 +20,7 @@ import {
   Play, SearchCheck, Rocket, Target, Sparkles, LayoutGrid,
   Crown, Building2, Lock,
 } from 'lucide-react'
-import { S_STEPS, AUDIT_CHECKLISTS, EXAM_PASS_THRESHOLD, SELF_EVAL_THRESHOLD, AUDIT_PASS_THRESHOLD, INVENTORY_CONFIGS, MC_STEP_CONFIG, MC_PASO_CONFIG, PDCA_STEPS } from '@/lib/5s-constants'
+import { S_STEPS, AUDIT_CHECKLISTS, EXAM_PASS_THRESHOLD, SELF_EVAL_THRESHOLD, AUDIT_PASS_THRESHOLD, INVENTORY_CONFIGS, MC_STEP_CONFIG, MC_PASO_CONFIG, PDCA_STEPS } from '../../lib/5s-constants'
 
 // ═══════════════════════════════════════════════════════
 // TYPES

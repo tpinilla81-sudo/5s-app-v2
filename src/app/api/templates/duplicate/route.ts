@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { resolveAuthContext, canEditCompanyTemplates, canEditSystemTemplates } from '@/lib/company-resolver'
+import { db } from '../../../../lib/db'
+import { resolveAuthContext, canEditCompanyTemplates, canEditSystemTemplates } from '../../../../lib/company-resolver'
 
 // POST /api/templates/duplicate
 // Body: { sourceId: string, targetCompanyId?: string }

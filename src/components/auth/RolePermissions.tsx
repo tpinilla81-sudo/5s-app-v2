@@ -2,19 +2,19 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { use5SStore } from '@/lib/store'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { use5SStore } from '../../lib/store'
+import { Button } from '../ui/button'
+import { Badge } from '../ui/badge'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card'
 import {
   Switch,
-} from '@/components/ui/switch'
+} from '../ui/switch'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from '../ui/tooltip'
 import {
   Shield, Users, Settings, Eye, Pencil, Trash2, CheckCircle2, XCircle,
   Lock, Unlock, Crown, UserCheck, HardHat, ClipboardCheck, BookOpen,

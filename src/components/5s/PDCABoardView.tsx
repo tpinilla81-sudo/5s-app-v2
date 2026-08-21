@@ -1,21 +1,21 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { use5SStore } from '@/lib/store'
-import { S_STEPS } from '@/lib/5s-constants'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Textarea } from '@/components/ui/textarea'
+import { use5SStore } from '../../lib/store'
+import { S_STEPS } from '../../lib/5s-constants'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { Badge } from '../ui/badge'
+import { Textarea } from '../ui/textarea'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '../ui/select'
 import {
   Zap, Plus, Trash2, Edit3, X, Check, Loader2, ArrowRight,
   ClipboardList, BarChart3, TrendingUp, Target, Clock, AlertTriangle,

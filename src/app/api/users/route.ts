@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getAuthUser } from '@/lib/auth-helpers'
-import { hashPassword, verifyPassword } from '@/lib/password'
+import { db } from '../../../lib/db'
+import { getAuthUser } from '../../../lib/auth-helpers'
+import { hashPassword, verifyPassword } from '../../../lib/password'
 
 // GET /api/users - List all users with their project memberships
 // Gestor sees all users; admin/gerente sees only users from their companies

@@ -2,17 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { use5SStore } from '@/lib/store';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { use5SStore } from '../../lib/store';
+import { Button } from '../ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Badge } from '../ui/badge';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '../ui/select';
 import {
   Table,
   TableBody,
@@ -20,13 +20,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from '../ui/table';
 import {
   ArrowLeft, ShieldCheck, TrendingUp, Zap, Trophy, Building2,
   AlertCircle, CircleDot, CheckCircle2, ChevronDown, ChevronUp,
   Package, ListChecks, MapPin, User, Calendar, AlertTriangle,
 } from 'lucide-react';
-import RadarChart5S from '@/components/5s/RadarChart5S';
+import RadarChart5S from '../5s/RadarChart5S';
 
 interface ProjectStats {
   id: string;

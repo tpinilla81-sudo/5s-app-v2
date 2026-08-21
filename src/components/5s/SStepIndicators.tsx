@@ -1,7 +1,7 @@
 'use client';
 
-import { use5SStore } from '@/lib/store';
-import { S_STEPS } from '@/lib/5s-constants';
+import { use5SStore } from '../../lib/store';
+import { S_STEPS } from '../../lib/5s-constants';
 import {
   ListTodo, Camera, ClipboardCheck, Trash2, Package, HelpCircle
 } from 'lucide-react';

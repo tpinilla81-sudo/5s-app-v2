@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { ensureJaulaZone } from '@/lib/jaula-zone'
+import { db } from '../../../../../lib/db'
+import { ensureJaulaZone } from '../../../../../lib/jaula-zone'
 
 // GET /api/projects/[projectId]/zones - List zones of a project
 export async function GET(

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { db } from '../../../lib/db'
+import { getAuthUser } from '../../../lib/auth-helpers'
 
 // GET /api/projects - List projects with zones and member count
 // Admin sees projects from their companies; gerente same; non-admin sees only their assigned projects

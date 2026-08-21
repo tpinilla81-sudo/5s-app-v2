@@ -25,9 +25,9 @@
  *     `onChange: (next: NokInventoryData[]) => void` y
  *     `photosByRow: Record<string, File[]>` / `onPhotosChange`.
  */
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
 import { Plus, X, Camera } from 'lucide-react';
 import {
   Select,
@@ -35,7 +35,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '../ui/select';
 
 export interface NokInventoryData {
   rowId: string;            // ID único de la fila (para gestionar fotos por fila)

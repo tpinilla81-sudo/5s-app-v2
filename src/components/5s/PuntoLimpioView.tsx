@@ -1,25 +1,25 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '../ui/select';
 import {
   Droplets, Plus, Trash2, Loader2, ChevronDown, Filter,
   CheckCircle2, Clock, AlertCircle, X, Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { use5SStore } from '@/lib/store';
-import { INVENTORY_CONFIGS } from '@/lib/5s-constants';
-import type { InventoryConfig } from '@/lib/5s-constants';
+import { use5SStore } from '../../lib/store';
+import { INVENTORY_CONFIGS } from '../../lib/5s-constants';
+import type { InventoryConfig } from '../../lib/5s-constants';
 
 // ═══════════════════════════════════════════════════════
 // Types

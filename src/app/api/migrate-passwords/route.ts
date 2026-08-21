@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUser } from '@/lib/auth-helpers'
-import { migrateAllLegacyPasswords, isLegacyHash } from '@/lib/password'
-import { db } from '@/lib/db'
+import { getAuthUser } from '../../../lib/auth-helpers'
+import { migrateAllLegacyPasswords, isLegacyHash } from '../../../lib/password'
+import { db } from '../../../lib/db'
 
 /**
  * POST /api/migrate-passwords

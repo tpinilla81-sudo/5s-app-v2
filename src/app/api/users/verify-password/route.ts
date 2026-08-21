@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { verifyPassword } from '@/lib/password'
+import { db } from '../../../../lib/db'
+import { verifyPassword } from '../../../../lib/password'
 
 /**
  * POST /api/users/verify-password

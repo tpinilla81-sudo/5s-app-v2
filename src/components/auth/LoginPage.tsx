@@ -2,11 +2,11 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { use5SStore } from '@/lib/store'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card'
+import { use5SStore } from '../../lib/store'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Card, CardContent, CardHeader, CardDescription } from '../ui/card'
 import { Loader2, Mail, Lock, ArrowLeft } from 'lucide-react'
 import SolicitarInfoDialog from './SolicitarInfoDialog'
 

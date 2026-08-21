@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { classifyImpacto } from '@/lib/action-item-helpers'
+import { db } from '../../../../lib/db'
+import { classifyImpacto } from '../../../../lib/action-item-helpers'
 
 /**
  * POST /api/inventory/sync-actions

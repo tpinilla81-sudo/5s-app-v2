@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db, ensureSystemConfigTable } from '@/lib/db'
-import { AUDIT_CHECKLISTS, INVENTORY_CONFIGS } from '@/lib/5s-constants'
+import { db, ensureSystemConfigTable } from '../../../../lib/db'
+import { AUDIT_CHECKLISTS, INVENTORY_CONFIGS } from '../../../../lib/5s-constants'
 
 /**
  * POST /api/seed/templates

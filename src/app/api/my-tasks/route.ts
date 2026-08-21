@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '../../../lib/db'
 
 // GET /api/my-tasks?userId=xxx&projectId=xxx&showCompleted=true
 // Returns ActionItems assigned to a given user, enriched with status:

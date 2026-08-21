@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '../../../lib/db'
 
 // GET /api/board-slots?boardConfigId=xxx[&sStep=1][&miniStep=1]
 // Si no se pasa boardConfigId, se usa automáticamente la configuración por defecto.

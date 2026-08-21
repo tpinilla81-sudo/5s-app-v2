@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { use5SStore } from '@/lib/store'
+import { use5SStore } from '../lib/store'
 
 export interface PermissionMap {
   [role: string]: {

@@ -6,24 +6,24 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+} from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { Card, CardContent } from '../ui/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '../ui/select';
 import {
   ShieldCheck, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight,
   MapPin, User, Calendar, TrendingUp, Clock, Filter,
   Maximize2, Minimize2,
 } from 'lucide-react';
-import { use5SStore } from '@/lib/store';
-import { S_STEPS } from '@/lib/5s-constants';
+import { use5SStore } from '../../lib/store';
+import { S_STEPS } from '../../lib/5s-constants';
 
 interface AuditRecord {
   id: string;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '../../../../lib/db'
 
 // GET /api/inventory/company-necesarios
 // Returns all S2 inventory items across all projects of a given company

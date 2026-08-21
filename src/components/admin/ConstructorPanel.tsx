@@ -2,19 +2,19 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { use5SStore } from '@/lib/store'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { use5SStore } from '../../lib/store'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import {
  Select,
  SelectContent,
  SelectItem,
  SelectTrigger,
  SelectValue,
-} from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
+} from '../ui/select'
+import { Badge } from '../ui/badge'
 import {
  Table,
  TableBody,
@@ -22,13 +22,13 @@ import {
  TableHead,
  TableHeader,
  TableRow,
-} from '@/components/ui/table'
+} from '../ui/table'
 import {
  Dialog,
  DialogContent,
  DialogHeader,
  DialogTitle,
-} from '@/components/ui/dialog'
+} from '../ui/dialog'
 import {
  Crown,
  Building2,

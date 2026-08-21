@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { StatsData } from '@/lib/store';
-import { S_STEPS } from '@/lib/5s-constants';
+import { StatsData } from '../../lib/store';
+import { S_STEPS } from '../../lib/5s-constants';
 import {
   ListTodo, Camera, ClipboardCheck, Trash2, Package,
   HelpCircle, ChevronDown, ChevronUp, TrendingUp

@@ -6,10 +6,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+} from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { Input } from '../ui/input';
 // v2.82: Textarea ya no se usa (Impacto ahora es auto-clasificado read-only).
 import {
   Select,
@@ -17,11 +17,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '../ui/select';
 import { ListChecks, Plus, Trash2, ChevronDown, ChevronRight, AlertTriangle, Maximize2, Minimize2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { use5SStore } from '@/lib/store';
-import { S_STEPS, ACTION_PLAN_MIN_ITEMS } from '@/lib/5s-constants';
+import { use5SStore } from '../../lib/store';
+import { S_STEPS, ACTION_PLAN_MIN_ITEMS } from '../../lib/5s-constants';
 
 interface ActionItemData {
   id: string;

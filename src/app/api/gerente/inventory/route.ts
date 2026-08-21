@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getGerenteUser } from '@/lib/auth-helpers'
+import { db } from '../../../../lib/db'
+import { getGerenteUser } from '../../../../lib/auth-helpers'
 
 /**
  * GET /api/gerente/inventory?company=Empresa+Demo&category=innecesario&projectId=xxx&sStep=1

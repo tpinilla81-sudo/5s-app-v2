@@ -6,10 +6,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+} from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Card, CardContent } from '../ui/card';
+import { Badge } from '../ui/badge';
 import {
   Camera,
   Upload,
@@ -25,16 +25,16 @@ import {
   Maximize2,
   Minimize2,
 } from 'lucide-react';
-import { use5SStore } from '@/lib/store';
+import { use5SStore } from '../../lib/store';
 import { toast } from 'sonner';
-import { S_STEPS, MIN_PHOTOS, MINI_STEPS, DRAFT_NAME_BY_S } from '@/lib/5s-constants';
+import { S_STEPS, MIN_PHOTOS, MINI_STEPS, DRAFT_NAME_BY_S } from '../../lib/5s-constants';
 import {
   compressImage,
   generatePhotoFilename,
   base64toFile,
   estimateBase64Size,
   formatBytes,
-} from '@/lib/image-utils';
+} from '../../lib/image-utils';
 
 interface FotosModalProps {
   open: boolean;

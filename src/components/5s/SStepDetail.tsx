@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { S_STEPS, MINI_STEPS } from '@/lib/5s-constants';
-import { use5SStore } from '@/lib/store';
+import { S_STEPS, MINI_STEPS } from '../../lib/5s-constants';
+import { use5SStore } from '../../lib/store';
 import MiniStepCard from './MiniStepCard';
 import { ArrowLeft, Trophy, ChevronDown, ChevronRight, ShieldCheck, AlertTriangle, AlertCircle, Camera } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '../ui/button';
+import { Progress } from '../ui/progress';
+import { Badge } from '../ui/badge';
+import { Card, CardContent } from '../ui/card';
 import QuesitoDisplay from './QuesitoDisplay';
 
 export type ModalType = 'formacion' | 'fotos' | 'inventario' | 'actionplan' | 'autoevaluacion' | 'auditoria' | 'globalActionPlan' | 'globalInventory' | 'auditResults' | 'photoLibrary';

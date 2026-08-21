@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { db } from '../../../../lib/db'
+import { getAuthUser } from '../../../../lib/auth-helpers'
 import * as XLSX from 'xlsx'
 
 // GET /api/resources/export - Export all resources as Excel file

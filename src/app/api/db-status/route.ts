@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { verifyDatabaseConfig } from '@/lib/db'
+import { verifyDatabaseConfig } from '../../../lib/db'
 
 /**
  * GET /api/db-status

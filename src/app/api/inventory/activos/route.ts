@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '../../../../lib/db'
 
 // GET /api/inventory/activos
 // Returns all S2 items (Activos/Necessary items organized in Seiton)

@@ -6,11 +6,11 @@ import {
   Sparkles, X, Plus, Trash2, AlertTriangle,
   CheckCircle2, Loader2, Wand2, Users,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { splitZones, type InitialZone, type SubZone } from '@/lib/zone-generator'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { splitZones, type InitialZone, type SubZone } from '../../lib/zone-generator'
 
 export interface ZoneGeneratorWizardProps {
   projectId: string

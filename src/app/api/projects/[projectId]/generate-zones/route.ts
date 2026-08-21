@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { ensureJaulaZone } from '@/lib/jaula-zone'
-import { splitZones, type InitialZone } from '@/lib/zone-generator'
+import { db } from '../../../../../lib/db'
+import { ensureJaulaZone } from '../../../../../lib/jaula-zone'
+import { splitZones, type InitialZone } from '../../../../../lib/zone-generator'
 
 // POST /api/projects/[projectId]/generate-zones
 //

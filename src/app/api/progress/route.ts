@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '../../../lib/db'
 
 // Helper: serialize Prisma results (convert BigInt/Date to safe JSON)
 function safeJsonify(data: any): any {

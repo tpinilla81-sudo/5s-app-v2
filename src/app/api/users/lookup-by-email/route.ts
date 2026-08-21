@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { db } from '../../../../lib/db'
+import { getAuthUser } from '../../../../lib/auth-helpers'
 
 // GET /api/users/lookup-by-email?email=foo@bar.com
 // Devuelve un usuario por email EXACTO (sin importar empresa/activo).

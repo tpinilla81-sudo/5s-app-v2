@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { Button } from '../ui/button'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '../ui/dialog'
 import { Paintbrush, X, ZoomIn, Image as ImageIcon } from 'lucide-react'
 
 // Company standard: CUADRO DE COLORES - SEÑALIZACIÓN EN SUELO Y COMPONENTES

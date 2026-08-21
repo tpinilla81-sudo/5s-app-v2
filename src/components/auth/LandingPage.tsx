@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Button } from '@/components/ui/button'
+import { Button } from '../ui/button'
 import {
   Search, ArrowRight, Sparkles, BarChart3, ShieldCheck,
   ClipboardList, Camera, CheckSquare, GraduationCap,

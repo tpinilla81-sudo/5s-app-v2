@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '../ui/button'
+import { Badge } from '../ui/badge'
 import { BookOpen, ChevronDown, ChevronUp, Building2, Crown } from 'lucide-react'
-import { use5SStore } from '@/lib/store'
+import { use5SStore } from '../../lib/store'
 import TemplateManager from './TemplateManager'
 
 interface ProjectTemplatesSectionProps {

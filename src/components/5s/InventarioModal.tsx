@@ -6,18 +6,18 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+} from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Card, CardContent } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { Input } from '../ui/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '../ui/select';
 import {
   Table,
   TableBody,
@@ -25,22 +25,22 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from '../ui/table';
 import { ClipboardList, CheckCircle, Download, Upload, FileSpreadsheet, BookOpen, ArrowRight, AlertTriangle, FileUp, Maximize2, Minimize2, File, PenTool, Eye, Loader2, MapPin, Tag, Camera, ZoomIn, Plus } from 'lucide-react';
 import { toast } from 'sonner';
-import { use5SStore } from '@/lib/store';
-import { S_STEPS, INVENTORY_CONFIGS, INVENTORY_CLASSIFY_THRESHOLD, DRAFT_NAME_BY_S, DRAFT_INSTRUCTIONS_BY_S, MIN_PHOTOS } from '@/lib/5s-constants';
-import type { InventoryConfig } from '@/lib/5s-constants';
-import LayoutEditor from '@/components/5s/LayoutEditor';
-import ColorCodeTable from '@/components/5s/ColorCodeTable';
-import TagPrinter from '@/components/5s/TagPrinter';
-import CleaningPlanPanel from '@/components/5s/CleaningPlanPanel';
-import BibliotecaEstandaresView from '@/components/5s/BibliotecaEstandaresView';
+import { use5SStore } from '../../lib/store';
+import { S_STEPS, INVENTORY_CONFIGS, INVENTORY_CLASSIFY_THRESHOLD, DRAFT_NAME_BY_S, DRAFT_INSTRUCTIONS_BY_S, MIN_PHOTOS } from '../../lib/5s-constants';
+import type { InventoryConfig } from '../../lib/5s-constants';
+import LayoutEditor from './LayoutEditor';
+import ColorCodeTable from './ColorCodeTable';
+import TagPrinter from './TagPrinter';
+import CleaningPlanPanel from './CleaningPlanPanel';
+import BibliotecaEstandaresView from './BibliotecaEstandaresView';
 import {
   compressImage,
   generatePhotoFilename,
   base64toFile,
-} from '@/lib/image-utils';
+} from '../../lib/image-utils';
 
 // v2.50: Decision helpers — 'Retirar' (→Jaula) replaces 'Jaula'; 'Eliminar' absorbs 'Tirar'.
 // Backward compat: legacy DB rows may still carry decision='Jaula' or 'Tirar'.

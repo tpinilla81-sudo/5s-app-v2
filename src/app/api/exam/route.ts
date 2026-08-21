@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { resolveAuthContext } from '@/lib/company-resolver'
+import { db } from '../../../lib/db'
+import { resolveAuthContext } from '../../../lib/company-resolver'
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '../../../../lib/db'
 
 // Helper: check if user has a specific permission via rolePermissionConfig
 async function hasPermission(role: string, permission: string): Promise<boolean> {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '../../../../../lib/db'
 
 // POST /api/board-slots/[slotId]/templates - Add a template to a slot
 export async function POST(

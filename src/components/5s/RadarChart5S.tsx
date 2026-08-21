@@ -5,8 +5,8 @@ import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Radar, Legend, ResponsiveContainer, Tooltip
 } from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { S_STEPS } from '@/lib/5s-constants';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { S_STEPS } from '../../lib/5s-constants';
 
 interface AuditTarget {
   id: string;

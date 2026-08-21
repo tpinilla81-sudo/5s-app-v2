@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getAuthUser } from '@/lib/auth-helpers'
-import { AUDIT_CHECKLISTS } from '@/lib/5s-constants'
+import { db } from '../../../lib/db'
+import { getAuthUser } from '../../../lib/auth-helpers'
+import { AUDIT_CHECKLISTS } from '../../../lib/5s-constants'
 
 /**
  * POST /api/migrate-v281

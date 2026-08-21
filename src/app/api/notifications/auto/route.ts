@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '../../../../lib/db'
 
 // POST /api/notifications/auto — Auto-generate notifications
 // 1. When steps 1-3 are done → notify responsable that step 4 (autoevaluación) is ready
