@@ -9,10 +9,10 @@ async function editLogo() {
   const base64Image = imageBuffer.toString('base64');
   const dataUrl = `data:image/png;base64,${base64Image}`;
   
-  console.log('Making logo with transparent background...');
+  console.log('Editing logo: REMOVE cream ring completely...');
   
   const response = await zai.images.generations.edit({
-    prompt: "Make this a PNG with completely TRANSPARENT background (alpha channel, no white, no black, truly transparent). Keep only the circular green lime logo with 5 segments. In the white center circle put bold dark green '5S' text. The circle must have transparent area around it so the app background shows through.",
+    prompt: "COMPLETELY REMOVE the cream/beige/tan colored ring. The 5 green segments must touch DIRECTLY the white center circle with NO gap and NO cream color between them. Dark green outer border, then green segments extending inward until they touch the white circle with 5S text. Transparent background. Like a pizza slice from crust to center.",
     images: [{ url: dataUrl }],
     size: '1024x1024'
   });
@@ -21,7 +21,7 @@ async function editLogo() {
   const buffer = Buffer.from(editedBase64, 'base64');
   fs.writeFileSync('/home/z/my-project/public/5s-logo.png', buffer);
   
-  console.log('✅ Logo saved with transparent background');
+  console.log('✅ Logo saved - no cream ring');
 }
 
 editLogo().catch(console.error);
