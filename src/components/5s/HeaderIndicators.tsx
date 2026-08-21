@@ -1,12 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { StatsData } from '../../lib/store';
 import { S_STEPS } from '../../lib/5s-constants';
 import {
   ListTodo, Camera, ClipboardCheck, Trash2, Package,
   HelpCircle, ChevronDown, ChevronUp, TrendingUp
 } from 'lucide-react';
+
+// Define StatsData interface locally
+interface StatsData {
+  acciones: { total: number; abiertas: number; en_proceso: number; resueltas: number; cerradas: number };
+  accionesByS: Record<string, any>;
+  fotos: number;
+  fotosByS: Record<string, any>;
+  estandares: { ok: number; total: number };
+  estandaresByS: Record<string, any>;
+}
 
 interface HeaderIndicatorsProps {
   stats: StatsData | null;

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Button, ButtonProps } from '../ui/button'
+import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
@@ -18,8 +18,8 @@ import {
   Loader2, Mail, Send, CheckCircle2, User, Phone, Building2, Info,
 } from 'lucide-react'
 
-type Variant = ButtonProps['variant']
-type Size = ButtonProps['size']
+type Variant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link'
+type Size = 'default' | 'sm' | 'lg' | 'icon'
 
 interface SolicitarInfoDialogProps {
   /** Trigger label */

@@ -53,7 +53,7 @@ import {
   BookOpen,
   Target,
   Camera,
-  Standard as StandardIcon,
+  FileText as StandardIcon,
 } from 'lucide-react';
 import QuarterlyAuditModal from './QuarterlyAuditModal';
 import PeriodicAuditModal from './PeriodicAuditModal';
