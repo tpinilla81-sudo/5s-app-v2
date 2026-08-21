@@ -1,6 +1,6 @@
 {
   "name": "5s-app",
-  "version": "2.200.00",
+  "version": "2.108.19",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
