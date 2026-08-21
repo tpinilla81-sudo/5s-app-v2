@@ -57,12 +57,13 @@ export function middleware(request: NextRequest) {
 
   // 2. Ruta de depuración de versión
   if (url.pathname === '/version') {
-    return new NextResponse(BUILD_VERSION, {
+    // FORZAR VERSIÓN NUEVA PARA TESTEAR
+    return new NextResponse('v3.0.0-FORCED', {
       status: 200,
       headers: {
         'Content-Type': 'text/plain',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'X-Build-Version': BUILD_VERSION,
+        'X-Build-Version': 'v3.0.0-FORCED',
       },
     });
   }
