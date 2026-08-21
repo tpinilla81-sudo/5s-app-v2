@@ -1,0 +1,845 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { use5SStore } from '@/lib/store'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Loader2,
+  Plus,
+  Trash2,
+  X,
+  Building2,
+  MapPin,
+  Users,
+  UserPlus,
+  Shield,
+  Crown,
+  UserCheck,
+  HardHat,
+  ClipboardCheck,
+  Mail,
+  ShieldCheck,
+  Key,
+  RefreshCw,
+  Eye,
+  EyeOff,
+} from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+
+const PRESET_COLORS = [
+  '#8B5CF6', '#EAB308', '#3B82F6', '#F43F5E',
+  '#F97316', '#22C55E', '#06B6D4', '#EC4899',
+]
+
+interface ZoneData {
+  id: string
+  name: string
+  description: string | null
+  color: string
+  memberCount?: number
+}
+
+interface MemberData {
+  id: string
+  role: string
+  user: {
+    id: string
+    email: string
+    name: string
+    role: string
+    avatar: string | null
+    active: boolean
+    plainPassword?: string | null
+  }
+  zones: Array<{
+    id: string
+    name: string
+    color: string
+  }>
+}
+
+interface TeamManagementProps {
+  open: boolean
+  onClose: () => void
+  embedded?: boolean // Si true, renderiza sin Dialog (para usar como tab)
+}
+
+export default function TeamManagement({ open, onClose, embedded = false }: TeamManagementProps) {
+  const { currentProject } = use5SStore()
+  const [activeTab, setActiveTab] = useState<'info' | 'zones' | 'members' | 'permissions'>('info')
+
+  // Zones state
+  const [zones, setZones] = useState<ZoneData[]>([])
+  const [newZoneName, setNewZoneName] = useState('')
+  const [newZoneDesc, setNewZoneDesc] = useState('')
+  const [newZoneColor, setNewZoneColor] = useState(PRESET_COLORS[0])
+  const [isLoadingZones, setIsLoadingZones] = useState(false)
+
+  // Members state
+  const [members, setMembers] = useState<MemberData[]>([])
+  const [newMemberName, setNewMemberName] = useState('')
+  const [newMemberEmail, setNewMemberEmail] = useState('')
+  const [newMemberRole, setNewMemberRole] = useState('empleado')
+  const [newMemberZones, setNewMemberZones] = useState<string[]>([])
+  const [newMemberPassword, setNewMemberPassword] = useState('')
+  const [showMemberPassword, setShowMemberPassword] = useState(false)
+
+  // Generate a readable random password (8 chars: letters + digits)
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+    let pwd = ''
+    for (let i = 0; i < 8; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    setNewMemberPassword(pwd)
+    setShowMemberPassword(true)
+  }
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false)
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
+  const [generatedMemberName, setGeneratedMemberName] = useState<string | null>(null)
+  const [sendingCredentials, setSendingCredentials] = useState<string | null>(null)
+
+  const fetchZones = useCallback(async () => {
+    if (!currentProject) return
+    setIsLoadingZones(true)
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}/zones`)
+      const data = await res.json()
+      const fetchedZones = data.zones || []
+      setZones(fetchedZones)
+      // Auto-select ALL zones when adding a member (better to remove than to add)
+      setNewMemberZones(fetchedZones.map((z: any) => z.id))
+    } catch (error) {
+      console.error('Fetch zones error:', error)
+    } finally {
+      setIsLoadingZones(false)
+    }
+  }, [currentProject])
+
+  const fetchMembers = useCallback(async () => {
+    if (!currentProject) return
+    setIsLoadingMembers(true)
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}/members`)
+      const data = await res.json()
+      setMembers(data.members || [])
+    } catch (error) {
+      console.error('Fetch members error:', error)
+    } finally {
+      setIsLoadingMembers(false)
+    }
+  }, [currentProject])
+
+  useEffect(() => {
+    if (open && currentProject) {
+      fetchZones()
+      fetchMembers()
+    }
+  }, [open, currentProject, fetchZones, fetchMembers])
+
+  const handleAddZone = async () => {
+    if (!currentProject || !newZoneName.trim()) return
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}/zones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newZoneName,
+          description: newZoneDesc || undefined,
+          color: newZoneColor,
+        }),
+      })
+      if (res.ok) {
+        setNewZoneName('')
+        setNewZoneDesc('')
+        setNewZoneColor(PRESET_COLORS[zones.length % PRESET_COLORS.length])
+        await fetchZones()
+      }
+    } catch (error) {
+      console.error('Add zone error:', error)
+    }
+  }
+
+  const handleDeleteZone = async (zoneId: string) => {
+    if (!currentProject) return
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}/zones`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zoneId }),
+      })
+      if (res.ok) {
+        await fetchZones()
+        await fetchMembers()
+      }
+    } catch (error) {
+      console.error('Delete zone error:', error)
+    }
+  }
+
+  const handleAddMember = async () => {
+    if (!currentProject || !newMemberName.trim() || !newMemberEmail.trim()) return
+    // Validate password if provided (min 6 chars). If empty, backend will use default '123456'.
+    if (newMemberPassword && newMemberPassword.length < 6) {
+      alert('La contraseña debe tener al menos 6 caracteres.')
+      return
+    }
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: newMemberEmail,
+          name: newMemberName,
+          role: newMemberRole,
+          zoneIds: newMemberZones.length > 0 ? newMemberZones : undefined,
+          password: newMemberPassword || undefined,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.member?.generatedPassword) {
+          setGeneratedPassword(data.member.generatedPassword)
+          setGeneratedMemberName(data.member.user?.name || newMemberName)
+        }
+        setNewMemberName('')
+        setNewMemberEmail('')
+        setNewMemberRole('empleado')
+        setNewMemberPassword('')
+        setShowMemberPassword(false)
+        setNewMemberZones(zones.map(z => z.id))
+        await fetchMembers()
+        await fetchZones()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert('Error al agregar miembro: ' + (data.error || 'desconocido'))
+      }
+    } catch (error) {
+      console.error('Add member error:', error)
+      alert('Error de red al agregar miembro')
+    }
+  }
+
+  const getRoleLabel = (role: string) => {
+    const map: Record<string, string> = {
+      admin: 'Administrador',
+      gerente: 'Gerente',
+      responsable: 'Responsable',
+      empleado: 'Empleado',
+      auditor: 'Auditor',
+    }
+    return map[role] || role
+  }
+
+  const getRoleBadgeColor = (role: string) => {
+    const map: Record<string, string> = {
+      admin: 'bg-purple-100 text-purple-700 border-purple-200',
+      gerente: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+      responsable: 'bg-blue-100 text-blue-700 border-blue-200',
+      empleado: 'bg-green-100 text-green-700 border-green-200',
+      auditor: 'bg-orange-100 text-orange-700 border-orange-200',
+    }
+    return map[role] || 'bg-gray-100 text-gray-700 border-gray-200'
+  }
+
+  const tabs = [
+    { key: 'info' as const, label: 'Información', icon: Building2 },
+    { key: 'zones' as const, label: 'Zonas', icon: MapPin },
+    { key: 'members' as const, label: 'Miembros', icon: Users },
+    { key: 'permissions' as const, label: 'Permisos', icon: Shield },
+  ]
+
+  const content = (
+    <>
+      {/* Tabs */}
+      <div className="flex border-b px-6">
+        {tabs.map((tab) => {
+          const Icon = tab.icon
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.key
+                  ? 'border-green-500 text-green-600'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-6 py-4">
+          <AnimatePresence mode="wait">
+            {/* Info Tab */}
+            {activeTab === 'info' && currentProject && (
+              <motion.div
+                key="info"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-4"
+              >
+                <Card>
+                  <CardContent className="pt-6 space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Proyecto</span>
+                      <span className="font-semibold">{currentProject.name}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Empresa</span>
+                      <span className="font-semibold">{currentProject.company}</span>
+                    </div>
+                    {currentProject.description && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Descripción</span>
+                        <span className="font-semibold text-right max-w-[60%]">
+                          {currentProject.description}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Fecha de inicio</span>
+                      <span className="font-semibold">
+                        {new Date(currentProject.startDate).toLocaleDateString('es-ES')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Zonas</span>
+                      <span className="font-semibold">{zones.length}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Miembros</span>
+                      <span className="font-semibold">{members.length}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Zones Tab */}
+            {activeTab === 'zones' && (
+              <motion.div
+                key="zones"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-4"
+              >
+                {/* Add zone form */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Plus className="h-4 w-4 text-green-500" />
+                      Agregar Zona
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Nombre *</Label>
+                        <Input
+                          placeholder="Nombre de la zona"
+                          value={newZoneName}
+                          onChange={(e) => setNewZoneName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Descripción</Label>
+                        <Input
+                          placeholder="Descripción (opcional)"
+                          value={newZoneDesc}
+                          onChange={(e) => setNewZoneDesc(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Color</Label>
+                      <div className="flex gap-2 flex-wrap">
+                        {PRESET_COLORS.map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => setNewZoneColor(color)}
+                            className={`w-7 h-7 rounded-full border-2 transition-all ${
+                              newZoneColor === color
+                                ? 'border-gray-800 scale-110 shadow-md'
+                                : 'border-transparent hover:scale-105'
+                            }`}
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <Button
+                      onClick={handleAddZone}
+                      disabled={!newZoneName.trim()}
+                      className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+                      size="sm"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Agregar Zona
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Zones list */}
+                {isLoadingZones ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 text-green-500 animate-spin" />
+                  </div>
+                ) : zones.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No hay zonas en el proyecto
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {zones.map((zone) => (
+                      <div
+                        key={zone.id}
+                        className="flex items-center justify-between p-3 rounded-lg border bg-white"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-4 h-4 rounded-full"
+                            style={{ backgroundColor: zone.color }}
+                          />
+                          <div>
+                            <p className="text-sm font-medium">{zone.name}</p>
+                            {zone.description && (
+                              <p className="text-xs text-muted-foreground">
+                                {zone.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteZone(zone.id)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* Members Tab */}
+            {activeTab === 'members' && (
+              <motion.div
+                key="members"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-4"
+              >
+                {/* Add member form */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <UserPlus className="h-4 w-4 text-green-500" />
+                      Agregar Miembro
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Nombre *</Label>
+                        <Input
+                          placeholder="Nombre completo"
+                          value={newMemberName}
+                          onChange={(e) => setNewMemberName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Email *</Label>
+                        <Input
+                          type="email"
+                          placeholder="email@ejemplo.com"
+                          value={newMemberEmail}
+                          onChange={(e) => setNewMemberEmail(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Rol</Label>
+                        <Select
+                          value={newMemberRole}
+                          onValueChange={setNewMemberRole}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">Administrador</SelectItem>
+                            <SelectItem value="gerente">Gerente</SelectItem>
+                            <SelectItem value="responsable">Responsable</SelectItem>
+                            <SelectItem value="empleado">Empleado</SelectItem>
+                            <SelectItem value="auditor">Auditor</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Zonas (todas por defecto)</Label>
+                        <div className="space-y-0.5 max-h-32 overflow-y-auto border rounded-md p-2">
+                          {zones.map((zone) => (
+                            <label key={zone.id} className="flex items-center gap-1.5 text-sm cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
+                              <Checkbox
+                                checked={newMemberZones.includes(zone.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setNewMemberZones([...newMemberZones, zone.id])
+                                  } else {
+                                    setNewMemberZones(newMemberZones.filter(id => id !== zone.id))
+                                  }
+                                }}
+                                className="h-4 w-4"
+                              />
+                              <div
+                                className="w-2.5 h-2.5 rounded-full"
+                                style={{ backgroundColor: zone.color }}
+                              />
+                              <span>{zone.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Contraseña de acceso */}
+                    <div className="space-y-1">
+                      <Label className="text-xs flex items-center gap-1">
+                        <Key className="h-3 w-3" />
+                        Contraseña de acceso
+                      </Label>
+                      <div className="flex gap-1.5">
+                        <div className="relative flex-1">
+                          <Input
+                            type={showMemberPassword ? 'text' : 'password'}
+                            placeholder="Dejar vacío para auto-generar"
+                            value={newMemberPassword}
+                            onChange={(e) => setNewMemberPassword(e.target.value)}
+                            className="pr-8 text-sm font-mono"
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowMemberPassword(!showMemberPassword)}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            tabIndex={-1}
+                          >
+                            {showMemberPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={generatePassword}
+                          title="Generar contraseña aleatoria"
+                          className="h-9 px-2"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Mínimo 6 caracteres. Si la dejas vacía, se asignará automáticamente <code className="font-mono bg-muted px-1 rounded">123456</code>.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleAddMember}
+                      disabled={!newMemberName.trim() || !newMemberEmail.trim()}
+                      className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+                      size="sm"
+                    >
+                      <UserPlus className="h-4 w-4 mr-1" />
+                      Agregar Miembro
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Generated password notification */}
+                {generatedPassword && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+                    <ShieldCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-green-800">Contraseña generada para {generatedMemberName}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <code className="text-sm font-mono bg-green-100 px-2 py-0.5 rounded text-green-900 select-all">{generatedPassword}</code>
+                        <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1" onClick={() => { navigator.clipboard.writeText(generatedPassword) }}>
+                          Copiar
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-green-700 mt-1">Guarda esta contraseña. No se volverá a mostrar.</p>
+                    </div>
+                    <button onClick={() => { setGeneratedPassword(null); setGeneratedMemberName(null) }} className="text-green-400 hover:text-green-600">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Members table */}
+                {isLoadingMembers ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 text-green-500 animate-spin" />
+                  </div>
+                ) : members.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No hay miembros en el proyecto
+                  </p>
+                ) : (
+                  <div className="rounded-lg border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nombre</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Rol</TableHead>
+                          <TableHead>Zona</TableHead>
+                          <TableHead>Contraseña</TableHead>
+                          <TableHead className="text-center">Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {members.map((member) => (
+                          <TableRow key={member.id}>
+                            <TableCell className="font-medium text-sm">
+                              {member.user.name}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {member.user.email}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                className={`${getRoleBadgeColor(member.role)} border`}
+                              >
+                                {getRoleLabel(member.role)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {member.zones.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {member.zones.map(z => (
+                                    <span key={z.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gray-50 border text-[10px]">
+                                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: z.color }} />
+                                      {z.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {member.user.plainPassword ? (
+                                <div className="flex items-center gap-1">
+                                  <code className="font-mono text-xs bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-amber-900 select-all">
+                                    {member.user.plainPassword}
+                                  </code>
+                                  <button
+                                    onClick={() => navigator.clipboard.writeText(member.user.plainPassword || '')}
+                                    className="text-gray-400 hover:text-gray-600"
+                                    title="Copiar contraseña"
+                                  >
+                                    <ClipboardCheck className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic">No disponible</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button variant="outline" size="sm" className="h-7 text-[10px] text-blue-500 border-blue-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 gap-1" onClick={async () => {
+                                const pwd = prompt(`Introduce la contraseña para enviar a ${member.user.name}:\n(Por defecto: 123456)`)
+                                if (pwd === null) return
+                                const finalPwd = pwd.length >= 6 ? pwd : '123456'
+                                setSendingCredentials(member.id)
+                                try {
+                                  const res = await fetch(`/api/projects/${currentProject?.id}/send-credentials`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ memberId: member.id, password: finalPwd }),
+                                  })
+                                  const data = await res.json()
+                                  if (data.success) {
+                                    if (data.testingMode) {
+                                      alert(`Email enviado en modo de prueba a: ${data.redirectedTo}\n(El email real iría a: ${member.user.email})`)
+                                    } else {
+                                      alert(`Email de bienvenida enviado a: ${member.user.email}`)
+                                    }
+                                  } else {
+                                    alert(`Error al enviar email: ${data.error}`)
+                                  }
+                                } catch (err) {
+                                  alert('Error de conexión al enviar credenciales')
+                                } finally {
+                                  setSendingCredentials(null)
+                                }
+                              }} title="Enviar credenciales por email" disabled={sendingCredentials === member.id}>
+                                {sendingCredentials === member.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
+                                Enviar
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </motion.div>
+            )}
+            {/* Permissions Tab */}
+            {activeTab === 'permissions' && (
+              <motion.div
+                key="permissions"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-4"
+              >
+                <p className="text-sm text-muted-foreground">
+                  A continuación se muestra el resumen de permisos de cada rol. Para ver la ficha completa, usa el botón <strong>Permisos</strong> en la barra de navegación.
+                </p>
+
+                {/* Admin */}
+                <Card className="border-purple-200 bg-purple-50/50">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                        <Crown className="h-4 w-4 text-purple-600" />
+                      </div>
+                      <h3 className="font-bold text-purple-700">Administrador</h3>
+                      <Badge className="bg-purple-100 text-purple-700 border-purple-200 border text-[10px]">
+                        Acceso completo
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Control total: puede gestionar proyecto, equipo, zonas, plantillas, formación, inventario, fotos, autoevaluaciones y auditorías. Puede eliminar el proyecto y reiniciar datos.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Responsable */}
+                <Card className="border-blue-200 bg-blue-50/50">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                        <UserCheck className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <h3 className="font-bold text-blue-700">Responsable</h3>
+                      <Badge className="bg-blue-100 text-blue-700 border-blue-200 border text-[10px]">
+                        Gestión de equipo
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Gestiona equipo y zonas. Completa pasos, gestiona formación, inventario y aprueba auditorías. No puede eliminar el proyecto ni reiniciar datos.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Empleado */}
+                <Card className="border-green-200 bg-green-50/50">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                        <HardHat className="h-4 w-4 text-green-600" />
+                      </div>
+                      <h3 className="font-bold text-green-700">Empleado</h3>
+                      <Badge className="bg-green-100 text-green-700 border-green-200 border text-[10px]">
+                        Ejecución
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Participa en la implementación: formación, exámenes, subir fotos, editar inventario, autoevaluación. Solo lectura en auditorías. No gestiona equipo ni proyecto.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Auditor */}
+                <Card className="border-orange-200 bg-orange-50/50">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+                        <ClipboardCheck className="h-4 w-4 text-orange-600" />
+                      </div>
+                      <h3 className="font-bold text-orange-700">Auditor</h3>
+                      <Badge className="bg-orange-100 text-orange-700 border-orange-200 border text-[10px]">
+                        Auditoría externa
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Especializado en auditoría externa. Puede ver datos (solo lectura) y realizar/aprobar auditorías. Sin edición de datos, gestión de equipo ni proyecto.
+                    </p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </>
+  )
+
+  if (embedded) {
+    return (
+      <div className="flex flex-col h-full bg-white">
+        <div className="px-6 pt-4 pb-2 border-b">
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold text-xs">
+              5S
+            </div>
+            Gestión del Proyecto
+          </h2>
+        </div>
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-2">
+          <DialogTitle className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold text-sm">
+              5S
+            </div>
+            Gestión del Proyecto
+          </DialogTitle>
+        </DialogHeader>
+        {content}
+      </DialogContent>
+    </Dialog>
+  )
+}

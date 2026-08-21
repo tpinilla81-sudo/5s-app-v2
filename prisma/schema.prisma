@@ -1,0 +1,170 @@
+// v2.108.22 - Schema Prisma para 5S App
+// Este archivo es necesario para que Vercel pueda hacer build
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modelos principales del 5S App
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String?
+  role          String    @default("empleado")
+  companyId     String?
+  company       Company? @relation(fields: [companyId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  projects      ProjectMember[]
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+  projects  Project[]
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  members     ProjectMember[]
+  zones       Zone[]
+  progress    Progress[]
+  inventoryItems InventoryItem[]
+  photos      Photo[]
+  standards   Standard[]
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("responsable")
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, userId])
+}
+
+model Zone {
+  id          String   @id @default(cuid())
+  name        String
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  boardConfigId String?
+  status      String   @default("active")
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  inventoryItems InventoryItem[]
+  photos      Photo[]
+  progress    Progress[]
+  standards   Standard[]
+}
+
+model Progress {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  zoneId    String?
+  zone      Zone?    @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  sStep     Int
+  miniStep  Int      @default(1)
+  status    String   @default("pending")
+  completed Boolean  @default(false)
+  data      Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, zoneId, sStep, miniStep])
+}
+
+model InventoryItem {
+  id                  String   @id @default(cuid())
+  name                String
+  location            String?
+  category            String?
+  quantity            Int      @default(1)
+  quantityNeeded      Int      @default(0)
+  quantityUnneeded    Int      @default(0)
+  price               Float?
+  action              String?
+  extra               Json?
+  projectId           String
+  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  zoneId              String?
+  zone                Zone?    @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  sStep               Int
+  jaulaStatus         String?
+  jaulaFechaEntrada   DateTime?
+  jaulaOrigen         String?
+  jaulaFechaSalida    DateTime?
+  jaulaDestino        String?
+  zonaOrigen          String?
+  zonaDestino         String?
+  photoUrl            String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  photos              Photo[]
+
+  @@index([projectId, zoneId, sStep])
+}
+
+model Photo {
+  id              String   @id @default(cuid())
+  title           String
+  description     String?
+  photoUrl        String
+  photoType       String   @default("antes") // antes, despues, referencia
+  category        String?
+  tags            String?
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  zoneId          String?
+  zone            Zone?    @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  sStep           Int
+  miniStep        Int      @default(2)
+  uploadedBy      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([projectId, zoneId, sStep, inventoryItemId])
+}
+
+model Standard {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  category    String   @default("layout") // layout, estandar, foto
+  photoUrl    String?
+  status      String   @default("activo")
+  version     Int      @default(1)
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  zoneId      String?
+  zone        Zone?    @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  sStep       Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId, zoneId, category])
+}

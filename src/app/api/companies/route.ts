@@ -1,0 +1,125 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { getAuthUser } from '@/lib/auth-helpers'
+
+// GET /api/companies - List companies
+// Gestor sees all; admin/gerente sees their assigned companies only
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getAuthUser(request)
+    const userRole = user?.role || 'empleado'
+    const userId: string | null = user?.id || null
+
+    const isGestor = userRole === 'gestor'
+
+    let companies
+    if (isGestor) {
+      companies = await db.company.findMany({
+        where: { active: true },
+        include: {
+          _count: { select: { projects: true, members: true } },
+          subscription: true,
+          members: {
+            where: { role: 'admin_empresa' },
+            include: { user: { select: { id: true, name: true, email: true, active: true } } },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+    } else if (userId) {
+      // Non-admin: only see companies they're a member of
+      companies = await db.company.findMany({
+        where: {
+          active: true,
+          members: { some: { userId } },
+        },
+        include: {
+          _count: { select: { projects: true, members: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+    } else {
+      companies = []
+    }
+
+    const result = companies.map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      active: c.active,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+      projectCount: c._count.projects,
+      memberCount: c._count.members,
+      subscription: c.subscription || null,
+      admin: c.members?.[0]?.user || null,
+    }))
+
+    return NextResponse.json({ success: true, companies: result })
+  } catch (error) {
+    console.error('Fetch companies error:', error)
+    return NextResponse.json({ success: false, error: 'Error al obtener empresas' }, { status: 500 })
+  }
+}
+
+// POST /api/companies - Create company (SOLO gestor, dueño de la app)
+export async function POST(request: NextRequest) {
+  try {
+    const user = await getAuthUser(request)
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
+    }
+    if (user.role !== 'gestor') {
+      return NextResponse.json({ success: false, error: 'Solo el gestor (dueño de la app) puede crear empresas' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const { name, description, nif, sector, address, city, province, postalCode, country, phone, website } = body
+
+    if (!name || !name.trim()) {
+      return NextResponse.json({ success: false, error: 'El nombre de la empresa es requerido' }, { status: 400 })
+    }
+
+    // Check for duplicate name (only among active companies)
+    const existing = await db.company.findFirst({ where: { name: name.trim(), active: true } })
+    if (existing) {
+      return NextResponse.json({ success: false, error: 'Ya existe una empresa activa con ese nombre' }, { status: 400 })
+    }
+
+    const company = await db.company.create({
+      data: {
+        name: name.trim(),
+        description: description?.trim() || null,
+        nif: nif?.trim() || null,
+        sector: sector?.trim() || null,
+        address: address?.trim() || null,
+        city: city?.trim() || null,
+        province: province?.trim() || null,
+        postalCode: postalCode?.trim() || null,
+        country: country?.trim() || null,
+        phone: phone?.trim() || null,
+        website: website?.trim() || null,
+      },
+      include: {
+        _count: { select: { projects: true, members: true } },
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      company: {
+        id: company.id,
+        name: company.name,
+        description: company.description,
+        active: company.active,
+        createdAt: company.createdAt,
+        updatedAt: company.updatedAt,
+        projectCount: company._count.projects,
+        memberCount: company._count.members,
+      },
+    }, { status: 201 })
+  } catch (error) {
+    console.error('Create company error:', error)
+    return NextResponse.json({ success: false, error: 'Error al crear empresa' }, { status: 500 })
+  }
+}

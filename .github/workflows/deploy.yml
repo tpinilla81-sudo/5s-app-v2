@@ -1,0 +1,39 @@
+name: Force Deploy to Vercel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Permite disparar manualmente
+    inputs:
+      reason:
+        description: 'Razón del deploy'
+        required: false
+        default: 'Force redeploy'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Show version
+        run: |
+          echo "📦 Version from package.json:"
+          grep '"version"' package.json || echo "No version found"
+          echo "🔧 Current date: $(date)"
+          echo "🚀 Force deploying..."
+
+      - name: Create deployment info
+        run: |
+          echo "DEPLOY_VERSION=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_ENV
+          echo "DEPLOY_TRIGGER=${{ github.event.inputs.reason || 'auto-push' }}" >> $GITHUB_ENV
+
+      - name: Deployment summary
+        run: |
+          echo "## 🚀 Deploy Information" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** \`$DEPLOY_VERSION\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger:** $DEPLOY_TRIGGER" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Actor:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
