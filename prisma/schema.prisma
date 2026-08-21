@@ -1,6 +1,3 @@
-// v2.108.22 - Schema Prisma para 5S App
-// Este archivo es necesario para que Vercel pueda hacer build
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,161 +7,651 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Modelos principales del 5S App
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  password      String?
-  role          String    @default("empleado")
-  companyId     String?
-  company       Company? @relation(fields: [companyId], references: [id])
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  projects      ProjectMember[]
+  id               String             @id @default(cuid())
+  email            String             @unique
+  name             String
+  password         String
+  role             String             @default("empleado")
+  avatar           String?
+  active           Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  plainPassword    String?
+  address          String?
+  city             String?
+  country          String?
+  department       String?
+  employeeId       String?
+  notes            String?
+  phone            String?
+  position         String?
+  postalCode       String?
+  province         String?
+  CompanyMember    CompanyMember[]
+  EmployeeProgress EmployeeProgress[]
+  InventoryItem    InventoryItem[]
+  Project          Project[]
+  projects         ProjectMember[]
+  Session          Session[]
+  Zone             Zone[]
 }
 
 model Company {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  users     User[]
-  projects  Project[]
+  id                String          @id @default(cuid())
+  name              String          @unique
+  description       String?
+  active            Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  nif               String?
+  sector            String?
+  address           String?
+  city              String?
+  province          String?
+  postalCode        String?
+  country           String?
+  phone             String?
+  website           String?
+  billingEmail      String?
+  billingName       String?
+  billingNif        String?
+  billingAddress    String?
+  billingCity       String?
+  billingPostalCode String?
+  iban              String?
+  contactName       String?
+  contactEmail      String?
+  contactPhone      String?
+  slug              String          @default("default-company")
+  CompanyMember     CompanyMember[]
+  projects          Project[]
+  Subscription      Subscription?
+  Template          Template[]
 }
 
 model Project {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-  status      String   @default("active")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  members     ProjectMember[]
-  zones       Zone[]
-  progress    Progress[]
-  inventoryItems InventoryItem[]
-  photos      Photo[]
-  standards   Standard[]
+  id                 String               @id @default(cuid())
+  name               String
+  description        String?
+  companyId          String?
+  startDate          DateTime             @default(now())
+  active             Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  surfaceM2          Float?
+  complexityType     String?
+  criticality        String?              @default("media")
+  layoutGenerated    Boolean              @default(false)
+  jaulaStatus        String?
+  jaulaPhotoUrl      String?
+  jaulaVerifiedById  String?
+  jaulaVerifiedAt    DateTime?
+  jaulaNotes         String?
+  jaulaPhotoData     Bytes?
+  ActionItem         ActionItem[]
+  AuditResult        AuditResult[]
+  AuditTarget        AuditTarget[]
+  ChecklistResponse  ChecklistResponse[]
+  EmployeeProgress   EmployeeProgress[]
+  EvaluationSchedule EvaluationSchedule[]
+  ExamAnswer         ExamAnswer[]
+  inventoryItems     InventoryItem[]
+  PDCAItem           PDCAItem[]
+  PhotoLibrary       PhotoLibrary[]
+  progress           Progress[]
+  company            Company?             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  User               User?                @relation(fields: [jaulaVerifiedById], references: [id])
+  members            ProjectMember[]
+  standards          Standard[]
+  zones              Zone[]
+
+  @@index([companyId])
+  @@index([jaulaStatus])
 }
 
 model ProjectMember {
-  id        String   @id @default(cuid())
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      String   @default("responsable")
-  createdAt DateTime @default(now())
+  id         String       @id @default(cuid())
+  userId     String
+  projectId  String
+  role       String
+  joinedAt   DateTime     @default(now())
+  MemberZone MemberZone[]
+  project    Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([projectId, userId])
+  @@unique([userId, projectId])
+  @@index([projectId])
+  @@index([userId])
 }
 
 model Zone {
-  id          String   @id @default(cuid())
-  name        String
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  boardConfigId String?
-  status      String   @default("active")
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  inventoryItems InventoryItem[]
-  photos      Photo[]
-  progress    Progress[]
-  standards   Standard[]
+  id                 String               @id @default(cuid())
+  name               String
+  description        String?
+  color              String               @default("#3B82F6")
+  projectId          String
+  responsableId      String?
+  boardConfigId      String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  isJaula            Boolean              @default(false)
+  surfaceM2          Float?
+  complexityType     String?
+  criticality        String?              @default("media")
+  ActionItem         ActionItem[]
+  AuditTarget        AuditTarget[]
+  EmployeeProgress   EmployeeProgress[]
+  EvaluationSchedule EvaluationSchedule[]
+  inventoryItems     InventoryItem[]
+  MemberZone         MemberZone[]
+  PDCAItem           PDCAItem[]
+  PhotoLibrary       PhotoLibrary[]
+  progress           Progress[]
+  standards          Standard[]
+  BoardConfiguration BoardConfiguration?  @relation(fields: [boardConfigId], references: [id])
+  project            Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  User               User?                @relation(fields: [responsableId], references: [id])
+
+  @@unique([name, projectId])
+  @@index([boardConfigId])
+  @@index([projectId])
+  @@index([responsableId])
 }
 
 model Progress {
-  id        String   @id @default(cuid())
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  zoneId    String?
-  zone      Zone?    @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  id        String    @id @default(cuid())
   sStep     Int
-  miniStep  Int      @default(1)
-  status    String   @default("pending")
-  completed Boolean  @default(false)
-  data      Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  miniStep  Int
+  completed Boolean   @default(false)
+  score     Float?
+  notes     String?
+  photoUrls String?
+  passedAt  DateTime?
+  projectId String
+  zoneId    String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  zone      Zone?     @relation(fields: [zoneId], references: [id], onDelete: Cascade)
 
-  @@unique([projectId, zoneId, sStep, miniStep])
+  @@index([projectId])
+  @@index([projectId, zoneId])
 }
 
 model InventoryItem {
-  id                  String   @id @default(cuid())
-  name                String
-  location            String?
-  category            String?
-  quantity            Int      @default(1)
-  quantityNeeded      Int      @default(0)
-  quantityUnneeded    Int      @default(0)
-  price               Float?
-  action              String?
-  extra               Json?
-  projectId           String
-  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  zoneId              String?
-  zone                Zone?    @relation(fields: [zoneId], references: [id], onDelete: Cascade)
-  sStep               Int
-  jaulaStatus         String?
-  jaulaFechaEntrada   DateTime?
-  jaulaOrigen         String?
-  jaulaFechaSalida    DateTime?
-  jaulaDestino        String?
-  zonaOrigen          String?
-  zonaDestino         String?
-  photoUrl            String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  photos              Photo[]
+  id                String         @id @default(cuid())
+  sStep             Int
+  name              String
+  location          String?
+  category          String
+  quantity          Int            @default(1)
+  quantityNeeded    Int            @default(0)
+  quantityUnneeded  Int            @default(0)
+  price             Float?
+  action            String?
+  photoUrl          String?
+  extra             String?
+  projectId         String
+  zoneId            String?
+  jaulaStatus       String         @default("")
+  jaulaFechaEntrada DateTime?
+  jaulaOrigen       String?
+  jaulaFechaSalida  DateTime?
+  jaulaDestino      String?
+  zonaOrigen        String?
+  zonaDestino       String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  jaulaFechaLimite  DateTime?
+  photoUrls         String?
+  createdById       String?
+  User              User?          @relation(fields: [createdById], references: [id])
+  project           Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  zone              Zone?          @relation(fields: [zoneId], references: [id])
+  PhotoLibrary      PhotoLibrary[]
 
-  @@index([projectId, zoneId, sStep])
-}
-
-model Photo {
-  id              String   @id @default(cuid())
-  title           String
-  description     String?
-  photoUrl        String
-  photoType       String   @default("antes") // antes, despues, referencia
-  category        String?
-  tags            String?
-  inventoryItemId String?
-  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
-  projectId       String
-  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  zoneId          String?
-  zone            Zone?    @relation(fields: [zoneId], references: [id], onDelete: SetNull)
-  sStep           Int
-  miniStep        Int      @default(2)
-  uploadedBy      String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([projectId, zoneId, sStep, inventoryItemId])
+  @@index([createdById])
+  @@index([jaulaStatus])
+  @@index([projectId])
+  @@index([sStep, projectId])
+  @@index([zoneId])
 }
 
 model Standard {
-  id          String   @id @default(cuid())
+  id                String              @id @default(cuid())
+  sStep             Int
+  title             String
+  description       String?
+  category          String              @default("general")
+  content           String?
+  photoUrl          String?
+  beforePhotoUrl    String?
+  afterPhotoUrl     String?
+  responsable       String?
+  contacto          String?
+  mejoraTipo        String?
+  status            String              @default("activo")
+  version           Int                 @default(1)
+  projectId         String
+  zoneId            String?
+  createdBy         String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  BoardSlotStandard BoardSlotStandard[]
+  project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  zone              Zone?               @relation(fields: [zoneId], references: [id])
+
+  @@index([category])
+  @@index([projectId])
+  @@index([sStep, projectId])
+}
+
+model ActionItem {
+  id                  String    @id
+  sStep               Int
+  miniStep            Int
+  itemId              String
+  itemDescription     String
+  hallazgo            String
+  mejora              String?
+  responsable         String?
+  prioridad           String    @default("media")
+  estado              String    @default("abierta")
+  fechaCompromiso     DateTime?
+  fechaLimite         DateTime?
+  fechaReal           DateTime?
+  fechaResolucion     DateTime?
+  photoRefs           String?
+  notas               String?
+  source              String    @default("autoevaluacion")
+  auditor             String?
+  zoneId              String?
+  verificadoPor       String?
+  projectId           String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime
+  numeroEntrada       Int?
+  fechaEntrada        DateTime?
+  comunicadoPor       String?
+  semana              String?
+  seccionDemandante   String?
+  clienteZona         String?
+  personaDemandada    String?
+  seccionDemandada    String?
+  impactoObjetivo     String?
+  enviado             String?
+  accionCorrectiva    String?
+  accionesPreventivas String?
+  semanaPrevista      String?
+  porcentaje          Float?    @default(0)
+  semanaReal          String?
+  extra               String?
+  sourceId            String?
+  comunicadoPorId     String?
+  personaDemandadaId  String?
+  verificadoPorId     String?
+  tipo                String?
+  status              String?
+  Project             Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  Zone                Zone?     @relation(fields: [zoneId], references: [id])
+
+  @@index([projectId])
+  @@index([zoneId])
+}
+
+model AuditResult {
+  id                   String   @id
+  sStep                Int
+  auditorName          String
+  result               String
+  score                Float?
+  observations         String?
+  auditType            String   @default("quarterly")
+  checklistData        String?
+  mejorasData          String?
+  auditDate            DateTime @default(now())
+  projectId            String
+  createdAt            DateTime @default(now())
+  miniStep             Int?
+  zoneId               String?
+  ejecutorId           String?
+  asistenteId          String?
+  actionItemsGenerados Int?
+  scheduleId           String?
+  Project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([auditType])
+  @@index([projectId])
+}
+
+model AuditTarget {
+  id         String   @id
+  projectId  String
+  sStep      Int
+  miniStep   Int      @default(4)
+  zoneId     String?
+  notaMinima Float    @default(70)
+  objetivo   Float    @default(80)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+  Project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  Zone       Zone?    @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, sStep, miniStep, zoneId])
+  @@index([projectId])
+}
+
+model BoardConfiguration {
+  id          String      @id
+  name        String
+  description String?
+  isDefault   Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime
+  BoardSlot   BoardSlot[]
+  Zone        Zone[]
+}
+
+model BoardSlot {
+  id                 String              @id
+  boardConfigId      String
+  sStep              Int
+  miniStep           Int
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime
+  BoardConfiguration BoardConfiguration  @relation(fields: [boardConfigId], references: [id], onDelete: Cascade)
+  BoardSlotStandard  BoardSlotStandard[]
+  BoardSlotTemplate  BoardSlotTemplate[]
+
+  @@unique([boardConfigId, sStep, miniStep])
+  @@index([boardConfigId])
+}
+
+model BoardSlotStandard {
+  id         String    @id
+  slotId     String
+  standardId String
+  sortOrder  Int       @default(0)
+  createdAt  DateTime  @default(now())
+  BoardSlot  BoardSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  Standard   Standard  @relation(fields: [standardId], references: [id], onDelete: Cascade)
+
+  @@unique([slotId, standardId])
+  @@index([slotId])
+  @@index([standardId])
+}
+
+model BoardSlotTemplate {
+  id                String    @id
+  slotId            String
+  templateId        String
+  sortOrder         Int       @default(0)
+  createdAt         DateTime  @default(now())
+  minPhotosOverride Int?
+  updatedAt         DateTime  @default(now())
+  BoardSlot         BoardSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  Template          Template  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([slotId, templateId])
+  @@index([slotId])
+  @@index([templateId])
+}
+
+model ChecklistResponse {
+  id            String   @id
+  sStep         Int
+  miniStep      Int
+  results       String
+  completed     Boolean  @default(false)
+  score         Float
+  observaciones String?
+  auditor       String?
+  projectId     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+  Project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model CompanyMember {
+  id                  String   @id
+  userId              String
+  companyId           String
+  role                String   @default("gerente")
+  joinedAt            DateTime @default(now())
+  invitationEmailSent Boolean  @default(false)
+  Company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  User                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([companyId])
+  @@index([userId])
+}
+
+model EmployeeProgress {
+  id        String    @id
+  sStep     Int
+  miniStep  Int
+  completed Boolean   @default(false)
+  score     Float?
+  notes     String?
+  passedAt  DateTime?
+  projectId String
+  zoneId    String
+  userId    String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime
+  Project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  User      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Zone      Zone      @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([sStep, miniStep, projectId, zoneId, userId])
+  @@index([projectId, zoneId])
+  @@index([projectId, zoneId, userId])
+}
+
+model EvaluationSchedule {
+  id                 String   @id
+  sStep              Int
+  miniStep           Int
+  fechaProgramada    String?
+  horaProgramada     String?
+  projectId          String
+  zoneId             String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime
+  responsableId      String?
+  empleadoId         String?
+  createdBy          String?
+  estado             String   @default("programada")
+  notas              String?
+  rolEjecutor        String?
+  fechasPropuestas   String?
+  auditorPropuestoId String?
+  Project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  Zone               Zone?    @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([sStep, miniStep, projectId, zoneId])
+  @@index([auditorPropuestoId])
+  @@index([empleadoId])
+  @@index([projectId])
+  @@index([projectId, zoneId])
+  @@index([responsableId])
+}
+
+model ExamAnswer {
+  id          String   @id
+  sStep       Int
+  questionIdx Int
+  answerIdx   Int
+  correct     Boolean
+  projectId   String
+  createdAt   DateTime @default(now())
+  Project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model MemberZone {
+  id            String        @id
+  memberId      String
+  zoneId        String
+  assignedAt    DateTime      @default(now())
+  ProjectMember ProjectMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  Zone          Zone          @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, zoneId])
+  @@index([memberId])
+  @@index([zoneId])
+}
+
+model Notification {
+  id        String   @id
+  userId    String
+  type      String
+  title     String
+  message   String
+  sStep     Int?
+  zoneId    String?
+  projectId String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  metadata  String?
+
+  @@index([projectId])
+  @@index([userId, read])
+}
+
+model PDCAItem {
+  id          String    @id
   title       String
   description String?
-  category    String   @default("layout") // layout, estandar, foto
-  photoUrl    String?
-  status      String   @default("activo")
-  version     Int      @default(1)
+  phase       String    @default("plan")
+  sStep       Int       @default(1)
+  responsable String?
+  prioridad   String    @default("media")
+  estado      String    @default("pendiente")
+  fechaInicio DateTime  @default(now())
+  fechaLimite DateTime?
+  resultado   String?
   projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   zoneId      String?
-  zone        Zone?    @relation(fields: [zoneId], references: [id], onDelete: SetNull)
-  sStep       Int?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  Project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  Zone        Zone?     @relation(fields: [zoneId], references: [id])
 
-  @@index([projectId, zoneId, category])
+  @@index([estado])
+  @@index([phase])
+  @@index([projectId])
+}
+
+model PhotoLibrary {
+  id              String         @id
+  sStep           Int
+  miniStep        Int            @default(2)
+  title           String
+  description     String?
+  photoUrl        String
+  photoType       String         @default("antes")
+  category        String         @default("general")
+  tags            String?
+  projectId       String
+  zoneId          String?
+  uploadedBy      String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime
+  inventoryItemId String?
+  InventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  Project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  Zone            Zone?          @relation(fields: [zoneId], references: [id])
+
+  @@index([inventoryItemId])
+  @@index([photoType])
+  @@index([projectId])
+  @@index([sStep, projectId])
+}
+
+model RolePermissionConfig {
+  id         String   @id
+  role       String
+  permission String
+  allowed    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+
+  @@unique([role, permission])
+}
+
+model Session {
+  id        String   @id
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([token])
+  @@index([userId])
+}
+
+model Subscription {
+  id          String    @id
+  companyId   String    @unique
+  plan        String    @default("gratuito")
+  status      String    @default("activa")
+  maxUsers    Int       @default(5)
+  maxProjects Int       @default(1)
+  price       Float     @default(0)
+  startDate   DateTime  @default(now())
+  endDate     DateTime?
+  trialEndsAt DateTime?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  Company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([plan])
+  @@index([status])
+}
+
+model SystemConfig {
+  id        String   @id
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model Template {
+  id                String              @id
+  type              String
+  sStep             Int
+  miniStep          Int                 @default(3)
+  title             String
+  description       String?
+  content           String
+  notaMinima        Float?
+  active            Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime
+  companyId         String?
+  minPhotos         Int?
+  BoardSlotTemplate BoardSlotTemplate[]
+  Company           Company?            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([type, sStep, miniStep, active])
+}
+
+model ZoneAlgorithmConfig {
+  id             String   @id
+  maxM2PorZona   Float    @default(800)
+  questionLabels String   @default("{}")
+  defaultPrefix  String   @default("Z")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
 }
