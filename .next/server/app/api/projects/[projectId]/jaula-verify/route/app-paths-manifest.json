@@ -1,0 +1,3 @@
+{
+  "/api/projects/[projectId]/jaula-verify/route": "app/api/projects/[projectId]/jaula-verify/route.js"
+}

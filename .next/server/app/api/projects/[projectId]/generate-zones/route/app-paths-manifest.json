@@ -1,0 +1,3 @@
+{
+  "/api/projects/[projectId]/generate-zones/route": "app/api/projects/[projectId]/generate-zones/route.js"
+}

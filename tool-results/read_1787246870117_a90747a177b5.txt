@@ -1,0 +1,2002 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useRef } from 'react';
+     4→import {
+     5→  Dialog,
+     6→  DialogContent,
+     7→  DialogHeader,
+     8→  DialogTitle,
+     9→} from '@/components/ui/dialog';
+    10→import { Button } from '@/components/ui/button';
+    11→import { Card, CardContent } from '@/components/ui/card';
+    12→import { Badge } from '@/components/ui/badge';
+    13→import { Input } from '@/components/ui/input';
+    14→import {
+    15→  Select,
+    16→  SelectContent,
+    17→  SelectItem,
+    18→  SelectTrigger,
+    19→  SelectValue,
+    20→} from '@/components/ui/select';
+    21→import {
+    22→  Table,
+    23→  TableBody,
+    24→  TableCell,
+    25→  TableHead,
+    26→  TableHeader,
+    27→  TableRow,
+    28→} from '@/components/ui/table';
+    29→import { ClipboardList, CheckCircle, Download, Upload, FileSpreadsheet, BookOpen, ArrowRight, AlertTriangle, FileUp, Maximize2, Minimize2, File, PenTool, Eye, Loader2, MapPin, Tag, Camera, ZoomIn, Plus } from 'lucide-react';
+    30→import { toast } from 'sonner';
+    31→import { use5SStore } from '@/lib/store';
+    32→import { S_STEPS, INVENTORY_CONFIGS, INVENTORY_CLASSIFY_THRESHOLD, DRAFT_NAME_BY_S, DRAFT_INSTRUCTIONS_BY_S } from '@/lib/5s-constants';
+    33→import type { InventoryConfig } from '@/lib/5s-constants';
+    34→import LayoutEditor from '@/components/5s/LayoutEditor';
+    35→import ColorCodeTable from '@/components/5s/ColorCodeTable';
+    36→import TagPrinter from '@/components/5s/TagPrinter';
+    37→import CleaningPlanPanel from '@/components/5s/CleaningPlanPanel';
+    38→import BibliotecaEstandaresView from '@/components/5s/BibliotecaEstandaresView';
+    39→import {
+    40→  compressImage,
+    41→  generatePhotoFilename,
+    42→  base64toFile,
+    43→} from '@/lib/image-utils';
+    44→
+    45→// v2.50: Decision helpers — 'Retirar' (→Jaula) replaces 'Jaula'; 'Eliminar' absorbs 'Tirar'.
+    46→// Backward compat: legacy DB rows may still carry decision='Jaula' or 'Tirar'.
+    47→const isJaulaDecision = (d?: string | null) =>
+    48→  !d || d === 'Retirar' || d === 'Jaula';
+    49→const isEliminarDecision = (d?: string | null) =>
+    50→  d === 'Eliminar' || d === 'Tirar';
+    51→const displayDecision = (d?: string | null): string => {
+    52→  if (!d || d === 'Retirar' || d === 'Jaula') return 'Retirar';
+    53→  if (d === 'Tirar') return 'Eliminar';
+    54→  return d;
+    55→};
+    56→
+    57→interface InventoryItemData {
+    58→  id?: string;
+    59→  name: string;
+    60→  location: string;
+    61→  category: string;
+    62→  quantity: number;
+    63→  quantityNeeded: number;
+    64→  quantityUnneeded: number;
+    65→  price: number | null;
+    66→  action: string;
+    67→  extra?: Record<string, string | number>;
+    68→  jaulaStatus?: string;
+    69→  jaulaFechaEntrada?: string | null;
+    70→  jaulaOrigen?: string | null;
+    71→  jaulaFechaSalida?: string | null;
+    72→  jaulaDestino?: string | null;
+    73→  zonaOrigen?: string | null;
+    74→  zonaDestino?: string | null;
+    75→  photos?: PhotoData[];
+    76→}
+    77→
+    78→interface PhotoData {
+    79→  id: string;
+    80→  title: string;
+    81→  description?: string | null;
+    82→  photoUrl: string;
+    83→  photoType: string; // "antes", "despues", "referencia", "hallazgo", "mejora"
+    84→  category: string;
+    85→  inventoryItemId?: string | null;
+    86→  miniStep: number;
+    87→  sStep: number;
+    88→  createdAt: string;
+    89→}
+    90→
+    91→interface InventarioModalProps {
+    92→  open: boolean;
+    93→  onClose: () => void;
+    94→  sStep: number;
+    95→  miniStep: number;
+    96→}
+    97→
+    98→export default function InventarioModal({ open, onClose, sStep, miniStep }: InventarioModalProps) {
+    99→  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission, openModal } = use5SStore();
+   100→  const sStepData = S_STEPS.find(s => s.id === sStep);
+   101→  const defaultConfig: InventoryConfig = INVENTORY_CONFIGS[sStep] || INVENTORY_CONFIGS[1];
+   102→  const [customConfig, setCustomConfig] = useState<InventoryConfig | null>(null);
+   103→  const [hasTemplate, setHasTemplate] = useState<boolean | null>(null); // null = loading, false = no template, true = has template
+   104→  const config: InventoryConfig = customConfig || defaultConfig;
+   105→  const canSkipSteps = hasPermission('skip_steps');
+   106→  const canPerformStep = canPerform(sStep, miniStep);
+   107→  const canViewStep = canView(sStep, miniStep);
+   108→  // Permission-driven: read-only if no execute perm OR if candado closed for skip_steps users
+   109→  const isReadOnly = !canPerformStep || (canSkipSteps && !adminFreeNavigation);
+   110→  // v2.39: hide bulk import/export controls from empleado & auditor (only gestor/admin/gerente/responsable see them)
+   111→  const canManageBulk = ['gestor', 'admin', 'gerente', 'responsable'].includes(currentUser?.role || '');
+   112→
+   113→  const [items, setItems] = useState<InventoryItemData[]>([]);
+   114→  const [isLoading, setIsLoading] = useState(true);
+   115→  const [isCompleted, setIsCompleted] = useState(false);
+   116→  const [csvPreview, setCsvPreview] = useState<InventoryItemData[] | null>(null);
+   117→  const [isImporting, setIsImporting] = useState(false);
+   118→  const [isFullscreen, setIsFullscreen] = useState(true);
+   119→  const [showLayoutEditor, setShowLayoutEditor] = useState(false);
+   120→  const [showColorCodeTable, setShowColorCodeTable] = useState(false);
+   121→  const [savedLayouts, setSavedLayouts] = useState<{ id: string; title: string; photoUrl: string | null; createdAt: string }[]>([]);
+   122→  const [layoutUploaded, setLayoutUploaded] = useState(false);
+   123→
+   124→  // Photo attachment state
+   125→  const [itemPhotos, setItemPhotos] = useState<Record<string, PhotoData[]>>({});
+   126→  const [step2Photos, setStep2Photos] = useState<PhotoData[]>([]);
+   127→  const [uploadingPhotoForItem, setUploadingPhotoForItem] = useState<string | null>(null);
+   128→  const [uploadPhotoType, setUploadPhotoType] = useState<string>('antes');
+   129→  const [showPhotoLightbox, setShowPhotoLightbox] = useState<PhotoData | null>(null);
+   130→  // v2.44: eliminados pendingNewPhoto y pendingNewPhotoType — las fotos
+   131→  // se vinculan automáticamente desde el Paso 2 (FotosModal.handleSubmit).
+   132→  // v2.42: guard contra re-entrancia en la migración de fotos huérfanas.
+   133→  // Impide que loadStep2Photos → migrateOrphanPhotos → loadStep2Photos
+   134→  // se vuelva a disparar mientras la migración está en curso.
+   135→  const isMigratingRef = useRef(false);
+   136→
+   137→  // v2.45: eliminado el state `newItem` y el form "Add item" — los items
+   138→  // ahora se crean automáticamente como borradores al tomar fotos en el
+   139→  // Paso 2 (FotosModal.handleSubmit). El usuario edita los borradores
+   140→  // directamente en la tabla inferior.
+   141→
+   142→  useEffect(() => {
+   143→    if (open) {
+   144→      // Load config/template FIRST — importTemplateItems will call loadInventory internally
+   145→      // after saving template items to DB, so items get proper IDs and are editable.
+   146→      // We do NOT call loadInventory() separately here to avoid race conditions.
+   147→      loadCustomInventoryConfig().then(() => {
+   148→        // loadCustomInventoryConfig may or may not have called loadInventory via importTemplateItems.
+   149→        // If no template items were found, loadInventory wasn't called, so load it now.
+   150→        // We check by seeing if items are still empty after config load.
+   151→        setItems(prev => {
+   152→          if (prev.length === 0) {
+   153→            loadInventory();
+   154→          }
+   155→          return prev;
+   156→        });
+   157→      });
+   158→      // Load layouts for any S step that has layout support (S2 primarily, also S3/S4 for estandares)
+   159→      if (sStep === 2 || sStep === 3 || sStep === 4) loadLayouts();
+   160→      // Load Step 2 photos for this zone/project
+   161→      loadStep2Photos();
+   162→    }
+   163→  }, [open, sStep]);
+   164→
+   165→  // Helper: import template items into the database so they get real IDs and become editable
+   166→  const importTemplateItems = async (templateItems: any[]) => {
+   167→    if (!currentProject?.id || !templateItems.length) return;
+   168→    try {
+   169→      // Check if items already exist in DB for this step/project/zone — avoid duplicates
+   170→      const existingRes = await fetch(`/api/inventory?sStep=${sStep}&projectId=${currentProject.id}${currentZone?.id ? `&zoneId=${currentZone.id}` : ''}`);
+   171→      const existingJson = await existingRes.json();
+   172→      const existingNames = new Set(
+   173→        (existingJson.success ? existingJson.data : []).map((i: any) => i.name?.trim().toLowerCase())
+   174→      );
+   175→
+   176→      // Only import items that don't already exist in the DB
+   177→      const itemsToCreate = templateItems.filter(
+   178→        (item: any) => item.name && !existingNames.has(item.name.trim().toLowerCase())
+   179→      );
+   180→
+   181→      if (itemsToCreate.length === 0) {
+   182→        // All items already in DB — just reload from API to get proper IDs
+   183→        await loadInventory();
+   184→        return;
+   185→      }
+   186→
+   187→      // Create each item via POST so they get database IDs
+   188→      for (const item of itemsToCreate) {
+   189→        // v2.54: en S1 todos los items son innecesario por definición (la columna
+   190→        // Categoría se renderiza hardcoded como 'Innecesario'), así que no exigimos
+   191→        // que item.category === 'innecesario' — bast con estar en S1.
+   192→        const isInnecesario = sStep === 1 || item.category === 'innecesario';
+   193→        const isNecesario = sStep === 1 && item.category === 'necesario';
+   194→        const qty = item.quantity || 1;
+   195→        const extra = { ...(item.extra || {}) };
+   196→        // v2.56: NO forzar decision='Retirar' por defecto. El usuario debe elegir
+   197→        // activamente entre Retirar y Eliminar para que dispare onValueChange,
+   198→        // lo que genera la etiqueta automáticamente. Si pre-seteamos 'Retirar',
+   199→        // el Select lo muestra pero onValueChange nunca fire → etiqueta nunca se genera.
+   200→        // (Solo conservamos decision si el template ya lo traía.)
+   201→
+   202→        await fetch('/api/inventory', {
+   203→          method: 'POST',
+   204→          headers: { 'Content-Type': 'application/json' },
+   205→          body: JSON.stringify({
+   206→            sStep,
+   207→            projectId: currentProject.id,
+   208→            zoneId: currentZone?.id || null,
+   209→            name: item.name,
+   210→            location: item.location || '',
+   211→            category: sStep === 1 ? 'innecesario' : (item.category || ''),
+   212→            quantity: qty,
+   213→            quantityNeeded: isNecesario ? qty : (item.quantityNeeded || 0),
+   214→            quantityUnneeded: isInnecesario ? qty : (item.quantityUnneeded || 0),
+   215→            price: item.price ?? null,
+   216→            action: item.action || '',
+   217→            extra,
+   218→            jaulaStatus: isInnecesario && isJaulaDecision(extra.decision) ? 'en_jaula' : '',
+   219→            jaulaFechaEntrada: isInnecesario && isJaulaDecision(extra.decision) ? new Date().toISOString() : null,
+   220→            jaulaOrigen: isInnecesario ? (currentZone?.name || currentProject.name || '') : null,
+   221→            zonaOrigen: currentZone?.name || null,
+   222→            zonaDestino: isInnecesario && extra.decision ? (isEliminarDecision(extra.decision) ? 'Residuo' : 'Jaula') : null,
+   223→          }),
+   224→        });
+   225→      }
+   226→
+   227→      // Now reload from API — items will have real database IDs and be fully editable
+   228→      await loadInventory();
+   229→    } catch (e) {
+   230→      console.error('Error importing template items:', e);
+   231→      // Fallback: just reload from API
+   232→      await loadInventory();
+   233→    }
+   234→  };
+   235→
+   236→  // Helper: parse template content and apply it, falling back to INVENTORY_CONFIGS if empty
+   237→  const applyTemplateContent = async (content: any) => {
+   238→    const hasCategories = Array.isArray(content.categories) && content.categories.length > 0;
+   239→    const hasExtraFields = Array.isArray(content.extraFields) && content.extraFields.length > 0;
+   240→    const hasItems = Array.isArray(content.items) && content.items.length > 0;
+   241→
+   242→    if (hasCategories || hasExtraFields) {
+   243→      // Template has real structure — use it (fill missing parts from defaults)
+   244→      setCustomConfig({
+   245→        title: content.title || defaultConfig.title,
+   246→        subtitle: content.subtitle || defaultConfig.subtitle,
+   247→        templateName: content.templateName || defaultConfig.templateName,
+   248→        categories: hasCategories ? content.categories : defaultConfig.categories,
+   249→        extraFields: hasExtraFields ? content.extraFields : defaultConfig.extraFields,
+   250→        ...(content.desplegables_jerarquicos ? { desplegables_jerarquicos: content.desplegables_jerarquicos } : {}),
+   251→      });
+   252→      setHasTemplate(true);
+   253→      // Auto-import template items into DB so they get IDs and become editable
+   254→      if (hasItems) {
+   255→        await importTemplateItems(content.items);
+   256→      }
+   257→    } else if (hasItems) {
+   258→      // Legacy format: only items, no structure — use default config
+   259→      setCustomConfig(null);
+   260→      setHasTemplate(true);
+   261→      await importTemplateItems(content.items);
+   262→    } else {
+   263→      // Empty or unknown format — fall back to INVENTORY_CONFIGS defaults
+   264→      setCustomConfig(null);
+   265→      setHasTemplate(true);
+   266→    }
+   267→  };
+   268→
+   269→  const loadCustomInventoryConfig = async () => {
+   270→    try {
+   271→      // If the zone has a board config, fetch inventory template from that config
+   272→      if (currentZone?.boardConfigId) {
+   273→        const slotsRes = await fetch(`/api/board-slots?boardConfigId=${currentZone.boardConfigId}&sStep=${sStep}&miniStep=3`);
+   274→        const slotsJson = await slotsRes.json();
+   275→        if (slotsJson.success && slotsJson.data.length > 0) {
+   276→          const slot = slotsJson.data[0];
+   277→          const inventarioTemplates = (slot.templates || []).filter(
+   278→            (t: any) => t.template?.type === 'inventario'
+   279→          );
+   280→          if (inventarioTemplates.length > 0) {
+   281→            const content = JSON.parse(inventarioTemplates[0].template.content);
+   282→            await applyTemplateContent(content);
+   283→          } else {
+   284→            // No inventario template assigned in this board slot — use default config
+   285→            setCustomConfig(null);
+   286→            setHasTemplate(true);
+   287→          }
+   288→        } else {
+   289→          // No slot configured for this step — use default config
+   290→          setCustomConfig(null);
+   291→          setHasTemplate(true);
+   292→        }
+   293→      } else {
+   294→        // Fallback: load global template
+   295→        const res = await fetch(`/api/templates?type=inventario&sStep=${sStep}&miniStep=3`);
+   296→        const json = await res.json();
+   297→        if (json.success && json.data && json.data.length > 0) {
+   298→          const content = JSON.parse(json.data[0].content);
+   299→          await applyTemplateContent(content);
+   300→        } else {
+   301→          // No global template — use default config (INVENTORY_CONFIGS has entries for all 5 S steps)
+   302→          setCustomConfig(null);
+   303→          setHasTemplate(true);
+   304→        }
+   305→      }
+   306→    } catch (e) {
+   307→      console.error('Error loading custom inventory config:', e);
+   308→      // On error, use default config so the modal still works
+   309→      setCustomConfig(null);
+   310→      setHasTemplate(true);
+   311→    }
+   312→  };
+   313→
+   314→  const loadLayouts = async () => {
+   315→    if (!currentProject) return
+   316→    try {
+   317→      const params = new URLSearchParams({ projectId: currentProject.id, category: 'layout', sStep: String(sStep) })
+   318→      if (currentZone?.id) params.set('zoneId', currentZone.id)
+   319→      const res = await fetch(`/api/standards?${params}`)
+   320→      const json = await res.json()
+   321→      if (json.success) {
+   322→        setSavedLayouts(json.data.map((s: any) => ({
+   323→          id: s.id,
+   324→          title: s.title,
+   325→          photoUrl: s.photoUrl,
+   326→          createdAt: s.createdAt,
+   327→        })))
+   328→        setLayoutUploaded(json.data.length > 0)
+   329→      }
+   330→    } catch (e) {
+   331→      console.error('Error loading layouts:', e)
+   332→    }
+   333→  }
+   334→
+   335→  const handleUploadLayoutImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   336→    const file = e.target.files?.[0]
+   337→    if (!file || !currentProject) return
+   338→    try {
+   339→      const formData = new FormData()
+   340→      formData.append('file', file)
+   341→      formData.append('projectId', currentProject.id)
+   342→      formData.append('filename', `${currentProject.id}_layout_${sStep}_${Date.now()}.png`)
+   343→      console.log('[InventarioModal] Uploading layout image:', file.name, 'size:', (file.size / 1024).toFixed(1) + 'KB')
+   344→      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+   345→      if (!res.ok) {
+   346→        console.error('[InventarioModal] Upload HTTP error:', res.status)
+   347→        toast.error(`Error al subir imagen (HTTP ${res.status})`)
+   348→        e.target.value = ''
+   349→        return
+   350→      }
+   351→      const json = await res.json()
+   352→      if (json.success && json.url) {
+   353→        const layoutDescriptions: Record<number, string> = {
+   354→          2: 'Layout subido como imagen con marcado de suelo según estándar de colores',
+   355→          3: 'Layout subido como imagen con puntos de suciedad y zonas de limpieza',
+   356→          4: 'Layout subido como imagen con estándares implantados señalados',
+   357→        }
+   358→        // Save as a layout standard
+   359→        const standardPayload = {
+   360→          sStep,
+   361→          title: `Layout ${currentZone?.name || 'zona'} ${sStepData?.japaneseName || ''} (subido)`,
+   362→          description: layoutDescriptions[sStep] || 'Layout subido como imagen',
+   363→          category: 'layout',
+   364→          photoUrl: json.url,
+   365→          status: 'activo',
+   366→          version: 1,
+   367→          projectId: currentProject.id,
+   368→          zoneId: currentZone?.id || null,
+   369→        }
+   370→        console.log('[InventarioModal] Saving layout standard:', {
+   371→          sStep, category: 'layout', hasPhotoUrl: true,
+   372→          projectId: currentProject.id, zoneId: currentZone?.id,
+   373→        })
+   374→        const saveRes = await fetch('/api/standards', {
+   375→          method: 'POST',
+   376→          headers: { 'Content-Type': 'application/json' },
+   377→          body: JSON.stringify(standardPayload),
+   378→        })
+   379→        if (!saveRes.ok) {
+   380→          console.error('[InventarioModal] Standards API HTTP error:', saveRes.status)
+   381→          toast.error(`Error al guardar estándar (HTTP ${saveRes.status})`)
+   382→          e.target.value = ''
+   383→          return
+   384→        }
+   385→        const saveJson = await saveRes.json()
+   386→        if (saveJson.success) {
+   387→          toast.success('Layout subido y guardado en Biblioteca de Estándares')
+   388→          await loadLayouts()
+   389→        } else {
+   390→          console.error('[InventarioModal] Standards API error:', saveJson.error)
+   391→          toast.error(`Error al guardar estándar: ${saveJson.error || 'Error desconocido'}`)
+   392→        }
+   393→      } else {
+   394→        console.error('[InventarioModal] Upload failed:', json.error)
+   395→        toast.error(`Error al subir imagen: ${json.error || 'Error desconocido'}`)
+   396→      }
+   397→    } catch (e) {
+   398→      console.error('[InventarioModal] Upload error:', e)
+   399→      toast.error('Error al subir la imagen del layout')
+   400→    }
+   401→    e.target.value = ''
+   402→  }
+   403→
+   404→  const loadInventory = async () => {
+   405→    setIsLoading(true);
+   406→    try {
+   407→      const projectIdParam = currentProject?.id ? `&projectId=${currentProject.id}` : '';
+   408→      const zoneIdParam = currentZone?.id ? `&zoneId=${currentZone.id}` : '';
+   409→      const res = await fetch(`/api/inventory?sStep=${sStep}${projectIdParam}${zoneIdParam}`);
+   410→      const json = await res.json();
+   411→      if (json.success) {
+   412→        const photosMap: Record<string, PhotoData[]> = {};
+   413→        const mappedItems = json.data.map((item: any) => {
+   414→          // Map photos from the relation
+   415→          const itemPhotosList: PhotoData[] = (item.photos || []).map((p: any) => ({
+   416→            id: p.id,
+   417→            title: p.title,
+   418→            description: p.description,
+   419→            photoUrl: p.photoUrl,
+   420→            photoType: p.photoType,
+   421→            category: p.category,
+   422→            inventoryItemId: p.inventoryItemId,
+   423→            miniStep: p.miniStep,
+   424→            sStep: p.sStep,
+   425→            createdAt: p.createdAt,
+   426→          }));
+   427→          if (item.id && itemPhotosList.length > 0) {
+   428→            photosMap[item.id] = itemPhotosList;
+   429→          }
+   430→          return {
+   431→            id: item.id,
+   432→            name: item.name,
+   433→            location: item.location || '',
+   434→            category: item.category || '',
+   435→            quantity: item.quantity || 1,
+   436→            // S1: Set quantities based on category (innecesario or necesario)
+   437→            // v2.54: en S1, si category es vacío o distinto, tratar como innecesario
+   438→            quantityNeeded: sStep === 1
+   439→              ? (item.category === 'necesario' ? (item.quantityNeeded || item.quantity || 1) : 0)
+   440→              : (item.quantityNeeded || 0),
+   441→            quantityUnneeded: sStep === 1
+   442→              ? (item.category !== 'necesario' ? (item.quantityUnneeded || item.quantity || 1) : 0)
+   443→              : (item.quantityUnneeded || 0),
+   444→            price: item.price ?? null,
+   445→            action: item.action || '',
+   446→            extra: typeof item.extra === 'string' ? JSON.parse(item.extra) : (item.extra || {}),
+   447→            jaulaStatus: item.jaulaStatus || '',
+   448→            jaulaFechaEntrada: item.jaulaFechaEntrada || null,
+   449→            jaulaOrigen: item.jaulaOrigen || null,
+   450→            jaulaFechaSalida: item.jaulaFechaSalida || null,
+   451→            jaulaDestino: item.jaulaDestino || null,
+   452→            zonaOrigen: item.zonaOrigen || null,
+   453→            zonaDestino: item.zonaDestino || null,
+   454→            photos: itemPhotosList,
+   455→          };
+   456→        });
+   457→        setItems(mappedItems);
+   458→        setItemPhotos(photosMap);
+   459→
+   460→        // v2.54: backfill crítico — En S1 todos los items son 'innecesario' por definición.
+   461→        // Pero items creados desde fotos del Paso 2 (migrateOrphanPhotos) se guardaban con
+   462→        // category='' (string vacío), lo que rompía TODA la lógica automática:
+   463→        //   - Z Destino no mostraba 'Jaula'/'Residuo'
+   464→        //   - handleAutoGenerateEtiqueta no disparaba
+   465→        //   - jaulaStatus/jaulaFechaEntrada no se seteaban
+   466→        // Ahora: si sStep===1 y category!=='innecesario', normalizamos y persistimos.
+   467→        if (sStep === 1) {
+   468→          mappedItems.forEach((it: any) => {
+   469→            if (it.id && it.category !== 'innecesario') {
+   470→              // 1) Normalizar en state local (inmediato)
+   471→              setItems(prev => prev.map(x => x.id === it.id ? { ...x, category: 'innecesario' } : x));
+   472→              // 2) Persistir en DB (background, sin await)
+   473→              fetch(`/api/inventory?id=${it.id}`, {
+   474→                method: 'PUT',
+   475→                headers: { 'Content-Type': 'application/json' },
+   476→                body: JSON.stringify({ category: 'innecesario' }),
+   477→              }).catch(e => console.error('Error normalizando category:', e));
+   478→            }
+   479→          });
+   480→        }
+   481→
+   482→        // v2.53: backfill — items S1 con decisión Retirar (o legacy 'Jaula')
+   483→        // pero sin etiquetaGenerada, se auto-generan al cargar el modal.
+   484→        // Esto cubre items creados antes de v2.52 que ya tenían Retirar seleccionado.
+   485→        if (sStep === 1) {
+   486→          mappedItems.forEach((it: any) => {
+   487→            const dec = it.extra?.decision;
+   488→            const isRetirar = dec === 'Retirar' || dec === 'Jaula';
+   489→            if (isRetirar && !it.extra?.etiquetaGenerada && it.id) {
+   490→              const enriched = {
+   491→                ...it,
+   492→                category: 'innecesario', // v2.54: forzar para que handleAutoGenerateEtiqueta funcione
+   493→                jaulaStatus: it.jaulaStatus || 'en_jaula',
+   494→                jaulaFechaEntrada: it.jaulaFechaEntrada || new Date().toISOString(),
+   495→              };
+   496→              // Pequeño stagger para no disparar todos los PUT en paralelo
+   497→              setTimeout(() => handleAutoGenerateEtiqueta(enriched), 50);
+   498→            }
+   499→
+   500→            // v2.60: backfill de jaulaStatus — items S1 con decision='Retirar'
+   501→            // pero jaulaStatus='' (creados antes de v2.60 o migrados desde fotos
+   502→            // sin pasar por el handler de decision) deben tener jaulaStatus='en_jaula'
+   503→            // para aparecer en el JaulaView.
+   504→            if (isRetirar && it.id && (!it.jaulaStatus || it.jaulaStatus === '')) {
+   505→              const updates: any = {
+   506→                jaulaStatus: 'en_jaula',
+   507→                jaulaFechaEntrada: it.jaulaFechaEntrada || new Date().toISOString(),
+   508→                jaulaOrigen: it.jaulaOrigen || it.zonaOrigen || currentZone?.name || currentProject?.name || '',
+   509→              };
+   510→              if (!it.zonaOrigen) {
+   511→                updates.zonaOrigen = currentZone?.name || currentProject?.name || '';
+   512→              }
+   513→              // Normalizar en state local
+   514→              setItems(prev => prev.map(x => x.id === it.id ? { ...x, ...updates } : x));
+   515→              // Persistir en DB (background)
+   516→              fetch(`/api/inventory?id=${it.id}`, {
+   517→                method: 'PUT',
+   518→                headers: { 'Content-Type': 'application/json' },
+   519→                body: JSON.stringify(updates),
+   520→              }).catch(e => console.error('Error normalizando jaulaStatus:', e));
+   521→            }
+   522→          });
+   523→        }
+   524→      } else {
+   525→        console.error('Error loading inventory:', json.error);
+   526→      }
+   527→    } catch (error) {
+   528→      console.error('Error loading inventory:', error);
+   529→    } finally {
+   530→      setIsLoading(false);
+   531→    }
+   532→  };
+   533→
+   534→  // ─── Photo functions ───
+   535→
+   536→  const loadStep2Photos = async () => {
+   537→    if (!currentProject?.id) return;
+   538→    try {
+   539→      const params = new URLSearchParams({
+   540→        projectId: currentProject.id,
+   541→        sStep: String(sStep),
+   542→        miniStep: '2',
+   543→      });
+   544→      if (currentZone?.id) params.set('zoneId', currentZone.id);
+   545→      const res = await fetch(`/api/photo-library?${params}`);
+   546→      const json = await res.json();
+   547→      if (json.success) {
+   548→        // v2.42: solo nos interesan las fotos HUÉRFANAS (sin inventoryItemId).
+   549→        // Las que ya están vinculadas a un item NO deben aparecer en el card
+   550→        // "pendientes de clasificar" ni contar en unclassifiedPhotosCount,
+   551→        // porque su item correspondiente ya existe (creado automáticamente
+   552→        // en FotosModal.handleSubmit o migrado por migrateOrphanPhotos).
+   553→        const orphans = (json.data || []).filter((p: any) => !p.inventoryItemId);
+   554→        setStep2Photos(orphans.map((p: any) => ({
+   555→          id: p.id,
+   556→          title: p.title,
+   557→          description: p.description,
+   558→          photoUrl: p.photoUrl,
+   559→          photoType: p.photoType,
+   560→          category: p.category,
+   561→          inventoryItemId: p.inventoryItemId,
+   562→          miniStep: p.miniStep,
+   563→          sStep: p.sStep,
+   564→          createdAt: p.createdAt,
+   565→        })));
+   566→
+   567→        // v2.42: migración automática de fotos huérfanas (pre-v2.40).
+   568→        // Si hay fotos del Paso 2 sin inventoryItemId, les creamos un
+   569→        // borrador de inventario y los vinculamos, igual que hace
+   570→        // FotosModal.handleSubmit para fotos nuevas. Así el usuario no
+   571→        // tiene que vincular manualmente — el flujo es consistente
+   572→        // tanto para fotos nuevas como para fotos antiguas.
+   573→        if (orphans.length > 0 && !isMigratingRef.current) {
+   574→          isMigratingRef.current = true;
+   575→          try {
+   576→            await migrateOrphanPhotos(orphans);
+   577→          } finally {
+   578→            isMigratingRef.current = false;
+   579→          }
+   580→        }
+   581→      }
+   582→    } catch (e) {
+   583→      console.error('Error loading Step 2 photos:', e);
+   584→    }
+   585→  };
+   586→
+   587→  // v2.42: crea un borrador de inventario por cada foto huérfana del Paso 2
+   588→  // y vincula la foto al nuevo item. Después recarga items para que los
+   589→  // borradores aparezcan en la tabla con badge "Pendiente".
+   590→  const migrateOrphanPhotos = async (orphans: any[]) => {
+   591→    if (!currentProject?.id || orphans.length === 0) return;
+   592→    console.log(`[InventarioModal] Migrando ${orphans.length} foto(s) huérfana(s) del Paso 2 a borradores`);
+   593→    let migrated = 0;
+   594→    for (let idx = 0; idx < orphans.length; idx++) {
+   595→      const photo = orphans[idx];
+   596→      try {
+   597→        // 1) Crear item borrador
+   598→        const itemRes = await fetch('/api/inventory', {
+   599→          method: 'POST',
+   600→          headers: { 'Content-Type': 'application/json' },
+   601→          body: JSON.stringify({
+   602→            sStep,
+   603→            projectId: currentProject.id,
+   604→            zoneId: currentZone?.id || null,
+   605→            name: DRAFT_NAME_BY_S[sStep]?.(idx + 1) || `Pendiente de clasificar (${idx + 1})`,
+   606→            location: null,
+   607→            // v2.54: en S1 todos los items son innecesario por definición;
+   608→            // crear el borrador ya con la categoría correcta para que toda
+   609→            // la lógica automática (Z Destino, etiqueta, jaulaStatus) funcione.
+   610→            category: sStep === 1 ? 'innecesario' : '',
+   611→            quantity: 1,
+   612→            photoUrl: photo.photoUrl,
+   613→            extra: {
+   614→              isDraft: true,
+   615→              sourcePhotoId: photo.id,
+   616→              sourcePhotoUrl: photo.photoUrl,
+   617→              sourcePhotoType: photo.photoType || 'antes',
+   618→              sourcePhotoTitle: photo.title || '',
+   619→            },
+   620→            zonaOrigen: currentZone?.name || null,
+   621→          }),
+   622→        });
+   623→        const itemJson = await itemRes.json();
+   624→        if (!itemJson.success || !itemJson.data?.id) {
+   625→          console.warn(`[InventarioModal] No se pudo crear borrador para foto ${idx + 1}`);
+   626→          continue;
+   627→        }
+   628→        const newItemId = itemJson.data.id;
+   629→
+   630→        // 2) Vincular la foto al nuevo item
+   631→        await fetch('/api/photo-library', {
+   632→          method: 'PUT',
+   633→          headers: { 'Content-Type': 'application/json' },
+   634→          body: JSON.stringify({ id: photo.id, inventoryItemId: newItemId }),
+   635→        });
+   636→        migrated++;
+   637→      } catch (err) {
+   638→        console.error(`[InventarioModal] Error migrando foto ${idx + 1}:`, err);
+   639→      }
+   640→    }
+   641→
+   642→    if (migrated > 0) {
+   643→      console.log(`[InventarioModal] ${migrated} foto(s) migrada(s) a borradores`);
+   644→      // Recargar items para que aparezcan los borradores nuevos, y recargar
+   645→      // step2Photos (ahora debería estar vacío porque todas tienen inventoryItemId).
+   646→      await loadInventory();
+   647→      // Recargar step2Photos: como acabamos de vincular todas, debería
+   648→      // devolver array vacío. Usamos setTimeout(0) para evitar race con
+   649→      // el setItems de loadInventory.
+   650→      setTimeout(() => loadStep2Photos(), 0);
+   651→    }
+   652→  };
+   653→
+   654→  const handleAttachPhoto = async (itemId: string, file: File, photoType: string) => {
+   655→    if (!currentProject?.id) {
+   656→      toast.error('No hay proyecto seleccionado');
+   657→      return;
+   658→    }
+   659→    setUploadingPhotoForItem(itemId);
+   660→    try {
+   661→      // Read and compress the image
+   662→      const reader = new FileReader();
+   663→      const base64Promise = new Promise<string>((resolve) => {
+   664→        reader.onloadend = () => resolve(reader.result as string);
+   665→        reader.readAsDataURL(file);
+   666→      });
+   667→      const rawBase64 = await base64Promise;
+   668→      // v2.58: si la compresión falla o produce un resultado sospechoso,
+   669→      // usar el original sin comprimir antes que uno negro.
+   670→      let compressed: string;
+   671→      try {
+   672→        compressed = await compressImage(rawBase64);
+   673→      } catch (compressErr) {
+   674→        console.warn('[handleAttachPhoto] Compression failed, using original:', compressErr);
+   675→        compressed = rawBase64;
+   676→      }
+   677→
+   678→      // Upload to server
+   679→      const filename = generatePhotoFilename(currentProject.id, sStep, miniStep, Date.now());
+   680→      const uploadFile = base64toFile(compressed, filename);
+   681→      const formData = new FormData();
+   682→      formData.append('file', uploadFile);
+   683→      formData.append('filename', filename);
+   684→      formData.append('projectId', currentProject.id);
+   685→
+   686→      const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
+   687→      const uploadJson = await uploadRes.json();
+   688→
+   689→      if (!uploadJson.success || !uploadJson.url) {
+   690→        toast.error(`Error al subir foto: ${uploadJson.error || 'Error desconocido'}`);
+   691→        return;
+   692→      }
+   693→
+   694→      // Save to PhotoLibrary with inventoryItemId
+   695→      const sName = sStepData?.japaneseName || `S${sStep}`;
+   696→      const zoneName = currentZone?.name || 'Zona';
+   697→      const typeLabel = photoType === 'antes' ? 'ANTES' : photoType === 'despues' ? 'DESPUÉS' : 'Referencia';
+   698→      const date = new Date().toLocaleDateString('es-ES');
+   699→      const item = items.find(i => i.id === itemId);
+   700→      const itemLabel = item?.name || 'Elemento';
+   701→
+   702→      const photoRes = await fetch('/api/photo-library', {
+   703→        method: 'POST',
+   704→        headers: { 'Content-Type': 'application/json' },
+   705→        body: JSON.stringify({
+   706→          sStep,
+   707→          // v2.57: forzar miniStep=2 para que la foto también aparezca en el
+   708→          // Paso 2 (Fotos) y no solo en el inventario. Así se mantiene la
+   709→          // trazabilidad completa: biblioteca de fotos + Paso 2 + inventario.
+   710→          miniStep: 2,
+   711→          title: `S${sStep} ${sName} - ${zoneName} - ${itemLabel} - ${typeLabel} (${date})`,
+   712→          description: `Foto adjunta al elemento de inventario: ${itemLabel}`,
+   713→          photoUrl: uploadJson.url,
+   714→          photoType,
+   715→          category: `paso2_s${sStep}`,
+   716→          tags: JSON.stringify([`S${sStep}`, sName, zoneName, `paso2`, `inventario`, photoType, itemLabel]),
+   717→          projectId: currentProject.id,
+   718→          zoneId: currentZone?.id || null,
+   719→          uploadedBy: currentUser?.id || null,
+   720→          inventoryItemId: itemId,
+   721→        }),
+   722→      });
+   723→
+   724→      // v2.60: pedir descripción automática al VLM en background.
+   725→      // No bloquea el flujo — si falla, la foto ya está guardada con la
+   726→      // descripción genérica. Si funciona, actualizamos la descripción
+   727→      // en la biblioteca y en el estado local.
+   728→      (async () => {
+   729→        try {
+   730→          const describeRes = await fetch('/api/photo-describe', {
+   731→            method: 'POST',
+   732→            headers: { 'Content-Type': 'application/json' },
+   733→            body: JSON.stringify({ imageUrl: uploadJson.url, sStep }),
+   734→          });
+   735→          const describeJson = await describeRes.json();
+   736→          if (describeJson.success && describeJson.description) {
+   737→            const aiDescription = describeJson.description;
+   738→            // Actualizar la descripción en la biblioteca
+   739→            const photoJson2 = await photoRes.json();
+   740→            const photoDbId = photoJson2.data?.id;
+   741→            if (photoDbId) {
+   742→              await fetch('/api/photo-library', {
+   743→                method: 'PUT',
+   744→                headers: { 'Content-Type': 'application/json' },
+   745→                body: JSON.stringify({ id: photoDbId, description: aiDescription }),
+   746→              });
+   747→              // Actualizar estado local para que se vea en la UI
+   748→              setItemPhotos(prev => ({
+   749→                ...prev,
+   750→                [itemId]: (prev[itemId] || []).map(p =>
+   751→                  p.id === photoDbId ? { ...p, description: aiDescription } : p
+   752→                ),
+   753→              }));
+   754→              setItems(prev => prev.map(it => it.id === itemId
+   755→                ? { ...it, photos: (it.photos || []).map(p => p.id === photoDbId ? { ...p, description: aiDescription } : p) }
+   756→                : it
+   757→              ));
+   758→              console.log('[handleAttachPhoto] AI description applied:', aiDescription);
+   759→            }
+   760→          }
+   761→        } catch (describeErr) {
+   762→          console.warn('[handleAttachPhoto] VLM description failed (non-blocking):', describeErr);
+   763→        }
+   764→      })();
+   765→
+   766→      const photoJson = await photoRes.json();
+   767→      if (photoJson.success) {
+   768→        const newPhoto: PhotoData = {
+   769→          id: photoJson.data.id,
+   770→          title: photoJson.data.title,
+   771→          description: photoJson.data.description,
+   772→          photoUrl: photoJson.data.photoUrl,
+   773→          photoType: photoJson.data.photoType,
+   774→          category: photoJson.data.category,
+   775→          inventoryItemId: itemId,
+   776→          miniStep: photoJson.data.miniStep,
+   777→          sStep: photoJson.data.sStep,
+   778→          createdAt: photoJson.data.createdAt,
+   779→        };
+   780→        // Update local state
+   781→        setItemPhotos(prev => ({
+   782→          ...prev,
+   783→          [itemId]: [...(prev[itemId] || []), newPhoto],
+   784→        }));
+   785→        setItems(prev => prev.map(it => it.id === itemId
+   786→          ? { ...it, photos: [...(it.photos || []), newPhoto] }
+   787→          : it
+   788→        ));
+   789→        toast.success('Foto adjuntada correctamente');
+   790→      } else {
+   791→        toast.error(`Error al guardar foto: ${photoJson.error || 'Error desconocido'}`);
+   792→      }
+   793→    } catch (e) {
+   794→      console.error('Error attaching photo:', e);
+   795→      toast.error('Error al adjuntar la foto');
+   796→    } finally {
+   797→      setUploadingPhotoForItem(null);
+   798→    }
+   799→  };
+   800→
+   801→  // v2.57: refMap para inputs de archivo ocultos — uno por cada item.
+   802→  // Permite que el botón "+" de la columna Fotos dispare un click en su
+   803→  // input file correspondiente sin necesidad de re-renderizar.
+   804→  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+   805→  const fileInputRefForItem = (itemId: string) => fileInputRefs.current[itemId];
+   806→
+   807→  // v2.57: handler para el input file oculto de cada item.
+   808→  // Recibe el evento change del input, lee el archivo, y lo pasa a handleAttachPhoto.
+   809→  const handleFileInputChange = (itemId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+   810→    const file = e.target.files?.[0];
+   811→    if (!file) return;
+   812→    handleAttachPhoto(itemId, file, 'antes');
+   813→    // Reset para que se pueda volver a seleccionar el mismo archivo
+   814→    e.target.value = '';
+   815→  };
+   816→
+   817→  // v2.57: añadir una nueva línea al inventario.
+   818→  // Crea un item vacío en DB y lo añade al state local.
+   819→  const handleAddRow = async () => {
+   820→    if (!currentProject?.id) {
+   821→      toast.error('No hay proyecto seleccionado');
+   822→      return;
+   823→    }
+   824→    try {
+   825→      const sName = sStepData?.japaneseName || `S${sStep}`;
+   826→      const zoneName = currentZone?.name || 'Zona';
+   827→      const date = new Date().toLocaleDateString('es-ES');
+   828→      const isInn = sStep === 1;
+   829→      const newItemName = `Nuevo elemento (${date})`;
+   830→
+   831→      const res = await fetch('/api/inventory', {
+   832→        method: 'POST',
+   833→        headers: { 'Content-Type': 'application/json' },
+   834→        body: JSON.stringify({
+   835→          sStep,
+   836→          projectId: currentProject.id,
+   837→          zoneId: currentZone?.id || null,
+   838→          name: newItemName,
+   839→          location: currentZone?.name || currentProject.name || '',
+   840→          // v2.57: en S1 todos los items son innecesario por definición
+   841→          category: isInn ? 'innecesario' : '',
+   842→          quantity: 1,
+   843→          quantityNeeded: 0,
+   844→          quantityUnneeded: isInn ? 1 : 0,
+   845→          price: null,
+   846→          action: '',
+   847→          extra: {},
+   848→          jaulaStatus: '',
+   849→          jaulaFechaEntrada: null,
+   850→          jaulaOrigen: isInn ? (currentZone?.name || currentProject.name || '') : null,
+   851→          zonaOrigen: currentZone?.name || null,
+   852→          zonaDestino: null,
+   853→        }),
+   854→      });
+   855→      const json = await res.json();
+   856→      if (json.success) {
+   857→        // Recargar inventario para que el nuevo item aparezca con su ID real
+   858→        await loadInventory();
+   859→        toast.success('Línea añadida — rellena los datos del nuevo elemento');
+   860→      } else {
+   861→        toast.error(`Error al añadir línea: ${json.error || 'Error desconocido'}`);
+   862→      }
+   863→    } catch (e) {
+   864→      console.error('Error adding row:', e);
+   865→      toast.error('Error al añadir la línea');
+   866→    }
+   867→  };
+   868→
+   869→  const handleDeletePhoto = async (photoId: string, itemId: string) => {
+   870→    // v2.60: ya NO bloqueamos las fotos del Paso 2 aquí. El backend decidirá
+   871→    // si se pueden eliminar (si el Paso 2 está completado, devolverá 409).
+   872→    // El usuario ve el error y puede decidir si reinicia el paso o no.
+   873→    const photo = (itemPhotos[itemId] || []).find(p => p.id === photoId)
+   874→      || (items.find(i => i.id === itemId)?.photos || []).find(p => p.id === photoId);
+   875→    try {
+   876→      const res = await fetch(`/api/photo-library?id=${photoId}`, { method: 'DELETE' });
+   877→      const json = await res.json();
+   878→      if (json.success) {
+   879→        // v2.60: actualizar TODOS los estados locales para sincronización bidireccional:
+   880→        // 1) itemPhotos (caché local de fotos por item)
+   881→        setItemPhotos(prev => ({
+   882→          ...prev,
+   883→          [itemId]: (prev[itemId] || []).filter(p => p.id !== photoId),
+   884→        }));
+   885→        // 2) items[].photos (array de fotos embebido en el item)
+   886→        setItems(prev => prev.map(it => it.id === itemId
+   887→          ? { ...it, photos: (it.photos || []).filter(p => p.id !== photoId) }
+   888→          : it
+   889→        ));
+   890→        // 3) step2Photos (lista de fotos del Paso 2 — si la foto era del Paso 2)
+   891→        if (photo && (photo as any).miniStep === 2) {
+   892→          setStep2Photos(prev => prev.filter(p => p.id !== photoId));
+   893→        }
+   894→        // 4) photoUrl principal del item (si era la foto principal)
+   895→        const item = items.find(i => i.id === itemId);
+   896→        if (item && item.photoUrl === photo?.photoUrl) {
+   897→          // Buscar otra foto para usar como principal, o limpiar
+   898→          const remainingPhotos = (item.photos || []).filter(p => p.id !== photoId);
+   899→          const newMainPhoto = remainingPhotos[0]?.photoUrl || null;
+   900→          setItems(prev => prev.map(it => it.id === itemId
+   901→            ? { ...it, photoUrl: newMainPhoto }
+   902→            : it
+   903→          ));
+   904→          if (item.id) {
+   905→            fetch(`/api/inventory?id=${item.id}`, {
+   906→              method: 'PUT',
+   907→              headers: { 'Content-Type': 'application/json' },
+   908→              body: JSON.stringify({ photoUrl: newMainPhoto }),
+   909→            }).catch(e => console.error('Error updating main photoUrl:', e));
+   910→          }
+   911→        }
+   912→        toast.success('Foto eliminada del inventario, Paso 2 y biblioteca');
+   913→      } else {
+   914→        // v2.60: mostrar error del backend (p.ej. 409 si Paso 2 completado)
+   915→        toast.error(json.error || 'No se pudo eliminar la foto.');
+   916→      }
+   917→    } catch (e) {
+   918→      console.error('Error deleting photo:', e);
+   919→      toast.error('Error al eliminar la foto');
+   920→    }
+   921→  };
+   922→
+   923→  // v2.45: eliminado handleAddItem — el form "Add item" ya no existe.
+   924→  // Los items se crean automáticamente desde FotosModal.handleSubmit
+   925→  // al tomar fotos en el Paso 2. Para añadir manualmente un item,
+   926→  // el usuario puede usar "Importar Plantilla" o "Importar Archivo".
+   927→
+   928→  const handleImportTemplate = async () => {
+   929→    if (!currentProject?.id) {
+   930→      toast.error('No hay proyecto seleccionado.');
+   931→      return;
+   932→    }
+   933→    try {
+   934→      let templateItems: any[] = [];
+   935→
+   936→      if (currentZone?.boardConfigId) {
+   937→        // Fetch from board config
+   938→        const slotsRes = await fetch(`/api/board-slots?boardConfigId=${currentZone.boardConfigId}&sStep=${sStep}&miniStep=3`);
+   939→        const slotsJson = await slotsRes.json();
+   940→        if (slotsJson.success && slotsJson.data.length > 0) {
+   941→          const slot = slotsJson.data[0];
+   942→          const inventarioTemplates = (slot.templates || []).filter(
+   943→            (t: any) => t.template?.type === 'inventario'
+   944→          );
+   945→          if (inventarioTemplates.length > 0) {
+   946→            const content = JSON.parse(inventarioTemplates[0].template.content);
+   947→            templateItems = content.items || [];
+   948→          }
+   949→        }
+   950→      } else {
+   951→        // Fallback: global template
+   952→        const res = await fetch(`/api/templates?type=inventario&sStep=${sStep}`);
+   953→        const json = await res.json();
+   954→        if (json.success && json.data.length > 0) {
+   955→          const content = JSON.parse(json.data[0].content);
+   956→          templateItems = content.items || [];
+   957→        }
+   958→      }
+   959→
+   960→      if (templateItems.length === 0) {
+   961→        toast.info('Esta plantilla define el formato (categorías y campos) pero no contiene elementos predefinidos. Agrega elementos manualmente con el botón "Agregar".');
+   962→        return;
+   963→      }
+   964→
+   965→      // Use importTemplateItems to save items to DB and reload with proper IDs
+   966→      await importTemplateItems(templateItems);
+   967→      toast.success('Elementos de plantilla importados correctamente');
+   968→    } catch (error) {
+   969→      console.error('Error importing template:', error);
+   970→      toast.error('Error de conexión al importar plantilla');
+   971→    }
+   972→  };
+   973→
+   974→  // Unified file import: supports both .csv and .xlsx files
+   975→  const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   976→    const file = e.target.files?.[0];
+   977→    if (!file) return;
+   978→
+   979→    try {
+   980→      const fileName = file.name.toLowerCase();
+   981→      let dataRows: string[][] = [];
+   982→      let headerRow: string[] = [];
+   983→
+   984→      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+   985→        // Parse Excel file using xlsx library
+   986→        const XLSX = await import('xlsx');
+   987→        const arrayBuffer = await file.arrayBuffer();
+   988→        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+   989→        const sheetName = workbook.SheetNames[0]; // Use first sheet
+   990→        const sheet = workbook.Sheets[sheetName];
+   991→        const rawData: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+   992→        
+   993→        if (rawData.length < 2) {
+   994→          toast.error('El archivo está vacío o no tiene datos');
+   995→          e.target.value = '';
+   996→          return;
+   997→        }
+   998→
+   999→        // Find the header row: look for a row that contains MULTIPLE keywords
+  1000→        // (not just one — subtitle rows like "Identificar y eliminar los elementos innecesarios"
+  1001→        // contain "elemento" but are NOT header rows)
+  1002→        let headerIdx = 0;
+  1003→        let bestScore = 0;
+  1004→        const HEADER_KEYWORDS = ['elemento', 'nombre', 'nº', 'punto', 'ubicación', 'zona', 'cantidad', 'precio', 'estado', 'frecuencia', 'decisión', 'responsable', 'observaciones', 'categoría'];
+  1005→        for (let i = 0; i < Math.min(10, rawData.length); i++) {
+  1006→          const rowStr = rawData[i].map(c => String(c).toLowerCase()).join('|');
+  1007→          // Count how many header keywords match AND how many non-empty cells exist
+  1008→          const keywordScore = HEADER_KEYWORDS.filter(kw => rowStr.includes(kw)).length;
+  1009→          const nonEmptyCells = rawData[i].filter(c => String(c).trim() !== '').length;
+  1010→          // Header rows have MANY keyword matches AND many non-empty short-label cells
+  1011→          // Subtitle rows have few keywords (just 1-2) and few cells
+  1012→          const combinedScore = keywordScore * 2 + (nonEmptyCells >= 3 ? nonEmptyCells : 0);
+  1013→          if (combinedScore > bestScore) {
+  1014→            bestScore = combinedScore;
+  1015→            headerIdx = i;
+  1016→          }
+  1017→        }
+  1018→        headerRow = rawData[headerIdx].map((h: any) => String(h).trim().toLowerCase());
+  1019→        dataRows = rawData.slice(headerIdx + 1).filter(row => {
+  1020→          // Count non-empty, non-numeric-only cells
+  1021→          const meaningfulCells = row.filter(cell => {
+  1022→            const v = String(cell).trim();
+  1023→            return v !== '' && v !== '0';
+  1024→          });
+  1025→          // A row with data must have at least 1 meaningful cell that isn't just a row number
+  1026→          // (a row with just "1" is a template placeholder; a row with "Cartón viejo" is real data)
+  1027→          if (meaningfulCells.length === 0) return false;
+  1028→          // If only 1 meaningful cell and it's a number (row index), skip it
+  1029→          if (meaningfulCells.length === 1 && /^\d+$/.test(String(meaningfulCells[0]).trim())) return false;
+  1030→          // Skip footer rows like "TOTAL ELEMENTOS", "Notas:", etc.
+  1031→          const firstMeaningful = meaningfulCells[0].toLowerCase();
+  1032→          if (firstMeaningful.includes('total') || firstMeaningful.includes('notas') || firstMeaningful.includes('clasificación') || firstMeaningful.includes('empresa:') || firstMeaningful.includes('proyecto:') || firstMeaningful.includes('zona:')) return false;
+  1033→          return true;
+  1034→        });
+  1035→
+  1036→      } else if (fileName.endsWith('.csv')) {
+  1037→        // Parse CSV file
+  1038→        const text = await file.text();
+  1039→        const lines = text.split('\n').filter(l => l.trim());
+  1040→        if (lines.length < 2) {
+  1041→          toast.error('El archivo CSV está vacío o no tiene datos');
+  1042→          e.target.value = '';
+  1043→          return;
+  1044→        }
+  1045→        headerRow = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^\uFEFF/, '')); // Remove BOM
+  1046→        dataRows = lines.slice(1).filter(l => l.trim()).map(l => l.split(',').map(v => v.trim()));
+  1047→      } else {
+  1048→        toast.error('Formato no soportado. Usa .xlsx o .csv');
+  1049→        e.target.value = '';
+  1050→        return;
+  1051→      }
+  1052→
+  1053→      // Flexible column mapping: map various header names to standard fields
+  1054→      const findCol = (headers: string[], ...names: string[]): number => {
+  1055→        for (const name of names) {
+  1056→          const idx = headers.findIndex(h => h.includes(name));
+  1057→          if (idx >= 0) return idx;
+  1058→        }
+  1059→        return -1;
+  1060→      };
+  1061→
+  1062→      const colMap = {
+  1063→        name: findCol(headerRow, 'elemento', 'nombre', 'punto', 'estándar', 'práctica', 'estandar', 'practica'),
+  1064→        location: findCol(headerRow, 'ubicación', 'ubicacion', 'ámbito', 'ambito', 'proceso'),
+  1065→        zona: findCol(headerRow, 'zona', 'zona origen'),
+  1066→        category: findCol(headerRow, 'categoría', 'categoria', 'clasificación', 'clasificacion', 'tipo'),
+  1067→        quantity: findCol(headerRow, 'cantidad', 'total exist', 'total'),
+  1068→        quantityNeeded: findCol(headerRow, 'necesarios', 'nec.'),
+  1069→        quantityUnneeded: findCol(headerRow, 'innecesarios', 'innec.'),
+  1070→        price: findCol(headerRow, 'precio'),
+  1071→        action: findCol(headerRow, 'acción', 'accion', 'decisión', 'decision', 'método', 'metodo'),
+  1072→        estado: findCol(headerRow, 'estado'),
+  1073→        frecuenciaUso: findCol(headerRow, 'frecuencia'),
+  1074→        nivel: findCol(headerRow, 'nivel'),
+  1075→        fuente: findCol(headerRow, 'fuente'),
+  1076→        cercania: findCol(headerRow, 'cercanía', 'cercania'),
+  1077→        documentado: findCol(headerRow, 'documentado'),
+  1078→        cumplimiento: findCol(headerRow, 'cumplimiento'),
+  1079→        ubicacionAsignada: findCol(headerRow, 'ubicación asignada', 'asignada'),
+  1080→        metodoIdentificacion: findCol(headerRow, 'método identificación', 'identificación', 'identificacion'),
+  1081→        frecuenciaLimpieza: findCol(headerRow, 'frecuencia limpieza'),
+  1082→        metodoLimpieza: findCol(headerRow, 'método limpieza'),
+  1083→        responsable: findCol(headerRow, 'responsable'),
+  1084→        observaciones: findCol(headerRow, 'observaciones', 'observacion'),
+  1085→      };
+  1086→
+  1087→      const parsedItems: InventoryItemData[] = [];
+  1088→      for (const values of dataRows) {
+  1089→        const strValues = values.map(v => String(v).trim());
+  1090→        // Skip rows that are just a number (empty data rows from template)
+  1091→        if (strValues.length < 2) continue;
+  1092→        const nonEmptyCount = strValues.filter(v => v !== '' && v !== '0').length;
+  1093→        if (nonEmptyCount < 1) continue;
+  1094→
+  1095→        const getVal = (idx: number, fallback?: string) => idx >= 0 && idx < strValues.length ? strValues[idx] : (fallback || '');
+  1096→
+  1097→        const item: InventoryItemData = {
+  1098→          name: getVal(colMap.name, strValues[1] || strValues[0] || ''),
+  1099→          location: getVal(colMap.location, strValues[2] || ''),
+  1100→          category: getVal(colMap.category) || config.categories[0]?.value || '',
+  1101→          quantity: parseInt(getVal(colMap.quantity, strValues[4] || '1')) || 1,
+  1102→          quantityNeeded: parseInt(getVal(colMap.quantityNeeded, '0')) || 0,
+  1103→          quantityUnneeded: parseInt(getVal(colMap.quantityUnneeded, '0')) || 0,
+  1104→          price: parseFloat(getVal(colMap.price, '0')) || null,
+  1105→          action: getVal(colMap.action, '') || getVal(colMap.observaciones, ''),
+  1106→          zonaOrigen: colMap.zona >= 0 ? getVal(colMap.zona) || null : null,
+  1107→          extra: {},
+  1108→        };
+  1109→
+  1110→        // S1: All items are innecesario by nature, set default decision
+  1111→        if (sStep === 1) {
+  1112→          item.quantityUnneeded = item.quantity;
+  1113→          item.quantityNeeded = 0;
+  1114→          if (colMap.estado >= 0) item.extra!['estado'] = getVal(colMap.estado);
+  1115→          if (colMap.frecuenciaUso >= 0) item.extra!['frecuenciaUso'] = getVal(colMap.frecuenciaUso);
+  1116→          // Map classification/decision columns
+  1117→          // v2.50: 'Retirar' replaces 'Jaula'; 'Tirar' merged into 'Eliminar'.
+  1118→          const decisionVal = getVal(colMap.category) || getVal(colMap.action, '');
+  1119→          if (decisionVal) {
+  1120→            const lower = decisionVal.toLowerCase();
+  1121→            if (lower.includes('retirar') || lower.includes('jaula') || lower.includes('red') || lower.includes('etiqueta')) {
+  1122→              item.extra!['decision'] = 'Retirar';
+  1123→            } else if (lower.includes('elimin') || lower.includes('tirar') || lower.includes('residuo') || lower.includes('basura')) {
+  1124→              item.extra!['decision'] = 'Eliminar';
+  1125→            } else {
+  1126→              item.extra!['decision'] = 'Retirar'; // Default for S1
+  1127→            }
+  1128→          }
+  1129→          if (!item.extra!['decision']) item.extra!['decision'] = 'Retirar';
+  1130→        } else if (sStep === 2) {
+  1131→          if (colMap.ubicacionAsignada >= 0) item.extra!['ubicacionAsignada'] = getVal(colMap.ubicacionAsignada);
+  1132→          if (colMap.metodoIdentificacion >= 0) item.extra!['metodoIdentificacion'] = getVal(colMap.metodoIdentificacion);
+  1133→          if (colMap.cercania >= 0) item.extra!['cercania'] = getVal(colMap.cercania);
+  1134→          if (colMap.frecuenciaUso >= 0) item.extra!['frecuenciaUso'] = getVal(colMap.frecuenciaUso);
+  1135→        } else if (sStep === 3) {
+  1136→          if (colMap.nivel >= 0) item.extra!['nivel'] = getVal(colMap.nivel);
+  1137→          if (colMap.fuente >= 0) item.extra!['fuente'] = getVal(colMap.fuente);
+  1138→          if (colMap.metodoLimpieza >= 0) item.extra!['metodoLimpieza'] = getVal(colMap.metodoLimpieza);
+  1139→          if (colMap.frecuenciaLimpieza >= 0) item.extra!['frecuenciaLimpieza'] = getVal(colMap.frecuenciaLimpieza);
+  1140→        } else if (sStep === 4) {
+  1141→          if (colMap.estado >= 0) item.extra!['estadoEstandar'] = getVal(colMap.estado);
+  1142→          if (colMap.documentado >= 0) item.extra!['documentado'] = getVal(colMap.documentado);
+  1143→          if (colMap.cumplimiento >= 0) item.extra!['cumplimiento'] = getVal(colMap.cumplimiento);
+  1144→        } else if (sStep === 5) {
+  1145→          if (colMap.frecuenciaUso >= 0) item.extra!['frecuencia'] = getVal(colMap.frecuenciaUso);
+  1146→          if (colMap.nivel >= 0) item.extra!['practica'] = getVal(colMap.nivel);
+  1147→        }
+  1148→
+  1149→        // Also check config.extraFields for any remaining fields
+  1150→        config.extraFields.forEach((field) => {
+  1151→          if (item.extra![field.key]) return; // Already mapped above
+  1152→          const val = getVal(findCol(headerRow, field.label.toLowerCase()), '');
+  1153→          if (val) {
+  1154→            item.extra![field.key] = val;
+  1155→          }
+  1156→        });
+  1157→
+  1158→        // Skip items with no name
+  1159→        if (!item.name) continue;
+  1160→        parsedItems.push(item);
+  1161→      }
+  1162→
+  1163→      if (parsedItems.length > 0) {
+  1164→        setCsvPreview(parsedItems);
+  1165→        toast.info(`${parsedItems.length} elementos encontrados. Revisa y confirma la importación.`);
+  1166→      } else {
+  1167→        toast.error('No se encontraron elementos válidos en el archivo. Asegúrate de rellenar las filas con datos.');
+  1168→      }
+  1169→    } catch (error) {
+  1170→      console.error('Error parsing file:', error);
+  1171→      toast.error('Error al procesar el archivo. Verifica el formato.');
+  1172→    }
+  1173→    // Reset file input
+  1174→    e.target.value = '';
+  1175→  };
+  1176→
+  1177→  const handleConfirmCsvImport = async () => {
+  1178→    if (!csvPreview || csvPreview.length === 0) return;
+  1179→    if (!currentProject?.id) {
+  1180→      toast.error('No hay proyecto seleccionado.');
+  1181→      return;
+  1182→    }
+  1183→    setIsImporting(true);
+  1184→    try {
+  1185→      const res = await fetch('/api/inventory', {
+  1186→        method: 'POST',
+  1187→        headers: { 'Content-Type': 'application/json' },
+  1188→        body: JSON.stringify(
+  1189→          csvPreview.map(item => ({
+  1190→            sStep,
+  1191→            projectId: currentProject!.id,
+  1192→            zoneId: currentZone?.id || null,
+  1193→            name: item.name,
+  1194→            location: item.location,
+  1195→            category: item.category || config.categories[0]?.value || '',
+  1196→            quantity: item.quantity || 1,
+  1197→            // v2.54: en S1, si category es vacío o distinto, tratar como innecesario
+  1198→            quantityNeeded: sStep === 1 ? (item.category === 'necesario' ? (item.quantityNeeded || item.quantity || 1) : 0) : (item.quantityNeeded || 0),
+  1199→            quantityUnneeded: sStep === 1 ? (item.category !== 'necesario' ? (item.quantityUnneeded || item.quantity || 1) : 0) : (item.quantityUnneeded || 0),
+  1200→            price: item.price || null,
+  1201→            action: item.action || '',
+  1202→            extra: item.extra || {},
+  1203→            // v2.50: Retirar (legacy 'Jaula') → en_jaula; Eliminar (legacy 'Tirar') → Residuo.
+  1204→            // v2.54: en S1 no exigir item.category === 'innecesario' (podría ser '')
+  1205→            jaulaStatus: sStep === 1 && item.category !== 'necesario' && isJaulaDecision(item.extra?.decision) ? 'en_jaula' : '',
+  1206→            jaulaFechaEntrada: sStep === 1 && item.category !== 'necesario' && isJaulaDecision(item.extra?.decision) ? new Date().toISOString() : null,
+  1207→            jaulaOrigen: sStep === 1 && item.category !== 'necesario' && isJaulaDecision(item.extra?.decision) ? item.zonaOrigen || currentZone?.name || currentProject!.name || '' : null,
+  1208→            zonaOrigen: item.zonaOrigen || currentZone?.name || null,
+  1209→            zonaDestino: sStep === 1 && item.category !== 'necesario' ? (isEliminarDecision(item.extra?.decision) ? 'Residuo' : 'Jaula') : (item.zonaOrigen || currentZone?.name || null),
+  1210→          }))
+  1211→        ),
+  1212→      });
+  1213→
+  1214→      const json = await res.json();
+  1215→      if (json.success) {
+  1216→        toast.success(`${csvPreview.length} elementos importados correctamente`);
+  1217→        setCsvPreview(null);
+  1218→        await loadInventory();
+  1219→      } else {
+  1220→        toast.error(`Error al importar CSV: ${json.error || 'Error desconocido'}`);
+  1221→      }
+  1222→    } catch (error) {
+  1223→      console.error('Error importing CSV:', error);
+  1224→      toast.error('Error de conexión al importar CSV');
+  1225→    } finally {
+  1226→      setIsImporting(false);
+  1227→    }
+  1228→  };
+  1229→
+  1230→  const handleDeleteItem = async (id: string) => {
+  1231→    // v2.52: el candado 🔒 se eliminó. Cualquier item se puede borrar.
+  1232→    // Si el item viene de una foto del Paso 2 (extra.sourcePhotoId),
+  1233→    // también se limpia el campo inventoryItemId en la foto para que
+  1234→    // reaparezca como "pendiente de clasificar" en el Paso 2.
+  1235→    const item = items.find(i => i.id === id);
+  1236→    if (!item) return;
+  1237→    if (!confirm(`¿Eliminar "${item.name}"?${(item.extra as any)?.sourcePhotoId ? ' La foto del Paso 2 quedará como pendiente de clasificar.' : ''}`)) return;
+  1238→    try {
+  1239→      const res = await fetch(`/api/inventory?id=${id}`, { method: 'DELETE' });
+  1240→      const json = await res.json();
+  1241→      if (json.success) {
+  1242→        setItems(prev => prev.filter(item => item.id !== id));
+  1243→        toast.success('Elemento eliminado');
+  1244→      } else {
+  1245→        toast.error(`Error al eliminar: ${json.error || 'Error desconocido'}`);
+  1246→      }
+  1247→    } catch (error) {
+  1248→      console.error('Error deleting item:', error);
+  1249→      toast.error('Error de conexión al eliminar');
+  1250→    }
+  1251→  };
+  1252→
+  1253→  const handleUpdateJaula = async (id: string, updates: Partial<InventoryItemData>) => {
+  1254→    try {
+  1255→      const res = await fetch(`/api/inventory?id=${id}`, {
+  1256→        method: 'PUT',
+  1257→        headers: { 'Content-Type': 'application/json' },
+  1258→        body: JSON.stringify(updates),
+  1259→      });
+  1260→      const json = await res.json();
+  1261→      if (json.success) {
+  1262→        await loadInventory();
+  1263→      } else {
+  1264→        toast.error(`Error al actualizar: ${json.error || 'Error desconocido'}`);
+  1265→      }
+  1266→    } catch (error) {
+  1267→      console.error('Error updating jaula:', error);
+  1268→      toast.error('Error de conexión al actualizar');
+  1269→    }
+  1270→  };
+  1271→
+  1272→  // v2.52: auto-generar snapshot de etiqueta roja cuando decisión = Retirar (→Jaula).
+  1273→  // No imprime nada; solo deja el snapshot listo en extra.etiquetaData y marca
+  1274→  // extra.etiquetaGenerada=true para que la columna "Etiquetas" muestre "Impresa"
+  1275→  // y permita al usuario imprimir después con un solo click.
+  1276→  const handleAutoGenerateEtiqueta = async (item: InventoryItemData) => {
+  1277→    if (!item.id) return;
+  1278→    const dias = Number(item.extra?.diasCuarentena ?? 40);
+  1279→    let fechaRevision: string | null = null;
+  1280→    if (item.jaulaFechaEntrada) {
+  1281→      try {
+  1282→        const d = new Date(item.jaulaFechaEntrada);
+  1283→        d.setDate(d.getDate() + dias);
+  1284→        fechaRevision = d.toISOString();
+  1285→      } catch {}
+  1286→    }
+  1287→    const snapshot = {
+  1288→      nombre: item.name,
+  1289→      ubicacion: item.location || currentZone?.name || currentProject?.name || '',
+  1290→      cantidad: item.quantityUnneeded || item.quantity || 1,
+  1291→      estado: String(item.extra?.estado ?? ''),
+  1292→      frecuenciaUso: String(item.extra?.frecuenciaUso ?? ''),
+  1293→      decision: 'Retirar',
+  1294→      categoria: String(item.category ?? 'Innecesario'),
+  1295→      fechaEntrada: item.jaulaFechaEntrada,
+  1296→      fechaRevision,
+  1297→      diasCuarentena: dias,
+  1298→      zonaOrigen: item.zonaOrigen || item.jaulaOrigen || currentZone?.name || '',
+  1299→      observaciones: null,
+  1300→    };
+  1301→    const fecha = new Date().toISOString();
+  1302→    const newExtra = {
+  1303→      ...(item.extra || {}),
+  1304→      decision: 'Retirar',
+  1305→      diasCuarentena: dias,
+  1306→      etiquetaGenerada: true,
+  1307→      etiquetaFecha: fecha,
+  1308→      etiquetaData: snapshot,
+  1309→    };
+  1310→    delete (newExtra as any).isDraft;
+  1311→    setItems(prev => prev.map(it => it.id === item.id ? { ...it, extra: newExtra } : it));
+  1312→    try {
+  1313→      await fetch(`/api/inventory?id=${item.id}`, {
+  1314→        method: 'PUT',
+  1315→        headers: { 'Content-Type': 'application/json' },
+  1316→        body: JSON.stringify({ extra: newExtra }),
+  1317→      });
+  1318→    } catch (e) {
+  1319→      console.error('Error auto-generating etiqueta:', e);
+  1320→    }
+  1321→  };
+  1322→
+  1323→  // Helper: update an extra field on an item and persist
+  1324→  const handleUpdateExtra = async (itemId: string, key: string, value: string | number) => {
+  1325→    const item = items.find(i => i.id === itemId);
+  1326→    if (!item) return;
+  1327→    const newExtra = { ...(item.extra || {}) };
+  1328→    if (value === '_clear_') {
+  1329→      delete newExtra[key];
+  1330→    } else {
+  1331→      newExtra[key] = value;
+  1332→    }
+  1333→    // Optimistic local update
+  1334→    setItems(prev => prev.map(it => it.id === itemId ? { ...it, extra: newExtra } : it));
+  1335→    try {
+  1336→      await fetch(`/api/inventory?id=${itemId}`, {
+  1337→        method: 'PUT',
+  1338→        headers: { 'Content-Type': 'application/json' },
+  1339→        body: JSON.stringify({ extra: newExtra }),
+  1340→      });
+  1341→    } catch (e) {
+  1342→      console.error('Error updating extra field:', e);
+  1343→    }
+  1344→  };
+  1345→
+  1346→  // v2.41: helper para que pulsar Enter en un input inline dispare el guardado
+  1347→  // sin tener que hacer clic fuera (que era la única forma con onBlur solo).
+  1348→  // Llama al handler de commit con el valor actual y quita el foco del input
+  1349→  // para que el estado visual quede consistente.
+  1350→  const commitOnEnter = (
+  1351→    e: React.KeyboardEvent<HTMLInputElement>,
+  1352→    commit: () => void,
+  1353→  ) => {
+  1354→    if (e.key === 'Enter') {
+  1355→      e.preventDefault();
+  1356→      (e.currentTarget as HTMLInputElement).blur();
+  1357→      // El blur disparará onBlur que llama a handleUpdateField, pero por
+  1358→      // si algún campo no tiene onBlur, llamamos al commit explícitamente.
+  1359→      commit();
+  1360→    }
+  1361→  };
+  1362→
+  1363→  // Helper: update a simple field on an item and persist
+  1364→  const handleUpdateField = async (itemId: string, field: string, value: any) => {
+  1365→    const cleanValue = value === '_clear_' ? null : value;
+  1366→    // v2.40/v2.43: si el item era borrador y el usuario está cambiando el nombre
+  1367→    // (o la categoría) a un valor real, eliminamos la marca isDraft para
+  1368→    // que deje de contar como "pendiente". El borrador puede tener cualquiera
+  1369→    // de los prefijos por S: "Pendiente de clasificar", "Necesario pendiente",
+  1370→    // "Punto de suciedad pendiente", "Estándar pendiente", "Cumplimiento pendiente".
+  1371→    const item = items.find(i => i.id === itemId);
+  1372→    const wasDraft = (item?.extra as any)?.isDraft === true;
+  1373→    const DRAFT_PREFIXES = [
+  1374→      'pendiente de clasificar',
+  1375→      'necesario pendiente',
+  1376→      'punto de suciedad pendiente',
+  1377→      'estándar pendiente',
+  1378→      'cumplimiento pendiente',
+  1379→    ];
+  1380→    const isStillDraftName = (v: string) =>
+  1381→      DRAFT_PREFIXES.some(p => v.toLowerCase().startsWith(p));
+  1382→    const nameChangedAwayFromDraft = field === 'name'
+  1383→      && typeof cleanValue === 'string'
+  1384→      && cleanValue.trim() !== ''
+  1385→      && !isStillDraftName(cleanValue);
+  1386→    const categoryChanged = field === 'category'
+  1387→      && typeof cleanValue === 'string'
+  1388→      && cleanValue.trim() !== '';
+  1389→
+  1390→    if (wasDraft && (nameChangedAwayFromDraft || categoryChanged)) {
+  1391→      const newExtra = { ...(item?.extra || {}) };
+  1392→      delete (newExtra as any).isDraft;
+  1393→      // Mantenemos sourcePhotoId/sourcePhotoUrl para trazabilidad histórica
+  1394→      setItems(prev => prev.map(it => it.id === itemId ? { ...it, [field]: cleanValue, extra: newExtra } : it));
+  1395→      try {
+  1396→        await fetch(`/api/inventory?id=${itemId}`, {
+  1397→          method: 'PUT',
+  1398→          headers: { 'Content-Type': 'application/json' },
+  1399→          body: JSON.stringify({ [field]: cleanValue, extra: newExtra }),
+  1400→        });
+  1401→      } catch (e) {
+  1402→        console.error('Error updating field (draft clearing):', e);
+  1403→      }
+  1404→      return;
+  1405→    }
+  1406→
+  1407→    setItems(prev => prev.map(it => it.id === itemId ? { ...it, [field]: cleanValue } : it));
+  1408→    try {
+  1409→      await fetch(`/api/inventory?id=${itemId}`, {
+  1410→        method: 'PUT',
+  1411→        headers: { 'Content-Type': 'application/json' },
+  1412→        body: JSON.stringify({ [field]: cleanValue }),
+  1413→      });
+  1414→    } catch (e) {
+  1415→      console.error('Error updating field:', e);
+  1416→    }
+  1417→  };
+  1418→
+  1419→  // Count classified items
+  1420→  const classifiedCount = items.filter(i => i.category && i.category !== '').length;
+  1421→  const classifyPercent = items.length > 0 ? Math.round((classifiedCount / items.length) * 100) : 0;
+  1422→  // For S2, S3, S4: layout must be uploaded AND classification threshold met
+  1423→  const needsLayout = sStep === 2 || sStep === 3 || sStep === 4;
+  1424→  // v2.39: fotos del Paso 2 sin clasificar (sin inventoryItemId) bloquean la compleción.
+  1425→  // Cada foto del Paso 2 debe estar vinculada a un ítem del inventario.
+  1426→  const unclassifiedPhotosCount = step2Photos.length;
+  1427→  const allPhotosClassified = unclassifiedPhotosCount === 0;
+  1428→  // v2.40: items "borrador" (creados automáticamente al tomar foto en Paso 2)
+  1429→  // también bloquean la compleción. El usuario debe clasificarlos (cambiar
+  1430→  // el nombre, asignar categoría/decisión) para que dejen de ser borrador.
+  1431→  const pendingDraftsCount = items.filter(i => (i.extra as any)?.isDraft === true).length;
+  1432→  const allDraftsClassified = pendingDraftsCount === 0;
+  1433→  // S1: No minimum percentage required — just need at least 1 item. If step 4 goes bad, it means not everything was eliminated.
+  1434→  // S2-S5: Must meet classification threshold (80%)
+  1435→  const canComplete = sStep === 1
+  1436→    ? items.length > 0 && classifiedCount > 0 && allPhotosClassified && allDraftsClassified
+  1437→    : classifyPercent >= INVENTORY_CLASSIFY_THRESHOLD && items.length > 0 && (!needsLayout || layoutUploaded) && allPhotosClassified && allDraftsClassified;
+  1438→
+  1439→  // S1 specific counts: split by category
+  1440→  const innecesarios = sStep === 1 ? items.filter(i => i.category === 'innecesario') : items.filter(i => i.category === 'innecesario');
+  1441→  const necesarios = sStep === 1 ? items.filter(i => i.category === 'necesario') : [];
+  1442→  const jaulaItems = items.filter(i => i.jaulaStatus === 'en_jaula');
+  1443→  const totalJaulaValue = jaulaItems.reduce((sum, i) => sum + (i.price || 0) * i.quantity, 0);
+  1444→
+  1445→  const handleComplete = async () => {
+  1446→    if (!canComplete) return;
+  1447→    // Extra guard: check layout for S2/S3/S4
+  1448→    if (needsLayout && !layoutUploaded) {
+  1449→      toast.error('Debes dibujar o subir un layout antes de completar este paso');
+  1450→      return;
+  1451→    }
+  1452→    // v2.39: extra guard — fotos del Paso 2 sin clasificar bloquean
+  1453→    if (unclassifiedPhotosCount > 0) {
+  1454→      toast.error(`Quedan ${unclassifiedPhotosCount} foto(s) del Paso 2 sin clasificar. Vincula cada foto a un elemento del inventario antes de completar.`);
+  1455→      return;
+  1456→    }
+  1457→    // v2.40: extra guard — items borrador sin clasificar bloquean
+  1458→    if (pendingDraftsCount > 0) {
+  1459→      toast.error(`Quedan ${pendingDraftsCount} elemento(s) del inventario pendiente(s) de clasificar. Edita su nombre, categoría y decisión antes de completar.`);
+  1460→      return;
+  1461→    }
+  1462→
+  1463→    try {
+  1464→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+  1465→        method: 'PUT',
+  1466→        headers: { 'Content-Type': 'application/json' },
+  1467→        body: JSON.stringify({
+  1468→          completed: true,
+  1469→          score: classifyPercent,
+  1470→          projectId: currentProject?.id,
+  1471→          zoneId: currentZone?.id || null,
+  1472→        }),
+  1473→      });
+  1474→
+  1475→      const json = await res.json();
+  1476→      if (json.success) {
+  1477→        setIsCompleted(true);
+  1478→        await fetchProgress();
+  1479→
+  1480→        // v2.60: Sincronizar inventario → Plan de Acción + Diario del Responsable.
+  1481→        // Para cada item con decisión Retirar/Eliminar, se crea un ActionItem
+  1482→        // (si no existe ya) con la tarea correspondiente. Así el responsable
+  1483→        // ve en su diario y en el plan de acción qué debe retirar a jaula
+  1484→        // o eliminar a residuo.
+  1485→        // v2.69: ahora funciona para cualquier S-step (no solo S1).
+  1486→        if (currentProject?.id) {
+  1487→          try {
+  1488→            const syncRes = await fetch('/api/inventory/sync-actions', {
+  1489→              method: 'POST',
+  1490→              headers: { 'Content-Type': 'application/json' },
+  1491→              body: JSON.stringify({
+  1492→                projectId: currentProject?.id,
+  1493→                zoneId: currentZone?.id || undefined,
+  1494→              }),
+  1495→            });
+  1496→            const syncJson = await syncRes.json();
+  1497→            if (syncJson.success) {
+  1498→              const { created, skipped } = syncJson;
+  1499→              if (created > 0) {
+  1500→                toast.success(`Plan de Acción actualizado: ${created} tarea(s) nueva(s) para el responsable (${skipped} ya existían).`);
+  1501→              } else if (skipped > 0) {
+  1502→                console.log(`[handleComplete] ${skipped} acción(es) ya estaban sincronizadas`);
+  1503→              }
+  1504→            } else {
+  1505→              console.error('[handleComplete] Error sincronizando acciones:', syncJson.error);
+  1506→            }
+  1507→          } catch (syncErr) {
+  1508→            console.error('[handleComplete] Error llamando a sync-actions:', syncErr);
+  1509→            // No bloqueamos el completado si la sincronización falla
+  1510→          }
+  1511→        }
+  1512→      }
+  1513→    } catch (error) {
+  1514→      console.error('Error completing inventory:', error);
+  1515→    }
+  1516→  };
+  1517→
+  1518→  const handleAdminSkip = async () => {
+  1519→    try {
+  1520→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+  1521→        method: 'PUT',
+  1522→        headers: { 'Content-Type': 'application/json' },
+  1523→        body: JSON.stringify({ completed: true, score: 100, notes: 'Completado por administrador (skip)', skipMissingTemplate: true, projectId: currentProject?.id, zoneId: currentZone?.id || null }),
+  1524→      });
+  1525→      const json = await res.json();
+  1526→      if (json.success) {
+  1527→        await fetchProgress();
+  1528→        onClose();
+  1529→      }
+  1530→    } catch (error) {
+  1531→      console.error('Error admin skip:', error);
+  1532→    }
+  1533→  };
+  1534→
+  1535→  const handleSkipMissingTemplate = async () => {
+  1536→    try {
+  1537→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+  1538→        method: 'PUT',
+  1539→        headers: { 'Content-Type': 'application/json' },
+  1540→        body: JSON.stringify({ completed: true, score: 100, notes: 'Paso sin plantilla - sin plantilla configurada', projectId: currentProject?.id, zoneId: currentZone?.id || null, skipMissingTemplate: true }),
+  1541→      });
+  1542→      const json = await res.json();
+  1543→      if (json.success) {
+  1544→        await fetchProgress();
+  1545→        onClose();
+  1546→      }
+  1547→    } catch (error) {
+  1548→      console.error('Error skip missing template:', error);
+  1549→    }
+  1550→  };
+  1551→
+  1552→  const handleExport = () => {
+  1553→    const extraHeaders = config.extraFields.map(f => f.label);
+  1554→    const headerRow = ['Nombre', 'Ubicación', 'Categoría', 'Total exist.', 'Necesarios', 'Innecesarios', 'Precio (€)', ...extraHeaders, 'Acción'].join(',');
+  1555→
+  1556→    const rows = items.map(item => {
+  1557→      const extraValues = config.extraFields.map(f => {
+  1558→        const val = item.extra?.[f.key] ?? '';
+  1559→        return String(val).replace(/,/g, ';');
+  1560→      });
+  1561→      const priceStr = item.price != null ? item.price.toFixed(2) : '';
+  1562→      return [item.name, item.location, item.category, item.quantity, item.quantityNeeded, item.quantityUnneeded, priceStr, ...extraValues, item.action].join(',');
+  1563→    });
+  1564→
+  1565→    const csvContent = [headerRow, ...rows].join('\n');
+  1566→    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  1567→    const url = URL.createObjectURL(blob);
+  1568→    const link = document.createElement('a');
+  1569→    link.href = url;
+  1570→    link.download = `inventario_s${sStep}_${sStepData?.japaneseName?.toLowerCase()}.csv`;
+  1571→    link.click();
+  1572→    URL.revokeObjectURL(url);
+  1573→  };
+  1574→
+  1575→  const getCategoryBadge = (category: string) => {
+  1576→    const cat = config.categories.find(c => c.value === category);
+  1577→    if (!cat) return <Badge variant="secondary">{category}</Badge>;
+  1578→    return <Badge className={cat.color}>{cat.label}</Badge>;
+  1579→  };
+  1580→
+  1581→  const getExtraValue = (item: InventoryItemData, fieldKey: string) => {
+  1582→    return item.extra?.[fieldKey] ?? '';
+  1583→  };
+  1584→
+  1585→  const getJaulaStatusBadge = (status: string) => {
+  1586→    const map: Record<string, { label: string; color: string }> = {
+  1587→      '': { label: '—', color: 'bg-gray-50 text-gray-400' },
+  1588→      en_jaula: { label: 'En Jaula', color: 'bg-red-100 text-red-800' },
+  1589→      reclamado: { label: 'Reclamado', color: 'bg-amber-100 text-amber-800' },
+  1590→      transferido: { label: 'Transferido', color: 'bg-green-100 text-green-800' },
+  1591→    };
+  1592→    const info = map[status] || map[''];
+  1593→    return <Badge className={info.color}>{info.label}</Badge>;
+  1594→  };
+  1595→
+  1596→  // v2.48: badge para indicar que la etiqueta roja ya fue impresa y guardada
+  1597→  // en el sistema (extra.etiquetaGenerada = true).
+  1598→  const getEtiquetaBadge = (item: InventoryItemData) => {
+  1599→    if (!item.extra?.etiquetaGenerada) return null;
+  1600→    const fecha = item.extra.etiquetaFecha
+  1601→      ? new Date(item.extra.etiquetaFecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })
+  1602→      : '';
+  1603→    return (
+  1604→      <Badge className="bg-emerald-100 text-emerald-800 text-[9px]" title={`Etiqueta impresa${fecha ? ` el ${fecha}` : ''}`}>
+  1605→        🏷️ Impresa{fecha ? ` ${fecha}` : ''}
+  1606→      </Badge>
+  1607→    );
+  1608→  };
+  1609→
+  1610→  return (
+  1611→    <>
+  1612→    <Dialog open={open} onOpenChange={() => onClose()}>
+  1613→      <DialogContent size={isFullscreen ? "fullscreen" : "xl"} className="flex flex-col overflow-hidden p-0">
+  1614→        <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
+  1615→          <DialogTitle className="flex items-center gap-2">
+  1616→            <ClipboardList className="h-5 w-5" style={{ color: sStepData?.color }} />
+  1617→            <span>{config.title}</span>
+  1618→            <Badge variant="outline" style={{ borderColor: sStepData?.color, color: sStepData?.color }}>
+  1619→              {sStepData?.japaneseName}
+  1620→            </Badge>
+  1621→            <button
+  1622→              onClick={() => setIsFullscreen(!isFullscreen)}
+  1623→              className="ml-auto p-1 rounded hover:bg-muted transition-colors"
+  1624→              title={isFullscreen ? "Reducir ventana" : "Pantalla completa"}
+  1625→            >
+  1626→              {isFullscreen ? <Minimize2 className="h-4 w-4 text-muted-foreground" /> : <Maximize2 className="h-4 w-4 text-muted-foreground" />}
+  1627→            </button>
+  1628→          </DialogTitle>
+  1629→        </DialogHeader>
+  1630→
+  1631→        {canSkipSteps && !isCompleted && (
+  1632→          <div className="mx-6 flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg flex-shrink-0">
+  1633→            <span className="text-xs text-amber-700 font-medium">Modo Admin:</span>
+  1634→            <Button
+  1635→              variant="outline"
+  1636→              size="sm"
+  1637→              className="text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
+  1638→              onClick={handleAdminSkip}
+  1639→            >
+  1640→              Completar paso sin inventario
+  1641→            </Button>
+  1642→          </div>
+  1643→        )}
+  1644→
+  1645→        {/* v2.49: botón visible "Reiniciar Paso 2 y 3" — más fácil de encontrar que la × diminuta.
+  1646→            Solo admin con candado abierto. Disponible siempre (no requiere isCompleted),
+  1647→            porque el usuario puede querer reiniciar incluso a mitad del Paso 3. */}
+  1648→        {canSkipSteps && adminFreeNavigation && (
+  1649→          <div className="mx-6 flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg flex-shrink-0">
+  1650→            <span className="text-xs text-red-700 font-medium">Reiniciar:</span>
+  1651→            <Button
+  1652→              variant="outline"
+  1653→              size="sm"
+  1654→              className="text-xs border-red-300 text-red-700 hover:bg-red-100"
+  1655→              onClick={async () => {
+  1656→                const msg = `¿Reiniciar el Paso 2 (Fotos) y el Paso 3 (Inventario)?\n\nEsto eliminará:\n• El progreso del Paso 2 y del Paso 3\n• Todas las fotos del Paso 2\n• Todos los elementos del inventario (${items.length})\n\nPodrás empezar de cero desde el Paso 2.`;
+  1657→                if (!confirm(msg)) return;
+  1658→                try {
+  1659→                  const params = new URLSearchParams({
+  1660→                    sStep: String(sStep),
+  1661→                    miniStep: '2', // siempre 2 → cascada borra 2 + 3 + fotos + items
+  1662→                    projectId: currentProject?.id || '',
+  1663→                    cleanup: 'true',
+  1664→                  });
+  1665→                  if (currentZone?.id) params.set('zoneId', currentZone.id);
+  1666→                  const res = await fetch(`/api/progress/step?${params}`, { method: 'DELETE' });
+  1667→                  const json = await res.json();
+  1668→                  if (json.success) {
+  1669→                    await fetchProgress();
+  1670→                    setItems([]);
+  1671→                    toast.success('Paso 2 y 3 reiniciados. Ya puedes empezar de cero.');
+  1672→                    onClose();
+  1673→                  } else {
+  1674→                    toast.error(json.error || 'Error al reiniciar');
+  1675→                  }
+  1676→                } catch (err) {
+  1677→                  console.error('Reset error:', err);
+  1678→                  toast.error('Error de conexión al reiniciar');
+  1679→                }
+  1680→              }}
+  1681→            >
+  1682→              Reiniciar Paso 2 y 3 desde cero
+  1683→            </Button>
+  1684→          </div>
+  1685→        )}
+  1686→
+  1687→        {isReadOnly && (
+  1688→          <div className="flex items-center gap-2 p-2 mx-6 flex-shrink-0 bg-blue-50 border border-blue-200 rounded-lg">
+  1689→            <span className="text-xs text-blue-700 font-medium">Solo lectura: {canSkipSteps ? 'Activa el candado para poder realizar pasos.' : 'Puedes ver pero no modificar.'}</span>
+  1690→          </div>
+  1691→        )}
+  1692→
+  1693→        <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
+  1694→        {hasTemplate === null ? (
+  1695→          <div className="flex items-center justify-center py-12">
+  1696→            <Loader2 className="h-8 w-8 text-green-500 animate-spin" />
+  1697→            <span className="ml-3 text-muted-foreground">Cargando plantilla...</span>
+  1698→          </div>
+  1699→        ) : hasTemplate === false ? (
+  1700→          <div className="text-center py-16">
+  1701→            <ClipboardList className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+  1702→            <h3 className="text-xl font-bold text-gray-500 mb-2">Sin plantilla configurada</h3>
+  1703→            <p className="text-muted-foreground max-w-md mx-auto">
+  1704→              El administrador no ha configurado ninguna plantilla de inventario para S{sStep} ({sStepData?.japaneseName}) en el Paso 3.
+  1705→              Puedes pasar este paso y completarlo más tarde.
+  1706→            </p>
+  1707→            {!isReadOnly && (
+  1708→              <Button variant="outline" className="mt-4" onClick={handleSkipMissingTemplate}>
+  1709→                Pasar sin plantilla
+  1710→              </Button>
+  1711→            )}
+  1712→          </div>
+  1713→        ) : isCompleted ? (
+  1714→          <div className="text-center py-8">
+  1715→            <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-3" />
+  1716→            <h3 className="text-xl font-bold mb-2">¡Inventario Completado!</h3>
+  1717→            <p className="text-muted-foreground">
+  1718→              Se han clasificado {classifiedCount} de {items.length} elementos ({classifyPercent}%).
+  1719→            </p>
+  1720→            {sStep === 1 && (
+  1721→              <div className="mt-4 flex justify-center gap-4">
+  1722→                <span className="text-sm text-red-600">Innecesarios: {innecesarios.length}</span>
+  1723→                <span className="text-sm text-green-600">Necesarios: {necesarios.length}</span>
+  1724→              </div>
+  1725→            )}
+  1726→            <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
+  1727→              <p className="text-sm font-semibold">→ Próximo paso: Pre-auditoría (Autoevaluación)</p>
+  1728→            </div>
+  1729→            <div className="mt-3 flex justify-center">
+  1730→              <Button
+  1731→                onClick={() => { onClose(); openModal('autoevaluacion', 4); }}
+  1732→                style={{ backgroundColor: sStepData?.color }}
+  1733→                className="text-white"
+  1734→              >
+  1735→                Continuar al paso 4: Autoevaluación →
+  1736→              </Button>
+  1737→            </div>
+  1738→          </div>
+  1739→        ) : (
+  1740→          <div className="space-y-4">
+  1741→            {/* S-specific subtitle */}
+  1742→            <div className="p-3 rounded-lg border-l-4" style={{ borderColor: sStepData?.color, backgroundColor: `${sStepData?.color}08` }}>
+  1743→              <p className="text-sm font-medium" style={{ color: sStepData?.color }}>
+  1744→                {config.subtitle}
+  1745→              </p>
+  1746→            </div>
+  1747→
+  1748→            {/* ═══ ELEMENTOS BORRADOR (creados automáticamente al tomar fotos en Paso 2) ═══ */}
+  1749→            {pendingDraftsCount > 0 && (() => {
+  1750→              const instructions = DRAFT_INSTRUCTIONS_BY_S[sStep] || DRAFT_INSTRUCTIONS_BY_S[1];
+  1751→              return (
+  1752→              <Card className="border-2 border-red-300 bg-red-50/40">
+  1753→                <CardContent className="p-4">
+  1754→                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+  1755→                    <AlertTriangle className="h-5 w-5 text-red-600" />
+  1756→                    <h4 className="font-semibold text-red-800">{instructions.title}</h4>
+  1757→                    <Badge className="bg-red-100 text-red-800">{pendingDraftsCount} sin clasificar</Badge>
+  1758→                  </div>
+  1759→                  <p className="text-xs text-red-700 mb-2 font-medium">
+  1760→                    {instructions.subtitle}
+  1761→                  </p>
+  1762→                  <ul className="text-xs text-red-700 mb-2 list-disc pl-5 space-y-0.5">
+  1763→                    {instructions.fields.map((f, i) => (
+  1764→                      <li key={i}><strong>{f.split(':')[0]}</strong>{f.includes(':') ? `:${f.split(':').slice(1).join(':')}` : ''}</li>
+  1765→                    ))}
+  1766→                  </ul>
+  1767→                  <p className="text-xs text-muted-foreground">
+  1768→                    Cuando rellenes el nombre o la categoría, el elemento deja de ser «pendiente» automáticamente. Hasta que no clasifiques todos los elementos, no podrás completar el inventario.
+  1769→                  </p>
+  1770→                </CardContent>
+  1771→              </Card>
+  1772→              );
+  1773→            })()}
+  1774→
+  1775→            {/* ═══ LAYOUT DE LA ZONA — S2 (Marcado de Suelo), S3 (Limpieza), S4 (Estándares) ═══ */}
+  1776→            {(sStep === 2 || sStep === 3 || sStep === 4) && (
+  1777→              <Card className="border-2 border-blue-200 bg-blue-50/30">
+  1778→                <CardContent className="p-4">
+  1779→                  <div className="flex items-center gap-2 mb-3">
+  1780→                    <PenTool className="h-5 w-5 text-blue-600" />
+  1781→                    <h4 className="font-semibold text-blue-800">
+  1782→                      {sStep === 2 ? 'Layout de la Zona — Marcado de Suelo' 
+  1783→                        : sStep === 3 ? 'Layout de la Zona — Puntos de Limpieza' 
+  1784→                        : 'Layout de la Zona — Estándares Implantados'}
+  1785→                    </h4>
+  1786→                    <Badge className={layoutUploaded ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}>
+  1787→                      {layoutUploaded ? 'Layout adjuntado' : 'Pendiente'}
+  1788→                    </Badge>
+  1789→                  </div>
+  1790→                  <p className="text-xs text-muted-foreground mb-3">
+  1791→                    {sStep === 2
+  1792→                      ? 'Dibuja o sube el layout de la zona con el marcado de suelo según el estándar de colores. Esto es obligatorio para completar el paso 3 de S2 (Seiton).'
+  1793→                      : sStep === 3
+  1794→                      ? 'Dibuja o sube el layout de la zona indicando los puntos de suciedad y las zonas de limpieza. Esto forma parte del inventario de S3 (Seiso).'
+  1795→                      : 'Dibuja o sube el layout de la zona con los estándares implantados señalados. Esto forma parte del inventario de S4 (Seiketsu).'}
+  1796→                  </p>
+  1797→
+  1798→                  {/* Action buttons */}
+  1799→                  {!isReadOnly && (
+  1800→                    <div className="flex items-center gap-2 mb-4">
+  1801→                      <Button size="sm" onClick={() => setShowLayoutEditor(true)}
+  1802→                        className="gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs h-8">
+  1803→                        <PenTool className="h-3 w-3" /> Dibujar Layout
+  1804→                      </Button>
+  1805→                      {sStep === 2 && (
+  1806→                        <Button variant="outline" size="sm" onClick={() => setShowColorCodeTable(true)}
+  1807→                          className="gap-1 text-xs h-8 border-yellow-400 text-yellow-700 hover:bg-yellow-50">
+  1808→                          <Eye className="h-3 w-3" /> Ver Estándar Colores
+  1809→                        </Button>
+  1810→                      )}
+  1811→                      <div className="relative">
+  1812→                        <Button variant="outline" size="sm"
+  1813→                          className="gap-1 text-xs h-8 border-green-400 text-green-700 hover:bg-green-50"
+  1814→                          onClick={() => document.getElementById('layout-upload-s2')?.click()}>
+  1815→                          <Upload className="h-3 w-3" /> Subir Imagen/Croquis
+  1816→                        </Button>
+  1817→                        <input id="layout-upload-s2" type="file" accept="image/*" className="hidden"
+  1818→                          onChange={handleUploadLayoutImage} />
+  1819→                      </div>
+  1820→                    </div>
+  1821→                  )}
+  1822→
+  1823→                  {/* Saved layout previews */}
+  1824→                  {savedLayouts.length > 0 ? (
+  1825→                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+  1826→                      {savedLayouts.map(layout => (
+  1827→                        <div key={layout.id} className="border rounded-lg overflow-hidden bg-white">
+  1828→                          {layout.photoUrl ? (
+  1829→                            <img src={layout.photoUrl} alt={layout.title}
+  1830→                              className="w-full h-32 object-cover cursor-pointer hover:opacity-80 transition-opacity"
+  1831→                              onClick={() => window.open(layout.photoUrl!, '_blank')} />
+  1832→                          ) : (
+  1833→                            <div className="w-full h-32 bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
+  1834→                              Sin imagen
+  1835→                            </div>
+  1836→                          )}
+  1837→                          <div className="px-2 py-1.5 flex items-center justify-between">
+  1838→                            <span className="text-[10px] font-medium truncate">{layout.title}</span>
+  1839→                            <span className="text-[9px] text-muted-foreground">
+  1840→                              {new Date(layout.createdAt).toLocaleDateString('es-ES')}
+  1841→                            </span>
+  1842→                          </div>
+  1843→                        </div>
+  1844→                      ))}
+  1845→                    </div>
+  1846→                  ) : (
+  1847→                    <div className="text-center py-6 bg-white rounded-lg border border-dashed border-blue-300">
+  1848→                      <PenTool className="h-8 w-8 text-blue-300 mx-auto mb-2" />
+  1849→                      <p className="text-xs text-muted-foreground">No hay layout adjuntado</p>
+  1850→                      <p className="text-[10px] text-muted-foreground mt-0.5">Dibuja o sube el layout de la zona</p>
+  1851→                    </div>
+  1852→                  )}
+  1853→                </CardContent>
+  1854→              </Card>
+  1855→            )}
+  1856→
+  1857→            {/* Classification progress — v2.39: hidden for empleado/auditor (bulk management only) */}
+  1858→            {canManageBulk && (
+  1859→            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+  1860→              <div>
+  1861→                <span className="text-sm font-medium">Clasificación</span>
+  1862→                <p className="text-xs text-muted-foreground">
+  1863→                  {classifiedCount}/{items.length} clasificados
+  1864→                </p>
+  1865→              </div>
+  1866→              <Badge variant={canComplete ? 'default' : 'secondary'}>
+  1867→                {classifyPercent}%{sStep !== 1 ? ` (mín. ${INVENTORY_CLASSIFY_THRESHOLD}%)` : ''}
+  1868→              </Badge>
+  1869→            </div>
+  1870→            )}
+  1871→
+  1872→            {/* Action buttons — v2.39: bulk import/export hidden for empleado/auditor */}
+  1873→            <div className="flex gap-2 flex-wrap items-center">
+  1874→              {/* v2.57: botón "Añadir línea" — visible para cualquier usuario editor.
+  1875→                  Crea un item vacío en DB y recarga el inventario. */}
+  1876→              {!isReadOnly && (
+  1877→                <Button variant="default" size="sm" onClick={handleAddRow}
+  1878→                  className="bg-blue-600 hover:bg-blue-700 text-white">
+  1879→                  <Plus className="h-4 w-4 mr-1" /> Añadir línea
+  1880→                </Button>
+  1881→              )}
+  1882→              {canManageBulk && (
+  1883→              <>
+  1884→              <Button variant="outline" size="sm" onClick={handleImportTemplate}>
+  1885→                <Upload className="h-4 w-4 mr-1" /> Importar Plantilla
+  1886→              </Button>
+  1887→              <Button variant="outline" size="sm" onClick={handleExport} disabled={items.length === 0}>
+  1888→                <Download className="h-4 w-4 mr-1" /> Exportar CSV
+  1889→              </Button>
+  1890→              {/* Unified file import: accepts .xlsx and .csv */}
+  1891→              <label className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium ring-offset-background hover:bg-accent hover:text-accent-foreground cursor-pointer">
+  1892→                <FileUp className="h-4 w-4 mr-1" /> Importar Archivo
+  1893→                <input
+  1894→                  type="file"
+  1895→                  accept=".csv,.xlsx,.xls"
+  1896→                  className="hidden"
+  1897→                  onChange={handleFileImport}
+  1898→                />
+  1899→              </label>
+  1900→              <a
+  1901→                href={`/templates/${config.templateName}`}
+  1902→                download
+  1903→                className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium ring-offset-background hover:bg-accent hover:text-accent-foreground"
+  1904→              >
+  1905→                <FileSpreadsheet className="h-4 w-4 mr-1" /> Descargar Plantilla Excel
+  1906→              </a>
+  1907→              </>
+  1908→              )}
+  1909→              {/* v2.57: eliminado botón global "Etiquetas rojas" — ya existe uno por
+  1910→                  línea en la columna Etiquetas, así que el global era redundante. */}
+  1911→            </div>
+  1912→
+  1913→            {/* TASK 7: CSV Import Preview */}
+  1914→            {csvPreview && csvPreview.length > 0 && (
+  1915→              <Card className="border-2 border-blue-200 bg-blue-50/30">
+  1916→                <CardContent className="p-4">
+  1917→                  <div className="flex items-center justify-between mb-3">
+  1918→                    <div className="flex items-center gap-2">
+  1919→                      <FileUp className="h-5 w-5 text-blue-600" />
+  1920→                      <h4 className="font-semibold text-blue-800">Vista Previa de Importación</h4>
+  1921→                      <Badge className="bg-blue-200 text-blue-900">{csvPreview.length} elementos</Badge>
+  1922→                    </div>
+  1923→                    <div className="flex items-center gap-2">
+  1924→                      <Button
+  1925→                        variant="outline"
+  1926→                        size="sm"
+  1927→                        className="text-xs"
+  1928→                        onClick={() => setCsvPreview(null)}
+  1929→                      >
+  1930→                        Cancelar
+  1931→                      </Button>
+  1932→                      <Button
+  1933→                        size="sm"
+  1934→                        className="text-xs bg-blue-600 hover:bg-blue-700"
+  1935→                        onClick={handleConfirmCsvImport}
+  1936→                        disabled={isImporting}
+  1937→                      >
+  1938→                        {isImporting ? 'Importando...' : `Confirmar Importación (${csvPreview.length})`}
+  1939→                      </Button>
+  1940→                    </div>
+  1941→                  </div>
+  1942→                  <div className="max-h-48 overflow-y-auto rounded-lg border">
+  1943→                    <Table>
+  1944→                      <TableHeader>
+  1945→                        <TableRow>
+  1946→                          <TableHead className="text-xs">Elemento</TableHead>
+  1947→                          <TableHead className="text-xs">Ubicación</TableHead>
+  1948→                          <TableHead className="text-xs">Categoría</TableHead>
+  1949→                          <TableHead className="text-xs">Cant.</TableHead>
+  1950→                          <TableHead className="text-xs">Precio</TableHead>
+  1951→                        </TableRow>
+  1952→                      </TableHeader>
+  1953→                      <TableBody>
+  1954→                        {csvPreview.map((item, idx) => (
+  1955→                          <TableRow key={idx}>
+  1956→                            <TableCell className="text-xs font-medium">{item.name}</TableCell>
+  1957→                            <TableCell className="text-xs">{item.location}</TableCell>
+  1958→                            <TableCell className="text-xs">{item.category}</TableCell>
+  1959→                            <TableCell className="text-xs text-center">{item.quantity}</TableCell>
+  1960→                            <TableCell className="text-xs text-right">{item.price ? `${item.price.toFixed(2)} €` : '—'}</TableCell>
+  1961→                          </TableRow>
+  1962→                        ))}
+  1963→                      </TableBody>
+  1964→                    </Table>
+  1965→                  </div>
+  1966→                </CardContent>
+  1967→              </Card>
+  1968→            )}
+  1969→
+  1970→
+  1971→            {/* ═══ S3: Plan de Limpieza e Inspección ═══ */}
+  1972→            {sStep === 3 && (
+  1973→              <div className="mt-2">
+  1974→                <CleaningPlanPanel
+  1975→                  sStep={sStep}
+  1976→                  inventoryItems={items.map(i => ({
+  1977→                    name: i.name,
+  1978→                    location: i.location,
+  1979→                    category: i.category,
+  1980→                    extra: i.extra ? JSON.stringify(i.extra) : null,
+  1981→                  }))}
+  1982→                  isReadOnly={isReadOnly}
+  1983→                />
+  1984→              </div>
+  1985→            )}
+  1986→
+  1987→            {/* ═══ S4: Biblioteca de Estándares ═══ */}
+  1988→            {sStep === 4 && (
+  1989→              <div className="mt-2">
+  1990→                <BibliotecaEstandaresView />
+  1991→              </div>
+  1992→            )}
+  1993→
+  1994→            {/* Items table */}
+  1995→            {isLoading ? (
+  1996→              <div className="space-y-2">
+  1997→                {[1, 2, 3].map(i => (
+  1998→                  <div key={i} className="h-10 bg-muted rounded animate-pulse" />
+  1999→                ))}
+  2000→              </div>
+
+[showing lines 1-2000 of 2675; use offset=2001 with limit to continue reading]

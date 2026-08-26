@@ -1,0 +1,835 @@
+     1→// This is your Prisma schema file,
+     2→// learn more about it in the docs: https://pris.ly/d/prisma-schema
+     3→
+     4→generator client {
+     5→  provider = "prisma-client-js"
+     6→}
+     7→
+     8→datasource db {
+     9→  provider = "postgresql"
+    10→  url      = env("DATABASE_URL")
+    11→}
+    12→
+    13→model User {
+    14→  id            String  @id @default(cuid())
+    15→  email         String  @unique
+    16→  name          String
+    17→  password      String
+    18→  plainPassword String? // Stored so admin can recover/view it
+    19→  role          String  @default("empleado") // "gestor", "admin", "gerente", "responsable", "empleado", "auditor"
+    20→  avatar        String?
+    21→  active        Boolean @default(true)
+    22→
+    23→  // Contact & location details
+    24→  phone      String? // Teléfono
+    25→  address    String? // Dirección
+    26→  city       String? // Ciudad
+    27→  province   String? // Provincia
+    28→  postalCode String? // Código Postal
+    29→  country    String? // País
+    30→  notes      String? // Notas del administrador/gestor
+    31→  department String? // Departamento
+    32→  position   String? // Puesto/Cargo
+    33→  employeeId String? // ID interno de empleado
+    34→
+    35→  createdAt DateTime @default(now())
+    36→  updatedAt DateTime @updatedAt
+    37→
+    38→  memberships                 ProjectMember[]
+    39→  companyMemberships          CompanyMember[]
+    40→  employeeProgress            EmployeeProgress[]
+    41→  responsableZones            Zone[] // Zones where this user is the responsable
+    42→  sessions                    Session[]
+    43→  // v2.75: trazabilidad ActionItem (relaciones opcionales)
+    44→  actionItemsComunicadoPor    ActionItem[]       @relation("ActionItemComunicadoPor")
+    45→  actionItemsPersonaDemandada ActionItem[]       @relation("ActionItemPersonaDemandada")
+    46→  actionItemsVerificadoPor    ActionItem[]       @relation("ActionItemVerificadoPor")
+    47→  // v2.84: trazabilidad InventoryItem (quién registró cada item del inventario)
+    48→  inventoryItemsCreatedBy     InventoryItem[]    @relation("InventoryItemCreatedBy")
+    49→  // v2.108.19 (JAULA-FISICA): User que verificó la jaula física de un proyecto
+    50→  jaulaVerifiedProjects       Project[]          @relation("JaulaVerifiedBy")
+    51→}
+    52→
+    53→model Project {
+    54→  id          String   @id @default(cuid())
+    55→  name        String
+    56→  description String?
+    57→  company     String
+    58→  companyId   String?
+    59→  startDate   DateTime @default(now())
+    60→  active      Boolean  @default(true)
+    61→  // v2.107 (ZONAS-VIRTUALES): inputs del wizard "Generar zonas".
+    62→  surfaceM2       Float?  // m2 totales del proyecto
+    63→  complexityType  String? // 'bano' | 'cocina' | 'vidrio' | 'despacho' | 'oficina' | 'pasillos' | 'almacen'
+    64→  criticality     String? @default("media") // 'baja' | 'media' | 'alta'
+    65→  layoutGenerated Boolean @default(false)
+    66→  // v2.108.19 (JAULA-FISICA): la Jaula NO es una Zone regular, es un
+    67→  // lugar físico que el Responsable debe crear y verificar con foto.
+    68→  // Estado: 'pendiente' (acaba de crearse el proyecto) → 'verificada'
+    69→  // (el Responsable subió foto). Si se rechaza, vuelve a 'pendiente'.
+    70→  jaulaStatus      String?  @default("pendiente") // 'pendiente' | 'verificada' | 'rechazada'
+    71→  jaulaPhotoUrl    String?
+    72→  jaulaVerifiedById String? // User que verificó
+    73→  jaulaVerifiedAt  DateTime?
+    74→  jaulaNotes       String? // Notas opcionales del Responsable
+    75→  jaulaVerifiedBy   User?  @relation("JaulaVerifiedBy", fields: [jaulaVerifiedById], references: [id], onDelete: SetNull)
+    76→  createdAt   DateTime @default(now())
+    77→  updatedAt   DateTime @updatedAt
+    78→
+    79→  companyRel          Company?             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+    80→  zones               Zone[]
+    81→  members             ProjectMember[]
+    82→  progress            Progress[]
+    83→  employeeProgress    EmployeeProgress[]
+    84→  inventoryItems      InventoryItem[]
+    85→  examAnswers         ExamAnswer[]
+    86→  auditResults        AuditResult[]
+    87→  checklistResponses  ChecklistResponse[]
+    88→  actionItems         ActionItem[]
+    89→  auditTargets        AuditTarget[]
+    90→  standards           Standard[]
+    91→  photos              PhotoLibrary[]
+    92→  pdcaItems           PDCAItem[]
+    93→  evaluationSchedules EvaluationSchedule[]
+    94→
+    95→  @@index([companyId])
+    96→}
+    97→
+    98→model Zone {
+    99→  id            String   @id @default(cuid())
+   100→  name          String
+   101→  description   String?
+   102→  color         String   @default("#3B82F6")
+   103→  projectId     String
+   104→  responsableId String? // The responsable user for this zone
+   105→  boardConfigId String? // Assigned board configuration (tablero)
+   106→  // v2.101 (PENDIENTE-S1, Opción A): marca esta zona como zona especial
+   107→  // JAULA — se crea automáticamente cuando el admin crea las zonas del
+   108→  // proyecto. Es el destino físico de los items de inventario con
+   109→  // decision='Retirar'. No es una zona regular de trabajo.
+   110→  isJaula       Boolean  @default(false)
+   111→  // v2.107 (ZONAS-VIRTUALES): heredados del wizard
+   112→  surfaceM2      Float?
+   113→  complexityType String?
+   114→  criticality    String? @default("media")
+   115→  createdAt     DateTime @default(now())
+   116→  updatedAt     DateTime @updatedAt
+   117→
+   118→  project             Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   119→  responsable         User?                @relation(fields: [responsableId], references: [id], onDelete: SetNull)
+   120→  boardConfig         BoardConfiguration?  @relation(fields: [boardConfigId], references: [id], onDelete: SetNull)
+   121→  memberZones         MemberZone[]
+   122→  actionItems         ActionItem[]
+   123→  progress            Progress[]
+   124→  employeeProgress    EmployeeProgress[]
+   125→  inventoryItems      InventoryItem[]
+   126→  auditTargets        AuditTarget[]
+   127→  standards           Standard[]
+   128→  photos              PhotoLibrary[]
+   129→  pdcaItems           PDCAItem[]
+   130→  evaluationSchedules EvaluationSchedule[]
+   131→  auditResults        AuditResult[]
+   132→
+   133→  @@unique([name, projectId])
+   134→  @@index([projectId])
+   135→  @@index([responsableId])
+   136→  @@index([boardConfigId])
+   137→}
+   138→
+   139→model ProjectMember {
+   140→  id        String   @id @default(cuid())
+   141→  userId    String
+   142→  projectId String
+   143→  role      String // "gestor", "admin", "gerente", "responsable", "empleado", "auditor"
+   144→  joinedAt  DateTime @default(now())
+   145→
+   146→  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+   147→  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   148→  zones   MemberZone[]
+   149→
+   150→  @@unique([userId, projectId])
+   151→  @@index([projectId])
+   152→  @@index([userId])
+   153→}
+   154→
+   155→model MemberZone {
+   156→  id         String   @id @default(cuid())
+   157→  memberId   String
+   158→  zoneId     String
+   159→  assignedAt DateTime @default(now())
+   160→
+   161→  member ProjectMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+   162→  zone   Zone          @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+   163→
+   164→  @@unique([memberId, zoneId])
+   165→  @@index([memberId])
+   166→  @@index([zoneId])
+   167→}
+   168→
+   169→model Progress {
+   170→  id        String    @id @default(cuid())
+   171→  sStep     Int // 1-5 (Revisar, Ordenar, Limpiar, Estandarizar, Mantener)
+   172→  miniStep  Int // 1-5 (Formación, Fotos, Inventario, Autoevaluación, Auditoría)
+   173→  completed Boolean   @default(false)
+   174→  score     Float? // Puntuación obtenida (0-100)
+   175→  notes     String? // Notas adicionales
+   176→  photoUrls String? // URLs de fotos (JSON array o separadas por coma)
+   177→  passedAt  DateTime? // Fecha en que se pasó el mini-paso
+   178→  projectId String
+   179→  zoneId    String? // Zone-level progress (null for project-level)
+   180→  createdAt DateTime  @default(now())
+   181→  updatedAt DateTime  @updatedAt
+   182→
+   183→  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   184→  zone    Zone?   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+   185→
+   186→  @@index([projectId])
+   187→  @@index([projectId, zoneId])
+   188→}
+   189→
+   190→model EmployeeProgress {
+   191→  id        String    @id @default(cuid())
+   192→  sStep     Int // 1-5
+   193→  miniStep  Int // 1 (formación) or 4 (autoevaluación) - individual steps only
+   194→  completed Boolean   @default(false)
+   195→  score     Float?
+   196→  notes     String?
+   197→  passedAt  DateTime?
+   198→  projectId String
+   199→  zoneId    String
+   200→  userId    String // The employee who completed this
+   201→  createdAt DateTime  @default(now())
+   202→  updatedAt DateTime  @updatedAt
+   203→
+   204→  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   205→  zone    Zone    @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+   206→  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+   207→
+   208→  @@unique([sStep, miniStep, projectId, zoneId, userId])
+   209→  @@index([projectId, zoneId])
+   210→  @@index([projectId, zoneId, userId])
+   211→}
+   212→
+   213→model Template {
+   214→  id          String   @id @default(cuid())
+   215→  type        String // "formacion", "examen", "fotos", "inventario", "autoevaluacion", "auditoria", "estandar", "plan_accion", "layout", "plan_limpieza", "pdca"
+   216→  sStep       Int // 1-5 (a qué S pertenece)
+   217→  miniStep    Int      @default(3) // 1-5 (a qué paso dentro de la S pertenece)
+   218→  title       String
+   219→  description String?
+   220→  content     String // JSON con el contenido de la plantilla
+   221→  notaMinima  Float? // Nota mínima para pasar (pasa/no pasa)
+   222→  // ─── v2.35: límite mínimo de fotos (paso 2) configurable por plantilla ──
+   223→  // Solo aplica a type='fotos'. El gestor lo define en plantillas globales (default 10);
+   224→  // el admin puede crear plantillas de empresa con otro valor. Si NULL → fallback a 10.
+   225→  minPhotos   Int?
+   226→  active      Boolean  @default(true)
+   227→  // ─── Per-company templates model (v2.30) ───────────────────────────────
+   228→  // companyId = null  → Biblioteca del Sistema (editable solo por gestor)
+   229→  // companyId = X     → Plantilla de la empresa X (editable por su admin)
+   230→  // Las zonas ven primero sus plantillas de empresa y, si no hay, caen a
+   231→  // las del sistema. El fallback lo hace el modal/board-config, no la BD.
+   232→  companyId   String?
+   233→  company     Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+   234→  createdAt   DateTime @default(now())
+   235→  updatedAt   DateTime @updatedAt
+   236→
+   237→  slotTemplates BoardSlotTemplate[]
+   238→
+   239→  @@index([companyId])
+   240→  @@index([type, sStep, miniStep, active])
+   241→}
+   242→
+   243→model ExamAnswer {
+   244→  id          String   @id @default(cuid())
+   245→  sStep       Int
+   246→  questionIdx Int
+   247→  answerIdx   Int
+   248→  correct     Boolean
+   249→  projectId   String
+   250→  createdAt   DateTime @default(now())
+   251→
+   252→  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   253→
+   254→  @@index([projectId])
+   255→}
+   256→
+   257→model InventoryItem {
+   258→  id                String    @id @default(cuid())
+   259→  sStep             Int
+   260→  name              String
+   261→  location          String?
+   262→  category          String // S1: innecesario/dudoso/util, S2: muy_frecuente/frecuente/ocasional/raro, S3: polvo/grasa/mancha/etc, S4: visual/procedimiento/checklist/etc, S5: cumplido/parcial/incumplido
+   263→  quantity          Int       @default(1)
+   264→  quantityNeeded    Int       @default(0) // Cuántos necesarios
+   265→  quantityUnneeded  Int       @default(0) // Cuántos innecesarios
+   266→  price             Float? // Precio en euros
+   267→  action            String? // Acción a tomar
+   268→  photoUrl          String? // Foto principal (legacy, kept for compat)
+   269→  photoUrls         String? // JSON array: [{url, type, caption}] — multiple photos with traceability
+   270→  extra             String? // JSON: S-specific fields (estado, frecuenciaUso, nivel, fuente, etc.)
+   271→  projectId         String
+   272→  zoneId            String? // Which zone this item belongs to
+   273→  // Jaula/Excedentes fields
+   274→  jaulaStatus       String    @default("") // "", "en_jaula", "reclamado", "transferido"
+   275→  jaulaFechaEntrada DateTime? // Fecha entrada a la jaula
+   276→  jaulaOrigen       String? // Área de origen
+   277→  jaulaFechaSalida  DateTime? // Fecha salida de la jaula
+   278→  jaulaDestino      String? // Área de destino
+   279→  jaulaFechaLimite  DateTime? // Fecha límite de cuarentena (calculada: entrada + días cuarentena)
+   280→  zonaOrigen        String? // Zone where the material was found
+   281→  zonaDestino       String? // Zone where the material is now (can be same as origen)
+   282→  createdAt         DateTime  @default(now())
+   283→  updatedAt         DateTime  @updatedAt
+   284→
+   285→  // v2.84: FK al usuario (empleado) que registró el item de inventario.
+   286→  // Se usa para setear automáticamente `comunicadoPorId` en el ActionItem
+   287→  // cuando el item se sincroniza al Plan de Acción (Paso 3 = Inventario).
+   288→  // Si es null (items legacy anteriores a v2.84), el fallback es el
+   289→  // responsable de la zona.
+   290→  createdById       String?
+   291→
+   292→  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   293→  zone    Zone?          @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+   294→  photos  PhotoLibrary[] // Photos linked to this inventory item
+   295→  createdBy User?        @relation("InventoryItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+   296→
+   297→  @@index([projectId])
+   298→  @@index([sStep, projectId])
+   299→  @@index([jaulaStatus])
+   300→  @@index([zoneId])
+   301→  @@index([createdById])
+   302→}
+   303→
+   304→model AuditResult {
+   305→  id            String   @id @default(cuid())
+   306→  sStep         Int // 0=combined quarterly, 1-5=individual S, -1=weekly, -2=monthly
+   307→  auditorName   String
+   308→  result        String // "apto", "no_apto"
+   309→  score         Float?
+   310→  observations  String?
+   311→  auditType     String   @default("quarterly") // "weekly", "monthly", "quarterly", "autoeval", "audit"
+   312→  checklistData String? // JSON: full checklist results for this audit
+   313→  mejorasData   String? // JSON: improvements data
+   314→  auditDate     DateTime @default(now())
+   315→  projectId     String
+   316→  createdAt     DateTime @default(now())
+   317→
+   318→  // ─── v2.75: Trazabilidad y unificación (NUEVOS) ─────────────────────────
+   319→  miniStep             Int     @default(5) // 4 (autoeval) | 5 (auditoría)
+   320→  zoneId               String? // Zona evaluada (null para audits globales)
+   321→  // Quién ejecutó la revisión (FK User). En autoeval=responsable, en auditoría=auditor.
+   322→  // En audits legacy puede ser null (auditorName cubre ese caso).
+   323→  ejecutorId           String?
+   324→  // A quién corresponde (empleado en autoeval, responsable en auditoría)
+   325→  asistenteId          String?
+   326→  // Contador de ActionItems generados desde los NOKs de esta revisión
+   327→  actionItemsGenerados Int     @default(0)
+   328→  // FK al EvaluationSchedule que originó esta revisión (si aplica)
+   329→  scheduleId           String?
+   330→
+   331→  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   332→  zone    Zone?   @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+   333→
+   334→  @@index([projectId])
+   335→  @@index([auditType])
+   336→  @@index([projectId, sStep, miniStep, auditDate])
+   337→  @@index([zoneId, sStep])
+   338→  @@index([scheduleId])
+   339→}
+   340→
+   341→model ChecklistResponse {
+   342→  id            String   @id @default(cuid())
+   343→  sStep         Int // 1-5
+   344→  miniStep      Int // 4 (autoevaluacion) or 5 (auditoria)
+   345→  results       String // JSON: { itemId: { status, hallazgo, mejora, otherText, photoRefs } }
+   346→  completed     Boolean  @default(false)
+   347→  score         Float // 0-100
+   348→  observaciones String?
+   349→  auditor       String? // Nombre del auditor (solo para paso 5)
+   350→  projectId     String
+   351→  createdAt     DateTime @default(now())
+   352→  updatedAt     DateTime @updatedAt
+   353→
+   354→  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   355→
+   356→  @@index([projectId])
+   357→}
+   358→
+   359→model ActionItem {
+   360→  id              String    @id @default(cuid())
+   361→  sStep           Int // 1-5
+   362→  miniStep        Int // 3 (inventario/PA), 4 (autoevaluacion), 5 (auditoria)
+   363→  itemId          String // e.g. "1.2.3" | "inv_xxx" | "PA-S1-ts"
+   364→  itemDescription String // Checklist item description
+   365→  hallazgo        String // Descripción de la desviación detectada
+   366→  mejora          String? // Sugerencia de mejora / plan de acción
+   367→  responsable     String? // Persona responsable de resolver (LEGACY: texto libre)
+   368→  prioridad       String    @default("media") // "alta", "media", "baja"
+   369→  estado          String    @default("abierta") // "abierta", "en_proceso", "resuelta", "cerrada"
+   370→  fechaCompromiso DateTime? // LEGACY: usar fechaLimite
+   371→  fechaLimite     DateTime? // Fecha límite / deadline
+   372→  fechaReal       DateTime? // Fecha real de resolución
+   373→  fechaResolucion DateTime? // LEGACY: alias de fechaReal
+   374→  photoRefs       String? // JSON array of photo references
+   375→  notas           String? // Notas adicionales sobre la resolución
+   376→  source          String    @default("autoevaluacion") // "autoevaluacion" | "auditoria" | "actionplan" | "inventario"
+   377→  auditor         String? // Nombre del auditor que detectó la deficiencia (texto)
+   378→  zoneId          String? // Zona asignada (opcional, referencia a Zone)
+   379→  verificadoPor   String? // LEGACY: texto libre. Usar verificadoPorId
+   380→  projectId       String
+   381→  createdAt       DateTime  @default(now())
+   382→  updatedAt       DateTime  @updatedAt
+   383→
+   384→  // v2.72: Snapshot del inventario original (cuando source='inventario').
+   385→  // Contiene { elemento, ubicacion, categoria, cantidad, precio, estado,
+   386→  // frecuenciaUso, decision, diasCuarentena, etiquetas, zonaOrigen,
+   387→  // zonaDestino, photoUrls, inventoryItemId } para mostrar el grupo
+   388→  // "ORIGEN (INVENTARIO)" en el Plan de Acción igual que en InventarioModal.
+   389→  extra String?
+   390→
+   391→  // Plan de Acción table fields (matching the standard 5S action plan format)
+   392→  numeroEntrada       Int? // Nº de entrada (auto-increment per project)
+   393→  fechaEntrada        DateTime? // Fecha de la entrada
+   394→  comunicadoPor       String? // LEGACY: texto libre. Usar comunicadoPorId
+   395→  semana              String? // Semana en que se detectó
+   396→  seccionDemandante   String? // Sección que demanda la acción
+   397→  clienteZona         String? // Cliente o zona afectada
+   398→  personaDemandada    String? // LEGACY: texto libre. Usar personaDemandadaId
+   399→  seccionDemandada    String? // Sección a la que se demanda
+   400→  impactoObjetivo     String? // Impacto objetivo esperado
+   401→  enviado             String? // Estado de envío (Sí/No/Pendiente)
+   402→  accionCorrectiva    String? // Acción correctiva a tomar
+   403→  accionesPreventivas String? // Acciones preventivas
+   404→  semanaPrevista      String? // Semana prevista para resolución
+   405→  porcentaje          Float?    @default(0) // Porcentaje de completado
+   406→  semanaReal          String? // Semana real de resolución
+   407→
+   408→  // ─── v2.75: Trazabilidad y unificación (NUEVOS) ─────────────────────────
+   409→  // Trazabilidad de origen: enlaza el ActionItem al registro que lo generó.
+   410→  // Ej: sourceId = AuditResult.id (cuando source='autoevaluacion'|'auditoria')
+   411→  //     sourceId = InventoryItem.id (cuando source='inventario')
+   412→  //     sourceId = null (cuando source='actionplan', entrada manual)
+   413→  sourceId String? // FK lógica al registro de origen
+   414→
+   415→  // FKs a User (reemplazan a los campos de texto legacy)
+   416→  comunicadoPorId    String? // Quién comunicó el problema (FK User)
+   417→  personaDemandadaId String? // Persona a la que se demanda (FK User)
+   418→  verificadoPorId    String? // Quién verificó el cierre (FK User)
+   419→
+   420→  // Identifica el "tipo" de entrada para la vista unificada del Plan de Acción
+   421→  // 'accion'     → entrada estándar del Plan de Acción (S5 paso 3)
+   422→  // 'inventario' → item del inventario (S1-S4 paso 3) con decisión de retirar/eliminar/jaula
+   423→  // 'hallazgo'   → NOK detectado en autoeval (paso 4) o auditoría (paso 5)
+   424→  tipo String @default("accion")
+   425→
+   426→  // Para hallazgos (pasos 4 y 5): status del item del checklist
+   427→  status String? // 'ok' | 'nok' | 'na'
+   428→
+   429→  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   430→  zone    Zone?   @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+   431→
+   432→  // Relaciones opcionales a User (las marcamos como sin relación inversa para
+   433→  // no añadir arrays en User — usamos onDelete: SetNull para que no se rompan
+   434→  // si el usuario se borra)
+   435→  comunicadoPorUser    User? @relation("ActionItemComunicadoPor", fields: [comunicadoPorId], references: [id], onDelete: SetNull)
+   436→  personaDemandadaUser User? @relation("ActionItemPersonaDemandada", fields: [personaDemandadaId], references: [id], onDelete: SetNull)
+   437→  verificadoPorUser    User? @relation("ActionItemVerificadoPor", fields: [verificadoPorId], references: [id], onDelete: SetNull)
+   438→
+   439→  @@index([projectId])
+   440→  @@index([zoneId])
+   441→  @@index([source, estado])
+   442→  @@index([personaDemandadaId, estado])
+   443→  @@index([fechaLimite])
+   444→  @@index([sourceId])
+   445→}
+   446→
+   447→model AuditTarget {
+   448→  id         String   @id @default(cuid())
+   449→  projectId  String
+   450→  sStep      Int // 1-5 (which S step)
+   451→  miniStep   Int      @default(4) // 4=Autoevaluación, 5=Auditoría
+   452→  zoneId     String? // null = applies to all zones (project-level default)
+   453→  notaMinima Float    @default(70) // Minimum passing score (0-100)
+   454→  objetivo   Float    @default(80) // Target score
+   455→  createdAt  DateTime @default(now())
+   456→  updatedAt  DateTime @updatedAt
+   457→
+   458→  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   459→  zone    Zone?   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+   460→
+   461→  @@unique([projectId, sStep, miniStep, zoneId])
+   462→  @@index([projectId])
+   463→}
+   464→
+   465→model RolePermissionConfig {
+   466→  id         String   @id @default(cuid())
+   467→  role       String // "admin", "responsable", "empleado", "auditor"
+   468→  permission String // e.g. "view_board", "complete_steps", etc.
+   469→  allowed    Boolean  @default(false)
+   470→  createdAt  DateTime @default(now())
+   471→  updatedAt  DateTime @updatedAt
+   472→
+   473→  @@unique([role, permission])
+   474→}
+   475→
+   476→model Company {
+   477→  id          String  @id @default(cuid())
+   478→  name        String  @unique
+   479→  description String?
+   480→  active      Boolean @default(true)
+   481→
+   482→  // Company details (filled by gestor or admin)
+   483→  nif        String? // NIF/CIF de la empresa
+   484→  sector     String? // Sector/Industria
+   485→  address    String? // Dirección
+   486→  city       String? // Ciudad
+   487→  province   String? // Provincia
+   488→  postalCode String? // Código Postal
+   489→  country    String? // País (default: España)
+   490→  phone      String? // Teléfono de la empresa
+   491→  website    String? // Sitio web
+   492→
+   493→  // Billing details (filled by admin for subscription)
+   494→  billingEmail      String? // Email de facturación
+   495→  billingName       String? // Nombre/Razón social para facturación
+   496→  billingNif        String? // NIF de facturación (puede ser diferente al de la empresa)
+   497→  billingAddress    String? // Dirección de facturación
+   498→  billingCity       String? // Ciudad de facturación
+   499→  billingPostalCode String? // CP de facturación
+   500→  iban              String? // IBAN para domiciliación
+   501→
+   502→  // Contact person
+   503→  contactName  String? // Persona de contacto
+   504→  contactEmail String? // Email de contacto
+   505→  contactPhone String? // Teléfono de contacto
+   506→
+   507→  createdAt DateTime @default(now())
+   508→  updatedAt DateTime @updatedAt
+   509→
+   510→  projects     Project[]
+   511→  members      CompanyMember[]
+   512→  subscription Subscription?
+   513→  templates    Template[] // Plantillas propiedad de esta empresa (v2.30)
+   514→}
+   515→
+   516→model Subscription {
+   517→  id          String    @id @default(cuid())
+   518→  companyId   String    @unique
+   519→  plan        String    @default("gratuito") // "gratuito", "basico", "profesional", "enterprise"
+   520→  status      String    @default("activa") // "activa", "prueba", "vencida", "cancelada"
+   521→  maxUsers    Int       @default(5)
+   522→  maxProjects Int       @default(1)
+   523→  price       Float     @default(0) // Precio mensual en euros
+   524→  startDate   DateTime  @default(now())
+   525→  endDate     DateTime? // null = sin límite
+   526→  trialEndsAt DateTime? // Fecha fin del periodo de prueba
+   527→  notes       String? // Notas internas del gestor
+   528→  createdAt   DateTime  @default(now())
+   529→  updatedAt   DateTime  @updatedAt
+   530→
+   531→  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+   532→
+   533→  @@index([status])
+   534→  @@index([plan])
+   535→}
+   536→
+   537→model CompanyMember {
+   538→  id                  String   @id @default(cuid())
+   539→  userId              String
+   540→  companyId           String
+   541→  role                String   @default("gerente") // "gerente", "admin_empresa"
+   542→  joinedAt            DateTime @default(now())
+   543→  invitationEmailSent Boolean  @default(false) // Whether the invitation/welcome email has been sent
+   544→
+   545→  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+   546→  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+   547→
+   548→  @@unique([userId, companyId])
+   549→  @@index([companyId])
+   550→  @@index([userId])
+   551→}
+   552→
+   553→model Standard {
+   554→  id             String   @id @default(cuid())
+   555→  sStep          Int // 1-5 (which S step this standard belongs to)
+   556→  title          String // Name/title of the standard
+   557→  description    String? // Description or details
+   558→  category       String   @default("general") // "layout", "marcado_suelo", "visual", "procedimiento", "general", "formato_mejora"
+   559→  content        String? // JSON: additional structured data (fields, values, etc.)
+   560→  photoUrl       String? // Reference photo for the standard (kept for backward compat)
+   561→  beforePhotoUrl String? // Foto del ANTES (formato estándar de mejora)
+   562→  afterPhotoUrl  String? // Foto del DESPUÉS (formato estándar de mejora)
+   563→  responsable    String? // Quién ha hecho la mejora
+   564→  contacto       String? // Contacto de la persona responsable
+   565→  mejoraTipo     String? // Tipo de mejora: "seguridad", "calidad", "proceso", "logistica"
+   566→  status         String   @default("activo") // "activo", "en_revision", "obsoleto"
+   567→  version        Int      @default(1) // Version number
+   568→  projectId      String
+   569→  zoneId         String? // null = project-wide standard
+   570→  createdBy      String? // User ID who created it
+   571→  createdAt      DateTime @default(now())
+   572→  updatedAt      DateTime @updatedAt
+   573→
+   574→  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   575→  zone    Zone?   @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+   576→
+   577→  slotStandards BoardSlotStandard[]
+   578→
+   579→  @@index([projectId])
+   580→  @@index([sStep, projectId])
+   581→  @@index([category])
+   582→}
+   583→
+   584→model BoardConfiguration {
+   585→  id          String   @id @default(cuid())
+   586→  name        String // e.g. "Tablero General", "Tablero Almacén"
+   587→  description String?
+   588→  isDefault   Boolean  @default(false) // The default tablero for zones without one
+   589→  createdAt   DateTime @default(now())
+   590→  updatedAt   DateTime @updatedAt
+   591→
+   592→  slots BoardSlot[]
+   593→  zones Zone[]
+   594→}
+   595→
+   596→model BoardSlot {
+   597→  id            String   @id @default(cuid())
+   598→  boardConfigId String
+   599→  sStep         Int // 1-5 (which S)
+   600→  miniStep      Int // 1-5 (which paso within the S)
+   601→  createdAt     DateTime @default(now())
+   602→  updatedAt     DateTime @updatedAt
+   603→
+   604→  boardConfig BoardConfiguration  @relation(fields: [boardConfigId], references: [id], onDelete: Cascade)
+   605→  templates   BoardSlotTemplate[]
+   606→  standards   BoardSlotStandard[]
+   607→
+   608→  @@unique([boardConfigId, sStep, miniStep])
+   609→  @@index([boardConfigId])
+   610→}
+   611→
+   612→model BoardSlotTemplate {
+   613→  id                String   @id @default(cuid())
+   614→  slotId            String
+   615→  templateId        String
+   616→  sortOrder         Int      @default(0)
+   617→  // ─── v2.35: override del minPhotos a nivel zona/slot ───────────────────
+   618→  // Si está setteado, tiene prioridad sobre Template.minPhotos.
+   619→  // Permite al admin de proyecto ajustar el límite para una zona concreta
+   620→  // sin tener que crear/modificar la plantilla global o de empresa.
+   621→  minPhotosOverride Int?
+   622→  createdAt         DateTime @default(now())
+   623→  updatedAt         DateTime @updatedAt
+   624→
+   625→  slot     BoardSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+   626→  template Template  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+   627→
+   628→  @@unique([slotId, templateId])
+   629→  @@index([slotId])
+   630→  @@index([templateId])
+   631→}
+   632→
+   633→model BoardSlotStandard {
+   634→  id         String   @id @default(cuid())
+   635→  slotId     String
+   636→  standardId String
+   637→  sortOrder  Int      @default(0)
+   638→  createdAt  DateTime @default(now())
+   639→
+   640→  slot     BoardSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+   641→  standard Standard  @relation(fields: [standardId], references: [id], onDelete: Cascade)
+   642→
+   643→  @@unique([slotId, standardId])
+   644→  @@index([slotId])
+   645→  @@index([standardId])
+   646→}
+   647→
+   648→model PhotoLibrary {
+   649→  id              String   @id @default(cuid())
+   650→  sStep           Int // 1-5 (which S step)
+   651→  miniStep        Int      @default(2) // 2=Fotos (before/after), can also be 4=Autoeval, 5=Audit
+   652→  title           String // Photo title/description
+   653→  description     String? // Additional notes
+   654→  photoUrl        String // URL of the uploaded photo
+   655→  photoType       String   @default("antes") // "antes" (before), "despues" (after), "referencia", "hallazgo", "mejora"
+   656→  category        String   @default("general") // Category for grouping
+   657→  tags            String? // JSON array of tags
+   658→  projectId       String
+   659→  zoneId          String? // Zone the photo belongs to
+   660→  uploadedBy      String? // User ID who uploaded
+   661→  inventoryItemId String? // FK: links photo to a specific inventory item (traceability)
+   662→  createdAt       DateTime @default(now())
+   663→  updatedAt       DateTime @updatedAt
+   664→
+   665→  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   666→  zone          Zone?          @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+   667→  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+   668→
+   669→  @@index([projectId])
+   670→  @@index([sStep, projectId])
+   671→  @@index([photoType])
+   672→  @@index([inventoryItemId])
+   673→}
+   674→
+   675→model PDCAItem {
+   676→  id          String    @id @default(cuid())
+   677→  title       String
+   678→  description String?
+   679→  phase       String    @default("plan") // "plan", "do", "check", "act"
+   680→  sStep       Int       @default(1) // 1-5 (which S step)
+   681→  responsable String?
+   682→  prioridad   String    @default("media") // "baja", "media", "alta", "critica"
+   683→  estado      String    @default("pendiente") // "pendiente", "en_progreso", "completada", "cancelada"
+   684→  fechaInicio DateTime  @default(now())
+   685→  fechaLimite DateTime?
+   686→  resultado   String?
+   687→  projectId   String
+   688→  zoneId      String?
+   689→  createdAt   DateTime  @default(now())
+   690→  updatedAt   DateTime  @updatedAt
+   691→
+   692→  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   693→  zone    Zone?   @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+   694→
+   695→  @@index([projectId])
+   696→  @@index([phase])
+   697→  @@index([estado])
+   698→}
+   699→
+   700→model Notification {
+   701→  id        String   @id @default(cuid())
+   702→  userId    String // Target user
+   703→  type      String // "audit_ready", "step_completed", "evaluation_scheduled", etc.
+   704→  title     String
+   705→  message   String
+   706→  sStep     Int? // Related S-step
+   707→  zoneId    String? // Related zone
+   708→  projectId String // Related project
+   709→  read      Boolean  @default(false)
+   710→  createdAt DateTime @default(now())
+   711→
+   712→  // ─── v2.75: Metadata estructurada para los nuevos tipos de aviso ────────
+   713→  // JSON con datos contextuales según el tipo:
+   714→  //   evaluation_scheduled: { scheduleId, miniStep, fecha, hora, ejecutorName }
+   715→  //   evaluation_accepted:  { scheduleId, asistenteName, fecha, hora }
+   716→  //   evaluation_completed: { scheduleId, score, result, actionItemsGenerados, auditResultId }
+   717→  //   evaluation_expired:   { scheduleId, motivo }
+   718→  //   evaluation_rejected:  { scheduleId, motivo, asistenteName }
+   719→  //   audit_failed:         { sStep, zoneId, score, umbral, auditResultId }
+   720→  //   action_verified:      { actionItemId, verificadorId }
+   721→  //   disfuncion:           { auditResultId, actionItemIds: [], count }
+   722→  metadata String?
+   723→
+   724→  @@index([userId, read])
+   725→  @@index([projectId])
+   726→  @@index([type, createdAt])
+   727→}
+   728→
+   729→model Session {
+   730→  id        String   @id @default(cuid())
+   731→  token     String   @unique // Crypto-random session token
+   732→  userId    String
+   733→  expiresAt DateTime
+   734→  createdAt DateTime @default(now())
+   735→
+   736→  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+   737→
+   738→  @@index([token])
+   739→  @@index([userId])
+   740→  @@index([expiresAt])
+   741→}
+   742→
+   743→model SystemConfig {
+   744→  id        String   @id @default(cuid())
+   745→  key       String   @unique // e.g. "templates_seeded", "seed_version"
+   746→  value     String // JSON string or simple value
+   747→  createdAt DateTime @default(now())
+   748→  updatedAt DateTime @updatedAt
+   749→}
+   750→
+   751→model EvaluationSchedule {
+   752→  id              String  @id @default(cuid())
+   753→  sStep           Int // 1-5
+   754→  miniStep        Int // 4 (autoevaluación) or 5 (auditoría)
+   755→  fechaProgramada String? // Scheduled date (YYYY-MM-DD)
+   756→  horaProgramada  String? // Scheduled time (HH:MM)
+   757→  projectId       String
+   758→  zoneId          String?
+   759→  // v2.68: quién programa y quién asiste — para que aparezca en ambos calendarios
+   760→  // v2.75: SEMÁNTICA REINTERPRETADA (nombres preservados por compatibilidad con DB existente):
+   761→  //   - responsableId = EJECUTOR de la revisión (responsable en autoeval, auditor en auditoría)
+   762→  //   - empleadoId    = ASISTENTE que debe confirmar presencia (empleado en autoeval, responsable en auditoría)
+   763→  // El campo rolEjecutor aclara explícitamente el rol del ejecutor para la UI.
+   764→  responsableId   String? // EJECUTOR (responsable de zona en autoeval, auditor en auditoría)
+   765→  empleadoId      String? // ASISTENTE (empleado en autoeval, responsable de zona en auditoría)
+   766→  createdBy       String? // usuario que creó la entrada
+   767→  estado          String  @default("programada") // solicitado | propuesta | programada | aceptada | realizada | cancelada | reprogramada | vencida
+   768→  notas           String?
+   769→
+   770→  // ─── v2.75: Aclara el rol del ejecutor (para UI y validaciones) ─────────
+   771→  // 'responsable' (autoeval, miniStep=4) | 'auditor' (auditoría, miniStep=5)
+   772→  rolEjecutor String? @default("responsable")
+   773→
+   774→  // ─── v2.98: Flujo solicitud → propuesta → aceptación ───────────────────
+   775→  // Estado "solicitado": el asistente (empleado en autoeval / responsable en auditoría)
+   776→  // pide al ejecutor (responsable / auditor) que proponga fecha. Aún sin fechaProgramada.
+   777→  // Estado "propuesta": el ejecutor ha propuesto hasta 3 fechas alternativas.
+   778→  // El asistente elegirá una (pasa a "aceptada") o las rechazará todas (vuelve a "solicitado").
+   779→  // JSON array of {fecha, hora} strings, máximo 3.
+   780→  fechasPropuestas String?
+   781→  // Cuando hay varios auditores en el proyecto, este campo guarda a quién
+   782→  // se dirige la solicitud específicamente (userId). Si es null, va a todos.
+   783→  auditorPropuestoId String?
+   784→
+   785→  createdAt DateTime @default(now())
+   786→  updatedAt DateTime @updatedAt
+   787→
+   788→  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   789→  zone    Zone?   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+   790→
+   791→  @@unique([sStep, miniStep, projectId, zoneId])
+   792→  @@index([projectId])
+   793→  @@index([projectId, zoneId])
+   794→  @@index([responsableId])
+   795→  @@index([empleadoId])
+   796→  @@index([estado])
+   797→}
+   798→
+   799→model ContactRequest {
+   800→  id        String   @id @default(cuid())
+   801→  name      String
+   802→  email     String
+   803→  phone     String?
+   804→  company   String?
+   805→  message   String
+   806→  status    String   @default("pending") // pending | contacted | archived
+   807→  createdAt DateTime @default(now())
+   808→  updatedAt DateTime @updatedAt
+   809→
+   810→  @@index([status])
+   811→  @@index([createdAt])
+   812→}
+   813→
+   814→// v2.108 (ZONAS-VIRTUALES-2): configuración global del algoritmo de
+   815→// zonificación. Un ÚNICO registro (el primero que se crea es el que
+   816→// aplica a todas las empresas). El gestor lo edita desde su panel
+   817→// (tab "Zonificación") sin necesidad de tocar código.
+   818→//
+   819→// Lo que el gestor configura:
+   820→//   - maxM2PorZona: si una zona supera este m², se divide en sub-zonas
+   821→//     (regla bottom-up: el admin nombra las zonas iniciales y para cada
+   822→//     una da m² + nº de empleados; el algoritmo divide las grandes).
+   823→//   - questionLabels: JSON con los textos de las 5 preguntas del wizard,
+   824→//     por si el gestor quiere personalizarlos (idioma, tono, etc.).
+   825→//   - defaultPrefix: prefijo propuesto por defecto para nombrar sub-zonas
+   826→//     (el admin puede sobreescribir nombres tras el cálculo).
+   827→model ZoneAlgorithmConfig {
+   828→  id              String   @id @default(cuid())
+   829→  maxM2PorZona    Float    @default(800)  // límite m² antes de dividir
+   830→  questionLabels  String   @default("{}") // JSON: { zonas: "...", m2: "...", empleados: "..." }
+   831→  defaultPrefix   String   @default("Z")  // prefijo propuesto para sub-zonas
+   832→  createdAt       DateTime @default(now())
+   833→  updatedAt       DateTime @updatedAt
+   834→}
+   835→
