@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
         _count: {
           select: { members: true },
         },
-        companyRel: {
+        company: {
           select: { id: true, name: true },
         },
       },
@@ -68,9 +68,9 @@ export async function GET(request: NextRequest) {
       id: project.id,
       name: project.name,
       description: project.description,
-      company: project.company,
+      company: project.company?.name || project.company,
       companyId: project.companyId,
-      companyName: project.companyRel?.name || project.company,
+      companyName: project.company?.name || project.company,
       startDate: project.startDate,
       active: project.active,
       zones: project.zones,
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
           _count: {
             select: { members: true },
           },
-          companyRel: {
+          company: {
             select: { id: true, name: true },
           },
         },
@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
             description: project.description,
             company: project.company,
             companyId: project.companyId,
-            companyName: project.companyRel?.name || project.company,
+            companyName: project.company?.name || project.company,
             startDate: project.startDate,
             active: project.active,
             zones: project.zones,
@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
               _count: {
                 select: { members: true },
               },
-              companyRel: {
+              company: {
                 select: { id: true, name: true },
               },
             },
@@ -409,7 +409,7 @@ export async function POST(request: NextRequest) {
           description: project.description,
           company: project.company,
           companyId: project.companyId,
-          companyName: project.companyRel?.name || project.company,
+          companyName: project.company?.name || project.company,
           startDate: project.startDate,
           active: project.active,
           zones: project.zones,
