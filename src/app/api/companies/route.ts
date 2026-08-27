@@ -7,12 +7,13 @@ import { getAuthUser } from '../../../lib/auth-helpers'
 export async function GET(request: NextRequest) {
   try {
     // DEBUG v3.0.1: Omitir auth temporalmente
-    // const user = await getAuthUser(request)
-    // const userRole = user?.role || 'empleado'
-    // const userId: string | null = user?.id || null
+    console.log('[DEBUG v3.0.1] Starting companies fetch...')
     
-    console.log('[DEBUG v3.0.1] Fetching ALL companies without auth')
-
+    // Primero contar TODAS las empresas (incluyendo inactivas)
+    const totalCount = await db.company.count()
+    const activeCount = await db.company.count({ where: { active: true } })
+    console.log('[DEBUG v3.0.1] Company counts - Total:', totalCount, 'Active:', activeCount)
+    
     // Devolver TODAS las empresas activas sin filtro de auth
     const companies = await db.company.findMany({
       where: { active: true },
@@ -48,7 +49,11 @@ export async function GET(request: NextRequest) {
       _debug: {
         version: 'v3.0.1-NOAUTH',
         timestamp: new Date().toISOString(),
-        companyCount: result.length
+        companyCount: result.length,
+        dbCounts: {
+          total: totalCount,
+          active: activeCount
+        }
       }
     })
   } catch (error) {
