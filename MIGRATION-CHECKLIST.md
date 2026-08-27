@@ -111,9 +111,18 @@ main().finally(() => prisma.\$disconnect());
 
 ## 🐛 ERRORES COMUNES Y SOLUCIONES
 
-### Error: "Error interno del servidor" (500)
+### Error: "Error interno del servidor" (500) al hacer login
 **Causa:** `session.create()` sin campo `id`
 **Solución:** El código ya está arreglado - asegurar deploy latest
+
+### Error: "Error al obtener proyectos" - pantalla vacía/showing setup wizard
+**Causa:** Código usa `companyRel` pero el schema Prisma tiene `company`
+**Solución:** En `/api/projects/route.ts`, cambiar todos los `companyRel` por `company`
+```bash
+# Quick fix:
+sed -i 's/companyRel/company/g' src/app/api/projects/route.ts
+git add -A && git commit -m "fix: companyRel -> company" && git push
+```
 
 ### Error: "Invalid datasource db"
 **Causa:** `.env` apunta a SQLite (`file:`)
