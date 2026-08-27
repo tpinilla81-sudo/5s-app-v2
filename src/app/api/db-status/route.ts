@@ -17,6 +17,8 @@ export async function GET() {
   let projectCount = -1
   let dbConnected = false
   
+  let companies = []
+  
   try {
     const db = new PrismaClient()
     
@@ -24,6 +26,12 @@ export async function GET() {
     companyCount = await db.company.count()
     userCount = await db.user.count()
     projectCount = await db.project.count()
+    
+    // Get company details for debugging
+    companies = await db.company.findMany({
+      select: { id: true, name: true, active: true, createdAt: true },
+      take: 10
+    })
     
     dbConnected = true
     await db.$disconnect()
@@ -43,7 +51,8 @@ export async function GET() {
       dbConnected,
       companyCount,
       userCount,
-      projectCount
+      projectCount,
+      companies
     }
   })
 }
