@@ -1,45 +1,32 @@
 import { NextResponse } from 'next/server'
-import { db } from '../../../lib/db'
-import { getAuthUser } from '../../../lib/auth-helpers'
+import { PrismaClient } from '@prisma/client'
 
-export async function GET(request: NextRequest) {
+// DEBUG ENDPOINT - Public, no auth required
+// TODO: Remove after fixing the issue
+export async function GET() {
+  const db = new PrismaClient()
   try {
-    // 1. Check auth user
-    const user = await getAuthUser(request)
-    
-    // 2. Try to get ALL companies without filters
-    const allCompanies = await db.company.findMany({
-      take: 10
+    const companies = await db.company.findMany({
+      select: { id: true, name: true, active: true, createdAt: true }
     })
-    
-    // 3. Try with active filter
-    const activeCompanies = await db.company.findMany({
-      where: { active: true },
-      take: 10
-    })
+    const userCount = await db.user.count()
     
     return NextResponse.json({
-      success: true,
-      debug: {
-        authenticatedUser: user ? {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role
-        } : null,
-        isGestor: user?.role === 'gestor',
-        totalCompaniesInDB: allCompanies.length,
-        activeCompaniesInDB: activeCompanies.length,
-        allCompanies: allCompanies.map(c => ({ id: c.id, name: c.name, active: c.active })),
-        activeCompanies: activeCompanies.map(c => ({ id: c.id, name: c.name, active: c.active }))
-      }
+      debug: true,
+      dbConnected: true,
+      companyCount: companies.length,
+      userCount,
+      companies,
+      timestamp: new Date().toISOString()
     })
   } catch (error: any) {
-    console.error('Debug companies error:', error)
-    return NextResponse.json({ 
-      success: false, 
+    return NextResponse.json({
+      debug: true,
+      dbConnected: false,
       error: error.message,
-      stack: error.stack 
+      timestamp: new Date().toISOString()
     }, { status: 500 })
+  } finally {
+    await db.$disconnect()
   }
 }
