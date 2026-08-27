@@ -46,13 +46,14 @@ export async function GET() {
     urlProtocol: url ? url.split('://')[0] : null,
     nodeEnv: process.env.NODE_ENV,
     timestamp: new Date().toISOString(),
-    // Debug info
+    // Debug info - v3.0.0 UPDATE
     debug: {
       dbConnected,
       companyCount,
       userCount,
       projectCount,
-      companies
+      companies,
+      version: 'v3.0.0-FORCED'
     }
   })
 }
