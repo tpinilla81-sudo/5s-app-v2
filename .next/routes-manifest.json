@@ -247,6 +247,18 @@
       "namedRegex": "^/api/db\\-status(?:/)?$"
     },
     {
+      "page": "/api/debug-companies",
+      "regex": "^/api/debug\\-companies(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/debug\\-companies(?:/)?$"
+    },
+    {
+      "page": "/api/debug-db",
+      "regex": "^/api/debug\\-db(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/debug\\-db(?:/)?$"
+    },
+    {
       "page": "/api/email",
       "regex": "^/api/email(?:/)?$",
       "routeKeys": {},
@@ -589,6 +601,12 @@
       "namedRegex": "^/api/templates/duplicate(?:/)?$"
     },
     {
+      "page": "/api/test-version",
+      "regex": "^/api/test\\-version(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/test\\-version(?:/)?$"
+    },
+    {
       "page": "/api/users",
       "regex": "^/api/users(?:/)?$",
       "routeKeys": {},
@@ -605,6 +623,12 @@
       "regex": "^/api/users/verify\\-password(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/users/verify\\-password(?:/)?$"
+    },
+    {
+      "page": "/api/version",
+      "regex": "^/api/version(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/version(?:/)?$"
     },
     {
       "page": "/api/zone-config",

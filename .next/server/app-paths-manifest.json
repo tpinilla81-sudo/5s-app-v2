@@ -20,6 +20,8 @@
   "/api/companies/route": "app/api/companies/route.js",
   "/api/contact/route": "app/api/contact/route.js",
   "/api/db-status/route": "app/api/db-status/route.js",
+  "/api/debug-companies/route": "app/api/debug-companies/route.js",
+  "/api/debug-db/route": "app/api/debug-db/route.js",
   "/api/email/config/route": "app/api/email/config/route.js",
   "/api/email/route": "app/api/email/route.js",
   "/api/employee-progress/route": "app/api/employee-progress/route.js",
@@ -87,9 +89,11 @@
   "/api/system/health/route": "app/api/system/health/route.js",
   "/api/templates/duplicate/route": "app/api/templates/duplicate/route.js",
   "/api/templates/route": "app/api/templates/route.js",
+  "/api/test-version/route": "app/api/test-version/route.js",
   "/api/users/lookup-by-email/route": "app/api/users/lookup-by-email/route.js",
   "/api/users/route": "app/api/users/route.js",
   "/api/users/verify-password/route": "app/api/users/verify-password/route.js",
+  "/api/version/route": "app/api/version/route.js",
   "/api/zone-config/route": "app/api/zone-config/route.js",
   "/page": "app/page.js"
 }

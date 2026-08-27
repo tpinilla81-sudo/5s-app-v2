@@ -1,7 +1,9 @@
 self.__SERVER_FILES_MANIFEST={
   "version": 1,
   "config": {
-    "env": {},
+    "env": {
+      "NEXT_PUBLIC_APP_VERSION": "3.0.0"
+    },
     "webpack": null,
     "typescript": {
       "ignoreBuildErrors": true
