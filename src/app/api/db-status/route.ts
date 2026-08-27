@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyDatabaseConfig } from '../../../lib/db'
+import { PrismaClient } from '@prisma/client'
 
 /**
  * GET /api/db-status
@@ -9,6 +10,26 @@ import { verifyDatabaseConfig } from '../../../lib/db'
 export async function GET() {
   const dbError = verifyDatabaseConfig()
   const url = process.env.DATABASE_URL
+  
+  // Try to get actual counts from database
+  let companyCount = -1
+  let userCount = -1
+  let projectCount = -1
+  let dbConnected = false
+  
+  try {
+    const db = new PrismaClient()
+    
+    // Quick count queries
+    companyCount = await db.company.count()
+    userCount = await db.user.count()
+    projectCount = await db.project.count()
+    
+    dbConnected = true
+    await db.$disconnect()
+  } catch (error: any) {
+    console.error('DB count error:', error.message)
+  }
 
   return NextResponse.json({
     configured: !dbError,
@@ -17,5 +38,12 @@ export async function GET() {
     urlProtocol: url ? url.split('://')[0] : null,
     nodeEnv: process.env.NODE_ENV,
     timestamp: new Date().toISOString(),
+    // Debug info
+    debug: {
+      dbConnected,
+      companyCount,
+      userCount,
+      projectCount
+    }
   })
 }
