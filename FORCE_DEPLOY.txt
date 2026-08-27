@@ -1,9 +1,1 @@
-FORCE DEPLOY v200.00 - 2026-08-21
-Este archivo existe SOLO para forzar a Vercel a detectar cambios y rebuild.
-Cambios incluidos:
-- Version 2.200.00 (salto desde 2.108.22)
-- Bloqueo total de borrado en Paso 3, 4 y 5
-- Boton IA "Proximamente"
-- Layout actualizado
-
-BORRAR ESTE ARCHIVO DESPUES DE DEPLOY EXITOSO
+v3.0.0-FORCE-1787840100
