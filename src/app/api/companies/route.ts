@@ -3,47 +3,29 @@ import { db } from '../../../lib/db'
 import { getAuthUser } from '../../../lib/auth-helpers'
 
 // GET /api/companies - List companies
-// Gestor sees all; admin/gerente sees their assigned companies only
+// v3.0.1: TEMPORAL - Sin auth para debug
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
-    const userRole = user?.role || 'empleado'
-    const userId: string | null = user?.id || null
+    // DEBUG v3.0.1: Omitir auth temporalmente
+    // const user = await getAuthUser(request)
+    // const userRole = user?.role || 'empleado'
+    // const userId: string | null = user?.id || null
+    
+    console.log('[DEBUG v3.0.1] Fetching ALL companies without auth')
 
-    // DEBUG: Log auth info
-    console.log('[DEBUG /api/companies] user:', user?.email, 'role:', userRole, 'userId:', userId)
-
-    const isGestor = userRole === 'gestor'
-
-    let companies
-    if (isGestor) {
-      companies = await db.company.findMany({
-        where: { active: true },
-        include: {
-          _count: { select: { projects: true, members: true } },
-          subscription: true,
-          members: {
-            where: { role: 'admin_empresa' },
-            include: { user: { select: { id: true, name: true, email: true, active: true } } },
-          },
+    // Devolver TODAS las empresas activas sin filtro de auth
+    const companies = await db.company.findMany({
+      where: { active: true },
+      include: {
+        _count: { select: { projects: true, members: true } },
+        subscription: true,
+        members: {
+          where: { role: 'admin_empresa' },
+          include: { user: { select: { id: true, name: true, email: true, active: true } } },
         },
-        orderBy: { createdAt: 'desc' },
-      })
-    } else if (userId) {
-      // Non-admin: only see companies they're a member of
-      companies = await db.company.findMany({
-        where: {
-          active: true,
-          members: { some: { userId } },
-        },
-        include: {
-          _count: { select: { projects: true, members: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-      })
-    } else {
-      companies = []
-    }
+      },
+      orderBy: { createdAt: 'desc' },
+    })
 
     const result = companies.map((c: any) => ({
       id: c.id,
@@ -58,7 +40,17 @@ export async function GET(request: NextRequest) {
       admin: c.members?.[0]?.user || null,
     }))
 
-    return NextResponse.json({ success: true, companies: result })
+    console.log('[DEBUG v3.0.1] Returning', result.length, 'companies:', result.map(c => c.name))
+
+    return NextResponse.json({ 
+      success: true, 
+      companies: result,
+      _debug: {
+        version: 'v3.0.1-NOAUTH',
+        timestamp: new Date().toISOString(),
+        companyCount: result.length
+      }
+    })
   } catch (error) {
     console.error('Fetch companies error:', error)
     return NextResponse.json({ success: false, error: 'Error al obtener empresas' }, { status: 500 })
