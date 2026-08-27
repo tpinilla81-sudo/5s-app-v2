@@ -10,6 +10,9 @@ export async function GET(request: NextRequest) {
     const userRole = user?.role || 'empleado'
     const userId: string | null = user?.id || null
 
+    // DEBUG: Log auth info
+    console.log('[DEBUG /api/companies] user:', user?.email, 'role:', userRole, 'userId:', userId)
+
     const isGestor = userRole === 'gestor'
 
     let companies
