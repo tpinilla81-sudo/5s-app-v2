@@ -101,10 +101,24 @@ export async function GET() {
   try {
     // Contar proyectos como test básico
     const projectCount = await db.project.count()
+    
+    // DEBUG: Añadir info de empresas y usuarios
+    const [companyCount, userCount, companies] = await Promise.all([
+      db.company.count(),
+      db.user.count(),
+      db.company.findMany({
+        select: { id: true, name: true, active: true },
+        take: 5
+      })
+    ])
+    
     healthStatus.checks.data = {
       status: 'ok',
       projectCount,
-      message: `Base de datos accesible con ${projectCount} proyecto(s)`
+      companyCount,
+      userCount,
+      companies,
+      message: `Base de datos accesible con ${projectCount} proyecto(s), ${companyCount} empresa(s), ${userCount} usuario(s)`
     }
   } catch (dataError) {
     healthStatus.checks.data = {
