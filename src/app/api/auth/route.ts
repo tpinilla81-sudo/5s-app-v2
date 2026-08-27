@@ -236,10 +236,12 @@ export async function PUT(request: NextRequest) {
     })
 
     const token = randomBytes(32).toString('hex')
+    const sessionId = randomBytes(12).toString('hex') // Generate ID for session
     const expiresAt = getSessionExpiry()
 
     await db.session.create({
       data: {
+        id: sessionId, // Required - Session table doesn't have auto-increment
         token,
         userId: user.id,
         expiresAt,
