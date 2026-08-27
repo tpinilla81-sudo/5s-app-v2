@@ -5,7 +5,7 @@ import { PrismaClient } from '@prisma/client'
 /**
  * GET /api/db-status
  * Public diagnostic endpoint — returns database configuration status.
- * Does NOT expose sensitive data, only whether DATABASE_URL is configured correctly.
+ * v3.0.1: Now includes full company debug info
  */
 export async function GET() {
   const dbError = verifyDatabaseConfig()
@@ -16,7 +16,6 @@ export async function GET() {
   let userCount = -1
   let projectCount = -1
   let dbConnected = false
-  
   let companies = []
   
   try {
@@ -46,14 +45,19 @@ export async function GET() {
     urlProtocol: url ? url.split('://')[0] : null,
     nodeEnv: process.env.NODE_ENV,
     timestamp: new Date().toISOString(),
-    // Debug info - v3.0.0 UPDATE
+    // Debug info - v3.0.1 FULL DEBUG
+    _version: 'v3.0.1-FULL-DEBUG',
+    _timestamp: new Date().toISOString(),
     debug: {
       dbConnected,
       companyCount,
       userCount,
       projectCount,
-      companies,
-      version: 'v3.0.0-FORCED'
+      companies: companies.map(c => ({
+        id: c.id,
+        name: c.name,
+        active: c.active
+      }))
     }
   })
 }
