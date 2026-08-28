@@ -1,0 +1,252 @@
+/home/z/my-project/src/components/5s/FormacionModal.tsx:107:            setExamQuestions(content.questions || []);
+/home/z/my-project/src/components/5s/FormacionModal.tsx-108-            if (examTemplates[0].template.notaMinima != null) {
+/home/z/my-project/src/components/5s/FormacionModal.tsx-109-              setExamNotaMinima(examTemplates[0].template.notaMinima);
+/home/z/my-project/src/components/5s/FormacionModal.tsx-110-            }
+/home/z/my-project/src/components/5s/FormacionModal.tsx-111-            examLoaded = true;
+/home/z/my-project/src/components/5s/FormacionModal.tsx-112-          }
+/home/z/my-project/src/components/5s/FormacionModal.tsx-113-        }
+/home/z/my-project/src/components/5s/FormacionModal.tsx-114-      }
+/home/z/my-project/src/components/5s/FormacionModal.tsx-115-
+/home/z/my-project/src/components/5s/FormacionModal.tsx-116-      // Fallback global: si el board config no tenía slot, o el slot no tenía
+/home/z/my-project/src/components/5s/FormacionModal.tsx-117-      // plantilla de formación/examen para esta posición, caer a las plantillas
+/home/z/my-project/src/components/5s/FormacionModal.tsx-118-      // globales (mismo comportamiento que InventarioModal/Autoevaluacion/Auditoría).
+/home/z/my-project/src/components/5s/FormacionModal.tsx-119-      // Esto garantiza que cualquier zona con boardConfigId asignado pero sin
+/home/z/my-project/src/components/5s/FormacionModal.tsx-120-      // slots configurados siga viendo el contenido por defecto.
+/home/z/my-project/src/components/5s/FormacionModal.tsx-121-      if (!formacionLoaded) {
+/home/z/my-project/src/components/5s/FormacionModal.tsx-122-        try {
+/home/z/my-project/src/components/5s/FormacionModal.tsx-123-          const formRes = await fetch(`/api/templates?type=formacion&sStep=${sStep}`);
+/home/z/my-project/src/components/5s/FormacionModal.tsx-124-          const formJson = await formRes.json();
+/home/z/my-project/src/components/5s/FormacionModal.tsx-125-          if (formJson.success && formJson.data.length > 0) {
+/home/z/my-project/src/components/5s/FormacionModal.tsx-126-            const content = JSON.parse(formJson.data[0].content);
+/home/z/my-project/src/components/5s/FormacionModal.tsx-127-            setFormationContent(content.sections || []);
+--
+/home/z/my-project/src/components/5s/FormacionModal.tsx:142:            setExamQuestions(content.questions || []);
+/home/z/my-project/src/components/5s/FormacionModal.tsx-143-            if (examJson.data[0].notaMinima != null) {
+/home/z/my-project/src/components/5s/FormacionModal.tsx-144-              setExamNotaMinima(examJson.data[0].notaMinima);
+/home/z/my-project/src/components/5s/FormacionModal.tsx-145-            }
+/home/z/my-project/src/components/5s/FormacionModal.tsx-146-          } else {
+/home/z/my-project/src/components/5s/FormacionModal.tsx-147-            setExamQuestions([]);
+/home/z/my-project/src/components/5s/FormacionModal.tsx-148-          }
+/home/z/my-project/src/components/5s/FormacionModal.tsx-149-        } catch {
+/home/z/my-project/src/components/5s/FormacionModal.tsx-150-          setExamQuestions([]);
+/home/z/my-project/src/components/5s/FormacionModal.tsx-151-        }
+/home/z/my-project/src/components/5s/FormacionModal.tsx-152-      }
+/home/z/my-project/src/components/5s/FormacionModal.tsx-153-    } catch (error) {
+/home/z/my-project/src/components/5s/FormacionModal.tsx-154-      console.error('Error loading template:', error);
+/home/z/my-project/src/components/5s/FormacionModal.tsx-155-    } finally {
+/home/z/my-project/src/components/5s/FormacionModal.tsx-156-      setIsLoading(false);
+/home/z/my-project/src/components/5s/FormacionModal.tsx-157-    }
+/home/z/my-project/src/components/5s/FormacionModal.tsx-158-  };
+/home/z/my-project/src/components/5s/FormacionModal.tsx-159-
+/home/z/my-project/src/components/5s/FormacionModal.tsx-160-  const handleAnswerSelect = (questionIdx: number, answerIdx: number) => {
+/home/z/my-project/src/components/5s/FormacionModal.tsx-161-    setAnswers(prev => ({ ...prev, [questionIdx]: answerIdx }));
+/home/z/my-project/src/components/5s/FormacionModal.tsx-162-  };
+--
+/home/z/my-project/src/components/admin/TemplateManager.tsx:112:  const exams: Record<number, { questions: { question: string; options: string[]; correctIndex: number }[] }> = {
+/home/z/my-project/src/components/admin/TemplateManager.tsx-113-    1: {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:114:      questions: [
+/home/z/my-project/src/components/admin/TemplateManager.tsx:115:        { question: '¿Cuál es el objetivo principal de Seiri (Clasificar)?', options: ['Separar lo necesario de lo innecesario', 'Organizar los elementos por tamaño', 'Limpiar las máquinas', 'Crear estándares visuales'], correctIndex: 0 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:116:        { question: '¿Qué herramienta se utiliza en Seiri para marcar los elementos innecesarios?', options: ['Etiqueta verde', 'Tarjeta roja', 'Código de barras', 'Señal de tráfico'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:117:        { question: '¿Dónde se colocan temporalmente los elementos marcados como innecesarios?', options: ['En el almacén principal', 'En la jaula de innecesarios', 'En la mesa del responsable', 'En el pasillo'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:118:        { question: '¿Cuál es un beneficio de aplicar Seiri correctamente?', options: ['Aumentar el número de herramientas', 'Liberar espacio útil en el área de trabajo', 'Crear más documentos', 'Añadir más pasos al proceso'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:119:        { question: '¿Qué decisión NO se puede tomar sobre un elemento innecesario?', options: ['Eliminarlo', 'Trasladarlo a otra zona', 'Dejarlo donde está sin más', 'Donarlo o almacenarlo fuera del área'], correctIndex: 2 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:120:        { question: '¿Cada cuánto se debe revisar el área para evitar acumulación de innecesarios?', options: ['Solo al inicio del proyecto', 'Una vez al año', 'Periódicamente de forma regular', 'Nunca, solo una vez'], correctIndex: 2 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:121:        { question: '¿Qué tipo de elementos se deben eliminar en Seiri?', options: ['Los que se usan diariamente', 'Los que no se utilizan o no aportan valor', 'Los más caros', 'Los que tienen etiqueta'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:122:        { question: '¿Quién debe participar en el proceso de clasificación de Seiri?', options: ['Solo el responsable del área', 'Solo el jefe de producción', 'Todas las personas que trabajan en el área', 'Solo el equipo de mantenimiento'], correctIndex: 2 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx-123-      ]
+/home/z/my-project/src/components/admin/TemplateManager.tsx-124-    },
+/home/z/my-project/src/components/admin/TemplateManager.tsx-125-    2: {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:126:      questions: [
+/home/z/my-project/src/components/admin/TemplateManager.tsx:127:        { question: '¿Cuál es el objetivo principal de Seiton (Organizar)?', options: ['Eliminar innecesarios', 'Asignar una ubicación definida a cada elemento necesario', 'Limpiar los equipos', 'Auditar el proceso'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:128:        { question: '¿Qué principio fundamental aplica Seiton?', options: ['Más es mejor', 'Un lugar para cada cosa y cada cosa en su lugar', 'Todo en una sola estantería', 'Guardar todo en cajas cerradas'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:129:        { question: '¿Dónde se deben ubicar los elementos de uso muy frecuente?', options: ['En el almacén lejano', 'Cerca del puesto de trabajo', 'En el suelo del pasillo', 'En la oficina del jefe'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:130:        { question: '¿Cuál de estos NO es un método de identificación visual en Seiton?', options: ['Etiquetas', 'Código de colores', 'Memorizar la ubicación', 'Sombras y siluetas'], correctIndex: 2 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:131:        { question: '¿Qué es un layout en el contexto de Seiton?', options: ['Un tipo de herramienta', 'Una distribución visual del área de trabajo', 'Un informe de auditoría', 'Un código de barras'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:132:        { question: '¿Qué se debe hacer después de usar una herramienta según Seiton?', options: ['Dejarla donde se usó', 'Devolverla a su ubicación asignada', 'Pasarla al compañero', 'Guardarla en un cajón cualquiera'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:133:        { question: '¿Cómo se clasifica la frecuencia de uso en Seiton?', options: ['Barato y caro', 'Muy frecuente, frecuente, ocasional y raro', 'Grande y pequeño', 'Nuevo y viejo'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:134:        { question: '¿Qué beneficio aporta la señalización visual en Seiton?', options: ['Decorar el lugar de trabajo', 'Permitir detectar anomalías de forma inmediata', 'Aumentar el presupuesto', 'Reducir el número de herramientas'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx-135-      ]
+/home/z/my-project/src/components/admin/TemplateManager.tsx-136-    },
+/home/z/my-project/src/components/admin/TemplateManager.tsx-137-    3: {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:138:      questions: [
+/home/z/my-project/src/components/admin/TemplateManager.tsx:139:        { question: '¿Cuál es el objetivo principal de Seiso (Limpiar)?', options: ['Hacer que todo brille', 'Inspeccionar mientras se limpia, identificando anomalías y fuentes de suciedad', 'Pintar las paredes', 'Comprar productos de limpieza'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:140:        { question: '¿En qué se diferencia Seiso de una limpieza normal?', options: ['En que se usa más agua', 'En que convierte la limpieza en mantenimiento preventivo', 'En que solo la hace el equipo de limpieza', 'En que se hace una vez al año'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:141:        { question: '¿Qué tipos de suciedad se deben inventariar en Seiso?', options: ['Solo polvo', 'Polvo, grasa, manchas, residuos, humedad y oxidación', 'Solo grasa', 'Solo restos de comida'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:142:        { question: '¿Quién es responsable de la limpieza en Seiso?', options: ['Solo el equipo de limpieza', 'Solo el encargado', 'Cada persona en su zona de trabajo', 'El departamento de calidad'], correctIndex: 2 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:143:        { question: '¿Qué se debe hacer al detectar una fuga durante la limpieza?', options: ['Ignorarla y seguir limpiando', 'Identificarla como fuente de suciedad y reportarla', 'Taparla con cinta', 'Esperar a que se seque sola'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:144:        { question: '¿Qué es un mapa de puntos de suciedad?', options: ['Un mapa del mundo', 'Una representación visual de las zonas con suciedad y sus características', 'Un plano del edificio', 'Un calendario de limpieza'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:145:        { question: '¿Qué frecuencia de limpieza se recomienda para zonas de alto tráfico?', options: ['Mensual', 'Diaria o varias veces por semana', 'Anual', 'Solo cuando está muy sucio'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:146:        { question: '¿Qué debe contener un kit de limpieza según Seiso?', options: ['Solo una escoba', 'Los productos y herramientas necesarios para la limpieza de la zona', 'Documentos de calidad', 'Herramientas de producción'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx-147-      ]
+/home/z/my-project/src/components/admin/TemplateManager.tsx-148-    },
+/home/z/my-project/src/components/admin/TemplateManager.tsx-149-    4: {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:150:      questions: [
+/home/z/my-project/src/components/admin/TemplateManager.tsx:151:        { question: '¿Cuál es el objetivo principal de Seiketsu (Estandarizar)?', options: ['Limpiar más rápido', 'Crear estándares que mantengan los logros de las 3S anteriores', 'Eliminar más innecesarios', 'Organizar mejor las herramientas'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:152:        { question: '¿Qué tipo de estándares se crean en Seiketsu?', options: ['Solo escritos en papel', 'Visuales y documentados: fotos, diagramas, señalización, procedimientos', 'Solo verbales', 'Solo para directivos'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:153:        { question: '¿Para qué sirven los indicadores visuales en Seiketsu?', options: ['Para decorar', 'Para detectar desviaciones del estándar de forma inmediata', 'Para contar herramientas', 'Para medir la temperatura'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:154:        { question: '¿Cuál es un ejemplo de estándar visual?', options: ['Un correo electrónico', 'Una fotografía del estado correcto de una zona', 'Una reunión verbal', 'Un memorándum interno'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:155:        { question: '¿Qué es un checklist de verificación en Seiketsu?', options: ['Una lista de compras', 'Una lista de comprobación diaria o semanal del cumplimiento de estándares', 'Un inventario de herramientas', 'Un parte de trabajo'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:156:        { question: '¿Con qué frecuencia se deben revisar los estándares?', options: ['Nunca, una vez creados son fijos', 'Periódicamente para actualizarlos y mejorarlos', 'Solo cuando hay auditoría', 'Solo si hay queja del cliente'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:157:        { question: '¿Qué S anteriores sostiene Seiketsu?', options: ['Solo Seiri', 'Solo Seiton', 'Seiri, Seiton y Seiso (las 3S anteriores)', 'Ninguna'], correctIndex: 2 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:158:        { question: '¿Por qué es importante documentar las mejores prácticas?', options: ['Por requisito legal', 'Para que los nuevos empleados puedan seguirlas y no se pierdan las mejoras', 'Para tener más papeleo', 'Porque lo dice el jefe'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx-159-      ]
+/home/z/my-project/src/components/admin/TemplateManager.tsx-160-    },
+/home/z/my-project/src/components/admin/TemplateManager.tsx-161-    5: {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:162:      questions: [
+/home/z/my-project/src/components/admin/TemplateManager.tsx:163:        { question: '¿Cuál es el objetivo principal de Shitsuke (Disciplina)?', options: ['Crear más normas', 'Crear el hábito de respetar los estándares de forma voluntaria y constante', 'Poner multas a los empleados', 'Hacer auditorías puntuales'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:164:        { question: '¿Qué tipo de auditorías se realizan en Shitsuke?', options: ['Solo financieras', 'Internas (autoevaluación) y externas (evaluadores independientes)', 'Solo de producto', 'Solo de seguridad'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:165:        { question: '¿Qué se debe hacer al detectar una anomalía en una auditoría?', options: ['Ignorarla', 'Registrarla y crear un plan de acción correctiva con responsable y fecha', 'Esperar a la próxima auditoría', 'Solo informar verbalmente'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:166:        { question: '¿Qué convierte Shitsuke en hábito?', options: ['La supervisión constante', 'El cumplimiento voluntario y constante de los estándares', 'Las sanciones económicas', 'Los castigos'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:167:        { question: '¿Por qué es importante comunicar los resultados de las auditorías?', options: ['Para señalar culpables', 'Para que todo el equipo conozca el estado y participe en la mejora', 'Para archivarlos', 'Porque es obligatorio legalmente'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:168:        { question: '¿Cuál es la última etapa del ciclo de mejora continua en 5S?', options: ['Seiri', 'Shitsuke (que a su vez reinicia el ciclo)', 'Seiton', 'Seiso'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:169:        { question: '¿Qué papel tiene el reconocimiento en Shitsuke?', options: ['No tiene ningún papel', 'Motiva al equipo a mantener altos niveles de cumplimiento', 'Genera competencia negativa', 'Solo es para directivos'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx:170:        { question: '¿Qué sucede si no se aplica Shitsuke correctamente?', options: ['Nada, las 4S se mantienen solas', 'Las mejoras de las 4S anteriores se pierden con el tiempo', 'Se ahorra tiempo', 'Se reducen costes'], correctIndex: 1 },
+/home/z/my-project/src/components/admin/TemplateManager.tsx-171-      ]
+/home/z/my-project/src/components/admin/TemplateManager.tsx-172-    },
+/home/z/my-project/src/components/admin/TemplateManager.tsx-173-  }
+/home/z/my-project/src/components/admin/TemplateManager.tsx-174-  return exams[sStep] || exams[1]
+/home/z/my-project/src/components/admin/TemplateManager.tsx-175-}
+/home/z/my-project/src/components/admin/TemplateManager.tsx-176-
+/home/z/my-project/src/components/admin/TemplateManager.tsx-177-function getDefaultChecklistContent(sStep: number) {
+/home/z/my-project/src/components/admin/TemplateManager.tsx-178-  const checklist = AUDIT_CHECKLISTS[sStep]
+/home/z/my-project/src/components/admin/TemplateManager.tsx-179-  if (!checklist) return { sections: [] }
+/home/z/my-project/src/components/admin/TemplateManager.tsx-180-  return {
+/home/z/my-project/src/components/admin/TemplateManager.tsx-181-    sections: checklist.map(section => ({
+/home/z/my-project/src/components/admin/TemplateManager.tsx-182-      id: section.id,
+/home/z/my-project/src/components/admin/TemplateManager.tsx-183-      title: section.title,
+/home/z/my-project/src/components/admin/TemplateManager.tsx-184-      items: section.items.map(item => ({
+/home/z/my-project/src/components/admin/TemplateManager.tsx-185-        id: item.id,
+/home/z/my-project/src/components/admin/TemplateManager.tsx-186-        description: item.description,
+/home/z/my-project/src/components/admin/TemplateManager.tsx-187-        hasOther: item.hasOther || false,
+/home/z/my-project/src/components/admin/TemplateManager.tsx-188-      }))
+/home/z/my-project/src/components/admin/TemplateManager.tsx-189-    }))
+/home/z/my-project/src/components/admin/TemplateManager.tsx-190-  }
+--
+/home/z/my-project/src/components/admin/TemplateManager.tsx:616:  let parsed: { questions: { question: string; options: string[]; correctIndex: number }[] }
+/home/z/my-project/src/components/admin/TemplateManager.tsx-617-  try {
+/home/z/my-project/src/components/admin/TemplateManager.tsx-618-    parsed = JSON.parse(content)
+/home/z/my-project/src/components/admin/TemplateManager.tsx-619-  } catch {
+/home/z/my-project/src/components/admin/TemplateManager.tsx-620-    return (
+/home/z/my-project/src/components/admin/TemplateManager.tsx-621-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+/home/z/my-project/src/components/admin/TemplateManager.tsx-622-        El JSON no es válido. Corrígelo en modo JSON o carga el contenido por defecto.
+/home/z/my-project/src/components/admin/TemplateManager.tsx-623-      </div>
+/home/z/my-project/src/components/admin/TemplateManager.tsx-624-    )
+/home/z/my-project/src/components/admin/TemplateManager.tsx-625-  }
+/home/z/my-project/src/components/admin/TemplateManager.tsx-626-
+/home/z/my-project/src/components/admin/TemplateManager.tsx:627:  const questions = parsed.questions || []
+/home/z/my-project/src/components/admin/TemplateManager.tsx-628-
+/home/z/my-project/src/components/admin/TemplateManager.tsx-629-  const update = (newQuestions: typeof questions) => {
+/home/z/my-project/src/components/admin/TemplateManager.tsx-630-    onChange(JSON.stringify({ ...parsed, questions: newQuestions }, null, 2))
+/home/z/my-project/src/components/admin/TemplateManager.tsx-631-  }
+/home/z/my-project/src/components/admin/TemplateManager.tsx-632-
+/home/z/my-project/src/components/admin/TemplateManager.tsx-633-  const addQuestion = () => {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:634:    update([...questions, { question: '', options: ['Opción A', 'Opción B', 'Opción C', 'Opción D'], correctIndex: 0 }])
+/home/z/my-project/src/components/admin/TemplateManager.tsx-635-  }
+/home/z/my-project/src/components/admin/TemplateManager.tsx-636-
+/home/z/my-project/src/components/admin/TemplateManager.tsx-637-  const removeQuestion = (idx: number) => {
+/home/z/my-project/src/components/admin/TemplateManager.tsx-638-    update(questions.filter((_, i) => i !== idx))
+/home/z/my-project/src/components/admin/TemplateManager.tsx-639-  }
+/home/z/my-project/src/components/admin/TemplateManager.tsx-640-
+/home/z/my-project/src/components/admin/TemplateManager.tsx-641-  const updateQuestion = (idx: number, field: string, value: any) => {
+/home/z/my-project/src/components/admin/TemplateManager.tsx-642-    const updated = [...questions]
+/home/z/my-project/src/components/admin/TemplateManager.tsx-643-    updated[idx] = { ...updated[idx], [field]: value }
+/home/z/my-project/src/components/admin/TemplateManager.tsx-644-    update(updated)
+/home/z/my-project/src/components/admin/TemplateManager.tsx-645-  }
+/home/z/my-project/src/components/admin/TemplateManager.tsx-646-
+/home/z/my-project/src/components/admin/TemplateManager.tsx-647-  const updateOption = (qIdx: number, oIdx: number, value: string) => {
+/home/z/my-project/src/components/admin/TemplateManager.tsx-648-    const updated = [...questions]
+/home/z/my-project/src/components/admin/TemplateManager.tsx-649-    updated[qIdx] = { ...updated[qIdx], options: updated[qIdx].options.map((o, i) => i === oIdx ? value : o) }
+/home/z/my-project/src/components/admin/TemplateManager.tsx-650-    update(updated)
+/home/z/my-project/src/components/admin/TemplateManager.tsx-651-  }
+/home/z/my-project/src/components/admin/TemplateManager.tsx-652-
+/home/z/my-project/src/components/admin/TemplateManager.tsx-653-  const addOption = (qIdx: number) => {
+/home/z/my-project/src/components/admin/TemplateManager.tsx-654-    const updated = [...questions]
+--
+/home/z/my-project/src/app/api/seed/templates/route.ts:194:            content: JSON.stringify({ questions: [{ question: `Pregunta sobre ${S_JAPANESE[s - 1]}`, options: ['A', 'B', 'C', 'D'], correctIndex: 0 }] }),
+/home/z/my-project/src/app/api/seed/templates/route.ts-195-            notaMinima: 80,
+/home/z/my-project/src/app/api/seed/templates/route.ts-196-          },
+/home/z/my-project/src/app/api/seed/templates/route.ts-197-        })
+/home/z/my-project/src/app/api/seed/templates/route.ts-198-        created++
+/home/z/my-project/src/app/api/seed/templates/route.ts-199-      }
+/home/z/my-project/src/app/api/seed/templates/route.ts-200-
+/home/z/my-project/src/app/api/seed/templates/route.ts-201-      // ─── Fotos (Paso 2) ───
+/home/z/my-project/src/app/api/seed/templates/route.ts-202-      if (!exists(s, 'fotos')) {
+/home/z/my-project/src/app/api/seed/templates/route.ts-203-        const fotosDescriptions: Record<number, string> = {
+/home/z/my-project/src/app/api/seed/templates/route.ts-204-          1: 'Fotografía la zona para ver qué elementos innecesarios hay antes de clasificar',
+/home/z/my-project/src/app/api/seed/templates/route.ts-205-          2: 'Fotografía la zona para ver cómo está organizada antes de reordenar',
+/home/z/my-project/src/app/api/seed/templates/route.ts-206-          3: 'Fotografía la zona para documentar los puntos de suciedad antes de limpiar',
+/home/z/my-project/src/app/api/seed/templates/route.ts-207-          4: 'Fotografía la zona para documentar el estado actual antes de estandarizar',
+/home/z/my-project/src/app/api/seed/templates/route.ts-208-          5: 'Fotografía la zona para documentar el nivel de cumplimiento de los estándares',
+/home/z/my-project/src/app/api/seed/templates/route.ts-209-        }
+/home/z/my-project/src/app/api/seed/templates/route.ts-210-        await db.template.create({
+/home/z/my-project/src/app/api/seed/templates/route.ts-211-          data: {
+/home/z/my-project/src/app/api/seed/templates/route.ts-212-            type: 'fotos',
+/home/z/my-project/src/app/api/seed/templates/route.ts-213-            sStep: s,
+/home/z/my-project/src/app/api/seed/templates/route.ts-214-            miniStep: 2,
+--
+/home/z/my-project/src/app/api/seed/route.ts:163:const EXAM_QUESTIONS: Record<number, { questions: Array<{ question: string; options: string[]; correctIndex: number }> }> = {
+/home/z/my-project/src/app/api/seed/route.ts-164-  1: {
+/home/z/my-project/src/app/api/seed/route.ts:165:    questions: [
+/home/z/my-project/src/app/api/seed/route.ts-166-      { question: 'La 1ª S consiste en:', options: ['Identificar para clasificar los elementos innecesarios para la realización del trabajo', 'Clasificar para identificar los elementos innecesarios para la realización del trabajo', 'Inventariar para identificar y clasificar los elementos innecesarios para la realización del trabajo', 'Revisar para identificar y clasificar los elementos innecesarios para la realización del trabajo'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts:167:      { question: '¿Qué significa MUDA?', options: ['MUDA es la palabra japonesa que define la revisión de los materiales en las zonas de trabajo.', 'MUDA son las siglas de una metodología industrial.', 'MUDA es la palabra de origen oriental y que significa eficiencia.', 'MUDA es la palabra japonesa que define todos los «desperdicios» que consumen nuestro valioso tiempo y dinero.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-168-      { question: 'El desperdicio de sobre-producción es cuando:', options: ['Se realizan muchos movimientos internos de materiales sin necesidad.', 'Se produce demasiado, más de lo que el cliente requiere.', 'No se involucra en la mejora a todas las personas de la organización.', 'Se compra y almacena mucha materia prima.'], correctIndex: 1 },
+/home/z/my-project/src/app/api/seed/route.ts-169-      { question: 'El desperdicio de transporte es cuando:', options: ['Se realizan muchos movimientos internos de materiales sin necesidad.', 'Se produce demasiado, más de lo que el cliente requiere.', 'No se involucra en la mejora a todas las personas de la organización.', 'Se compra y almacena mucha materia prima.'], correctIndex: 0 },
+/home/z/my-project/src/app/api/seed/route.ts-170-      { question: 'Los elementos se clasifican en:', options: ['Tamaño, peso y color.', 'Materiales, máquinas y equipos, transporte y almacenaje, mobiliario e información.', 'Herramientas de mano o máquinas.', 'Zonas de uso, logística y producción.'], correctIndex: 1 },
+/home/z/my-project/src/app/api/seed/route.ts-171-      { question: 'La definición de "JAULA" es:', options: ['La caseta del guarda.', 'La parte de la fábrica donde están los vehículos.', 'Una zona de residuos.', 'Un lugar físico donde se destina todo aquel elemento que se elimina de lugar de trabajo y que puede servir para otros.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-172-      { question: 'El color rojo del etiquetado de innecesarios es:', options: ['Cuestionar si se envía a la "JAULA".', 'El color no tiene significado alguno.', 'Enviar a la "JAULA".', 'Enviar fuera de la zona de trabajo.'], correctIndex: 2 },
+/home/z/my-project/src/app/api/seed/route.ts-173-      { question: 'Marca la respuesta correcta respecto a la 1ª S:', options: ['La 1ª S prepara las condiciones para la 2ª S, destinada al orden.', 'La 1ª S no es importante y podría hacerse al final.', 'El objetivo particular de la 1ª S es eliminar todos los elementos de la zona de trabajo.', 'La 1ª S consiste únicamente en limpiar el lugar de trabajo.'], correctIndex: 0 },
+/home/z/my-project/src/app/api/seed/route.ts-174-    ],
+/home/z/my-project/src/app/api/seed/route.ts-175-  },
+/home/z/my-project/src/app/api/seed/route.ts-176-  2: {
+/home/z/my-project/src/app/api/seed/route.ts:177:    questions: [
+/home/z/my-project/src/app/api/seed/route.ts-178-      { question: 'La 2ª S consiste en:', options: ['Identificar para clasificar los elementos necesarios e innecesarios para la realización del trabajo', 'Clasificar para identificar los elementos necesarios e innecesarios para la realización del trabajo', 'Inventariar para identificar y clasificar los elementos necesarios e innecesarios para la realización del trabajo', 'Ordenar para identificar y clasificar los elementos necesarios que hemos observado en la 1ª S y que puedan ser encontrados con facilidad.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts:179:      { question: '¿Qué significa LAYOUT?', options: ['LAYOUT es el diseño de la disposición mas desfavorable de los elementos de las zonas de trabajo.', 'LAYOUT es el diseño de la disposición mas óptima de los trabajadores en las zonas de trabajo.', 'LAYOUT es el diseño de la disposición mas óptima de los desperdicios de las zonas de trabajo.', 'LAYOUT es el diseño de la disposición mas óptima de los elementos de las zonas de trabajo.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-180-      { question: 'Un criterio para realizar correctamente la 2ª S es:', options: ['Decidir donde guardar las cosas tomando en cuenta la frecuencia de su uso.', 'Tirar lo que no se utilice mucho.', 'Ordenar todas las herramientas en los cajones.', 'Ordenar sin tener en cuenta la seguridad.'], correctIndex: 0 },
+/home/z/my-project/src/app/api/seed/route.ts-181-      { question: 'Unas de las ventajas de hacer la 2ª S es:', options: ['Facilita y mejorar el control visual.', 'Que todo este marcado para las visitas.', 'Eliminar las pérdidas de productos o elementos.', 'La A y la C son correctas.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-182-      { question: 'Los elementos se clasifican en:', options: ['Tamaño, peso y color.', 'Materiales, máquinas y equipos, transporte y almacenaje, mobiliario e información.', 'Herramientas de mano o máquinas.', 'Zonas de uso, logística y producción.'], correctIndex: 1 },
+/home/z/my-project/src/app/api/seed/route.ts-183-      { question: 'Según la frecuencia de uso:', options: ['La frecuencia de uso no es importante para situar los elementos.', 'Lo que usamos cada muchos años lo guardamos en la zona de trabajo.', 'Lo que usamos todos los días lo ubicamos en el almacén exterior.', 'Lo que usamos todos los días lo ubicamos en la zona de trabajo.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-184-      { question: 'El color naranja del etiquetado de innecesarios es:', options: ['Enviar a la "JAULA".', 'El color no tiene significado alguno.', 'Cuestionar si se envía a la "JAULA".', 'Enviar fuera de la zona de trabajo.'], correctIndex: 2 },
+/home/z/my-project/src/app/api/seed/route.ts-185-      { question: 'Marca la respuesta correcta:', options: ['La 2ª S facilita y mejorar el control visual.', 'La 2ª S facilita el mantenimiento autónomo de máquinas, evitando averías.', 'El objetivo particular de la 2ª S es aprovechar lugares despejados.', 'La A y B son correctas.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-186-    ],
+/home/z/my-project/src/app/api/seed/route.ts-187-  },
+/home/z/my-project/src/app/api/seed/route.ts-188-  3: {
+/home/z/my-project/src/app/api/seed/route.ts:189:    questions: [
+/home/z/my-project/src/app/api/seed/route.ts-190-      { question: 'La 3ª S consiste en:', options: ['Limpiar para que vean las visitas que esta limpio.', 'Limpiar las máquinas para que funcionen bien.', 'Identificar los puntos de suciedad para limpiarlos semanalmente.', 'Limpiar para identificar y clasificar los puntos de suciedad para la eliminarlos, en lo posible, desde la causa raíz.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-191-      { question: 'Una ventaja importante al aplicar la 3ª S es:', options: ['Reduce el riesgo potencial de incidentes/accidentes.', 'El suelo está mas brillante.', 'Mejora el confort laboral.', 'La A y la C son correctas.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-192-      { question: 'Un criterio para realizar correctamente la 3ª S es:', options: ['Asumir la limpieza como una actividad de mantenimiento autónomo.', 'Solo limpian los encargados de la limpieza.', 'El objetivo no es eliminar las fuentes de suciedad.', 'Se debe hacer un plan de limpieza fuera de horas de trabajo.'], correctIndex: 0 },
+/home/z/my-project/src/app/api/seed/route.ts-193-      { question: 'La 3ª S es:', options: ['Una buena práctica para los tiempos muertos.', 'Que todo este limpio para las visitas.', 'Inspeccionar.', 'La ultima S.'], correctIndex: 2 },
+/home/z/my-project/src/app/api/seed/route.ts-194-      { question: 'Los elementos se clasifican en:', options: ['Tamaño, peso y color.', 'Materiales, máquinas y equipos, transporte y almacenaje, mobiliario e información.', 'Herramientas de mano o máquinas.', 'Zonas de uso, logística y producción.'], correctIndex: 1 },
+/home/z/my-project/src/app/api/seed/route.ts-195-      { question: 'Según la frecuencia de uso:', options: ['La frecuencia de uso no es importante para situar los elementos.', 'Lo que usamos cada muchos años lo guardamos en la zona de trabajo.', 'Lo que usamos todos los días lo ubicamos en el almacén exterior.', 'Lo que usamos todos los días lo ubicamos en la zona de trabajo.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-196-      { question: 'El color naranja del etiquetado de innecesarios es:', options: ['Enviar a la "JAULA".', 'El color no tiene significado alguno.', 'Cuestionar si se envía a la "JAULA".', 'Enviar fuera de la zona de trabajo.'], correctIndex: 2 },
+/home/z/my-project/src/app/api/seed/route.ts-197-      { question: 'Marca la respuesta correcta:', options: ['La 2ª S facilita y mejorar el control visual.', 'La 2ª S facilita el mantenimiento autónomo de máquinas, evitando averías.', 'El objetivo particular de la 2ª S es aprovechar lugares despejados.', 'La A y B son correctas.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-198-    ],
+/home/z/my-project/src/app/api/seed/route.ts-199-  },
+/home/z/my-project/src/app/api/seed/route.ts-200-  4: {
+/home/z/my-project/src/app/api/seed/route.ts:201:    questions: [
+/home/z/my-project/src/app/api/seed/route.ts-202-      { question: 'El objetivo de la 4ªS es:', options: ['Que todo este marcado igual.', 'Que lo que se este limpiando se vea.', 'Estandarizar todo que se vea.', 'Desarrollar condiciones de trabajo que eviten retroceso en las primeras 3 S´s'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-203-      { question: 'La 4ª S consiste en:', options: ['Respetar lo que los demás hacen.', 'Ser disciplinado y metódico.', 'Llevar a cabo una serie de prácticas para que todo este en su sitio.', 'Aplicar y mantener lo que se ha venido desarrollando hasta ahora estandarizando soluciones creativas para mantener el puesto de trabajo limpio y ordenado, preferiblemente mediante control visual.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-204-      { question: 'Un criterio para realizar correctamente la 4ª S es:', options: ['Compartir la información sin que tenga que buscarse o pedirse.', 'Inventar lo mejor de lo mejor.', 'Ser imaginativo sin pensar en los demás.', 'Buscar la solución más cara del mercado.'], correctIndex: 0 },
+/home/z/my-project/src/app/api/seed/route.ts-205-      { question: 'Unas de las ventajas de hacer la 4ª S es:', options: ['Que todo esté del mismo color.', 'Que todo este marcado para las visitas.', 'Mejora el confort laboral.', 'Que las personas trabajen más rápido.'], correctIndex: 2 },
+/home/z/my-project/src/app/api/seed/route.ts-206-      { question: 'Uno de los pasos a seguir en la 4ª S es:', options: ['Realizar un listado de posibles estándares.', 'Estandarizar todo y hacer visibles los estándares utilizados.', 'Pintar el suelo según el estándar de señalización.', 'Los pasos a seguir son los mismo que en la 3ª S.'], correctIndex: 1 },
+/home/z/my-project/src/app/api/seed/route.ts-207-      { question: 'Para pasar a la fase 5, 5ªS:', options: ['Deberemos de obtener una nota de 100 en la auditoría.', 'Deberemos de obtener una nota de menos de 100 en la auditoría.', 'Deberemos de obtener una nota de 90 en la auditoría.', 'Deberemos de obtener una nota de 70 o más en la auditoría.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-208-    ],
+/home/z/my-project/src/app/api/seed/route.ts-209-  },
+/home/z/my-project/src/app/api/seed/route.ts-210-  5: {
+/home/z/my-project/src/app/api/seed/route.ts:211:    questions: [
+/home/z/my-project/src/app/api/seed/route.ts-212-      { question: 'El objetivo de la 5ªS es:', options: ['Que todo este marcado igual.', 'Que lo que se este limpiando se vea.', 'Evaluar a las personas.', 'Mantener lo conseguido con las anteriores "S" haciendo las 5S como una forma cultural de trabajo.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-213-      { question: 'La 5ª S consiste en:', options: ['Respetar lo que los demás hacen.', 'Ser disciplinado y metódico.', 'Llevar a cabo una serie de prácticas para que todo este en su sitio.', 'Tener el hábito y crear un ambiente de respeto a las normas y estándares establecidos.'], correctIndex: 3 },
+/home/z/my-project/src/app/api/seed/route.ts-214-      { question: 'Un criterio para realizar correctamente la 5ª S es:', options: ['Hacer visibles los resultados de las 5 S´s.', 'Inventar lo mejor de lo mejor.', 'Comunicar a nivel personal los resultados obtenidos.', 'Buscar la solución más cara del mercado.'], correctIndex: 0 },
+/home/z/my-project/src/app/api/seed/route.ts-215-      { question: 'Unas de las ventajas de hacer la 5ª S es:', options: ['Crear un ambiente de trabajo competitivo.', 'Que todo este marcado para las visitas.', 'Se eleva la motivación.', 'Que las personas trabajen más rápido.'], correctIndex: 2 },
+/home/z/my-project/src/app/api/seed/route.ts-216-      { question: 'Marca la afirmación correcta sobre la 5ªS:', options: ['La limpieza es inspección.', 'Sin disciplina y hábito cualquier beneficio logrado en los primeros cuatro desaparece.', 'Ten sólo lo necesario en la cantidad correcta.', 'El control visual es cualquier dispositivo de comunicación que nos indique el estado de algo con un solo vistazo.'], correctIndex: 1 },
+/home/z/my-project/src/app/api/seed/route.ts-217-    ],
+/home/z/my-project/src/app/api/seed/route.ts-218-  },
+/home/z/my-project/src/app/api/seed/route.ts-219-}
+/home/z/my-project/src/app/api/seed/route.ts-220-
+/home/z/my-project/src/app/api/seed/route.ts-221-const INVENTORY_TEMPLATES: Record<number, { items: Array<{ name: string; location: string; category: string; quantity: number; price: number | null; action: string; extra?: Record<string, string | number> }> }> = {
+/home/z/my-project/src/app/api/seed/route.ts-222-  1: {
+/home/z/my-project/src/app/api/seed/route.ts-223-    // v2.37: items vacío — la plantilla define estructura (categorías,
+/home/z/my-project/src/app/api/seed/route.ts-224-    // extraFields, desplegables) pero NO registros pre-creados.
+/home/z/my-project/src/app/api/seed/route.ts-225-    // Antes traía 5 items demo (Herramientas rotas, etc.) que se importaban
+/home/z/my-project/src/app/api/seed/route.ts-226-    // automáticamente a la tabla Inventory al abrir el InventarioModal,
+
+[Showing results with pagination = limit: 250]
