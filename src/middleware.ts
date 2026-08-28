@@ -57,13 +57,13 @@ export function middleware(request: NextRequest) {
 
   // 2. Ruta de depuración de versión
   if (url.pathname === '/version') {
-    // FORZAR VERSIÓN NUEVA PARA TESTEAR
-    return new NextResponse('v3.0.1-NOAUTH-FIX', {
+    // v3.0.2: Usar BUILD_VERSION dinámico en lugar de valor harcodeado
+    return new NextResponse(BUILD_VERSION, {
       status: 200,
       headers: {
         'Content-Type': 'text/plain',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'X-Build-Version': 'v3.0.1-NOAUTH-FIX',
+        'X-Build-Version': BUILD_VERSION,
       },
     });
   }
