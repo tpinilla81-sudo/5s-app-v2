@@ -235,6 +235,7 @@ export async function PUT(request: NextRequest) {
 }
 
 // DELETE /api/users - Delete a user
+// v3.0.1: FIX - Corregidos nombres de relaciones Prisma
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -272,10 +273,24 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    // Delete related records first to avoid foreign key constraint errors
+    // v3.0.1 FIX: Delete related records first to avoid foreign key constraint errors
+    // Using correct Prisma relation names
     await db.session.deleteMany({ where: { userId: id } })
     await db.employeeProgress.deleteMany({ where: { userId: id } })
-    await db.memberZone.deleteMany({ where: { member: { userId: id } } })
+    
+    // v3.0.1 FIX: MemberZone uses ProjectMember relation, not member
+    const projectMembers = await db.projectMember.findMany({
+      where: { userId: id },
+      select: { id: true }
+    })
+    if (projectMembers.length > 0) {
+      await db.memberZone.deleteMany({
+        where: {
+          memberId: { in: projectMembers.map(pm => pm.id) }
+        }
+      })
+    }
+    
     await db.projectMember.deleteMany({ where: { userId: id } })
     await db.companyMember.deleteMany({ where: { userId: id } })
 
