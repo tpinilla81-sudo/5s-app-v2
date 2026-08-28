@@ -416,9 +416,9 @@ export default function HomePage() {
   const availableTabs: { key: 'board' | 'admin' | 'maintenance' | 'gestion'; label: string; icon: React.ReactNode }[] = [];
 
   if (isGestor) {
-    // Gestor sees the platform management tab AND the admin tab (gestiona proyectos, zonas, miembros)
+    // Gestor SOLO ve su panel de gestión (empresas, usuarios, configuración)
+    // NO ve el panel de Admin (eso es solo para admins de empresa)
     availableTabs.push({ key: 'gestion', label: 'Gestión', icon: <Crown className="h-3.5 w-3.5" /> });
-    availableTabs.push({ key: 'admin', label: 'Admin', icon: <Shield className="h-3.5 w-3.5" /> });
   } else {
     // Tablero 5S — fixed, always visible, the main tool for everyone
     availableTabs.push({ key: 'board', label: 'Tablero', icon: <LayoutDashboard className="h-3.5 w-3.5" /> });
@@ -2021,8 +2021,8 @@ export default function HomePage() {
                 </motion.div>
               )}
 
-              {/* ═══ TAB: ADMIN (Admin de Empresa o Gestor — accessed from header) ═══ */}
-              {activeTab === 'admin' && (isAdmin || isGestor) && (
+              {/* ═══ TAB: ADMIN (SOLO Admin de Empresa — NO Gestor) ═══ */}
+              {activeTab === 'admin' && isAdmin && (
                 <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 min-h-0 overflow-auto p-4">
                   <AdminPanel embedded />
                 </motion.div>
