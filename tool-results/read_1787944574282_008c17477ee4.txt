@@ -1,0 +1,669 @@
+     1→'use client'
+     2→
+     3→/**
+     4→ * ZoneTemplatesSection
+     5→ * ────────────────────
+     6→ * Sección que se muestra DENTRO de cada zona (en la pestaña Proyectos del
+     7→ * AdminPanel), ANTES de la lista de miembros.
+     8→ *
+     9→ * Muestra las plantillas asignadas a cada una de las 25 celdas (5S × 5 Pasos)
+    10→ * del tablero de la zona, y permite:
+    11→ *   1. Editar una plantilla → abre un Sheet con <TemplateManager embedded />
+    12→ *      filtrado por la empresa del proyecto (o Biblioteca del Sistema si gestor).
+    13→ *   2. Cambiar la plantilla asignada a una celda → abre un dropdown con todas
+    14→ *      las plantillas disponibles para ese (sStep, miniStep, type) de la empresa
+    15→ *      + biblioteca del sistema.
+    16→ *
+    17→ * El objetivo (v2.31) es que el flujo sea: crear zona → elegir plantillas →
+    18→ * adjudicar usuarios. Las plantillas ya no se gestionan en una pestaña
+    19→ * independiente del AdminPanel; el gestor las edita desde su propio panel
+    20→ * (pestaña "Plantillas Genéricas").
+    21→ */
+    22→
+    23→import { useState, useEffect, useCallback } from 'react'
+    24→import { motion, AnimatePresence } from 'framer-motion'
+    25→import { use5SStore } from '../../lib/store'
+    26→import { Button } from '../ui/button'
+    27→import { Badge } from '../ui/badge'
+    28→import {
+    29→  Sheet,
+    30→  SheetContent,
+    31→  SheetHeader,
+    32→  SheetTitle,
+    33→  SheetDescription,
+    34→} from '../ui/sheet'
+    35→import {
+    36→  Select,
+    37→  SelectContent,
+    38→  SelectItem,
+    39→  SelectTrigger,
+    40→  SelectValue,
+    41→} from '../ui/select'
+    42→import {
+    43→  BookOpen,
+    44→  LayoutGrid,
+    45→  Edit3,
+    46→  RefreshCw,
+    47→  Loader2,
+    48→  ChevronDown,
+    49→  ChevronRight,
+    50→  Library,
+    51→  AlertTriangle,
+    52→  Camera,
+    53→} from 'lucide-react'
+    54→import { S_STEPS } from '../../lib/5s-constants'
+    55→import TemplateManager from './TemplateManager'
+    56→
+    57→// Paleta de colores por S step (debe coincidir con TemplateManager.tsx)
+    58→const S_COLORS: Record<number, string> = {
+    59→  1: '#8B5CF6',
+    60→  2: '#EAB308',
+    61→  3: '#3B82F6',
+    62→  4: '#F43F5E',
+    63→  5: '#F97316',
+    64→}
+    65→
+    66→// ─── Tipos ─────────────────────────────────────────────────────────────────
+    67→
+    68→interface SlotTemplate {
+    69→  id: string
+    70→  templateId: string
+    71→  sortOrder: number
+    72→  minPhotosOverride: number | null  // v2.35: override del límite de fotos
+    73→  template: {
+    74→    id: string
+    75→    type: string
+    76→    title: string
+    77→    sStep: number
+    78→    miniStep: number
+    79→    minPhotos: number | null  // v2.35: límite base definido en la plantilla
+    80→  }
+    81→}
+    82→
+    83→interface BoardSlot {
+    84→  id: string
+    85→  boardConfigId: string
+    86→  sStep: number
+    87→  miniStep: number
+    88→  templates: SlotTemplate[]
+    89→}
+    90→
+    91→interface AvailableTemplate {
+    92→  id: string
+    93→  title: string
+    94→  type: string
+    95→  companyId: string | null
+    96→  active: boolean
+    97→}
+    98→
+    99→// ─── Mapeo de mini-step → tipos de plantilla ───────────────────────────────
+   100→// (Debe coincidir con MINI_STEP_TEMPLATE_TYPES en /api/board-configs/route.ts)
+   101→const MINI_STEP_TYPES: Record<number, { type: string; label: string }[]> = {
+   102→  1: [{ type: 'formacion', label: 'Formación' }, { type: 'examen', label: 'Examen' }],
+   103→  2: [{ type: 'fotos', label: 'Fotos' }],
+   104→  3: [{ type: 'inventario', label: 'Inventario' }],
+   105→  4: [{ type: 'autoevaluacion', label: 'Autoeval' }, { type: 'planaccion', label: 'Plan Acción' }],
+   106→  5: [{ type: 'auditoria', label: 'Auditoría' }],
+   107→}
+   108→
+   109→const PASO_LABELS: Record<number, string> = {
+   110→  1: 'Formación y Exámenes',
+   111→  2: 'Fotografías',
+   112→  3: 'Inventario / Estándar',
+   113→  4: 'Autoevaluación / Plan',
+   114→  5: 'Auditoría',
+   115→}
+   116→
+   117→// ─── Componente ────────────────────────────────────────────────────────────
+   118→
+   119→interface ZoneTemplatesSectionProps {
+   120→  zoneId: string
+   121→  zoneName: string
+   122→  boardConfigId: string | null
+   123→  boardConfigName?: string | null
+   124→  boardConfigIsDefault?: boolean
+   125→  companyId: string | null
+   126→  companyName: string
+   127→}
+   128→
+   129→export default function ZoneTemplatesSection({
+   130→  zoneId,
+   131→  zoneName,
+   132→  boardConfigId,
+   133→  boardConfigName,
+   134→  boardConfigIsDefault,
+   135→  companyId,
+   136→  companyName,
+   137→}: ZoneTemplatesSectionProps) {
+   138→  const { currentUser } = use5SStore()
+   139→  const [slots, setSlots] = useState<BoardSlot[]>([])
+   140→  const [isLoading, setIsLoading] = useState(false)
+   141→  const [expandedS, setExpandedS] = useState<number | null>(1) // S1 abierto por defecto
+   142→  const [sheetOpen, setSheetOpen] = useState(false)
+   143→  // Cambiar-plantilla picker state, por celda (sStep|miniStep|type)
+   144→  const [pickerCell, setPickerCell] = useState<string | null>(null)
+   145→  const [availableForCell, setAvailableForCell] = useState<AvailableTemplate[]>([])
+   146→  const [isLoadingAvail, setIsLoadingAvail] = useState(false)
+   147→  const [isSavingCell, setIsSavingCell] = useState<string | null>(null)
+   148→
+   149→  // ¿Puede el usuario editar las plantillas (crear/cambiar contenido)?
+   150→  // - gestor → siempre (Biblioteca del Sistema + cualquier empresa)
+   151→  // - admin → plantillas de SU empresa
+   152→  // - responsable → solo autoevaluacion/auditoria de su empresa
+   153→  const isGestor = currentUser?.role === 'gestor'
+   154→  const isAdmin = currentUser?.role === 'admin'
+   155→  const isResponsable = currentUser?.role === 'responsable'
+   156→  const canManage = isGestor || isAdmin || isResponsable
+   157→
+   158→  // v2.35: estado para edición del override de minPhotos por celda fotos
+   159→  const [photoLimitEditing, setPhotoLimitEditing] = useState<string | null>(null) // cellKey
+   160→  const [photoLimitValue, setPhotoLimitValue] = useState<string>('') // string para input controlado
+   161→  const [photoLimitSaving, setPhotoLimitSaving] = useState<string | null>(null) // cellKey
+   162→
+   163→  // ─── Fetch slots ────────────────────────────────────────────────────────
+   164→  const fetchSlots = useCallback(async () => {
+   165→    if (!boardConfigId && !zoneId) return
+   166→    setIsLoading(true)
+   167→    try {
+   168→      const params = new URLSearchParams()
+   169→      if (boardConfigId) params.set('boardConfigId', boardConfigId)
+   170→      if (zoneId) params.set('zoneId', zoneId)
+   171→      const res = await fetch(`/api/board-slots?${params.toString()}`)
+   172→      const data = await res.json()
+   173→      if (data.success && Array.isArray(data.data)) {
+   174→        setSlots(data.data)
+   175→      } else {
+   176→        setSlots([])
+   177→      }
+   178→    } catch (e) {
+   179→      console.error('Error fetching board slots:', e)
+   180→      setSlots([])
+   181→    } finally {
+   182→      setIsLoading(false)
+   183→    }
+   184→  }, [boardConfigId, zoneId])
+   185→
+   186→  useEffect(() => {
+   187→    fetchSlots()
+   188→  }, [fetchSlots])
+   189→
+   190→  // ─── Helpers ────────────────────────────────────────────────────────────
+   191→  const getSlotForCell = (sStep: number, miniStep: number): BoardSlot | undefined =>
+   192→    slots.find(s => s.sStep === sStep && s.miniStep === miniStep)
+   193→
+   194→  const getTemplateForCell = (sStep: number, miniStep: number, type: string): SlotTemplate | undefined => {
+   195→    const slot = getSlotForCell(sStep, miniStep)
+   196→    if (!slot) return undefined
+   197→    return slot.templates.find(t => t.template.type === type) || slot.templates[0]
+   198→  }
+   199→
+   200→  const countAssigned = (): number => {
+   201→    let n = 0
+   202→    for (const sStep of [1, 2, 3, 4, 5]) {
+   203→      for (const miniStep of [1, 2, 3, 4, 5]) {
+   204→        const types = MINI_STEP_TYPES[miniStep] || []
+   205→        for (const { type } of types) {
+   206→          if (getTemplateForCell(sStep, miniStep, type)) n++
+   207→        }
+   208→      }
+   209→    }
+   210→    return n
+   211→  }
+   212→
+   213→  // ─── Abrir picker de "Cambiar plantilla" ────────────────────────────────
+   214→  const openPicker = async (sStep: number, miniStep: number, type: string) => {
+   215→    const key = `${sStep}|${miniStep}|${type}`
+   216→    if (pickerCell === key) {
+   217→      setPickerCell(null)
+   218→      return
+   219→    }
+   220→    setPickerCell(key)
+   221→    setIsLoadingAvail(true)
+   222→    setAvailableForCell([])
+   223→    try {
+   224→      const res = await fetch(
+   225→        `/api/templates?type=${type}&sStep=${sStep}&miniStep=${miniStep}&includeInactive=true`
+   226→      )
+   227→      const data = await res.json()
+   228→      if (data.success && Array.isArray(data.data)) {
+   229→        setAvailableForCell(data.data)
+   230→      }
+   231→    } catch (e) {
+   232→      console.error('Error fetching available templates:', e)
+   233→    } finally {
+   234→      setIsLoadingAvail(false)
+   235→    }
+   236→  }
+   237→
+   238→  // ─── Guardar nueva asignación ───────────────────────────────────────────
+   239→  const saveCellAssignment = async (
+   240→    sStep: number,
+   241→    miniStep: number,
+   242→    type: string,
+   243→    templateId: string | null
+   244→  ) => {
+   245→    if (!boardConfigId) {
+   246→      alert('Esta zona no tiene tablero asignado. Asigna un tablero a la zona primero.')
+   247→      return
+   248→    }
+   249→    const cellKey = `${sStep}|${miniStep}|${type}`
+   250→    setIsSavingCell(cellKey)
+   251→    try {
+   252→      // Mantener las demás plantillas del slot (otras type) y reemplazar solo la type seleccionada
+   253→      const slot = getSlotForCell(sStep, miniStep)
+   254→      const otherTemplateIds = (slot?.templates || [])
+   255→        .filter(t => t.template.type !== type)
+   256→        .map(t => t.templateId)
+   257→      const newTemplateIds = templateId
+   258→        ? [...otherTemplateIds, templateId]
+   259→        : otherTemplateIds
+   260→
+   261→      const res = await fetch('/api/board-slots', {
+   262→        method: 'POST',
+   263→        headers: { 'Content-Type': 'application/json' },
+   264→        body: JSON.stringify({
+   265→          boardConfigId,
+   266→          sStep,
+   267→          miniStep,
+   268→          templateIds: newTemplateIds,
+   269→        }),
+   270→      })
+   271→      const data = await res.json()
+   272→      if (data.success) {
+   273→        // Refrescar slots
+   274→        await fetchSlots()
+   275→        setPickerCell(null)
+   276→      } else {
+   277→        alert('Error al guardar: ' + (data.error || 'desconocido'))
+   278→      }
+   279→    } catch (e) {
+   280→      console.error('Error saving cell:', e)
+   281→      alert('Error al guardar la asignación')
+   282→    } finally {
+   283→      setIsSavingCell(null)
+   284→    }
+   285→  }
+   286→
+   287→  // v2.35: guardar override de minPhotos para una celda type='fotos'
+   288→  const savePhotoLimitOverride = async (slotTemplateId: string, value: string, cellKey: string) => {
+   289→    setPhotoLimitSaving(cellKey)
+   290→    try {
+   291→      const trimmed = value.trim()
+   292→      // Si vacío → eliminar override (null). Si número → validar y guardar.
+   293→      const override = trimmed === '' ? null : Number(trimmed)
+   294→      if (override !== null && (isNaN(override) || override < 0 || override > 1000)) {
+   295→        alert('El mínimo de fotos debe ser un número entre 0 y 1000, o vacío para heredar.')
+   296→        return
+   297→      }
+   298→      const res = await fetch('/api/photo-limits', {
+   299→        method: 'PUT',
+   300→        headers: { 'Content-Type': 'application/json' },
+   301→        body: JSON.stringify({ boardSlotTemplateId: slotTemplateId, minPhotosOverride: override }),
+   302→      })
+   303→      const data = await res.json()
+   304→      if (data.success) {
+   305→        await fetchSlots() // refresca para reflejar el nuevo valor
+   306→        setPhotoLimitEditing(null)
+   307→      } else {
+   308→        alert('Error al guardar: ' + (data.error || 'desconocido'))
+   309→      }
+   310→    } catch (e) {
+   311→      console.error('Error saving photo limit override:', e)
+   312→      alert('Error al guardar el límite de fotos')
+   313→    } finally {
+   314→      setPhotoLimitSaving(null)
+   315→    }
+   316→  }
+   317→
+   318→  // ─── Render ─────────────────────────────────────────────────────────────
+   319→  if (!canManage) {
+   320→    // Solo lectura (empleado/auditor/gerente no deberían ver esto normalmente,
+   321→    // pero por si acceden al AdminPanel por permisos, mostramos resumen)
+   322→    return null
+   323→  }
+   324→
+   325→  const assignedCount = countAssigned()
+   326→  const totalCells = 25 // 5S × 5Pasos, aunque algunas celdas pueden tener 0 o 2 types
+   327→
+   328→  return (
+   329→    <div className="rounded-md border border-emerald-200 bg-emerald-50/30 p-2.5 space-y-2">
+   330→      {/* Header */}
+   331→      <div className="flex items-center justify-between gap-2 flex-wrap">
+   332→        <div className="flex items-center gap-2 flex-1 min-w-0">
+   333→          <BookOpen className="h-4 w-4 text-emerald-600 shrink-0" />
+   334→          <span className="text-xs font-semibold text-emerald-700">
+   335→            Plantillas de esta zona
+   336→          </span>
+   337→          <Badge className="text-[9px] px-1 py-0 bg-emerald-100 text-emerald-700 border-0">
+   338→            {assignedCount} asignada{assignedCount !== 1 ? 's' : ''}
+   339→          </Badge>
+   340→          {boardConfigName && (
+   341→            <Badge
+   342→              className={`text-[9px] px-1 py-0 border-0 ${
+   343→                boardConfigIsDefault
+   344→                  ? 'bg-indigo-100 text-indigo-700'
+   345→                  : 'bg-violet-100 text-violet-700'
+   346→              }`}
+   347→              title={
+   348→                boardConfigIsDefault
+   349→                  ? 'Esta zona usa el tablero predeterminado del sistema (compartido). Los cambios afectan a todas las zonas que lo usen.'
+   350→                  : `Tablero: ${boardConfigName}`
+   351→              }
+   352→            >
+   353→              <LayoutGrid className="h-2.5 w-2.5 mr-0.5 inline" />
+   354→              {boardConfigName}
+   355→              {boardConfigIsDefault && ' · predeterminado'}
+   356→            </Badge>
+   357→          )}
+   358→        </div>
+   359→        <Button
+   360→          size="sm"
+   361→          variant="outline"
+   362→          className="h-7 text-[11px] border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+   363→          onClick={() => setSheetOpen(true)}
+   364→        >
+   365→          <Edit3 className="h-3 w-3 mr-1" />
+   366→          Editar plantillas
+   367→        </Button>
+   368→      </div>
+   369→
+   370→      {boardConfigIsDefault && (
+   371→        <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 flex items-start gap-1">
+   372→          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+   373→          <span>
+   374→            Esta zona usa el <strong>tablero predeterminado</strong> (compartido
+   375→            por todas las zonas sin tablero propio). Si cambias una plantilla
+   376→            aquí, el cambio se aplica a todas las zonas que compartan este
+   377→            tablero. Para personalizar solo esta zona, crea un tablero propio
+   378→            desde la sección de Tableros.
+   379→          </span>
+   380→        </div>
+   381→      )}
+   382→
+   383→      {/* Grid 5S × 5Pasos */}
+   384→      {isLoading ? (
+   385→        <div className="flex items-center justify-center py-4">
+   386→          <Loader2 className="h-5 w-5 text-emerald-500 animate-spin" />
+   387→          <span className="text-xs text-muted-foreground ml-2">Cargando plantillas…</span>
+   388→        </div>
+   389→      ) : (
+   390→        <div className="space-y-1.5">
+   391→          {S_STEPS.map(s => {
+   392→            const isExpanded = expandedS === s.id
+   393→            const sAssigned = [1, 2, 3, 4, 5].filter(miniStep => {
+   394→              const types = MINI_STEP_TYPES[miniStep] || []
+   395→              return types.some(({ type }) => getTemplateForCell(s.id, miniStep, type))
+   396→            }).length
+   397→            return (
+   398→              <div
+   399→                key={s.id}
+   400→                className="rounded-md border overflow-hidden"
+   401→                style={{ borderColor: S_COLORS[s.id] + '30' }}
+   402→              >
+   403→                {/* S header */}
+   404→                <button
+   405→                  type="button"
+   406→                  className="w-full flex items-center gap-2 px-2.5 py-1.5 cursor-pointer"
+   407→                  style={{ backgroundColor: S_COLORS[s.id] + '10' }}
+   408→                  onClick={() => setExpandedS(isExpanded ? null : s.id)}
+   409→                >
+   410→                  <div
+   411→                    className="w-6 h-6 rounded-md flex items-center justify-center text-white font-bold text-[10px] shrink-0"
+   412→                    style={{ backgroundColor: S_COLORS[s.id] }}
+   413→                  >
+   414→                    S{s.id}
+   415→                  </div>
+   416→                  <span className="text-xs font-semibold flex-1 text-left" style={{ color: S_COLORS[s.id] }}>
+   417→                    {s.japaneseName} <span className="text-muted-foreground font-normal">({s.spanishName})</span>
+   418→                  </span>
+   419→                  <Badge
+   420→                    variant="outline"
+   421→                    className="text-[9px] px-1 py-0"
+   422→                    style={{ color: S_COLORS[s.id], borderColor: S_COLORS[s.id] + '40' }}
+   423→                  >
+   424→                    {sAssigned}/5
+   425→                  </Badge>
+   426→                  {isExpanded
+   427→                    ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+   428→                    : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+   429→                </button>
+   430→
+   431→                {/* Cells */}
+   432→                <AnimatePresence initial={false}>
+   433→                  {isExpanded && (
+   434→                    <motion.div
+   435→                      initial={{ height: 0, opacity: 0 }}
+   436→                      animate={{ height: 'auto', opacity: 1 }}
+   437→                      exit={{ height: 0, opacity: 0 }}
+   438→                      className="overflow-hidden"
+   439→                    >
+   440→                      <div className="p-2 space-y-1.5 bg-white">
+   441→                        {[1, 2, 3, 4, 5].map(miniStep => {
+   442→                          const types = MINI_STEP_TYPES[miniStep] || []
+   443→                          return (
+   444→                            <div key={miniStep} className="space-y-1">
+   445→                              <div className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
+   446→                                Paso {miniStep}: {PASO_LABELS[miniStep]}
+   447→                              </div>
+   448→                              {types.map(({ type, label }) => {
+   449→                                const assigned = getTemplateForCell(s.id, miniStep, type)
+   450→                                const cellKey = `${s.id}|${miniStep}|${type}`
+   451→                                const isPicking = pickerCell === cellKey
+   452→                                const isSaving = isSavingCell === cellKey
+   453→                                return (
+   454→                                  <>
+   455→                                  <div
+   456→                                    key={type}
+   457→                                    className="flex items-center gap-1.5 px-2 py-1 rounded border border-gray-100 bg-gray-50/50"
+   458→                                  >
+   459→                                    <span className="text-[10px] text-muted-foreground w-20 shrink-0">
+   460→                                      {label}
+   461→                                    </span>
+   462→                                    {assigned ? (
+   463→                                      <span
+   464→                                        className="text-xs flex-1 truncate text-gray-900"
+   465→                                        title={assigned.template.title}
+   466→                                      >
+   467→                                        {assigned.template.title}
+   468→                                      </span>
+   469→                                    ) : (
+   470→                                      <span className="text-xs flex-1 italic text-muted-foreground">
+   471→                                        Sin asignar
+   472→                                      </span>
+   473→                                    )}
+   474→                                    {isSaving ? (
+   475→                                      <Loader2 className="h-3 w-3 animate-spin text-emerald-500" />
+   476→                                    ) : isPicking ? (
+   477→                                      <Select
+   478→                                        value={assigned?.templateId || '__none__'}
+   479→                                        onValueChange={(val) => {
+   480→                                          const newId = val === '__none__' ? null : val
+   481→                                          saveCellAssignment(s.id, miniStep, type, newId)
+   482→                                        }}
+   483→                                      >
+   484→                                        <SelectTrigger className="h-6 text-[11px] flex-1 min-w-[140px]">
+   485→                                          <SelectValue placeholder="Elegir plantilla…" />
+   486→                                        </SelectTrigger>
+   487→                                        <SelectContent position="popper" side="top" className="max-h-72">
+   488→                                          <SelectItem value="__none__">
+   489→                                            <span className="text-muted-foreground italic">— Sin asignar —</span>
+   490→                                          </SelectItem>
+   491→                                          {isLoadingAvail ? (
+   492→                                            <SelectItem value="__loading__" disabled>
+   493→                                              Cargando…
+   494→                                            </SelectItem>
+   495→                                          ) : availableForCell.length === 0 ? (
+   496→                                            <SelectItem value="__empty__" disabled>
+   497→                                              No hay plantillas disponibles
+   498→                                            </SelectItem>
+   499→                                          ) : (
+   500→                                            availableForCell.map(tpl => (
+   501→                                              <SelectItem key={tpl.id} value={tpl.id}>
+   502→                                                <span className="flex items-center gap-1.5">
+   503→                                                  {tpl.companyId == null && (
+   504→                                                    <Library className="h-3 w-3 text-violet-500" />
+   505→                                                  )}
+   506→                                                  <span className="truncate">{tpl.title}</span>
+   507→                                                  {!tpl.active && (
+   508→                                                    <span className="text-[9px] text-amber-600">(inactiva)</span>
+   509→                                                  )}
+   510→                                                </span>
+   511→                                              </SelectItem>
+   512→                                            ))
+   513→                                          )}
+   514→                                        </SelectContent>
+   515→                                      </Select>
+   516→                                    ) : (
+   517→                                      <>
+   518→                                        <Button
+   519→                                          size="sm"
+   520→                                          variant="ghost"
+   521→                                          className="h-6 px-1.5 text-[10px] text-blue-600 hover:text-blue-800"
+   522→                                          onClick={() => setSheetOpen(true)}
+   523→                                          title="Editar contenido de la plantilla (abre el editor)"
+   524→                                        >
+   525→                                          <Edit3 className="h-3 w-3" />
+   526→                                        </Button>
+   527→                                        <Button
+   528→                                          size="sm"
+   529→                                          variant="ghost"
+   530→                                          className="h-6 px-1.5 text-[10px] text-emerald-600 hover:text-emerald-800"
+   531→                                          onClick={() => openPicker(s.id, miniStep, type)}
+   532→                                          title="Cambiar la plantilla asignada a esta celda"
+   533→                                        >
+   534→                                          <RefreshCw className="h-3 w-3" />
+   535→                                        </Button>
+   536→                                      </>
+   537→                                    )}
+   538→                                  </div>
+   539→
+   540→                                  {/* v2.35: override del límite de fotos (solo type='fotos' y con plantilla asignada) */}
+   541→                                  {type === 'fotos' && assigned && (
+   542→                                    <div className="ml-6 mb-1 flex items-center gap-1.5 px-2 py-1 rounded border border-amber-100 bg-amber-50/40">
+   543→                                      <Camera className="h-3 w-3 text-amber-600 shrink-0" />
+   544→                                      <span className="text-[10px] text-amber-700 font-medium shrink-0">Mín. fotos:</span>
+   545→                                      {photoLimitEditing === cellKey ? (
+   546→                                        <>
+   547→                                          <input
+   548→                                            type="number"
+   549→                                            min={0}
+   550→                                            max={1000}
+   551→                                            value={photoLimitValue}
+   552→                                            onChange={(e) => setPhotoLimitValue(e.target.value)}
+   553→                                            placeholder={String(assigned.template.minPhotos ?? 10)}
+   554→                                            className="h-5 w-16 text-[11px] px-1 border border-amber-300 rounded focus:outline-none focus:ring-1 focus:ring-amber-400"
+   555→                                            autoFocus
+   556→                                            onKeyDown={(e) => {
+   557→                                              if (e.key === 'Enter') savePhotoLimitOverride(assigned.id, photoLimitValue, cellKey)
+   558→                                              if (e.key === 'Escape') setPhotoLimitEditing(null)
+   559→                                            }}
+   560→                                          />
+   561→                                          {photoLimitSaving === cellKey ? (
+   562→                                            <Loader2 className="h-3 w-3 animate-spin text-amber-600" />
+   563→                                          ) : (
+   564→                                            <>
+   565→                                              <Button
+   566→                                                size="sm"
+   567→                                                variant="ghost"
+   568→                                                className="h-5 px-1 text-[9px] text-emerald-700 hover:bg-emerald-100"
+   569→                                                onClick={() => savePhotoLimitOverride(assigned.id, photoLimitValue, cellKey)}
+   570→                                                title="Guardar"
+   571→                                              >
+   572→                                                Guardar
+   573→                                              </Button>
+   574→                                              <Button
+   575→                                                size="sm"
+   576→                                                variant="ghost"
+   577→                                                className="h-5 px-1 text-[9px] text-gray-500 hover:bg-gray-100"
+   578→                                                onClick={() => setPhotoLimitEditing(null)}
+   579→                                                title="Cancelar"
+   580→                                              >
+   581→                                                Cancelar
+   582→                                              </Button>
+   583→                                            </>
+   584→                                          )}
+   585→                                        </>
+   586→                                      ) : (
+   587→                                        <>
+   588→                                          <span className="text-[11px] font-semibold text-amber-800">
+   589→                                            {assigned.minPhotosOverride != null
+   590→                                              ? assigned.minPhotosOverride
+   591→                                              : (assigned.template.minPhotos ?? 10)}
+   592→                                          </span>
+   593→                                          {assigned.minPhotosOverride != null ? (
+   594→                                            <Badge className="text-[8px] px-1 py-0 bg-amber-200 text-amber-800 border-0">
+   595→                                              override zona
+   596→                                            </Badge>
+   597→                                          ) : (
+   598→                                            <span className="text-[9px] text-amber-600 italic">
+   599→                                              (hereda de plantilla: {assigned.template.minPhotos ?? 10})
+   600→                                            </span>
+   601→                                          )}
+   602→                                          <Button
+   603→                                            size="sm"
+   604→                                            variant="ghost"
+   605→                                            className="h-5 px-1 ml-auto text-[9px] text-amber-700 hover:bg-amber-100"
+   606→                                            onClick={() => {
+   607→                                              setPhotoLimitEditing(cellKey)
+   608→                                              setPhotoLimitValue(
+   609→                                                assigned.minPhotosOverride != null
+   610→                                                  ? String(assigned.minPhotosOverride)
+   611→                                                  : ''
+   612→                                              )
+   613→                                            }}
+   614→                                            title="Sobreescribir el mínimo para esta zona"
+   615→                                          >
+   616→                                            Cambiar
+   617→                                          </Button>
+   618→                                        </>
+   619→                                      )}
+   620→                                    </div>
+   621→                                  )}
+   622→                                  </>
+   623→                                )
+   624→                              })}
+   625→                            </div>
+   626→                          )
+   627→                        })}
+   628→                      </div>
+   629→                    </motion.div>
+   630→                  )}
+   631→                </AnimatePresence>
+   632→              </div>
+   633→            )
+   634→          })}
+   635→        </div>
+   636→      )}
+   637→
+   638→      {/* Sheet con el editor completo de plantillas */}
+   639→      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+   640→        <SheetContent
+   641→          side="right"
+   642→          className="w-full sm:max-w-3xl overflow-y-auto bg-white"
+   643→        >
+   644→          <SheetHeader>
+   645→            <SheetTitle className="flex items-center gap-2">
+   646→              <BookOpen className="h-5 w-5 text-emerald-600" />
+   647→              Plantillas — {zoneName}
+   648→            </SheetTitle>
+   649→            <SheetDescription>
+   650→              Edita el contenido de las plantillas. Los cambios se aplican a
+   651→              todas las zonas que usen la misma plantilla.
+   652→              {isGestor
+   653→                ? ' Como gestor, editas la Biblioteca del Sistema (plantillas genéricas compartidas).'
+   654→                : ` Estás editando las plantillas de ${companyName} + la Biblioteca del Sistema (solo lectura).`}
+   655→            </SheetDescription>
+   656→          </SheetHeader>
+   657→          <div className="px-4 pb-6 -mt-2">
+   658→            <TemplateManager
+   659→              embedded
+   660→              overrideCompanyId={companyId}
+   661→              overrideCompanyName={companyName}
+   662→            />
+   663→          </div>
+   664→        </SheetContent>
+   665→      </Sheet>
+   666→    </div>
+   667→  )
+   668→}
+   669→
