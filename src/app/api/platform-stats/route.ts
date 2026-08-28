@@ -3,7 +3,7 @@ import { db } from '../../../lib/db'
 import { getAuthUser } from '../../../lib/auth-helpers'
 
 // GET /api/platform-stats - Platform-wide statistics for Gestor (dueño de la app)
-// ✅ UPDATED: Ahora incluye `adminUser` en cada empresa (el primer admin_empresa encontrado)
+// v3.0.1: FIX - Corregidos nombres de relaciones Prisma
 export async function GET(request: NextRequest) {
   try {
     // Verify the user is a gestor
@@ -38,8 +38,6 @@ export async function GET(request: NextRequest) {
       db.actionItem.count({ where: { estado: 'abierta' } }),
     ])
 
-    // v2.30: si la columna companyId no existe (migración SQL pendiente),
-    // db.template.count fallará — capturar y devolver 0
     let totalTemplates = 0
     try {
       totalTemplates = await db.template.count({ where: { active: true } })
@@ -58,65 +56,37 @@ export async function GET(request: NextRequest) {
       roleDistribution[entry.role] = entry._count.id
     }
 
-    // ✅ Companies with details + admin user (first member with role 'admin_empresa' or 'admin')
-    // Try with invitationEmailSent first; if column doesn't exist yet, fallback without it
-    let companies: any[]
-    let hasInvitationEmailSent = true
-    try {
-      companies = await db.company.findMany({
-        include: {
-          _count: { select: { projects: true, members: true } },
-          members: {
-            where: {
-              OR: [
-                { role: 'admin_empresa' },
-                { role: 'admin' },
-              ],
-            },
-            include: {
-              user: {
-                select: { id: true, name: true, email: true, role: true, active: true },
-              },
-            },
-            orderBy: { joinedAt: 'asc' },
-            take: 1,
-          },
+    // v3.0.1 FIX: Companies with details + admin user - Using correct Prisma relation names
+    // CompanyMember (not members), User (not user)
+    const companies = await db.company.findMany({
+      include: {
+        _count: { 
+          select: { 
+            projects: true, 
+            CompanyMember: true  // v3.0.1 FIX: CompanyMember not members
+          } 
         },
-        orderBy: { createdAt: 'desc' },
-      })
-    } catch (dbError: any) {
-      // Column invitationEmailSent might not exist yet — retry with explicit select
-      if (dbError?.message?.includes('invitationEmailSent') || dbError?.code === 'P2022') {
-        console.log('[platform-stats] invitationEmailSent column not found, using fallback query')
-        hasInvitationEmailSent = false
-        companies = await db.company.findMany({
+        CompanyMember: {  // v3.0.1 FIX: CompanyMember not members
+          where: {
+            OR: [
+              { role: 'admin_empresa' },
+              { role: 'admin' },
+            ],
+          },
           include: {
-            _count: { select: { projects: true, members: true } },
-            members: {
-              where: {
-                OR: [
-                  { role: 'admin_empresa' },
-                  { role: 'admin' },
-                ],
-              },
-              include: {
-                user: {
-                  select: { id: true, name: true, email: true, role: true, active: true },
-                },
-              },
-              orderBy: { joinedAt: 'asc' },
-              take: 1,
+            User: {  // v3.0.1 FIX: User not user
+              select: { id: true, name: true, email: true, role: true, active: true },
             },
           },
-          orderBy: { createdAt: 'desc' },
-        })
-      } else {
-        throw dbError
-      }
-    }
+          orderBy: { joinedAt: 'asc' },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
 
     const companiesWithDetails = companies.map(c => {
-      const adminMember = c.members[0]
+      const adminMember = c.CompanyMember?.[0]  // v3.0.1 FIX: CompanyMember not members
       return {
         id: c.id,
         name: c.name,
@@ -124,15 +94,14 @@ export async function GET(request: NextRequest) {
         active: c.active,
         createdAt: c.createdAt,
         projectCount: c._count.projects,
-        memberCount: c._count.members,
-        // ✅ Nuevo campo: admin user info
+        memberCount: c._count.CompanyMember || 0,  // v3.0.1 FIX
+        // Admin user info
         adminUser: adminMember
           ? {
-              id: adminMember.user.id,
-              name: adminMember.user.name,
-              email: adminMember.user.email,
-              active: adminMember.user.active,
-              invitationEmailSent: hasInvitationEmailSent ? (adminMember.invitationEmailSent ?? false) : false,
+              id: adminMember.User.id,  // v3.0.1 FIX: User not user
+              name: adminMember.User.name,
+              email: adminMember.User.email,
+              active: adminMember.User.active,
             }
           : null,
       }
@@ -152,11 +121,16 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // Projects per company
+    // Projects per company - v3.0.1 FIX: Use correct Prisma relations
     const projectsWithCompany = await db.project.findMany({
       include: {
-        companyRel: { select: { id: true, name: true } },
-        _count: { select: { members: true, zones: true } },
+        Company: { select: { id: true, name: true } },  // v3.0.1 FIX: Company not companyRel
+        _count: { 
+          select: { 
+            ProjectMember: true,  // v3.0.1 FIX: ProjectMember not members
+            Zone: true  // v3.0.1 FIX: Zone not zones
+          } 
+        },
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -167,27 +141,27 @@ export async function GET(request: NextRequest) {
       description: p.description,
       company: p.company,
       companyId: p.companyId,
-      companyName: p.companyRel?.name || null,
+      companyName: p.Company?.name || null,  // v3.0.1 FIX: Company not companyRel
       active: p.active,
       startDate: p.startDate,
       createdAt: p.createdAt,
-      memberCount: p._count.members,
-      zoneCount: p._count.zones,
+      memberCount: p._count.ProjectMember || 0,  // v3.0.1 FIX
+      zoneCount: p._count.Zone || 0,  // v3.0.1 FIX
     }))
 
-    // All users with company info
+    // All users with company info - v3.0.1 FIX: Correct Prisma relation names
     const allUsers = await db.user.findMany({
       include: {
-        memberships: {
+        Project: {  // v3.0.1 FIX: Project not memberships
           include: {
-            project: {
-              select: { id: true, name: true, company: true, companyId: true }
+            Company: {  // v3.0.1 FIX
+              select: { id: true, name: true }
             }
           }
         },
-        companyMemberships: {
+        CompanyMember: {  // v3.0.1 FIX: CompanyMember not companyMemberships
           include: {
-            company: { select: { id: true, name: true } }
+            Company: { select: { id: true, name: true } }  // v3.0.1 FIX
           }
         }
       },
@@ -201,17 +175,16 @@ export async function GET(request: NextRequest) {
       role: u.role,
       active: u.active,
       createdAt: u.createdAt,
-      companies: u.companyMemberships.map(cm => ({
-        id: cm.company.id,
-        name: cm.company.name,
+      companies: u.CompanyMember?.map(cm => ({  // v3.0.1 FIX
+        id: cm.Company.id,
+        name: cm.Company.name,
         role: cm.role,
-      })),
-      projects: u.memberships.map(m => ({
-        id: m.project.id,
-        name: m.project.name,
-        company: m.project.company,
-        role: m.role,
-      })),
+      })) || [],
+      projects: u.Project?.map(m => ({  // v3.0.1 FIX
+        id: m.id,
+        name: m.name,
+        company: m.Company?.name || null,  // v3.0.1 FIX
+      })) || [],
     }))
 
     return NextResponse.json({
