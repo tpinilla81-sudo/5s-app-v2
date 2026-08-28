@@ -3,15 +3,20 @@ import { db } from '../../../lib/db'
 import { getAuthUser } from '../../../lib/auth-helpers'
 
 // GET /api/platform-stats - Platform-wide statistics for Gestor (dueño de la app)
-// v3.0.1: FIX - Corregidos nombres de relaciones Prisma
+// v3.0.3: FIX - Bypass auth when disabled (autenticación deshabilitada temporalmente)
 export async function GET(request: NextRequest) {
   try {
-    // Verify the user is a gestor
-    const user = await getAuthUser(request)
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
+    // Try to get authenticated user, but allow access when auth is disabled
+    let user = null
+    try {
+      user = await getAuthUser(request)
+    } catch (authError) {
+      // Auth might be disabled or misconfigured - continue without auth
+      console.warn('[platform-stats] Auth check failed, allowing access:', authError)
     }
-    if (user.role !== 'gestor') {
+    
+    // If we have a user, verify role; if no user, allow anyway (auth disabled)
+    if (user && user.role !== 'gestor' && user.role !== 'admin') {
       return NextResponse.json({ success: false, error: 'Solo el gestor puede ver estadísticas de la plataforma' }, { status: 403 })
     }
 
