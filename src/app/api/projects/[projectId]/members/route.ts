@@ -3,12 +3,15 @@ import { db } from '../../../../../lib/db'
 import { hashPassword } from '../../../../../lib/password'
 
 // GET /api/projects/[projectId]/members - List members with zones, role, and password
+// v3.0.1: FIX - Corregidos nombres de relaciones Prisma
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
     const { projectId } = await params
+
+    console.log('[DEBUG v3.0.1 /members] Fetching members for project:', projectId)
 
     const members = await db.projectMember.findMany({
       where: { projectId },
@@ -24,9 +27,9 @@ export async function GET(
             plainPassword: true,
           },
         },
-        zones: {
+        MemberZone: {  // v3.0.1 FIX: MemberZone es el nombre correcto
           include: {
-            zone: {
+            Zone: {  // v3.0.1 FIX: Zone es el nombre correcto dentro de MemberZone
               select: {
                 id: true,
                 name: true,
@@ -40,17 +43,19 @@ export async function GET(
       orderBy: { joinedAt: 'asc' },
     })
 
+    console.log('[DEBUG v3.0.1 /members] Found members:', members.length)
+
     // Transform to include zones array instead of nested MemberZone
     const transformedMembers = members.map(m => ({
       id: m.id,
       role: m.role,
       joinedAt: m.joinedAt,
       user: m.user,
-      zones: m.zones.map(mz => ({
-        id: mz.zone.id,
-        name: mz.zone.name,
-        color: mz.zone.color,
-      })),
+      zones: m.MemberZone?.map(mz => ({
+        id: mz.Zone.id,
+        name: mz.Zone.name,
+        color: mz.Zone.color,
+      })) || [],
     }))
 
     return NextResponse.json({ members: transformedMembers }, { status: 200 })
