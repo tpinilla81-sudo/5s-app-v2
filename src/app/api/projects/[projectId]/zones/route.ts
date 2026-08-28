@@ -3,6 +3,7 @@ import { db } from '../../../../../lib/db'
 import { ensureJaulaZone } from '../../../../../lib/jaula-zone'
 
 // GET /api/projects/[projectId]/zones - List zones of a project
+// v3.0.1: DEBUG - Deshabilitado ensureJaulaZone temporalmente por errores de constraints
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
@@ -10,26 +11,28 @@ export async function GET(
   try {
     const { projectId } = await params
 
-    // v2.101 (PENDIENTE-S1, Opción A): migración perezosa — si el proyecto
-    // todavía no tiene zona JAULA física (proyectos creados antes de
-    // v2.101), se crea ahora. No bloquea la respuesta: si falla, sigue.
-    try {
-      await ensureJaulaZone(projectId)
-    } catch (e) {
-      console.error('[zones GET] ensureJaulaZone failed (non-fatal):', e instanceof Error ? e.message : e)
-    }
+    // v3.0.1 TEMPORAL: Deshabilitado ensureJaulaZone - causa errores de constraint duplicada
+    // try {
+    //   await ensureJaulaZone(projectId)
+    // } catch (e) {
+    //   console.error('[zones GET] ensureJaulaZone failed (non-fatal):', e instanceof Error ? e.message : e)
+    // }
+
+    console.log('[DEBUG v3.0.1 /zones] Fetching zones for project:', projectId)
 
     const zones = await db.zone.findMany({
       where: { projectId },
       include: {
         _count: {
-          select: { memberZones: true },
+          select: { MemberZone: true },  // v3.0.1 FIX
         },
-        boardConfig: { select: { id: true, name: true } },
-        responsable: { select: { id: true, name: true, email: true } },
+        BoardConfiguration: { select: { id: true, name: true } },  // v3.0.1 FIX: BoardConfiguration no boardConfig
+        User: { select: { id: true, name: true, email: true } },  // v3.0.1 FIX: User no responsable
       },
       orderBy: { createdAt: 'asc' },
     })
+
+    console.log('[DEBUG v3.0.1 /zones] Found zones:', zones.length)
 
     const result = zones.map((zone) => ({
       id: zone.id,
@@ -38,10 +41,10 @@ export async function GET(
       color: zone.color,
       projectId: zone.projectId,
       boardConfigId: zone.boardConfigId,
-      boardConfig: zone.boardConfig,
+      boardConfig: zone.BoardConfiguration,  // v3.0.1 FIX: BoardConfiguration no boardConfig
       responsableId: zone.responsableId,
-      responsable: zone.responsable,
-      memberCount: zone._count.memberZones,
+      responsable: zone.User,  // v3.0.1 FIX: User no responsable
+      memberCount: zone._count?.MemberZone || 0,  // v3.0.1 FIX
       isJaula: zone.isJaula,
     }))
 
