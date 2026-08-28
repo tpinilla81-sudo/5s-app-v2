@@ -6,15 +6,23 @@ import { getAuthUser } from '../../../lib/auth-helpers'
  * GET /api/my-company
  * Returns the company data for the authenticated admin user.
  * Used by ProjectSetup to pre-fill company info.
+ * v3.0.1: DEBUG TEMPORAL
  */
 export async function GET(request: NextRequest) {
   try {
+    console.log('[DEBUG my-company] Starting request...')
     const user = await getAuthUser(request)
+    console.log('[DEBUG my-company] Auth user:', user ? { id: user.id, email: user.email, role: user.role } : null)
+    
     if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
+      return NextResponse.json({ 
+        success: false, 
+        error: 'No autenticado',
+        _debug: { version: 'v3.0.1-DEBUG', auth: 'FAILED' }
+      }, { status: 401 })
     }
 
-    // Find the user's company membership
+    // Find the user's company membership - v3.0.1 FIX: usar Company (mayúscula)
     const membership = await db.companyMember.findFirst({
       where: {
         userId: user.id,
@@ -24,15 +32,21 @@ export async function GET(request: NextRequest) {
         ],
       },
       include: {
-        company: true,
+        Company: true,  // v3.0.1 FIX: Company no company
       },
     })
+    
+    console.log('[DEBUG my-company] Membership:', membership ? { id: membership.id, role: membership.role, companyId: membership.companyId } : null)
 
     if (!membership) {
-      return NextResponse.json({ success: false, error: 'No tienes empresa asignada' }, { status: 404 })
+      return NextResponse.json({ 
+        success: false, 
+        error: 'No tienes empresa asignada',
+        _debug: { version: 'v3.0.1-DEBUG', userId: user.id, userRole: user.role }
+      }, { status: 404 })
     }
 
-    const c = membership.company
+    const c = membership.Company  // v3.0.1 FIX: usar .Company no .company
     return NextResponse.json({
       success: true,
       company: {
