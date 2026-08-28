@@ -18,11 +18,11 @@ export async function GET(request: NextRequest) {
     const companies = await db.company.findMany({
       where: { active: true },
       include: {
-        _count: { select: { projects: true, members: true } },
-        subscription: true,
-        members: {
-          where: { role: 'admin_empresa' },
-          include: { user: { select: { id: true, name: true, email: true, active: true } } },
+        _count: { select: { projects: true } },
+        CompanyMember: {
+          include: { 
+            User: { select: { id: true, name: true, email: true, active: true } } 
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -35,10 +35,9 @@ export async function GET(request: NextRequest) {
       active: c.active,
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
-      projectCount: c._count.projects,
-      memberCount: c._count.members,
-      subscription: c.subscription || null,
-      admin: c.members?.[0]?.user || null,
+      projectCount: c._count?.projects || 0,
+      memberCount: c.CompanyMember?.length || 0,
+      admin: c.CompanyMember?.find((m: any) => m.role === 'admin_empresa')?.User || null,
     }))
 
     console.log('[DEBUG v3.0.1] Returning', result.length, 'companies:', result.map(c => c.name))
