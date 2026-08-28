@@ -1,0 +1,252 @@
+/tmp/test-deploy/src/components/5s/JaulaModal.tsx:159:    if (!opt) return <Badge className="bg-gray-100 text-gray-400 text-[10px]">—</Badge>;
+/tmp/test-deploy/src/components/5s/JaulaModal.tsx:236:            <div className="h-4 w-px bg-gray-200 mx-1 shrink-0" />
+/tmp/test-deploy/src/components/5s/JaulaModal.tsx:248:                  f.active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+/tmp/test-deploy/src/components/5s/JaulaModal.tsx:256:                className="flex items-center gap-0.5 px-2 py-1 rounded-full text-[10px] text-gray-500 hover:bg-gray-100">
+/tmp/test-deploy/src/components/5s/JaulaModal.tsx:285:                      <th className="bg-gray-400 text-white px-1 py-1.5 text-center font-bold border border-gray-500 w-8">🗑</th>
+/tmp/test-deploy/src/components/5s/JaulaModal.tsx:314:                        <tr key={item.id} className={`border-b hover:bg-gray-50 ${
+/tmp/test-deploy/src/components/5s/JaulaModal.tsx:405:                          <td className="px-1 py-1 border text-center bg-gray-50">
+/tmp/test-deploy/src/components/5s/JaulaModal.tsx:438:                    <div key={item.id} className="rounded-xl border bg-white shadow-sm overflow-hidden">
+/tmp/test-deploy/src/components/5s/ProgressDashboard.tsx:67:    if (score === null) return 'bg-gray-50 border-gray-200';
+/tmp/test-deploy/src/components/5s/PDCABoardView.tsx:96:  { value: 'baja', label: 'Baja', color: 'bg-gray-100 text-gray-800' },
+/tmp/test-deploy/src/components/5s/PDCABoardView.tsx:103:  { value: 'pendiente', label: 'Pendiente', color: 'bg-gray-100 text-gray-800' },
+/tmp/test-deploy/src/components/5s/PDCABoardView.tsx:309:        <div className="px-6 py-4 border-b bg-white">
+/tmp/test-deploy/src/components/5s/PDCABoardView.tsx:368:        <div className="px-6 py-4 border-b bg-gray-50">
+/tmp/test-deploy/src/components/5s/PDCABoardView.tsx:387:                    backgroundColor: isActive ? phase.bgColor : 'white',
+/tmp/test-deploy/src/components/5s/PDCABoardView.tsx:402:                    <div className="flex-1 h-1.5 rounded-full bg-gray-100">
+/tmp/test-deploy/src/components/5s/PDCABoardView.tsx:417:        <div className="px-6 py-3 border-b bg-white flex items-center gap-2 shrink-0">
+/tmp/test-deploy/src/components/5s/PDCABoardView.tsx:559:                    className="border-2 rounded-xl p-4 hover:shadow-md transition-all bg-white"
+/tmp/test-deploy/src/components/5s/PeriodicAuditModal.tsx:304:              className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-100 bg-white"
+/tmp/test-deploy/src/components/5s/PeriodicAuditModal.tsx:314:              className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100 bg-white"
+/tmp/test-deploy/src/components/5s/PeriodicAuditModal.tsx:451:                                          className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${status === 'na' ? 'bg-gray-500 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+/tmp/test-deploy/src/components/5s/PeriodicAuditModal.tsx:522:                    className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${haMejoras === true ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300 hover:bg-green-50'}`}
+/tmp/test-deploy/src/components/5s/PeriodicAuditModal.tsx:527:                    className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${haMejoras === false ? 'bg-gray-600 text-white' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'}`}
+/tmp/test-deploy/src/components/5s/PeriodicAuditModal.tsx:540:                      <div key={mejora.id} className="bg-white border border-green-200 rounded-lg p-3 space-y-2">
+/tmp/test-deploy/src/components/5s/AuditoriaModal.tsx:1244:              className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-100 bg-white"
+/tmp/test-deploy/src/components/5s/AuditoriaModal.tsx:1254:              className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100 bg-white"
+/tmp/test-deploy/src/components/5s/AuditoriaModal.tsx:1660:                                      ? 'bg-gray-500 text-white'
+/tmp/test-deploy/src/components/5s/AuditoriaModal.tsx:1661:                                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+/tmp/test-deploy/src/components/5s/AuditoriaModal.tsx:1715:                        : 'bg-white text-green-700 border border-green-300 hover:bg-green-50'
+/tmp/test-deploy/src/components/5s/AuditoriaModal.tsx:1725:                        ? 'bg-gray-600 text-white'
+/tmp/test-deploy/src/components/5s/AuditoriaModal.tsx:1726:                        : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
+/tmp/test-deploy/src/components/5s/AuditoriaModal.tsx:1750:                      <div key={mejora.id} className="bg-white border border-green-200 rounded-lg p-3 space-y-2">
+/tmp/test-deploy/src/components/5s/NokInventarioRow.tsx:138:            <th colSpan={2} className="bg-gray-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-gray-600"></th>
+/tmp/test-deploy/src/components/5s/NokInventarioRow.tsx:158:            <th className="bg-gray-400 text-white px-1 py-1 text-center font-semibold border border-gray-400 whitespace-nowrap">Fotos</th>
+/tmp/test-deploy/src/components/5s/NokInventarioRow.tsx:159:            <th className="bg-gray-400 text-white px-1 py-1 text-center font-semibold border border-gray-400 w-8"></th>
+/tmp/test-deploy/src/components/5s/NokInventarioRow.tsx:319:                <td className="px-1 py-1 border bg-gray-50">
+/tmp/test-deploy/src/components/5s/NokInventarioRow.tsx:328:                            className="w-8 h-8 object-cover rounded border border-gray-300 bg-gray-100"
+/tmp/test-deploy/src/components/5s/NokInventarioRow.tsx:342:                      className="w-8 h-8 flex items-center justify-center rounded border border-dashed border-gray-400 bg-gray-50 hover:bg-gray-100 hover:border-gray-500 text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
+/tmp/test-deploy/src/components/5s/NokInventarioRow.tsx:360:                <td className="px-1 py-1 border bg-gray-50 text-center">
+/tmp/test-deploy/src/components/5s/ColorCodeTable.tsx:176:        <div className="px-6 py-2 border-b bg-gray-50/50 flex items-center gap-2 shrink-0">
+/tmp/test-deploy/src/components/5s/ColorCodeTable.tsx:190:          <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-gray-100">
+/tmp/test-deploy/src/components/5s/ColorCodeTable.tsx:213:            <div className="bg-gray-200 text-gray-700 px-2 py-1.5 text-[10px] font-bold border-b border-gray-300">
+/tmp/test-deploy/src/components/5s/ColorCodeTable.tsx:222:                  idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
+/tmp/test-deploy/src/components/5s/ColorCodeTable.tsx:258:            <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+/tmp/test-deploy/src/components/5s/JaulaView.tsx:272:    if (!opt) return <Badge className="bg-gray-100 text-gray-400 text-[10px]">—</Badge>;
+/tmp/test-deploy/src/components/5s/JaulaView.tsx:319:      <div className="px-3 sm:px-4 py-2.5 border-b bg-white shrink-0">
+/tmp/test-deploy/src/components/5s/JaulaView.tsx:354:          {tagItems.length > 0 && <div className="h-4 w-px bg-gray-200 mx-1 shrink-0" />}
+/tmp/test-deploy/src/components/5s/JaulaView.tsx:366:                f.active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+/tmp/test-deploy/src/components/5s/JaulaView.tsx:374:              className="flex items-center gap-0.5 px-2 py-1 rounded-full text-[10px] text-gray-500 hover:bg-gray-100">
+/tmp/test-deploy/src/components/5s/JaulaView.tsx:410:                    <th className="bg-gray-400 text-white px-1 py-1.5 text-center font-bold border border-gray-500 w-8">🗑</th>
+/tmp/test-deploy/src/components/5s/JaulaView.tsx:439:                      <tr key={item.id} className={`border-b hover:bg-gray-50 ${
+/tmp/test-deploy/src/components/5s/JaulaView.tsx:530:                        <td className="px-1 py-1 border text-center bg-gray-50">
+/tmp/test-deploy/src/components/5s/JaulaView.tsx:563:                  <div key={item.id} className="rounded-xl border bg-white shadow-sm overflow-hidden">
+/tmp/test-deploy/src/components/5s/ActivosModal.tsx:181:                filterCat === 'all' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+/tmp/test-deploy/src/components/5s/ActivosModal.tsx:191:                  filterCat === c.value ? 'text-white border-transparent' : 'bg-white border-gray-200 hover:opacity-80'
+/tmp/test-deploy/src/components/5s/ActivosModal.tsx:200:                className="flex items-center gap-0.5 px-2 py-1 rounded-full text-[10px] text-gray-500 hover:bg-gray-100">
+/tmp/test-deploy/src/components/5s/ActivosModal.tsx:231:                      <th className="bg-gray-400 text-white px-1 py-1.5 text-center font-bold border border-gray-500 w-8">🗑</th>
+/tmp/test-deploy/src/components/5s/ActivosModal.tsx:245:                      <tr key={item.id} className="border-b hover:bg-gray-50 bg-green-50/20">
+/tmp/test-deploy/src/components/5s/ActivosModal.tsx:303:                        <td className="px-1 py-1 border text-center bg-gray-50">
+/tmp/test-deploy/src/components/5s/ActivosModal.tsx:323:                  <div key={item.id} className="rounded-xl border bg-white shadow-sm overflow-hidden">
+/tmp/test-deploy/src/components/5s/CleaningPlanPanel.tsx:59:  'Trimestral': 'bg-gray-100 text-gray-800',
+/tmp/test-deploy/src/components/5s/CleaningPlanPanel.tsx:327:                  <tr key={point.id} className={`border-b ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-blue-50/30`}>
+/tmp/test-deploy/src/components/5s/CleaningPlanPanel.tsx:335:                          point.tipoSuciedad === 'Polvo' ? 'bg-gray-100 text-gray-800' :
+/tmp/test-deploy/src/components/5s/CleaningPlanPanel.tsx:351:                        <Badge className={`text-[8px] px-1 py-0 ${FRECUENCIA_COLORS[point.frecuencia] || 'bg-gray-100 text-gray-800'}`}>
+/tmp/test-deploy/src/components/5s/CleaningPlanPanel.tsx:395:        <div className="text-center py-8 bg-white rounded-lg border border-dashed border-blue-300">
+/tmp/test-deploy/src/components/5s/CleaningPlanPanel.tsx:411:              <Badge key={freq} className={`text-[9px] ${FRECUENCIA_COLORS[freq] || 'bg-gray-100'}`}>
+/tmp/test-deploy/src/components/5s/PuntoLimpioModal.tsx:248:            <div className="h-4 w-px bg-gray-200 mx-1 shrink-0" />
+/tmp/test-deploy/src/components/5s/PuntoLimpioModal.tsx:261:                  f.active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+/tmp/test-deploy/src/components/5s/PuntoLimpioModal.tsx:267:            <div className="h-4 w-px bg-gray-200 mx-1 shrink-0" />
+/tmp/test-deploy/src/components/5s/PuntoLimpioModal.tsx:283:                className="flex items-center gap-0.5 px-2 py-1 rounded-full text-[10px] text-gray-500 hover:bg-gray-100"
+/tmp/test-deploy/src/components/5s/PuntoLimpioModal.tsx:318:                      <th className="bg-gray-400 text-white px-1 py-1.5 text-center font-bold border border-gray-500 w-8">🗑</th>
+/tmp/test-deploy/src/components/5s/PuntoLimpioModal.tsx:334:                      <tr key={item.id} className={`border-b hover:bg-gray-50 ${
+/tmp/test-deploy/src/components/5s/PuntoLimpioModal.tsx:340:                            S3_CONFIG.categories.find(c => c.value === item.category)?.color || 'bg-gray-100 text-gray-800'
+/tmp/test-deploy/src/components/5s/PuntoLimpioModal.tsx:421:                        <td className="px-1 py-1 border text-center bg-gray-50">
+/tmp/test-deploy/src/components/5s/PuntoLimpioModal.tsx:435:                  <div key={item.id} className="rounded-xl border bg-white shadow-sm overflow-hidden">
+/tmp/test-deploy/src/components/5s/PuntoLimpioModal.tsx:438:                        S3_CONFIG.categories.find(c => c.value === item.category)?.color || 'bg-gray-100'
+/tmp/test-deploy/src/components/5s/ActionPlanModal.tsx:674:                    <th className="bg-gray-400 text-white px-1 py-1.5 text-center text-xs font-bold border border-gray-500 w-8">
+/tmp/test-deploy/src/components/5s/ActionPlanModal.tsx:691:                    <th colSpan={3} className="bg-white text-cyan-700 px-2 py-1 text-center font-bold border-2 border-cyan-500 border-b-1 uppercase tracking-wide text-[10px]">
+/tmp/test-deploy/src/components/5s/ActionPlanModal.tsx:695:                    <th colSpan={1} className="bg-white text-cyan-700 px-2 py-1 text-center font-bold border-2 border-cyan-500 border-b-1 uppercase tracking-wide text-[10px]">
+/tmp/test-deploy/src/components/5s/ActionPlanModal.tsx:703:                    <th className="bg-gray-300 text-gray-700 px-1 py-1 border border-gray-400 w-8"></th>
+/tmp/test-deploy/src/components/5s/ActionPlanModal.tsx:726:                    <th className="bg-gray-50 border border-gray-200" />
+/tmp/test-deploy/src/components/5s/ActionPlanModal.tsx:998:            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+/tmp/test-deploy/src/components/5s/AutoevaluacionModal.tsx:1383:                                      ? 'bg-gray-500 text-white'
+/tmp/test-deploy/src/components/5s/AutoevaluacionModal.tsx:1384:                                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+/tmp/test-deploy/src/components/5s/JaulaVerifyCard.tsx:188:        <div className="rounded-lg overflow-hidden border bg-white">
+/tmp/test-deploy/src/components/5s/JaulaVerifyCard.tsx:195:            <div className="p-2 text-xs text-gray-600 bg-gray-50 border-t">
+/tmp/test-deploy/src/components/5s/SStepIndicators.tsx:135:                  <div className="w-1.5 h-1.5 rounded-full bg-gray-300 opacity-50" />
+/tmp/test-deploy/src/components/5s/Board5S.tsx:35:                : 'border-gray-200 bg-white shadow-sm'
+/tmp/test-deploy/src/components/5s/Board5S.tsx:77:                              : 'bg-gray-100 text-gray-300'
+/tmp/test-deploy/src/components/5s/Board5S.tsx:88:                  <div className="flex-1 h-2 rounded-full overflow-hidden bg-gray-100">
+/tmp/test-deploy/src/components/5s/PuntoLimpioView.tsx:274:        color: ESTADO_LIMPIEZA[idx]?.color || 'bg-gray-100 text-gray-800',
+/tmp/test-deploy/src/components/5s/PuntoLimpioView.tsx:293:      <div className="px-3 sm:px-4 py-2.5 border-b bg-white shrink-0">
+/tmp/test-deploy/src/components/5s/PuntoLimpioView.tsx:339:                f.active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+/tmp/test-deploy/src/components/5s/PuntoLimpioView.tsx:345:          <div className="h-4 w-px bg-gray-200 mx-1 shrink-0" />
+/tmp/test-deploy/src/components/5s/PuntoLimpioView.tsx:361:              className="flex items-center gap-0.5 px-2 py-1 rounded-full text-[10px] text-gray-500 hover:bg-gray-100"
+/tmp/test-deploy/src/components/5s/PuntoLimpioView.tsx:398:                    <th className="bg-gray-400 text-white px-1 py-1.5 text-center font-bold border border-gray-500 w-8">🗑</th>
+/tmp/test-deploy/src/components/5s/PuntoLimpioView.tsx:414:                    <tr key={item.id} className={`border-b hover:bg-gray-50 ${
+/tmp/test-deploy/src/components/5s/PuntoLimpioView.tsx:420:                          config.categories.find(c => c.value === item.category)?.color || 'bg-gray-100 text-gray-800'
+/tmp/test-deploy/src/components/5s/PuntoLimpioView.tsx:501:                      <td className="px-1 py-1 border text-center bg-gray-50">
+/tmp/test-deploy/src/components/5s/PuntoLimpioView.tsx:515:                <div key={item.id} className="rounded-xl border bg-white shadow-sm overflow-hidden">
+/tmp/test-deploy/src/components/5s/PuntoLimpioView.tsx:518:                      config.categories.find(c => c.value === item.category)?.color || 'bg-gray-100'
+/tmp/test-deploy/src/components/5s/ActionPlanTracker.tsx:74:  cerrada: { label: 'Cerrada', color: 'bg-gray-100 text-gray-600 border-gray-200', icon: CheckCircle },
+/tmp/test-deploy/src/components/5s/ActionPlanTracker.tsx:511:                                className="text-xs border-gray-300 text-gray-600 hover:bg-gray-50"
+/tmp/test-deploy/src/components/5s/RadarChart5S.tsx:136:            <span className="text-2xl font-black bg-white/20 rounded-md px-3 py-0.5">
+/tmp/test-deploy/src/components/5s/RadarChart5S.tsx:148:            <div className="bg-gray-100 px-3 py-2 text-center border-b border-gray-200">
+/tmp/test-deploy/src/components/5s/RadarChart5S.tsx:175:                    <td className="border border-gray-400 px-2 py-2 font-black text-gray-800 bg-gray-300">
+/tmp/test-deploy/src/components/5s/RadarChart5S.tsx:179:                      <td key={i} className="border border-gray-400 px-2 py-2 text-center font-bold text-gray-800 bg-gray-200">
+/tmp/test-deploy/src/components/5s/RadarChart5S.tsx:183:                    <td className="border border-gray-400 px-2 py-2 text-center font-black text-gray-900 bg-gray-300">
+/tmp/test-deploy/src/components/5s/RadarChart5S.tsx:189:                    <td className="border border-gray-400 px-2 py-2 font-bold text-red-700 bg-white">
+/tmp/test-deploy/src/components/5s/RadarChart5S.tsx:193:                      <td key={i} className="border border-gray-400 px-2 py-2 text-center font-semibold text-gray-700 bg-white">
+/tmp/test-deploy/src/components/5s/RadarChart5S.tsx:197:                    <td className="border border-gray-400 px-2 py-2 text-center font-bold text-gray-800 bg-gray-50">
+/tmp/test-deploy/src/components/5s/RadarChart5S.tsx:250:            <div className="bg-gray-100 px-3 py-2 text-center border-b border-gray-200">
+/tmp/test-deploy/src/components/5s/RadarChart5S.tsx:322:              <div className="mt-1 bg-white border-2 border-gray-300 rounded-lg px-6 py-2 shadow-sm text-center">
+/tmp/test-deploy/src/components/5s/AuditResultsModal.tsx:237:    if (score === null) return 'bg-gray-50 border-gray-200';
+/tmp/test-deploy/src/components/5s/AuditResultsModal.tsx:248:      cerrada: { label: 'Cerrada', color: 'bg-gray-100 text-gray-600' },
+/tmp/test-deploy/src/components/5s/AuditResultsModal.tsx:351:                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+/tmp/test-deploy/src/components/5s/AuditResultsModal.tsx:510:                                            <div key={action.id} className="flex items-center gap-2 p-1.5 rounded bg-white/80 border text-[11px]">
+/tmp/test-deploy/src/components/5s/AuditResultsModal.tsx:700:                                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+/tmp/test-deploy/src/components/5s/AuditResultsModal.tsx:759:                            <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+/tmp/test-deploy/src/components/5s/AuditResultsModal.tsx:788:                                  isOverdue ? 'bg-red-50 border border-red-200' : 'bg-gray-50 border border-gray-100'
+/tmp/test-deploy/src/components/5s/HeaderIndicators.tsx:224:                  <div className={`p-1 rounded-lg ${isEmpty ? 'bg-white/50' : 'bg-white/70'} shadow-sm`}>
+/tmp/test-deploy/src/components/5s/HeaderIndicators.tsx:298:                    <tr key={ind.id} className="border-b border-gray-100 hover:bg-white/60 transition-colors">
+/tmp/test-deploy/src/components/5s/QuarterlyAuditModal.tsx:306:              className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-100 bg-white"
+/tmp/test-deploy/src/components/5s/QuarterlyAuditModal.tsx:316:              className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100 bg-white"
+/tmp/test-deploy/src/components/5s/QuarterlyAuditModal.tsx:480:                                          className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${status === 'na' ? 'bg-gray-500 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+/tmp/test-deploy/src/components/5s/QuarterlyAuditModal.tsx:551:                    className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${haMejoras === true ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300 hover:bg-green-50'}`}
+/tmp/test-deploy/src/components/5s/QuarterlyAuditModal.tsx:556:                    className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${haMejoras === false ? 'bg-gray-600 text-white' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'}`}
+/tmp/test-deploy/src/components/5s/QuarterlyAuditModal.tsx:569:                      <div key={mejora.id} className="bg-white border border-green-200 rounded-lg p-3 space-y-2">
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:307:    <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:522:                <div className="h-7 text-xs px-1.5 flex items-center text-gray-700 font-medium border rounded w-full bg-gray-50" title="Progreso automático según estado">
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:727:            <div className="absolute top-full left-0 mt-0.5 z-40 bg-white border border-gray-300 rounded shadow-lg min-w-[180px] max-w-[260px] max-h-[280px] overflow-auto">
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:728:              <div className="sticky top-0 bg-white border-b border-gray-200 px-2 py-1 flex items-center justify-between gap-2">
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:748:                        className="flex items-center gap-1.5 px-2 py-0.5 hover:bg-gray-50 cursor-pointer text-[10px] text-gray-700"
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:762:              <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-2 py-1 text-[9px] text-gray-500 text-center">
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:775:    const dark = className.includes('bg-amber-400') || className.includes('bg-orange-400') || className.includes('bg-gray-500');
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1233:      <div className="px-3 sm:px-4 py-2.5 border-b bg-white shrink-0">
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1255:              filterEstado === 'all' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1263:              filterEstado === 'abierta' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-600 border-red-200 hover:bg-red-50'
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1271:              filterEstado === 'en_proceso' ? 'bg-yellow-600 text-white border-yellow-600' : 'bg-white text-yellow-600 border-yellow-200 hover:bg-yellow-50'
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1279:              filterEstado === 'resuelta' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-green-600 border-green-200 hover:bg-green-50'
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1286:          <div className="h-4 w-px bg-gray-200 mx-1 shrink-0" />
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1296:                    : 'bg-white border-gray-200 hover:opacity-80'
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1309:              className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors whitespace-nowrap"
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1330:              className="w-full h-7 pl-7 pr-7 text-[11px] rounded border border-gray-200 bg-white focus:bg-white focus:border-rose-300 focus:outline-none focus:ring-1 focus:ring-rose-200"
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1373:              gray: { active: 'bg-gray-900 text-white border-gray-900', inactive: 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50' },
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1374:              rose: { active: 'bg-rose-600 text-white border-rose-600', inactive: 'bg-white text-rose-600 border-rose-200 hover:bg-rose-50' },
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1375:              emerald: { active: 'bg-emerald-600 text-white border-emerald-600', inactive: 'bg-white text-emerald-600 border-emerald-200 hover:bg-emerald-50' },
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1376:              purple: { active: 'bg-purple-600 text-white border-purple-600', inactive: 'bg-white text-purple-600 border-purple-200 hover:bg-purple-50' },
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1435:                    <th colSpan={1} className="bg-gray-600 text-white px-1.5 py-1.5 text-center font-bold border border-gray-500">
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1448:                    <th className="bg-gray-400 text-white px-1 py-1.5 text-center text-xs font-bold border border-gray-500 w-8">
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1457:                    <th className="bg-gray-500 text-white px-1 py-1 text-center font-semibold border border-gray-400 whitespace-nowrap">S</th>
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1481:                    <th className="bg-gray-300 border border-gray-400" />
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1489:                      <tr className={`border-b hover:bg-gray-50 ${action.estado === 'cerrada' ? 'bg-green-50/50' : ''}`}>
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1491:                        <td className="px-1 py-1 border text-center bg-gray-50">
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1691:                        <td className="px-1 py-1 border text-center bg-gray-50">
+/tmp/test-deploy/src/components/5s/PlanDeAccionView.tsx:1730:              <div className="bg-gray-50 border border-gray-200 rounded p-2 text-xs">
+/tmp/test-deploy/src/components/5s/ActivosView.tsx:213:      <div className="px-3 sm:px-4 py-2.5 border-b bg-white shrink-0">
+/tmp/test-deploy/src/components/5s/ActivosView.tsx:245:              filterCat === 'all' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+/tmp/test-deploy/src/components/5s/ActivosView.tsx:255:                filterCat === c.value ? 'text-white border-transparent' : 'bg-white border-gray-200 hover:opacity-80'
+/tmp/test-deploy/src/components/5s/ActivosView.tsx:264:              className="flex items-center gap-0.5 px-2 py-1 rounded-full text-[10px] text-gray-500 hover:bg-gray-100">
+/tmp/test-deploy/src/components/5s/ActivosView.tsx:297:                    <th className="bg-gray-400 text-white px-1 py-1.5 text-center font-bold border border-gray-500 w-8">🗑</th>
+/tmp/test-deploy/src/components/5s/ActivosView.tsx:311:                    <tr key={item.id} className="border-b hover:bg-gray-50 bg-green-50/20">
+/tmp/test-deploy/src/components/5s/ActivosView.tsx:369:                      <td className="px-1 py-1 border text-center bg-gray-50">
+/tmp/test-deploy/src/components/5s/ActivosView.tsx:389:                <div key={item.id} className="rounded-xl border bg-white shadow-sm overflow-hidden">
+/tmp/test-deploy/src/components/5s/StandardsLibrary.tsx:68:  { value: 'general', label: 'General', icon: FileText, color: 'bg-gray-100 text-gray-800' },
+/tmp/test-deploy/src/components/5s/StandardsLibrary.tsx:436:          <div className="px-6 py-3 border-b bg-gray-50/50 flex items-center gap-3 flex-wrap shrink-0">
+/tmp/test-deploy/src/components/5s/StandardsLibrary.tsx:538:                <Card className="border-2 border-teal-200 bg-white">
+/tmp/test-deploy/src/components/5s/StandardsLibrary.tsx:562:                                : 'border-gray-200 hover:border-gray-300 bg-white'
+/tmp/test-deploy/src/components/5s/StandardsLibrary.tsx:663:                <Card className="border-2 border-red-200 bg-white">
+/tmp/test-deploy/src/components/5s/StandardsLibrary.tsx:949:          <Badge className="bg-white/20 text-white border-0 text-xs font-bold">
+/tmp/test-deploy/src/components/5s/StandardsLibrary.tsx:953:        <Badge className="bg-white/20 text-white border-0 text-[10px]">
+/tmp/test-deploy/src/components/5s/StandardsLibrary.tsx:1004:                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+/tmp/test-deploy/src/components/5s/StandardsLibrary.tsx:1013:                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+/tmp/test-deploy/src/components/5s/StandardsLibrary.tsx:1067:            <div className="grid grid-cols-3 gap-3 bg-gray-50 rounded-lg p-3">
+/tmp/test-deploy/src/components/5s/StandardsLibrary.tsx:1104:          <div className="bg-gray-50 rounded-lg p-3">
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:132:  cerrada: 'bg-gray-100 text-gray-600',
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:607:                  <div className="p-2 rounded-lg bg-gray-50">
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:658:                  backgroundColor: selectedPDCAStep === step.id ? step.bgColor : 'white',
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:720:                <div className="mb-3 p-3 rounded-lg border bg-gray-50 space-y-2">
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:741:                    <Button size="sm" onClick={handleAddPdcaItem} disabled={!newPdcaItem.title.trim()} className="h-7 text-xs" style={{ backgroundColor: PDCA_STEPS.find(s => s.id === selectedPDCAStep)?.color, color: 'white' }}>Agregar</Button>
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:754:                    <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg border bg-white">
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:758:                        'bg-gray-100 text-gray-600'
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:850:                      <div key={action.id} className="flex items-center gap-2 p-2 rounded-lg border bg-white text-xs">
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:851:                        <Badge className={`${PRIORIDAD_COLORS[action.prioridad] || 'bg-gray-100'} text-[9px] py-0`}>{action.prioridad}</Badge>
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:853:                        <Badge className={`${ESTADO_COLORS[action.estado] || 'bg-gray-100'} text-[9px] py-0`}>{ESTADO_LABELS[action.estado] || action.estado}</Badge>
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:991:                        <div key={kpi.id} className="flex items-center gap-3 p-2 rounded-lg border bg-white">
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:1112:                        <div key={obj.id} className="flex items-center gap-3 p-2 rounded-lg border bg-white">
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:1116:                            'bg-gray-100 text-gray-600'
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:1161:                  <div className="p-2 rounded-lg bg-gray-50">
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:1226:                    <div key={audit.id} className="flex items-center justify-between p-3 rounded-lg border bg-white hover:bg-gray-50 transition-colors">
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:1297:                    <div key={audit.id} className="flex items-center justify-between p-3 rounded-lg border bg-white hover:bg-gray-50 transition-colors">
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:1365:                    <div key={audit.id} className="flex items-center justify-between p-3 rounded-lg border bg-white hover:bg-gray-50 transition-colors">
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:1427:                <div className="p-2 rounded-lg bg-gray-50">
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:1485:                        <Badge className={PRIORIDAD_COLORS[action.prioridad] || 'bg-gray-100'}>{action.prioridad}</Badge>
+/tmp/test-deploy/src/components/5s/MaintenanceView.tsx:1486:                        <Badge className={ESTADO_COLORS[action.estado] || 'bg-gray-100'}>{ESTADO_LABELS[action.estado] || action.estado}</Badge>
+/tmp/test-deploy/src/components/5s/LayoutEditor.tsx:573:        <div className="px-4 py-2 border-b bg-gray-50/80 flex items-center gap-2 flex-wrap shrink-0">
+/tmp/test-deploy/src/components/5s/LayoutEditor.tsx:594:              <div className="absolute top-full left-0 z-50 mt-1 bg-white border rounded-lg shadow-xl p-2 w-80 max-h-[70vh] overflow-y-auto">
+/tmp/test-deploy/src/components/5s/LayoutEditor.tsx:598:                    className="flex items-center gap-2 w-full px-2 py-1.5 rounded hover:bg-gray-100 text-left">
+/tmp/test-deploy/src/components/5s/LayoutEditor.tsx:653:        <div ref={containerRef} className="flex-1 min-h-0 bg-gray-100 relative"
+/tmp/test-deploy/src/components/5s/LayoutEditor.tsx:684:            <div className="absolute bg-white border rounded shadow-lg p-2 z-50"
+/tmp/test-deploy/src/components/5s/LayoutEditor.tsx:702:        <div className="px-4 py-2 border-t bg-white flex items-center gap-3 shrink-0">
+/tmp/test-deploy/src/components/5s/UserTaskCalendar.tsx:468:                                  hasVencida ? 'bg-red-500' : hasHoy ? 'bg-orange-500' : hasProxima ? 'bg-green-500' : 'bg-gray-400'
+/tmp/test-deploy/src/components/5s/UserTaskCalendar.tsx:613:            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-4">
+/tmp/test-deploy/src/components/5s/UserTaskCalendar.tsx:661:                  className="w-full px-4 py-2 rounded-md border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 disabled:opacity-50"
+/tmp/test-deploy/src/components/5s/UserTaskCalendar.tsx:693:    gray: 'bg-gray-50 text-gray-700 border-gray-200',
+/tmp/test-deploy/src/components/5s/UserTaskCalendar.tsx:731:    gray: 'text-gray-700 bg-gray-50',
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:267:      <DialogContent className="max-w-5xl max-h-[92vh] overflow-hidden flex flex-col p-0 bg-gray-950 border-gray-800 text-gray-100">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:268:        <DialogHeader className="px-6 py-4 border-b border-gray-800 shrink-0 bg-gray-950">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:289:          <div className="px-6 py-3 border-b border-gray-800 bg-gray-900/50 flex items-center gap-3 flex-wrap shrink-0">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:291:              <SelectTrigger className="w-36 h-8 text-xs bg-gray-800 border-gray-700 text-gray-200">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:294:              <SelectContent className="bg-gray-900 border-gray-700">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:304:              <SelectTrigger className="w-40 h-8 text-xs bg-gray-800 border-gray-700 text-gray-200">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:307:              <SelectContent className="bg-gray-900 border-gray-700">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:318:            <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:321:                className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:328:                className={`p-1.5 rounded-md transition-colors ${viewMode === 'compare' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:337:              className={`p-1.5 rounded-md transition-colors ${showStats ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:353:            <div className="px-6 py-3 border-b border-gray-800 bg-gray-900/30 shrink-0">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:355:                <div className="bg-gray-800/50 rounded-lg p-3 text-center">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:360:                  <div key={t.value} className="bg-gray-800/50 rounded-lg p-3 text-center">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:383:            <div className="px-6 py-4 border-b border-gray-800 bg-gray-900/50 space-y-3 shrink-0">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:396:                    <SelectTrigger className="h-8 text-xs bg-gray-800 border-gray-700 text-gray-200">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:399:                    <SelectContent className="bg-gray-900 border-gray-700">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:411:                    <SelectTrigger className="h-8 text-xs bg-gray-800 border-gray-700 text-gray-200">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:414:                    <SelectContent className="bg-gray-900 border-gray-700">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:426:                  className="h-8 text-xs bg-gray-800 border-gray-700 text-gray-200 placeholder:text-gray-600" />
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:432:                  className="h-8 text-xs bg-gray-800 border-gray-700 text-gray-200 placeholder:text-gray-600" />
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:448:                    className="gap-1 text-xs h-8 border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:453:                    placeholder="https://..." className="h-8 text-xs flex-1 bg-gray-800 border-gray-700 text-gray-200 placeholder:text-gray-600" />
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:499:                        <div key={photo.id} className="overflow-hidden group relative rounded-lg border border-gray-800 bg-gray-900 hover:border-gray-700 transition-colors">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:500:                          <div className="aspect-square bg-gray-800 relative cursor-pointer"
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:549:                    <div key={idx} className="border border-gray-800 rounded-xl overflow-hidden bg-gray-900">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:556:                      <div className="grid grid-cols-2 gap-px bg-gray-800">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:558:                        <div className="relative bg-gray-900 cursor-pointer" onClick={() => openPreview(pair.antes, [pair.antes, pair.despues].filter(Boolean) as PhotoItem[])}>
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:562:                            <div className="w-full aspect-[4/3] flex items-center justify-center bg-gray-800">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:571:                        <div className="relative bg-gray-900 cursor-pointer" onClick={() => pair.despues && openPreview(pair.despues, [pair.antes, pair.despues].filter(Boolean) as PhotoItem[])}>
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:575:                            <div className="w-full aspect-[4/3] flex items-center justify-center bg-gray-800 border-2 border-dashed border-gray-700">
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:601:              <button className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-colors text-white z-10"
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:607:              <button className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-colors text-white z-10"
+/tmp/test-deploy/src/components/5s/PhotoLibrary.tsx:632:            <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-colors text-white"
+/tmp/test-deploy/src/components/5s/InventarioModal.tsx:1782:      '': { label: '—', color: 'bg-gray-50 text-gray-400' },
+/tmp/test-deploy/src/components/5s/InventarioModal.tsx:2022:                        <div key={layout.id} className="border rounded-lg overflow-hidden bg-white">
+/tmp/test-deploy/src/components/5s/InventarioModal.tsx:2028:                            <div className="w-full h-32 bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
+/tmp/test-deploy/src/components/5s/InventarioModal.tsx:2042:                    <div className="text-center py-6 bg-white rounded-lg border border-dashed border-blue-300">
+/tmp/test-deploy/src/components/5s/InventarioModal.tsx:2216:                          <th colSpan={2} className="bg-gray-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-gray-600"></th>
+/tmp/test-deploy/src/components/5s/InventarioModal.tsx:2236:                          <th className="bg-gray-400 text-white px-1 py-1 text-center font-semibold border border-gray-400 whitespace-nowrap">Fotos</th>
+/tmp/test-deploy/src/components/5s/InventarioModal.tsx:2237:                          <th className="bg-gray-400 text-white px-1 py-1 text-center font-semibold border border-gray-400 w-8"></th>
+/tmp/test-deploy/src/components/5s/InventarioModal.tsx:2247:                          <th colSpan={2} className="bg-gray-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-gray-600"></th>
+/tmp/test-deploy/src/components/5s/InventarioModal.tsx:2260:                          <th className="bg-gray-400 text-white px-1 py-1 text-center font-semibold border border-gray-400 whitespace-nowrap">Fotos</th>
+/tmp/test-deploy/src/components/5s/InventarioModal.tsx:2261:                          <th className="bg-gray-400 text-white px-1 py-1 text-center font-semibold border border-gray-400 w-8"></th>
+/tmp/test-deploy/src/components/5s/InventarioModal.tsx:2271:                          <th colSpan={2} className="bg-gray-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-gray-600"></th>
+
+[Showing results with pagination = limit: 250]

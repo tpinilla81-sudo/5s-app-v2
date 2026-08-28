@@ -540,7 +540,7 @@ export default function GestorPanel() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-violet-950/20 to-slate-950 text-white">
       {/* Header */}
-      <header className="border-b border-violet-800/30 bg-slate-950/80 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-violet-800/30 bg-slate-950 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg shadow-violet-500/30">
@@ -575,7 +575,7 @@ export default function GestorPanel() {
       </header>
 
       {/* Tabs */}
-      <div className="border-b border-violet-800/20 bg-slate-950/60 backdrop-blur-sm">
+      <div className="border-b border-violet-800/20 bg-slate-950">
         <div className="max-w-7xl mx-auto px-4 flex gap-0 overflow-x-auto">
           {tabs.map(tab => (
             <button

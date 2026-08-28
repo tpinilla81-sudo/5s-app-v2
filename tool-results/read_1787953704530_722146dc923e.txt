@@ -1,0 +1,1090 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback } from 'react';
+     4→import {
+     5→  Dialog,
+     6→  DialogContent,
+     7→  DialogHeader,
+     8→  DialogTitle,
+     9→} from '../ui/dialog';
+    10→import { Button } from '../ui/button';
+    11→import { Badge } from '../ui/badge';
+    12→import { Input } from '../ui/input';
+    13→// v2.82: Textarea ya no se usa (Impacto ahora es auto-clasificado read-only).
+    14→import {
+    15→  Select,
+    16→  SelectContent,
+    17→  SelectItem,
+    18→  SelectTrigger,
+    19→  SelectValue,
+    20→} from '../ui/select';
+    21→import { ListChecks, Plus, Trash2, ChevronDown, ChevronRight, AlertTriangle, Maximize2, Minimize2 } from 'lucide-react';
+    22→import { toast } from 'sonner';
+    23→import { use5SStore } from '../../lib/store';
+    24→import { S_STEPS, ACTION_PLAN_MIN_ITEMS } from '../../lib/5s-constants';
+    25→
+    26→interface ActionItemData {
+    27→  id: string;
+    28→  numeroEntrada: number;
+    29→  fechaEntrada: string;
+    30→  // v2.78: FKs a User (reemplazan a los textos legacy)
+    31→  comunicadoPorId: string | null;
+    32→  comunicadoPorName: string; // derivado de comunicadoPorUser.name (display)
+    33→  personaDemandadaId: string | null;
+    34→  personaDemandadaName: string; // derivado de personaDemandadaUser.name (display)
+    35→  verificadoPorId: string | null;
+    36→  verificadoPorName: string; // derivado de verificadoPorUser.name (display)
+    37→  semana: string;
+    38→  // v2.79: simplificado — solo Zona (sin Cliente ni Secciones)
+    39→  zonaName: string;
+    40→  hallazgo: string; // DESCRIPCIÓN
+    41→  impacto: string; // v2.79: renombrado de impactoObjetivo, ahora en HALLAZGO
+    42→  // v2.79: campos de ACCIÓN autorellenos desde el inventario (extra snapshot)
+    43→  accionCategoria: string;
+    44→  accionElemento: string;
+    45→  accionCantidad: string;
+    46→  // v2.81: ACCIÓN subdividida en Correctiva (3 cols autorellenas) y
+    47→  // Preventiva (1 col manual, default 'N/A').
+    48→  accionDecision: string;       // Correctiva — Decisión (de extra)
+    49→  accionEtiqueta: string;       // Correctiva — Etiqueta (de extra)
+    50→  accionDestino: string;        // Correctiva — Destino (de extra)
+    51→  accionPreventiva: string;     // Preventiva — Decisión manual (N/A por defecto)
+    52→  // SEGUIMIENTO
+    53→  semanaPrevista: string;
+    54→  porcentaje: number;
+    55→  estado: string;
+    56→  semanaReal: string;
+    57→  // Legacy fields kept for compatibility
+    58→  descripcion: string;
+    59→  fechaCompromiso: string;
+    60→  fechaLimite: string;
+    61→  fechaReal: string;
+    62→  prioridad: string;
+    63→  zoneId: string;
+    64→  sStep: number;
+    65→  miniStep: number;
+    66→  source?: string;
+    67→  tipo?: string;
+    68→}
+    69→
+    70→interface ZoneData {
+    71→  id: string;
+    72→  name: string;
+    73→}
+    74→
+    75→interface ActionPlanModalProps {
+    76→  open: boolean;
+    77→  onClose: () => void;
+    78→  sStep: number;
+    79→  miniStep: number;
+    80→}
+    81→
+    82→// v2.99.7: Estados simplificados a 3: ABIERTA / EN PROCESO / CERRADA.
+    83→// El porcentaje se sincroniza automáticamente:
+    84→//   ABIERTA     -> 0%
+    85→//   EN PROCESO  -> 50%
+    86→//   CERRADA     -> 100%
+    87→const ESTADO_OPTIONS = [
+    88→  { value: 'abierta', label: 'ABIERTA', color: 'bg-red-100 text-red-800' },
+    89→  { value: 'en_proceso', label: 'EN PROCESO', color: 'bg-yellow-100 text-yellow-800' },
+    90→  { value: 'cerrada', label: 'CERRADA', color: 'bg-green-100 text-green-800' },
+    91→];
+    92→
+    93→// v2.99.7: Mapping estado <-> porcentaje.
+    94→const PORCENTAJE_POR_ESTADO: Record<string, number> = {
+    95→  abierta: 0,
+    96→  en_proceso: 50,
+    97→  cerrada: 100,
+    98→};
+    99→const ESTADO_POR_PORCENTAJE = (p: number): string => {
+   100→  if (p >= 100) return 'cerrada';
+   101→  if (p >= 50) return 'en_proceso';
+   102→  return 'abierta';
+   103→};
+   104→
+   105→const ENVIADO_OPTIONS = ['Sí', 'No', 'Pendiente'];
+   106→
+   107→// v2.81: Opciones para la decisión de Acción Preventiva (manual).
+   108→// El usuario elige una; por defecto 'N/A' (no aplica).
+   109→const ACCION_PREVENTIVA_OPTIONS = [
+   110→  { value: 'N/A', label: 'N/A' },
+   111→  { value: 'Formación', label: 'Formación' },
+   112→  { value: 'Procedimiento', label: 'Procedimiento' },
+   113→  { value: 'Señalización', label: 'Señalización' },
+   114→  { value: 'Poka-yoke', label: 'Poka-yoke' },
+   115→  { value: 'Mantenimiento', label: 'Mantenimiento' },
+   116→  { value: '5S', label: '5S' },
+   117→  { value: 'Otra', label: 'Otra' },
+   118→];
+   119→
+   120→// Generate week options (W1-W52)
+   121→const WEEK_OPTIONS = Array.from({ length: 53 }, (_, i) => `W${i + 1}`);
+   122→
+   123→// Color sections matching the uploaded image
+   124→const SECTION_COLORS = {
+   125→  demandante: 'bg-amber-50 border-amber-300 text-amber-900', // Yellow section
+   126→  accion: 'bg-sky-50 border-sky-300 text-sky-900',           // Blue section
+   127→  seguimiento: 'bg-orange-50 border-orange-300 text-orange-900', // Orange section
+   128→};
+   129→
+   130→const HEADER_COLORS = {
+   131→  demandante: 'bg-amber-400 text-white',
+   132→  accion: 'bg-sky-400 text-white',
+   133→  seguimiento: 'bg-orange-400 text-white',
+   134→};
+   135→
+   136→export default function ActionPlanModal({ open, onClose, sStep, miniStep }: ActionPlanModalProps) {
+   137→  const { fetchProgress, currentUser, adminFreeNavigation, currentProject, currentZone, canPerform, canView, hasPermission } = use5SStore();
+   138→  const sStepData = S_STEPS.find(s => s.id === sStep);
+   139→  const canSkipSteps = hasPermission('skip_steps');
+   140→  const canPerformStep = canPerform(sStep, miniStep);
+   141→  const canViewStep = canView(sStep, miniStep);
+   142→  // Permission-driven: read-only if no execute perm OR if candado closed for skip_steps users
+   143→  const isReadOnly = !canPerformStep || (canSkipSteps && !adminFreeNavigation);
+   144→
+   145→  const [actions, setActions] = useState<ActionItemData[]>([]);
+   146→  const [isCompleted, setIsCompleted] = useState(false);
+   147→  const [zones, setZones] = useState<ZoneData[]>([]);
+   148→  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+   149→  const [isFullscreen, setIsFullscreen] = useState(true);
+   150→  // v2.78: miembros del proyecto para los User pickers (personaDemandadaId,
+   151→  // verificadoPorId). Se cargan al abrir el modal.
+   152→  const [projectMembers, setProjectMembers] = useState<Array<{ id: string; name: string; email: string; role: string }>>([]);
+   153→
+   154→  // v2.77: Diálogo de decisión de cierre (cuando se pasa a resuelta/cerrada)
+   155→  const [closeDialog, setCloseDialog] = useState<{
+   156→    actionId: string;
+   157→    hallazgo: string;
+   158→    source?: string;
+   159→  } | null>(null);
+   160→  const [closeDecision, setCloseDecision] = useState<'Resuelto' | 'Retirar' | 'Eliminar'>('Resuelto');
+   161→  const [closeDiasCuarentena, setCloseDiasCuarentena] = useState<number>(40);
+   162→
+   163→  const loadZones = async () => {
+   164→    if (!currentProject) return;
+   165→    try {
+   166→      const res = await fetch(`/api/projects/${currentProject.id}/zones`);
+   167→      if (res.ok) {
+   168→        const json = await res.json();
+   169→        setZones(json.zones || json.data || []);
+   170→      }
+   171→    } catch (error) {
+   172→      console.error('Error loading zones:', error);
+   173→    }
+   174→  };
+   175→
+   176→  // v2.78: Cargar miembros del proyecto para los User pickers
+   177→  const loadProjectMembers = async () => {
+   178→    if (!currentProject) return;
+   179→    try {
+   180→      const res = await fetch(`/api/projects/${currentProject.id}/members`);
+   181→      if (res.ok) {
+   182→        const json = await res.json();
+   183→        const members = (json.members || json.data || []).map((m: any) => ({
+   184→          id: m.userId || m.id,
+   185→          name: m.user?.name || m.name || 'Sin nombre',
+   186→          email: m.user?.email || m.email || '',
+   187→          role: m.role || '',
+   188→        }));
+   189→        setProjectMembers(members);
+   190→      }
+   191→    } catch (error) {
+   192→      console.error('Error loading project members:', error);
+   193→    }
+   194→  };
+   195→
+   196→  const loadActions = async () => {
+   197→    try {
+   198→      const params = new URLSearchParams();
+   199→      // When opened globally (miniStep=0), load ALL actions; otherwise filter by sStep
+   200→      const isGlobal = miniStep === 0;
+   201→      if (!isGlobal) {
+   202→        params.set('sStep', String(sStep));
+   203→      }
+   204→      if (currentProject?.id) params.set('projectId', currentProject.id);
+   205→      if (currentUser?.id) params.set('userId', currentUser.id);
+   206→      if (currentUser?.role) params.set('userRole', currentUser.role);
+   207→      const res = await fetch(`/api/actions?${params.toString()}`);
+   208→      const json = await res.json();
+   209→      if (json.success && json.data) {
+   210→        setActions(json.data.map((a: any) => ({
+   211→          id: a.id,
+   212→          numeroEntrada: a.numeroEntrada || 0,
+   213→          fechaEntrada: a.fechaEntrada ? new Date(a.fechaEntrada).toISOString().split('T')[0] : (a.createdAt ? new Date(a.createdAt).toISOString().split('T')[0] : ''),
+   214→          // v2.99.4: si comunicadoPor es un texto generico del sistema
+   215→          // ('Sistema (auto desde Inventario S1)', 'Sistema', '—', '-', ''),
+   216→          // mostrar '—' en lugar de ese placeholder. El usuario real
+   217→          // debería venir por comunicadoPorUser (FK). Si no hay FK y el
+   218→          // texto es generico, no tenemos quien lo hizo — mostramos '—'.
+   219→          comunicadoPorId: a.comunicadoPorId || null,
+   220→          comunicadoPorName: (() => {
+   221→            const name = a.comunicadoPorUser?.name || a.comunicadoPor || ''
+   222→            const GENERICOS = [
+   223→              'Sistema (auto desde Inventario S1)',
+   224→              'Sistema',
+   225→              '—',
+   226→              '-',
+   227→              '',
+   228→            ]
+   229→            return GENERICOS.includes(name.trim()) ? '' : name
+   230→          })(),
+   231→          personaDemandadaId: a.personaDemandadaId || null,
+   232→          personaDemandadaName: a.personaDemandadaUser?.name || a.personaDemandada || '',
+   233→          verificadoPorId: a.verificadoPorId || null,
+   234→          verificadoPorName: a.verificadoPorUser?.name || a.verificadoPor || '',
+   235→          semana: a.semana || '',
+   236→          // v2.79: simplificado — solo Zona
+   237→          zonaName: a.zone?.name || a.clienteZona || '',
+   238→          hallazgo: a.hallazgo || a.itemDescription || '',
+   239→          // v2.79: renombrado de impactoObjetivo
+   240→          impacto: a.impactoObjetivo || '',
+   241→          // v2.79: campos de ACCIÓN autorellenos desde el inventario (extra snapshot)
+   242→          accionCategoria: a.extra?.categoria || '',
+   243→          accionElemento: a.extra?.elemento || '',
+   244→          accionCantidad: a.extra?.cantidad != null ? String(a.extra.cantidad) : '',
+   245→          // v2.89: Acción correctiva — label completo ("Retirar a Jaula" / "Eliminar a Residuo")
+   246→          accionDecision: (() => {
+   247→            const dbLabel = (a as any).accionCorrectiva || '';
+   248→            if (dbLabel && dbLabel.trim()) {
+   249→              const dec = a.extra?.decision || '';
+   250→              if (dec === 'Retirar') return 'Retirar a Jaula';
+   251→              if (dec === 'Eliminar') return 'Eliminar a Residuo';
+   252→              return dbLabel;
+   253→            }
+   254→            const dec = a.extra?.decision || '';
+   255→            if (dec === 'Retirar' || dec === 'Jaula') return 'Retirar a Jaula';
+   256→            if (dec === 'Eliminar' || dec === 'Tirar') return 'Eliminar a Residuo';
+   257→            return dec || '';
+   258→          })(),
+   259→          // v2.88: Etiqueta auto según S-step — refleja la columna "Etiquetas"
+   260→          // del inventario Paso 3 (Impresa/Pendiente/—).
+   261→          accionEtiqueta: (() => {
+   262→            if (a.source === 'inventario' && a.sStep && a.sStep !== 1) return 'No aplica'
+   263→            if (a.source === 'inventario' && a.sStep === 1) {
+   264→              const decision = a.extra?.decision || ''
+   265→              const etiquetaGenerada = !!(a.extra as any)?.etiquetaGenerada
+   266→              if (decision === 'Eliminar') return '—'
+   267→              if (etiquetaGenerada) return 'Impresa'
+   268→              if (decision === 'Retirar') return 'Pendiente'
+   269→              return '—'
+   270→            }
+   271→            const raw = a.extra?.etiquetas || ''
+   272→            return raw && raw.trim() ? raw : ''
+   273→          })(),
+   274→          accionDestino: a.extra?.zonaDestino || '',
+   275→          // v2.85: Acción Preventiva — automática "N/A" para items del
+   276→          // inventario (S1/S2). Para otros orígenes, manual con default 'N/A'.
+   277→          accionPreventiva: a.accionesPreventivas || 'N/A',
+   278→          // SEGUIMIENTO
+   279→          semanaPrevista: a.semanaPrevista || '',
+   280→          // v2.99.7: Porcentaje canónico según estado (0/50/100).
+   281→          porcentaje: (() => {
+   282→            const e = a.estado || 'abierta';
+   283→            if (e === 'cerrada') return 100;
+   284→            if (e === 'en_proceso') return 50;
+   285→            return 0;
+   286→          })(),
+   287→          estado: (() => {
+   288→            const e = a.estado;
+   289→            // v2.99.7: solo 3 estados válidos ahora.
+   290→            if (e === 'abierta' || e === 'en_proceso' || e === 'cerrada') return e;
+   291→            // Migrar estados legacy a los nuevos
+   292→            if (e === 'resuelta') return 'cerrada';
+   293→            return 'abierta';
+   294→          })(),
+   295→          semanaReal: a.semanaReal || '',
+   296→          // Legacy
+   297→          descripcion: a.itemDescription || a.hallazgo || '',
+   298→          fechaCompromiso: a.fechaCompromiso ? new Date(a.fechaCompromiso).toISOString().split('T')[0] : '',
+   299→          fechaLimite: a.fechaLimite ? new Date(a.fechaLimite).toISOString().split('T')[0] : '',
+   300→          fechaReal: a.fechaReal ? new Date(a.fechaReal).toISOString().split('T')[0] : '',
+   301→          prioridad: a.prioridad || 'media',
+   302→          zoneId: a.zoneId || '',
+   303→          sStep: a.sStep || sStep,
+   304→          miniStep: a.miniStep || 3,
+   305→          source: a.source || '',
+   306→          tipo: a.tipo || '',
+   307→        })));
+   308→      }
+   309→    } catch (error) {
+   310→      console.error('Error loading actions:', error);
+   311→      toast.error('Error al cargar las acciones');
+   312→    }
+   313→  };
+   314→
+   315→  useEffect(() => {
+   316→    if (open) {
+   317→      loadActions();
+   318→      loadZones();
+   319→      loadProjectMembers();
+   320→    }
+   321→  }, [open, sStep]);
+   322→
+   323→  const getNextNumero = () => {
+   324→    if (actions.length === 0) return 1;
+   325→    return Math.max(...actions.map(a => a.numeroEntrada || 0)) + 1;
+   326→  };
+   327→
+   328→  const getCurrentWeek = () => {
+   329→    const now = new Date();
+   330→    const start = new Date(now.getFullYear(), 0, 1);
+   331→    const diff = now.getTime() - start.getTime();
+   332→    const oneWeek = 1000 * 60 * 60 * 24 * 7;
+   333→    return `W${Math.ceil((diff / oneWeek) + start.getDay() / 7)}`;
+   334→  };
+   335→
+   336→  // v2.89: Semana automática — calculada desde fechaEntrada (ISO 8601 week number).
+   337→  // Si no hay fecha, usa la semana actual. Es read-only en la UI.
+   338→  const getWeekFromDate = (dateStr: string): string => {
+   339→    try {
+   340→      const d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+   341→      if (isNaN(d.getTime())) return getCurrentWeek();
+   342→      const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+   343→      const dayNum = tmp.getUTCDay() || 7;
+   344→      tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum);
+   345→      const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+   346→      const weekNum = Math.ceil((((tmp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+   347→      return `W${weekNum}`;
+   348→    } catch {
+   349→      return getCurrentWeek();
+   350→    }
+   351→  };
+   352→
+   353→  const handleAddAction = async () => {
+   354→    if (!currentProject?.id) {
+   355→      toast.error('No hay proyecto seleccionado.');
+   356→      return;
+   357→    }
+   358→
+   359→    const nextNumero = getNextNumero();
+   360→    const today = new Date().toISOString().split('T')[0];
+   361→    const currentWeek = getCurrentWeek();
+   362→
+   363→    try {
+   364→      const res = await fetch('/api/actions', {
+   365→        method: 'POST',
+   366→        headers: { 'Content-Type': 'application/json' },
+   367→        body: JSON.stringify({
+   368→          sStep,
+   369→          miniStep: 3,
+   370→          itemId: `PA-${sStep}-${Date.now()}`,
+   371→          itemDescription: '',
+   372→          hallazgo: '',
+   373→          source: 'actionplan',
+   374→          projectId: currentProject.id,
+   375→          zoneId: currentZone?.id || null,
+   376→          // New Plan de Acción fields
+   377→          numeroEntrada: nextNumero,
+   378→          fechaEntrada: today,
+   379→          semana: currentWeek,
+   380→          estado: 'abierta',
+   381→          enviado: 'Pendiente',
+   382→          porcentaje: 0,
+   383→          // v2.76: marcar como entrada manual para el filtro por origen
+   384→          tipo: 'accion',
+   385→        }),
+   386→      });
+   387→
+   388→      const json = await res.json();
+   389→      if (json.success) {
+   390→        toast.success('Entrada agregada correctamente');
+   391→        await loadActions();
+   392→      } else {
+   393→        toast.error(`Error: ${json.error || 'Error desconocido'}`);
+   394→      }
+   395→    } catch (error) {
+   396→      console.error('Error adding action:', error);
+   397→      toast.error('Error de conexión al agregar la entrada');
+   398→    }
+   399→  };
+   400→
+   401→  const handleUpdateField = async (actionId: string, field: string, value: any) => {
+   402→    // v2.99.7: Si se está cambiando 'estado' a 'cerrada', abrir el diálogo
+   403→    // de decisión de cierre antes de persistir. El diálogo pedirá:
+   404→    // Resuelto / Retirar a Jaula / Eliminar y (si Retirar) los días de
+   405→    // cuarentena. El guardado real se hace en `confirmCloseDecision`.
+   406→    if (field === 'estado' && value === 'cerrada') {
+   407→      const action = actions.find(a => a.id === actionId);
+   408→      // Si ya estaba cerrada, no relanzar el diálogo
+   409→      if (action && action.estado !== 'cerrada') {
+   410→        setCloseDialog({
+   411→          actionId,
+   412→          hallazgo: action.hallazgo || action.descripcion || '',
+   413→          source: (action as any).source,
+   414→        });
+   415→        setCloseDecision('Resuelto');
+   416→        setCloseDiasCuarentena(40);
+   417→        return; // No persistir todavía; espera confirmación del diálogo
+   418→      }
+   419→    }
+   420→
+   421→    // v2.99.7: Sincronizar estado <-> porcentaje:
+   422→    //   - Si cambia 'estado': actualizar 'porcentaje' al valor canónico.
+   423→    //   - Si cambia 'porcentaje': actualizar 'estado' según el nuevo valor.
+   424→    let extraUpdate: Record<string, any> | undefined;
+   425→    if (field === 'estado') {
+   426→      extraUpdate = { porcentaje: PORCENTAJE_POR_ESTADO[value] ?? 0 };
+   427→    } else if (field === 'porcentaje') {
+   428→      extraUpdate = { estado: ESTADO_POR_PORCENTAJE(Number(value) || 0) };
+   429→    }
+   430→
+   431→    // v2.78: Mapa de campos del frontend → campos del backend.
+   432→    // Los FK de User se mandan con su nombre real (*Id) al backend.
+   433→    const fieldToBackend: Record<string, string> = {
+   434→      personaDemandadaId: 'personaDemandadaId',
+   435→      verificadoPorId: 'verificadoPorId',
+   436→      // Los demás van tal cual
+   437→    };
+   438→    const backendField = fieldToBackend[field] || field;
+   439→
+   440→    // Optimistic update
+   441→    setActions(prev => prev.map(a =>
+   442→      a.id === actionId ? { ...a, [field]: value, ...(extraUpdate || {}) } : a
+   443→    ));
+   444→
+   445→    try {
+   446→      const res = await fetch(`/api/actions?id=${actionId}`, {
+   447→        method: 'PUT',
+   448→        headers: { 'Content-Type': 'application/json' },
+   449→        body: JSON.stringify({ [backendField]: value, ...(extraUpdate || {}) }),
+   450→      });
+   451→      const json = await res.json();
+   452→      if (!json.success) {
+   453→        toast.error(`Error al actualizar: ${json.error || 'Error desconocido'}`);
+   454→        await loadActions(); // Revert
+   455→      }
+   456→    } catch (error) {
+   457→      console.error('Error updating action:', error);
+   458→      await loadActions(); // Revert
+   459→    }
+   460→  };
+   461→
+   462→  // v2.77: Confirma el cierre con decisión + diasCuarentena y persiste.
+   463→  // Si decision='Retirar', el backend crea un InventoryItem en jaula.
+   464→  // Si decision='Eliminar', el backend crea un InventoryItem efímero transferido.
+   465→  // Si decision='Resuelto', solo cierra el ActionItem sin tocar la Jaula.
+   466→  // v2.78: al cerrar, seteamos verificadoPorId = currentUser.id (FK User).
+   467→  const confirmCloseDecision = async () => {
+   468→    if (!closeDialog) return;
+   469→    const { actionId } = closeDialog;
+   470→    const payload: any = {
+   471→      estado: 'cerrada',
+   472→      porcentaje: 100,
+   473→      decision: closeDecision,
+   474→      // v2.78: el usuario actual es quien verifica el cierre (FK User).
+   475→      verificadoPorId: currentUser?.id || null,
+   476→    };
+   477→    if (closeDecision === 'Retirar') {
+   478→      payload.diasCuarentena = closeDiasCuarentena;
+   479→    }
+   480→
+   481→    // Optimistic update
+   482→    setActions(prev => prev.map(a =>
+   483→      a.id === actionId ? { ...a, estado: 'cerrada', porcentaje: 100 } : a
+   484→    ));
+   485→
+   486→    try {
+   487→      const res = await fetch(`/api/actions?id=${actionId}`, {
+   488→        method: 'PUT',
+   489→        headers: { 'Content-Type': 'application/json' },
+   490→        body: JSON.stringify(payload),
+   491→      });
+   492→      const json = await res.json();
+   493→      if (json.success) {
+   494→        const msg = closeDecision === 'Retirar'
+   495→          ? 'Cerrada y enviada a la Jaula de cuarentena'
+   496→          : closeDecision === 'Eliminar'
+   497→            ? 'Cerrada y enviada a Residuo'
+   498→            : 'Acción cerrada correctamente';
+   499→        toast.success(msg);
+   500→        await loadActions();
+   501→      } else {
+   502→        toast.error(`Error al cerrar: ${json.error || 'Error desconocido'}`);
+   503→        await loadActions();
+   504→      }
+   505→    } catch (error) {
+   506→      console.error('Error cerrando acción:', error);
+   507→      toast.error('Error de conexión al cerrar');
+   508→      await loadActions();
+   509→    } finally {
+   510→      setCloseDialog(null);
+   511→    }
+   512→  };
+   513→
+   514→  const cancelCloseDecision = () => {
+   515→    // No cambiar el estado; queda como estaba
+   516→    setCloseDialog(null);
+   517→  };
+   518→
+   519→  const handleDeleteAction = async (id: string) => {
+   520→    if (!confirm('¿Eliminar esta entrada?')) return;
+   521→    try {
+   522→      const res = await fetch(`/api/actions?id=${id}`, { method: 'DELETE' });
+   523→      const json = await res.json();
+   524→      if (json.success) {
+   525→        setActions(prev => prev.filter(a => a.id !== id));
+   526→        toast.success('Entrada eliminada');
+   527→      } else {
+   528→        toast.error(`Error al eliminar: ${json.error || 'Error desconocido'}`);
+   529→      }
+   530→    } catch (error) {
+   531→      console.error('Error deleting action:', error);
+   532→      toast.error('Error de conexión al eliminar');
+   533→    }
+   534→  };
+   535→
+   536→  // Count completed actions
+   537→  const completedCount = actions.filter(a => a.estado === 'resuelta' || a.estado === 'cerrada').length;
+   538→  const totalActions = actions.length;
+   539→  const canComplete = totalActions >= ACTION_PLAN_MIN_ITEMS;
+   540→  const progressPercent = totalActions > 0 ? Math.round((completedCount / totalActions) * 100) : 0;
+   541→
+   542→  const handleComplete = async () => {
+   543→    if (!canComplete) return;
+   544→    try {
+   545→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+   546→        method: 'PUT',
+   547→        headers: { 'Content-Type': 'application/json' },
+   548→        body: JSON.stringify({
+   549→          completed: true,
+   550→          score: progressPercent,
+   551→          projectId: currentProject?.id,
+   552→          zoneId: currentZone?.id || null,
+   553→        }),
+   554→      });
+   555→      const json = await res.json();
+   556→      if (json.success) {
+   557→        setIsCompleted(true);
+   558→        await fetchProgress();
+   559→      }
+   560→    } catch (error) {
+   561→      console.error('Error completing action plan:', error);
+   562→    }
+   563→  };
+   564→
+   565→  const handleAdminSkip = async () => {
+   566→    try {
+   567→      const res = await fetch(`/api/progress/step?sStep=${sStep}&miniStep=${miniStep}`, {
+   568→        method: 'PUT',
+   569→        headers: { 'Content-Type': 'application/json' },
+   570→        body: JSON.stringify({ completed: true, score: 100, notes: 'Completado por administrador (skip)', skipMissingTemplate: true, projectId: currentProject?.id, zoneId: currentZone?.id || null }),
+   571→      });
+   572→      const json = await res.json();
+   573→      if (json.success) {
+   574→        await fetchProgress();
+   575→        onClose();
+   576→      }
+   577→    } catch (error) {
+   578→      console.error('Error admin skip:', error);
+   579→    }
+   580→  };
+   581→
+   582→  const getEstadoBadge = (estado: string) => {
+   583→    const opt = ESTADO_OPTIONS.find(e => e.value === estado);
+   584→    return opt || ESTADO_OPTIONS[0];
+   585→  };
+   586→
+   587→  return (
+   588→    <Dialog open={open} onOpenChange={() => onClose()}>
+   589→      <DialogContent size={isFullscreen ? "fullscreen" : "xl"} className="flex flex-col overflow-hidden p-0">
+   590→        <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
+   591→          <DialogTitle className="flex items-center gap-2">
+   592→            <ListChecks className="h-5 w-5" style={{ color: sStepData?.color }} />
+   593→            <span>Plan de Acción{miniStep === 0 ? ' — Global' : ` — ${sStepData?.name}`}</span>
+   594→            {sStepData && miniStep !== 0 && (
+   595→              <Badge variant="outline" style={{ borderColor: sStepData?.color, color: sStepData?.color }}>
+   596→                {sStepData?.japaneseName}
+   597→              </Badge>
+   598→            )}
+   599→            <button
+   600→              onClick={() => setIsFullscreen(!isFullscreen)}
+   601→              className="ml-auto p-1 rounded hover:bg-muted transition-colors"
+   602→              title={isFullscreen ? "Reducir ventana" : "Pantalla completa"}
+   603→            >
+   604→              {isFullscreen ? <Minimize2 className="h-4 w-4 text-muted-foreground" /> : <Maximize2 className="h-4 w-4 text-muted-foreground" />}
+   605→            </button>
+   606→          </DialogTitle>
+   607→        </DialogHeader>
+   608→
+   609→        {canSkipSteps && !isCompleted && (
+   610→          <div className="mx-6 flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg flex-shrink-0">
+   611→            <span className="text-xs text-amber-700 font-medium">Modo Admin:</span>
+   612→            <Button
+   613→              variant="outline"
+   614→              size="sm"
+   615→              className="text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
+   616→              onClick={handleAdminSkip}
+   617→            >
+   618→              Completar paso sin plan
+   619→            </Button>
+   620→          </div>
+   621→        )}
+   622→
+   623→        {isReadOnly && (
+   624→          <div className="flex items-center gap-2 p-2 mx-6 flex-shrink-0 bg-blue-50 border border-blue-200 rounded-lg">
+   625→            <span className="text-xs text-blue-700 font-medium">Solo lectura: {canSkipSteps ? 'Activa el candado para poder realizar pasos.' : 'Puedes ver pero no modificar.'}</span>
+   626→          </div>
+   627→        )}
+   628→
+   629→        <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
+   630→        {isCompleted ? (
+   631→          <div className="text-center py-8">
+   632→            <div className="text-4xl mb-3">✅</div>
+   633→            <h3 className="text-xl font-bold mb-2">¡Plan de Acción Completado!</h3>
+   634→            <p className="text-muted-foreground">
+   635→              Se han definido {totalActions} acciones, {completedCount} completadas ({progressPercent}%).
+   636→            </p>
+   637→          </div>
+   638→        ) : (
+   639→          <div className="flex-1 flex flex-col min-h-0 space-y-3">
+   640→            {/* Stats bar */}
+   641→            <div className="flex items-center justify-between p-2 bg-muted rounded-lg text-sm">
+   642→              <div className="flex items-center gap-3">
+   643→                <span className="font-medium">{totalActions} entradas</span>
+   644→                <span className="text-muted-foreground">({completedCount} resueltas — {progressPercent}%)</span>
+   645→              </div>
+   646→              <div className="flex items-center gap-2">
+   647→                <Button
+   648→                  onClick={handleAddAction}
+   649→                  size="sm"
+   650→                  style={{ backgroundColor: sStepData?.color }}
+   651→                  className="text-white"
+   652→                >
+   653→                  <Plus className="h-4 w-4 mr-1" /> Nueva Entrada
+   654→                </Button>
+   655→              </div>
+   656→            </div>
+   657→
+   658→            {/* Scrollable table */}
+   659→            <div className="flex-1 overflow-auto border rounded-lg">
+   660→              <table className="w-full text-xs border-collapse min-w-[800px] md:min-w-[1200px]">
+   661→                <thead className="sticky top-0 z-10">
+   662→                  {/* v2.87: fila 1 — cabeceras de sección */}
+   663→                  <tr>
+   664→                    <th colSpan={10} className={`${HEADER_COLORS.demandante} px-2 py-1.5 text-center text-xs font-bold border border-amber-500`}>
+   665→                      HALLAZGO
+   666→                    </th>
+   667→                    {/* v2.87: ACCIONES como cabecera única que abarca Correctiva (3) + Preventiva (1) */}
+   668→                    <th colSpan={4} className="bg-cyan-500 text-white px-2 py-1.5 text-center text-xs font-bold border border-cyan-600 uppercase tracking-wider">
+   669→                      Acciones
+   670→                    </th>
+   671→                    <th colSpan={5} className={`${HEADER_COLORS.seguimiento} px-2 py-1.5 text-center text-xs font-bold border border-orange-500`}>
+   672→                      SEGUIMIENTO
+   673→                    </th>
+   674→                    <th className="bg-gray-400 text-white px-1 py-1.5 text-center text-xs font-bold border border-gray-500 w-8">
+   675→                      🗑
+   676→                    </th>
+   677→                  </tr>
+   678→                  {/* v2.87: fila 2 — sub-cabeceras CORRECTIVA + PREVENTIVA (cajas blancas con borde cyan) + labels HALLAZGO/SEGUIMIENTO */}
+   679→                  <tr>
+   680→                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Nº</th>
+   681→                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Fecha</th>
+   682→                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Paso en el que se detectó el hallazgo (el responsable se muestra en otra columna)">Detectado por</th>
+   683→                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Categoría del inventario (innecesario/dudoso/util/...)">Categoría</th>
+   684→                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Elemento del inventario">Elemento</th>
+   685→                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Cantidad</th>
+   686→                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Semana</th>
+   687→                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`}>Zona</th>
+   688→                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Responsable de resolver el hallazgo (empleado de la zona por defecto, editable)">Responsable</th>
+   689→                    <th className={`${HEADER_COLORS.demandante} px-1 py-1 text-center font-semibold border border-amber-400 whitespace-nowrap`} title="Impacto objetivo — trabajaremos en esto luego">Impacto</th>
+   690→                    {/* v2.87: Sub-cabecera CORRECTIVA — caja blanca con borde cyan */}
+   691→                    <th colSpan={3} className="bg-white text-cyan-700 px-2 py-1 text-center font-bold border-2 border-cyan-500 border-b-1 uppercase tracking-wide text-[10px]">
+   692→                      Correctiva
+   693→                    </th>
+   694→                    {/* v2.87: Sub-cabecera PREVENTIVA — caja blanca con borde cyan */}
+   695→                    <th colSpan={1} className="bg-white text-cyan-700 px-2 py-1 text-center font-bold border-2 border-cyan-500 border-b-1 uppercase tracking-wide text-[10px]">
+   696→                      Preventiva
+   697→                    </th>
+   698→                    <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>Semana Prevista</th>
+   699→                    <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`} title="Usuario que verifica el cierre (FK User)">Verificado por</th>
+   700→                    <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>%</th>
+   701→                    <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>Estado</th>
+   702→                    <th className={`${HEADER_COLORS.seguimiento} px-1 py-1 text-center font-semibold border border-orange-400 whitespace-nowrap`}>Semana Real</th>
+   703→                    <th className="bg-gray-300 text-gray-700 px-1 py-1 border border-gray-400 w-8"></th>
+   704→                  </tr>
+   705→                  {/* v2.87: fila 3 — labels finales solo bajo ACCIONES */}
+   706→                  <tr>
+   707→                    <th className="bg-amber-50 border border-amber-200" />
+   708→                    <th className="bg-amber-50 border border-amber-200" />
+   709→                    <th className="bg-amber-50 border border-amber-200" />
+   710→                    <th className="bg-amber-50 border border-amber-200" />
+   711→                    <th className="bg-amber-50 border border-amber-200" />
+   712→                    <th className="bg-amber-50 border border-amber-200" />
+   713→                    <th className="bg-amber-50 border border-amber-200" />
+   714→                    <th className="bg-amber-50 border border-amber-200" />
+   715→                    <th className="bg-amber-50 border border-amber-200" />
+   716→                    <th className="bg-amber-50 border border-amber-200" />
+   717→                    <th className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Acción correctiva: decisión del inventario (Retirar/Eliminar/...). Automática desde el paso 3.">Acción</th>
+   718→                    <th className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Etiqueta para imprimir (auto desde inventario S1; 'No aplica' para S2-S5)">Etiqueta</th>
+   719→                    <th className="bg-sky-50 text-sky-800 px-1 py-1 text-center font-semibold border border-sky-300 whitespace-nowrap" title="Destino del item: zona o Residuo (auto desde inventario)">Destino</th>
+   720→                    <th className="bg-cyan-50 text-cyan-800 px-1 py-1 text-center font-semibold border border-cyan-300 whitespace-nowrap" title="Acción preventiva — automática 'N/A' para items del inventario, manual para otros orígenes">Acción</th>
+   721→                    <th className="bg-orange-50 border border-orange-200" />
+   722→                    <th className="bg-orange-50 border border-orange-200" />
+   723→                    <th className="bg-orange-50 border border-orange-200" />
+   724→                    <th className="bg-orange-50 border border-orange-200" />
+   725→                    <th className="bg-orange-50 border border-orange-200" />
+   726→                    <th className="bg-gray-50 border border-gray-200" />
+   727→                  </tr>
+   728→                </thead>
+   729→                <tbody>
+   730→                  {actions.length === 0 ? (
+   731→                    <tr>
+   732→                      <td colSpan={20} className="text-center py-12 text-muted-foreground">
+   733→                        <ListChecks className="h-8 w-8 mx-auto mb-2 opacity-50" />
+   734→                        <p className="text-sm">No hay entradas en el Plan de Acción</p>
+   735→                        <p className="text-xs mt-1">Haga clic en &quot;Nueva Entrada&quot; para agregar acciones</p>
+   736→                      </td>
+   737→                    </tr>
+   738→                  ) : (
+   739→                    actions.map((action) => {
+   740→                      const isExpanded = expandedRow === action.id;
+   741→                      const estadoBadge = getEstadoBadge(action.estado);
+   742→
+   743→                      return (
+   744→                        <tr key={action.id} className="hover:bg-muted/30 group">
+   745→                          {/* ── HALLAZGO — v2.79: 7 columnas ── */}
+   746→                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200 text-center font-bold`}>
+   747→                            {action.numeroEntrada || '-'}
+   748→                          </td>
+   749→                          {/* v2.89: Fecha de entrada — read-only (no cambiable) */}
+   750→                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
+   751→                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700" title={action.fechaEntrada || '—'}>
+   752→                              {action.fechaEntrada || '—'}
+   753→                            </div>
+   754→                          </td>
+   755→                          {/* v2.99.6: Detectado por — solo el Paso (responsable va en otra columna) */}
+   756→                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
+   757→                            <div className="h-6 min-h-[24px] text-[10px] px-1 flex items-center text-gray-700 truncate" title={`${(() => {
+   758→                              if (action.miniStep === 5) return 'Paso 5';
+   759→                              if (action.miniStep === 4) return 'Paso 4';
+   760→                              return 'Paso 3';
+   761→                            })()}`}>
+   762→                              {(() => {
+   763→                                if (action.miniStep === 5) return 'Paso 5';
+   764→                                if (action.miniStep === 4) return 'Paso 4';
+   765→                                return 'Paso 3';
+   766→                              })()}
+   767→                            </div>
+   768→                          </td>
+   769→                          {/* v2.79: Categoría / Elemento / Cantidad — autorellenados desde el snapshot `extra`
+   770→                              del ActionItem (linkado al inventario del paso 3). Read-only. */}
+   771→                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
+   772→                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionCategoria || '—'}>
+   773→                              {action.accionCategoria || '—'}
+   774→                            </div>
+   775→                          </td>
+   776→                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
+   777→                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionElemento || '—'}>
+   778→                              {action.accionElemento || '—'}
+   779→                            </div>
+   780→                          </td>
+   781→                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200 text-center`}>
+   782→                            <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-700 truncate">
+   783→                              {action.accionCantidad || '—'}
+   784→                            </div>
+   785→                          </td>
+   786→                          {/* v2.89: Semana — auto-calculada desde fechaEntrada (read-only) */}
+   787→                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200 text-center`}>
+   788→                            <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-700 font-medium" title={`Semana automática según fecha de entrada (${action.fechaEntrada || 'hoy'})`}>
+   789→                              {getWeekFromDate(action.fechaEntrada)}
+   790→                            </div>
+   791→                          </td>
+   792→                          {/* v2.79: Zona — read-only (viene del paso donde se detectó) */}
+   793→                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
+   794→                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.zonaName || '—'}>
+   795→                              {action.zonaName || '—'}
+   796→                            </div>
+   797→                          </td>
+   798→                          {/* v2.79: Responsable — User picker. Default = empleado de la zona,
+   799→                              fallback a responsable del proyecto si no hay empleado.
+   800→                              El usuario puede cambiar a cualquier otro miembro. */}
+   801→                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
+   802→                            <Select
+   803→                              value={
+   804→                                action.personaDemandadaId ||
+   805→                                projectMembers.find(m => m.role === 'empleado')?.id ||
+   806→                                projectMembers.find(m => m.role === 'responsable')?.id ||
+   807→                                '__none__'
+   808→                              }
+   809→                              onValueChange={val => handleUpdateField(action.id, 'personaDemandadaId', val === '__none__' ? null : val)}
+   810→                            >
+   811→                              <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-28">
+   812→                                <SelectValue placeholder="—" />
+   813→                              </SelectTrigger>
+   814→                              <SelectContent className="max-h-60">
+   815→                                <SelectItem value="__none__">—</SelectItem>
+   816→                                {projectMembers.map(m => (
+   817→                                  <SelectItem key={m.id} value={m.id} title={`${m.email} (${m.role})`}>
+   818→                                    {m.name} <span className="text-[9px] opacity-60">· {m.role}</span>
+   819→                                  </SelectItem>
+   820→                                ))}
+   821→                              </SelectContent>
+   822→                            </Select>
+   823→                          </td>
+   824→                          {/* v2.82: Impacto — auto-clasificado (CALIDAD / MEJORA TIEMPOS /
+   825→                              RIESGOS DE ACCIDENTES). Se calcula al crear el ActionItem
+   826→                              desde paso 3/4/5 y se guarda en impactoObjetivo. Read-only:
+   827→                              el usuario no edita este campo. */}
+   828→                          <td className={`${SECTION_COLORS.demandante} px-1 py-1 border border-amber-200`}>
+   829→                            <div
+   830→                              className="h-6 text-[9px] px-1 flex items-center justify-center text-center font-semibold truncate"
+   831→                              title={`Impacto auto-clasificado: ${action.impacto || '—'}`}
+   832→                            >
+   833→                              {action.impacto ? (
+   834→                                <span className={
+   835→                                  action.impacto === 'CALIDAD' ? 'text-blue-700 bg-blue-50 px-1 py-0.5 rounded' :
+   836→                                  action.impacto === 'MEJORA TIEMPOS' ? 'text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded' :
+   837→                                  action.impacto === 'RIESGOS DE ACCIDENTES' ? 'text-red-700 bg-red-50 px-1 py-0.5 rounded' :
+   838→                                  'text-gray-700'
+   839→                                }>
+   840→                                  {action.impacto}
+   841→                                </span>
+   842→                              ) : '—'}
+   843→                            </div>
+   844→                          </td>
+   845→
+   846→                          {/* ── ACCIÓN · CORRECTIVA — v2.86: 3 columnas (Acción+Etiqueta+Destino).
+   847→                              Solo source='inventario' trae estos datos; para otros orígenes
+   848→                              se muestran vacíos (—) ya que no hay inventario asociado. ── */}
+   849→                          <td className="bg-sky-50 px-1 py-1 border border-sky-200">
+   850→                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate font-medium" title={action.accionDecision || '—'}>
+   851→                              {action.accionDecision || '—'}
+   852→                            </div>
+   853→                          </td>
+   854→                          <td className="bg-sky-50 px-1 py-1 border border-sky-200">
+   855→                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionEtiqueta || '—'}>
+   856→                              {action.accionEtiqueta || '—'}
+   857→                            </div>
+   858→                          </td>
+   859→                          <td className="bg-sky-50 px-1 py-1 border border-sky-200">
+   860→                            <div className="h-6 text-[10px] px-1 flex items-center text-gray-700 truncate" title={action.accionDestino || '—'}>
+   861→                              {action.accionDestino || '—'}
+   862→                            </div>
+   863→                          </td>
+   864→                          {/* v2.85: Acción Preventiva — automática "N/A" para items
+   865→                              del inventario (S1/S2). Para otros orígenes, manual. */}
+   866→                          <td className={`${SECTION_COLORS.accion} px-1 py-1 border border-sky-200`}>
+   867→                            {action.source === 'inventario' ? (
+   868→                              <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-500 italic" title="Automática: los items del inventario no llevan acción preventiva">
+   869→                                N/A <span className="ml-1 text-[8px] text-gray-400">(auto)</span>
+   870→                              </div>
+   871→                            ) : (
+   872→                              <Select
+   873→                                value={action.accionPreventiva || 'N/A'}
+   874→                                onValueChange={val => handleUpdateField(action.id, 'accionesPreventivas', val)}
+   875→                              >
+   876→                                <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-24">
+   877→                                  <SelectValue />
+   878→                                </SelectTrigger>
+   879→                                <SelectContent className="max-h-60">
+   880→                                  {ACCION_PREVENTIVA_OPTIONS.map(opt => (
+   881→                                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
+   882→                                      {opt.label}
+   883→                                    </SelectItem>
+   884→                                  ))}
+   885→                                </SelectContent>
+   886→                              </Select>
+   887→                            )}
+   888→                          </td>
+   889→
+   890→                          {/* Orange section: Seguimiento */}
+   891→                          <td className={`${SECTION_COLORS.seguimiento} px-1 py-1 border border-orange-200`}>
+   892→                            <Select
+   893→                              value={action.semanaPrevista || '__none__'}
+   894→                              onValueChange={val => handleUpdateField(action.id, 'semanaPrevista', val === '__none__' ? '' : val)}
+   895→                            >
+   896→                              <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-16">
+   897→                                <SelectValue placeholder="Sem" />
+   898→                              </SelectTrigger>
+   899→                              <SelectContent className="max-h-48">
+   900→                                <SelectItem value="__none__">—</SelectItem>
+   901→                                {WEEK_OPTIONS.map(w => (
+   902→                                  <SelectItem key={w} value={w}>{w}</SelectItem>
+   903→                                ))}
+   904→                              </SelectContent>
+   905→                            </Select>
+   906→                          </td>
+   907→                          {/* v2.78: "Verificado por" — User picker (verificadoPorId FK) */}
+   908→                          <td className={`${SECTION_COLORS.seguimiento} px-1 py-1 border border-orange-200`}>
+   909→                            <Select
+   910→                              value={action.verificadoPorId || '__none__'}
+   911→                              onValueChange={val => handleUpdateField(action.id, 'verificadoPorId', val === '__none__' ? null : val)}
+   912→                            >
+   913→                              <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-28">
+   914→                                <SelectValue placeholder="—" />
+   915→                              </SelectTrigger>
+   916→                              <SelectContent className="max-h-60">
+   917→                                <SelectItem value="__none__">—</SelectItem>
+   918→                                {projectMembers.map(m => (
+   919→                                  <SelectItem key={m.id} value={m.id} title={m.email}>
+   920→                                    {m.name}
+   921→                                  </SelectItem>
+   922→                                ))}
+   923→                              </SelectContent>
+   924→                            </Select>
+   925→                          </td>
+   926→                          <td className={`${SECTION_COLORS.seguimiento} px-1 py-1 border border-orange-200 text-center`}>
+   927→                            <div className="h-6 text-[10px] px-1 flex items-center justify-center text-gray-700 font-medium" title={`Progreso automático según estado (${action.estado})`}>
+   928→                              {action.porcentaje}%
+   929→                            </div>
+   930→                          </td>
+   931→                          <td className={`${SECTION_COLORS.seguimiento} px-1 py-1 border border-orange-200`}>
+   932→                            <Select
+   933→                              value={action.estado}
+   934→                              onValueChange={val => handleUpdateField(action.id, 'estado', val)}
+   935→                            >
+   936→                              <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-20">
+   937→                                <SelectValue />
+   938→                              </SelectTrigger>
+   939→                              <SelectContent>
+   940→                                {ESTADO_OPTIONS.map(opt => (
+   941→                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+   942→                                ))}
+   943→                              </SelectContent>
+   944→                            </Select>
+   945→                          </td>
+   946→                          <td className={`${SECTION_COLORS.seguimiento} px-1 py-1 border border-orange-200`}>
+   947→                            <Select
+   948→                              value={action.semanaReal || '__none__'}
+   949→                              onValueChange={val => handleUpdateField(action.id, 'semanaReal', val === '__none__' ? '' : val)}
+   950→                            >
+   951→                              <SelectTrigger className="h-6 text-[10px] p-0 px-1 bg-transparent border-0 w-16">
+   952→                                <SelectValue placeholder="Sem" />
+   953→                              </SelectTrigger>
+   954→                              <SelectContent className="max-h-48">
+   955→                                <SelectItem value="__none__">—</SelectItem>
+   956→                                {WEEK_OPTIONS.map(w => (
+   957→                                  <SelectItem key={w} value={w}>{w}</SelectItem>
+   958→                                ))}
+   959→                              </SelectContent>
+   960→                            </Select>
+   961→                          </td>
+   962→                          <td className="px-1 py-1 border border-gray-200 text-center">
+   963→                            <button
+   964→                              onClick={() => handleDeleteAction(action.id)}
+   965→                              className="text-red-400 hover:text-red-600 transition-colors"
+   966→                              title="Eliminar entrada"
+   967→                            >
+   968→                              <Trash2 className="h-3.5 w-3.5" />
+   969→                            </button>
+   970→                          </td>
+   971→                        </tr>
+   972→                      );
+   973→                    })
+   974→                  )}
+   975→                </tbody>
+   976→              </table>
+   977→            </div>
+   978→
+   979→            {/* Footer with completion button */}
+   980→            <div className="flex items-center justify-between pt-2">
+   981→              <div className="text-xs text-muted-foreground">
+   982→                Mín. {ACTION_PLAN_MIN_ITEMS} entradas para completar el paso
+   983→              </div>
+   984→              <Button
+   985→                onClick={handleComplete}
+   986→                disabled={!canComplete || isReadOnly}
+   987→                style={canComplete ? { backgroundColor: sStepData?.color } : undefined}
+   988→              >
+   989→                Completar Plan de Acción ({totalActions}/{ACTION_PLAN_MIN_ITEMS} mín.)
+   990→              </Button>
+   991→            </div>
+   992→          </div>
+   993→        )}
+   994→
+   995→        {/* v2.77: Diálogo de decisión de cierre */}
+   996→        {closeDialog && (
+   997→          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+   998→            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+   999→              <div className="flex items-start gap-3">
+  1000→                <AlertTriangle className="h-6 w-6 text-amber-500 flex-shrink-0 mt-0.5" />
+  1001→                <div className="flex-1">
+  1002→                  <h3 className="text-base font-bold text-gray-900">Cerrar acción</h3>
+  1003→                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+  1004→                    {closeDialog.hallazgo || 'Sin descripción'}
+  1005→                  </p>
+  1006→                </div>
+  1007→              </div>
+  1008→
+  1009→              <div className="space-y-2">
+  1010→                <label className="text-xs font-semibold text-gray-700">
+  1011→                  Decisión de cierre
+  1012→                </label>
+  1013→                <div className="grid grid-cols-3 gap-2">
+  1014→                  <button
+  1015→                    type="button"
+  1016→                    onClick={() => setCloseDecision('Resuelto')}
+  1017→                    className={`p-2 text-xs rounded-md border-2 transition-colors ${
+  1018→                      closeDecision === 'Resuelto'
+  1019→                        ? 'border-green-500 bg-green-50 text-green-700 font-bold'
+  1020→                        : 'border-gray-200 text-gray-700 hover:border-gray-400'
+  1021→                    }`}
+  1022→                  >
+  1023→                    ✓ Resuelto
+  1024→                  </button>
+  1025→                  <button
+  1026→                    type="button"
+  1027→                    onClick={() => setCloseDecision('Retirar')}
+  1028→                    className={`p-2 text-xs rounded-md border-2 transition-colors ${
+  1029→                      closeDecision === 'Retirar'
+  1030→                        ? 'border-amber-500 bg-amber-50 text-amber-700 font-bold'
+  1031→                        : 'border-gray-200 text-gray-700 hover:border-gray-400'
+  1032→                    }`}
+  1033→                  >
+  1034→                    📦 A Jaula
+  1035→                  </button>
+  1036→                  <button
+  1037→                    type="button"
+  1038→                    onClick={() => setCloseDecision('Eliminar')}
+  1039→                    className={`p-2 text-xs rounded-md border-2 transition-colors ${
+  1040→                      closeDecision === 'Eliminar'
+  1041→                        ? 'border-red-500 bg-red-50 text-red-700 font-bold'
+  1042→                        : 'border-gray-200 text-gray-700 hover:border-gray-400'
+  1043→                    }`}
+  1044→                  >
+  1045→                    🗑 Eliminar
+  1046→                  </button>
+  1047→                </div>
+  1048→                <p className="text-[10px] text-gray-500 mt-1">
+  1049→                  {closeDecision === 'Resuelto' && 'La acción se da por cerrada sin tocar la Jaula.'}
+  1050→                  {closeDecision === 'Retirar' && 'Se crea un nuevo item en la Jaula de cuarentena para este hallazgo.'}
+  1051→                  {closeDecision === 'Eliminar' && 'Se registra como eliminado/residuo (no entra en la Jaula).'}
+  1052→                </p>
+  1053→              </div>
+  1054→
+  1055→              {closeDecision === 'Retirar' && (
+  1056→                <div className="space-y-1">
+  1057→                  <label className="text-xs font-semibold text-gray-700">
+  1058→                    Días de cuarentena
+  1059→                  </label>
+  1060→                  <Input
+  1061→                    type="number"
+  1062→                    min={1}
+  1063→                    max={365}
+  1064→                    value={closeDiasCuarentena}
+  1065→                    onChange={e => setCloseDiasCuarentena(parseInt(e.target.value) || 40)}
+  1066→                    className="w-24"
+  1067→                  />
+  1068→                  <p className="text-[10px] text-gray-500">
+  1069→                    Pasados esos días, el item quedará reclamable/transferible.
+  1070→                  </p>
+  1071→                </div>
+  1072→              )}
+  1073→
+  1074→              <div className="flex justify-end gap-2 pt-2 border-t">
+  1075→                <Button variant="outline" size="sm" onClick={cancelCloseDecision}>
+  1076→                  Cancelar
+  1077→                </Button>
+  1078→                <Button size="sm" onClick={confirmCloseDecision}>
+  1079→                  Confirmar cierre
+  1080→                </Button>
+  1081→              </div>
+  1082→            </div>
+  1083→          </div>
+  1084→        )}
+  1085→        </div>
+  1086→      </DialogContent>
+  1087→    </Dialog>
+  1088→  );
+  1089→}
+  1090→

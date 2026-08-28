@@ -253,7 +253,7 @@ export default function GerentePanel({ embedded }: GerentePanelProps = {}) {
     <div className={`flex flex-col h-full bg-gradient-to-b from-indigo-50/50 to-white`}>
       {/* Header - only shown in standalone mode */}
       {!embedded && (
-        <header className="border-b bg-white/80 backdrop-blur-sm shrink-0 z-10">
+        <header className="border-b bg-white shrink-0 z-10">
           <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Button variant="ghost" size="sm" onClick={() => setCurrentView('board')} className="gap-1.5">

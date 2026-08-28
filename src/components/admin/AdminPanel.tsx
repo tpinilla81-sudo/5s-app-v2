@@ -1540,7 +1540,7 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
     <div className={`flex flex-col h-full bg-gradient-to-b from-gray-50 to-white`}>
       {/* Header - only shown in standalone mode */}
       {!embedded && (
-        <header className="border-b bg-white/80 backdrop-blur-sm shrink-0 z-10">
+        <header className="border-b bg-white shrink-0 z-10">
           <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               {/* v2.30.2: volver al selector de proyecto (no al board directamente) */}
@@ -2343,7 +2343,7 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
 
                   {/* ───── ACCIONES DE EDICIÓN ───── */}
                   {isEditingMyCompany && (
-                    <div className="flex justify-end gap-2 sticky bottom-2 z-10 bg-white/90 backdrop-blur border rounded-lg p-2 shadow-md">
+                    <div className="flex justify-end gap-2 sticky bottom-2 z-10 bg-white border rounded-lg p-2 shadow-md">
                       <Button variant="outline" size="sm" onClick={() => {
                         setIsEditingMyCompany(false)
                         // Revertir cambios: recargar del estado original

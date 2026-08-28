@@ -1074,7 +1074,7 @@ const handleSaveGestorProfile = async () => {
  return (
   <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 text-slate-800">
    {/* Header */}
-   <header className="border-b border-slate-200 bg-white/90 backdrop-blur-md shadow-sm sticky top-0 z-10">
+   <header className="border-b border-slate-200 bg-white shadow-sm sticky top-0 z-10">
     <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
      <div className="flex items-center gap-3">
       <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
@@ -1113,7 +1113,7 @@ const handleSaveGestorProfile = async () => {
    </header>
 
    {/* Tabs */}
-   <div className="bg-white/80 backdrop-blur-md border-b">
+   <div className="bg-white border-b">
     <div className="max-w-7xl mx-auto px-4 flex gap-0 overflow-x-auto">
      {tabs.map(tab => (
       <button

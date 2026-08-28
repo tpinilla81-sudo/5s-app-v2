@@ -873,7 +873,7 @@ export default function ProjectSetup() {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-green-50 via-white to-emerald-50">
       {/* ── Top Navigation Bar ── */}
-      <header className="border-b bg-white/90 backdrop-blur-sm sticky top-0 z-20">
+      <header className="border-b bg-white sticky top-0 z-20">
         <div className="px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8">
