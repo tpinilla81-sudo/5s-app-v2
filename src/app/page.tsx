@@ -471,7 +471,7 @@ export default function HomePage() {
   return (
     <div className="h-screen flex flex-col bg-green-50 overflow-hidden">
       {/* Compact Header */}
-      <header className="border-b border-green-200 bg-green-50/90 backdrop-blur-sm shrink-0 z-20">
+      <header className="border-b border-green-200 bg-green-50 shrink-0 z-20">
         <div className="px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8">
@@ -1499,7 +1499,7 @@ export default function HomePage() {
 
                   {/* BOTTOM: S-Step Cards — Compact horizontal row (only when zone selected) */}
                   {currentZone && (
-                  <div className="shrink-0 border-t bg-white/80 backdrop-blur-sm px-2 py-2 z-10">
+                  <div className="shrink-0 border-t bg-white px-2 py-2 z-10">
                     <div className={`grid gap-2 max-w-5xl mx-auto ${isMobile ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5'}`}>
                       {S_STEPS.map(s => {
                         const earned = isQuesitoEarned(s.id);

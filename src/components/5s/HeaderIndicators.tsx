@@ -198,7 +198,7 @@ export default function HeaderIndicators({ stats }: HeaderIndicatorsProps) {
   };
 
   return (
-    <div className="border-t bg-gradient-to-r from-gray-50/95 to-slate-50/95 backdrop-blur-sm">
+    <div className="border-t bg-gradient-to-r from-gray-50 to-slate-50">
       <div className="max-w-5xl mx-auto px-3 py-2.5">
         {/* Main indicators row */}
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">

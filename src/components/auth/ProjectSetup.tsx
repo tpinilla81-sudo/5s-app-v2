@@ -604,7 +604,11 @@ export default function ProjectSetup() {
       case 2:
         return projectName.trim() !== ''
       case 3:
-        return zones.length > 0 && zones.every((z) => z.name.trim() !== '')
+        // v3.0.4 - Las zonas son OPCIONALES: el usuario puede crear el
+        // proyecto sin zonas y añadirlas después desde AdminPanel.
+        // Si hay zonas definidas, validar que tengan nombre.
+        if (zones.length === 0) return true
+        return zones.every((z) => z.name.trim() !== '')
       case 4:
         return true
       case 5:
