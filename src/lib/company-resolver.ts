@@ -66,31 +66,24 @@ export const RESPONSABLE_EDITABLE_TYPES = ['autoevaluacion', 'auditoria'] as con
 
 /**
  * ¿Puede el usuario editar plantillas de una empresa concreta?
- * - gestor → siempre (es dueño)
- * - admin → solo su propia empresa, todos los tipos
- * - responsable (coordinador) → solo su empresa + solo autoevaluacion/auditoria
- * - resto → nunca
+ * v3.0.5: SOLO el GESTOR puede editar plantillas.
+ * - gestor → siempre (es dueño de la plataforma)
+ * - admin → NO puede editar plantillas (solo verlas)
+ * - responsable (coordinador) → NO puede editar plantillas
+ * - empleado/auditor → nunca
  *
- * Pasar `templateType` para que el check respete la restricción por tipo del
- * responsable. Si no se pasa, se asume que se pregunta a nivel genérico y el
- * responsable se considera SIN permiso (false).
+ * NOTA: El administrador gestiona proyectos, zonas y usuarios, pero las
+ * plantillas (contenido formativo: formación, exámenes, checklists) son
+ * responsabilidad exclusiva del Gestor.
  */
 export function canEditCompanyTemplates(
   ctx: AuthContext,
   companyId: string | null,
   templateType?: string,
 ): boolean {
+  // v3.0.5: Solo el gestor puede modificar plantillas
   if (ctx.user.role === 'gestor') return true
-  if (ctx.user.role === 'admin' && companyId != null && ctx.companyId === companyId) return true
-  if (
-    ctx.user.role === 'responsable' &&
-    companyId != null &&
-    ctx.companyId === companyId &&
-    templateType != null &&
-    (RESPONSABLE_EDITABLE_TYPES as readonly string[]).includes(templateType)
-  ) {
-    return true
-  }
+  // Admin y demás roles NO pueden editar plantillas
   return false
 }
 

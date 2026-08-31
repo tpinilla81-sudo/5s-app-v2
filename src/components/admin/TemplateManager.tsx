@@ -1768,41 +1768,35 @@ export default function TemplateManager({
           || 'tu empresa')
 
   // Tipos que un responsable (coordinador) puede editar.
-  // Mantenemos este array en cliente para esconder/mostrar botones; el check
-  // de permisos real está en la API.
+  // NOTA: v3.0.5 - Ya no se usa, solo gestor puede editar. Se mantiene por compatibilidad.
   const RESPONSABLE_EDITABLE_TYPES = ['autoevaluacion', 'auditoria']
 
   // ¿Puede el usuario editar/eliminar esta plantilla concreta?
+  // v3.0.5: SOLO el GESTOR puede modificar plantillas
   const canEditTemplate = (tpl: TemplateData): boolean => {
     if (!currentUser) return false
+    // Solo gestor puede editar CUALQUIER plantilla
     if (currentUser.role === 'gestor') return true
-    // Sistema (companyId null) → solo gestor
-    if (tpl.companyId == null) return false
-    // Plantilla de empresa → solo si es mi empresa y soy admin/responsable
-    if (tpl.companyId !== activeCompanyId) return false
-    if (currentUser.role === 'admin') return true
-    if (currentUser.role === 'responsable' && RESPONSABLE_EDITABLE_TYPES.includes(tpl.type)) return true
+    // Admin y demás roles NO pueden editar plantillas (solo verlas)
     return false
   }
 
   // ¿Puede crear una plantilla nueva para este tipo?
+  // v3.0.5: SOLO el GESTOR puede crear plantillas
   const canCreateType = (type: string): boolean => {
     if (!currentUser) return false
     if (currentUser.role === 'gestor') return true
-    if (currentUser.role === 'admin' && activeCompanyId) return true
-    if (currentUser.role === 'responsable' && activeCompanyId && RESPONSABLE_EDITABLE_TYPES.includes(type)) return true
+    // Admin y demás roles NO pueden crear plantillas
     return false
   }
 
-  // ¿Puede duplicar una plantilla del Sistema a su empresa? (admin/responsable con tipo permitido)
+  // ¿Puede duplicar una plantilla del Sistema a su empresa?
+  // v3.0.5: SOLO el GESTOR puede duplicar plantillas
   const canDuplicateToMyCompany = (tpl: TemplateData): boolean => {
-    if (!currentUser || currentUser.role === 'gestor') return false
-    if (!activeCompanyId) return false
-    // Solo duplicar plantillas que NO son de mi empresa (library u otra empresa)
-    if (tpl.companyId === activeCompanyId) return false
-    // Responsable solo puede duplicar autoevaluacion/auditoria
-    if (currentUser.role === 'responsable' && !RESPONSABLE_EDITABLE_TYPES.includes(tpl.type)) return false
-    return true
+    if (!currentUser) return false
+    if (currentUser.role === 'gestor') return true
+    // Admin y demás roles NO pueden duplicar plantillas
+    return false
   }
 
   // Form state
