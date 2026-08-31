@@ -185,7 +185,6 @@ export async function POST(request: NextRequest) {
         data: {
           name: name.trim(),
           description: description?.trim() || null,
-          company: company.trim(),
           companyId: effectiveCompanyId || null,
           // Inicializar estado de jaula como pendiente
           jaulaStatus: 'pendiente',
@@ -281,7 +280,6 @@ export async function POST(request: NextRequest) {
             data: {
               name: name.trim(),
               description: description?.trim() || null,
-              company: company.trim(),
               companyId: effectiveCompanyId || null,
               // NO incluir jaulaStatus - la columna no existe aún
               zones: {
