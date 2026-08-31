@@ -52,12 +52,18 @@ export async function PUT(
 
 // DELETE /api/projects/[projectId] - Delete project y TODOS los datos asociados
 //
-// v2.108.6 — Hard delete con limpieza exhaustiva.
-// El cascade de Prisma/Postgres YA borra la mayoría de tablas con FK a Project,
-// pero hay tablas que NO tienen cascade (p.ej. Notification tiene solo
-// projectId String sin FK formal) y hay que borrarlas manualmente.
-// También borramos en orden para evitar deadlocks: primero hijos, después nietos,
-// al final Project.
+// ORDEN DE BORRADO (v3.0.7 - CORREGIDO):
+// 1. Datos que NO tienen FK o no tienen cascade: Notification
+// 2. MemberZone (asignaciones de miembros a zonas del proyecto)
+// 3. Zone (zonas del proyecto - cascade borra sus datos hijos)
+// 4. ProjectMember (miembros del proyecto)
+// 5. Project (el proyecto en sí)
+//
+// LO QUE NO SE BORRA:
+// - User: los usuarios siguen existiendo, solo se desasignan del proyecto
+// - CompanyMember: la relación empresa-usuario se mantiene
+// - Company: la empresa no se afecta
+// - Templates: son globales o de empresa, no de proyecto
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
@@ -65,7 +71,18 @@ export async function DELETE(
   try {
     const { projectId } = await params
 
-    const existing = await db.project.findUnique({ where: { id: projectId } })
+    const existing = await db.project.findUnique({ 
+      where: { id: projectId },
+      include: {
+        _count: {
+          select: {
+            zones: true,
+            members: true,
+          }
+        }
+      }
+    })
+    
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Proyecto no encontrado' }, { status: 404 })
     }
@@ -73,37 +90,71 @@ export async function DELETE(
     // Ejecutar todo en transacción para que sea atómico.
     // Si cualquier paso falla, se hace rollback y el proyecto queda intacto.
     const result = await db.$transaction(async (tx) => {
+      let deletedZones = 0
+      let deletedMembers = 0
+      let deletedNotifications = 0
+
       // ─── 1. Borrar registros que NO tienen cascade desde Project ──────
       // Notification tiene projectId como String suelto (sin FK formal).
-      const notifDeleted = await tx.notification.deleteMany({
+      const notifDelete = await tx.notification.deleteMany({
         where: { projectId },
       }).catch(() => ({ count: 0 })) // por si la tabla no existe
+      deletedNotifications = notifDelete.count
 
-      // ─── 2. Antes de borrar Zone, borrar MemberZone (FK a Zone) ──────
-      // MemberZone → ProjectMember → projectId. Pero MemberZone también
-      // tiene FK a Zone, así que si Zone se borra primero, MemberZone se
-      // va por cascade. Lo borramos explícito para garantizar.
+      // ─── 2. Obtener IDs de zonas y miembros para borrado ordenado ──
       const zoneIds = (await tx.zone.findMany({
         where: { projectId },
         select: { id: true },
       })).map(z => z.id)
 
+      const memberIds = (await tx.projectMember.findMany({
+        where: { projectId },
+        select: { id: true },
+      })).map(m => m.id)
+
+      // ─── 3. Borrar MemberZone para todas las zonas del proyecto ─────
+      // Esto DESASIGNA usuarios de zonas, NO borra los usuarios
       if (zoneIds.length > 0) {
         await tx.memberZone.deleteMany({
           where: { zoneId: { in: zoneIds } },
         }).catch(() => ({ count: 0 }))
       }
 
-      // ─── 3. Borrar el Project ─────────────────────────────────────────
-      // Esto dispara cascade: Zone, ProjectMember, Progress, EmployeeProgress,
-      // ExamAnswer, AuditResult, AuditTarget, Standard, PhotoLibrary,
-      // PDCAItem, InventoryItem, ActionItem, ChecklistResponse, EvaluationSchedule
-      // (todas tienen onDelete: Cascade en el schema).
+      // ─── 4. Borrar MemberZone por ProjectMember ────────────────────
+      if (memberIds.length > 0) {
+        await tx.memberZone.deleteMany({
+          where: { memberId: { in: memberIds } },
+        }).catch(() => ({ count: 0 }))
+      }
+
+      // ─── 5. Borrar ZONAS (cascade borra: inventoryItems, progress, etc.) ─
+      if (zoneIds.length > 0) {
+        await tx.zone.deleteMany({
+          where: { id: { in: zoneIds } },
+        })
+        deletedZones = zoneIds.length
+      }
+
+      // ─── 6. Borrar PROJECT MEMBERS (desasigna usuarios del proyecto) ─
+      // Los User NO se borran, solo pierden acceso a este proyecto
+      if (memberIds.length > 0) {
+        await tx.projectMember.deleteMany({
+          where: { id: { in: memberIds } },
+        })
+        deletedMembers = memberIds.length
+      }
+
+      // ─── 7. Borrar el PROYECTO (finalmente) ─────────────────────────
+      // Esto dispara cascade para datos restantes con FK directa a Project:
+      // ExamAnswer, AuditResult, AuditTarget, ChecklistResponse,
+      // EmployeeProgress, EvaluationSchedule, PDCAItem, PhotoLibrary, Standard
       await tx.project.delete({ where: { id: projectId } })
 
       return {
-        notificationsDeleted: notifDeleted.count,
-        zonesCount: zoneIds.length,
+        projectName: existing.name,
+        zonesDeleted: deletedZones,
+        membersRemoved: deletedMembers,
+        notificationsDeleted: deletedNotifications,
       }
     })
 
@@ -111,7 +162,8 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      deleted: result,
+      message: `Proyecto "${result.projectName}" eliminado correctamente`,
+      details: result,
     })
   } catch (error) {
     console.error('Error deleting project:', error)

@@ -152,7 +152,20 @@ export async function PUT(
 }
 
 // DELETE /api/companies/[companyId] - Delete company (gestor only)
-// Siempre elimina completamente la empresa y todos sus datos asociados
+//
+// ORDEN DE BORRADO (v3.0.7 - CORREGIDO):
+// 1. Projects → Zones → MemberZones → ProjectMembers → Project
+// 2. CompanyMembers (desasigna usuarios de esta empresa)
+// 3. Templates de esta empresa (companyId no null)
+// 4. Subscription
+// 5. Company (la empresa en sí)
+// 6. Admins huérfanos (users sin empresas, solo si son admin)
+//
+// LO QUE NO SE BORRA:
+// - User (excepto admins huérfanos explícitamente)
+// - Gestor (nunca se borra)
+// - Usuarios con membresía en otras empresas
+// - Templates del sistema (companyId = null)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ companyId: string }> }
@@ -189,6 +202,7 @@ export async function DELETE(
     const projectCount = company.projects.length
 
     // Find orphan admins to delete along with the company
+    // Un admin es "huérfano" si solo pertenece a esta empresa
     const orphanAdminIds: string[] = []
     for (const member of company.members) {
       if (member.user.role === 'admin') {
@@ -205,68 +219,51 @@ export async function DELETE(
     }
 
     // ── Delete all projects and their related data manually ──
-    // This ensures deletion works even without the CASCADE migration applied
+    // Orden correcto para evitar FK constraint errors
     let deletedProjectCount = 0
     const errors: string[] = []
 
     for (const project of company.projects) {
       try {
-        // Delete in correct order to avoid FK constraint errors
-        // Project-level data that references the project
-        await db.actionItem.deleteMany({ where: { projectId: project.id } })
-        await db.pDCAItem.deleteMany({ where: { projectId: project.id } })
-        await db.auditResult.deleteMany({ where: { projectId: project.id } })
-        await db.checklistResponse.deleteMany({ where: { projectId: project.id } })
-        await db.examAnswer.deleteMany({ where: { projectId: project.id } })
-        await db.inventoryItem.deleteMany({ where: { projectId: project.id } })
-        await db.employeeProgress.deleteMany({ where: { projectId: project.id } })
-        await db.progress.deleteMany({ where: { projectId: project.id } })
-        await db.photoLibrary.deleteMany({ where: { projectId: project.id } })
-        await db.evaluationSchedule.deleteMany({ where: { projectId: project.id } })
-        await db.auditTarget.deleteMany({ where: { projectId: project.id } })
-        await db.standard.deleteMany({ where: { projectId: project.id } })
+        // Usar transacción por proyecto para atomicidad
+        await db.$transaction(async (tx) => {
+          // ─── 1. Datos sin cascade ───
+          await tx.notification.deleteMany({ where: { projectId: project.id } })
 
-        // Zone-level data: get zones and clean their children
-        const zones = await db.zone.findMany({
-          where: { projectId: project.id },
-          select: { id: true },
-        })
-
-        for (const zone of zones) {
-          // Delete member zones referencing this zone
-          await db.memberZone.deleteMany({ where: { zoneId: zone.id } })
-        }
-
-        // Delete board slots and their related data via board configurations
-        const boardConfigs = await db.boardConfiguration.findMany({
-          where: { zones: { some: { projectId: project.id } } },
-          select: { id: true },
-        })
-        for (const bc of boardConfigs) {
-          const slots = await db.boardSlot.findMany({
-            where: { boardConfigId: bc.id },
+          // ─── 2. Obtener IDs ───
+          const zoneIds = (await tx.zone.findMany({
+            where: { projectId: project.id },
             select: { id: true },
-          })
-          for (const slot of slots) {
-            await db.boardSlotTemplate.deleteMany({ where: { slotId: slot.id } })
-            await db.boardSlotStandard.deleteMany({ where: { slotId: slot.id } })
+          })).map(z => z.id)
+
+          const memberIds = (await tx.projectMember.findMany({
+            where: { projectId: project.id },
+            select: { id: true },
+          })).map(m => m.id)
+
+          // ─── 3. MemberZone (desasignar usuarios de zonas) ───
+          if (zoneIds.length > 0) {
+            await tx.memberZone.deleteMany({ where: { zoneId: { in: zoneIds } } })
           }
-          await db.boardSlot.deleteMany({ where: { boardConfigId: bc.id } })
-        }
+          if (memberIds.length > 0) {
+            await tx.memberZone.deleteMany({ where: { memberId: { in: memberIds } } })
+          }
 
-        // Delete project members (after member zones are deleted)
-        await db.projectMember.deleteMany({ where: { projectId: project.id } })
+          // ─── 4. Zonas (cascade borra sus datos hijos) ───
+          if (zoneIds.length > 0) {
+            await tx.zone.deleteMany({ where: { id: { in: zoneIds } } })
+          }
 
-        // Delete zones (after all zone-related data is deleted)
-        await db.zone.deleteMany({ where: { projectId: project.id } })
+          // ─── 5. ProjectMembers (desasignar usuarios del proyecto) ───
+          // Los User NO se borran aquí
+          if (memberIds.length > 0) {
+            await tx.projectMember.deleteMany({ where: { id: { in: memberIds } } })
+          }
 
-        // Delete board configurations that belong to this project's zones
-        await db.boardConfiguration.deleteMany({
-          where: { zones: { some: { projectId: project.id } } },
+          // ─── 6. El Proyecto (cascade borra datos restantes) ───
+          await tx.project.delete({ where: { id: project.id } })
         })
 
-        // Finally delete the project itself
-        await db.project.delete({ where: { id: project.id } })
         deletedProjectCount++
       } catch (projectDeleteError) {
         const errMsg = projectDeleteError instanceof Error ? projectDeleteError.message : String(projectDeleteError)
@@ -295,19 +292,35 @@ export async function DELETE(
       }
     }
 
-    // Delete the company (cascade-deletes CompanyMembers and Subscription)
+    // ── Delete CompanyMembers (usuarios de esta empresa) ──
+    // Los User NO se borran, solo se desasignan de esta empresa
+    await db.companyMember.deleteMany({ where: { companyId } })
+
+    // ── Delete templates specific to this company ──
+    await db.template.deleteMany({ where: { companyId } })
+
+    // ── Delete subscription ──
+    await db.subscription.deleteMany({ where: { companyId } }).catch(() => {})
+
+    // ── Delete the Company (finalmente) ──
     await db.company.delete({ where: { id: companyId } })
 
-    // Now delete orphan admin users that no longer have any company
+    // ── Delete orphan admin users that no longer have any company ──
     let deletedAdminCount = 0
     for (const userId of orphanAdminIds) {
       try {
-        await db.session.deleteMany({ where: { userId } })
-        await db.employeeProgress.deleteMany({ where: { userId } })
-        await db.memberZone.deleteMany({ where: { member: { userId } } })
-        await db.projectMember.deleteMany({ where: { userId } })
-        await db.user.delete({ where: { id: userId } })
-        deletedAdminCount++
+        // Verificar que todavía no tenga empresas (por si acaso)
+        const remainingCompanies = await db.companyMember.count({ where: { userId } })
+        if (remainingCompanies === 0) {
+          // Borrar datos restantes del usuario
+          await db.session.deleteMany({ where: { userId } })
+          await db.employeeProgress.deleteMany({ where: { userId } })
+          await db.inventoryItem.deleteMany({ where: { createdById: userId } })
+          
+          // Finalmente borrar el usuario admin huérfano
+          await db.user.delete({ where: { id: userId } })
+          deletedAdminCount++
+        }
       } catch (userDeleteError) {
         console.error(`Error deleting orphan admin ${userId}:`, userDeleteError)
       }
@@ -315,7 +328,7 @@ export async function DELETE(
 
     const parts: string[] = ['Empresa eliminada permanentemente']
     if (deletedProjectCount > 0) parts.push(`${deletedProjectCount} proyecto(s) eliminado(s)`)
-    if (deletedAdminCount > 0) parts.push(`${deletedAdminCount} administrador(es) eliminado(s)`)
+    if (deletedAdminCount > 0) parts.push(`${deletedAdminCount} administrador(es) huérfano(s) eliminado(s)`)
 
     return NextResponse.json({
       success: true,

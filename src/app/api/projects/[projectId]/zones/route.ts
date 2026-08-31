@@ -191,6 +191,15 @@ export async function PATCH(
 }
 
 // DELETE /api/projects/[projectId]/zones - Remove a zone
+//
+// ORDEN DE BORRADO (v3.0.7 - CORREGIDO):
+// 1. MemberZone (asignaciones de miembros a esta zona) - PRIMERO
+// 2. Zone (la zona en sí) - DESPUÉS
+//
+// LO QUE NO SE BORRA:
+// - User: los usuarios siguen existiendo, solo pierden la asignación a esta zona
+// - ProjectMember: los miembros del proyecto siguen existiendo
+// - Datos de otros zonas: no se afectan
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
@@ -210,6 +219,16 @@ export async function DELETE(
     // Verify zone belongs to project
     const zone = await db.zone.findUnique({
       where: { id: zoneId },
+      include: {
+        _count: {
+          select: { 
+            MemberZone: true,        // Miembros asignados a esta zona
+            inventoryItems: true,     // Items de inventario en esta zona
+            progress: true,          // Progreso en esta zona
+            employeeProgress: true,  // Progreso de empleados en esta zona
+          }
+        }
+      }
     })
 
     if (!zone || zone.projectId !== projectId) {
@@ -219,19 +238,73 @@ export async function DELETE(
       )
     }
 
-    // Delete zone (cascade will handle member zone references)
-    await db.zone.delete({
-      where: { id: zoneId },
+    // Ejecutar borrado en orden correcto (transaccional)
+    const result = await db.$transaction(async (tx) => {
+      let deletedMemberZones = 0
+      let deletedInventoryItems = 0
+      let deletedProgress = 0
+
+      // ─── 1. Borrar ASIGNACIONES de miembros a esta zona ───
+      // Los usuarios NO se borran, solo pierden acceso a esta zona
+      const memberZoneDelete = await tx.memberZone.deleteMany({
+        where: { zoneId }
+      })
+      deletedMemberZones = memberZoneDelete.count
+
+      // ─── 2. Borrar datos específicos de esta zona ───
+      // Inventario de esta zona
+      const inventoryDelete = await tx.inventoryItem.deleteMany({
+        where: { zoneId }
+      })
+      deletedInventoryItems = inventoryDelete.count
+
+      // Progreso global de esta zona
+      const progressDelete = await tx.progress.deleteMany({
+        where: { zoneId }
+      })
+      deletedProgress = progressDelete.count
+
+      // Progreso de empleados en esta zona
+      await tx.employeeProgress.deleteMany({
+        where: { zoneId }
+      })
+
+      // Otros datos dependientes de la zona
+      await tx.actionItem.deleteMany({ where: { zoneId } })
+      await tx.auditTarget.deleteMany({ where: { zoneId } })
+      await tx.evaluationSchedule.deleteMany({ where: { zoneId } })
+      await tx.pDCAItem.deleteMany({ where: { zoneId } })
+      await tx.photoLibrary.deleteMany({ where: { zoneId } })
+      await tx.standard.deleteMany({ where: { zoneId } })
+
+      // ─── 3. Borrar LA ZONA (finalmente) ───
+      await tx.zone.delete({ where: { id: zoneId } })
+
+      return {
+        zoneName: zone.name,
+        deletedMemberZones,
+        deletedInventoryItems,
+        deletedProgress,
+      }
     })
 
-    return NextResponse.json(
-      { message: 'Zona eliminada correctamente' },
-      { status: 200 }
-    )
+    console.log(`[DELETE /zones] Zone "${result.zoneName}" deleted from project ${projectId}`, result)
+
+    return NextResponse.json({
+      success: true,
+      message: `Zona "${result.zoneName}" eliminada correctamente`,
+      details: {
+        zoneName: result.zoneName,
+        memberAssignmentsRemoved: result.deletedMemberZones,
+        inventoryItemsDeleted: result.deletedInventoryItems,
+        progressRecordsDeleted: result.deletedProgress,
+      }
+    }, { status: 200 })
   } catch (error) {
     console.error('Delete zone error:', error)
+    const msg = error instanceof Error ? error.message : String(error)
     return NextResponse.json(
-      { error: 'Error al eliminar zona' },
+      { error: `Error al eliminar zona: ${msg}` },
       { status: 500 }
     )
   }
