@@ -1,0 +1,1456 @@
+     1→/**
+     2→ * v3.0.3: Complete template seed script
+     3→ * 
+     4→ * This script creates PROPER templates with REAL content:
+     5→ * - formacion: Theoretical content about each S + exam questions
+     6→ * - examen: Multiple choice questions for each S
+     7→ * - autoevaluacion: Using AUDIT_CHECKLISTS from 5s-constants.ts
+     8→ * - auditoria: Using AUDIT_CHECKLISTS from 5s-constants.ts  
+     9→ * - inventario: Using INVENTORY_CONFIGS from 5s-constants.ts
+    10→ * - fotos: Photo requirements with minPhotos
+    11→ */
+    12→
+    13→import { PrismaClient } from '@prisma/client'
+    14→
+    15→// Set DATABASE_URL for local scripts
+    16→process.env.DATABASE_URL = 'postgresql://neondb_owner:npg_VeJs3ZAjUwp4@ep-round-glitter-as6ryhe3.c-4.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
+    17→
+    18→const db = new PrismaClient()
+    19→
+    20→// ══════════════════════════════════════════════════════════════════════════════
+    21→// AUDIT CHECKLISTS (from src/lib/5s-constants.ts - original complete data)
+    22→// ══════════════════════════════════════════════════════════════════════════════
+    23→
+    24→interface AuditItem { id: string; description: string; hasOther?: boolean }
+    25→interface AuditSection { id: string; title: string; items: AuditItem[] }
+    26→
+    27→const AUDIT_CHECKLISTS: Record<number, AuditSection[]> = {
+    28→  1: [
+    29→    {
+    30→      id: '1.1', title: 'MATERIALES',
+    31→      items: [
+    32→        { id: '1.1.1', description: 'Consumibles' },
+    33→        { id: '1.1.2', description: 'Materia Prima' },
+    34→        { id: '1.1.3', description: 'Producto acabado o en proceso' },
+    35→        { id: '1.1.4', description: 'Otros (Indicar cuál)', hasOther: true },
+    36→      ],
+    37→    },
+    38→    {
+    39→      id: '1.2', title: 'MÁQUINAS Y EQUIPOS',
+    40→      items: [
+    41→        { id: '1.2.1', description: 'Máquinas (Inducción, bombeo, apriete, engrase…)' },
+    42→        { id: '1.2.2', description: 'Utillajes (volteo, apoyo, montaje…)' },
+    43→        { id: '1.2.3', description: 'Equipos y accesorios de Elevación (Grúas, eslingas, cáncamos, cables, grilletes…)' },
+    44→        { id: '1.2.4', description: 'Equipos de transporte (Carretillas, transpaletas, plataformas elevadoras, vehículos…)' },
+    45→        { id: '1.2.5', description: 'Equipos de ensayo (galgas, testers, banco de pruebas…)' },
+    46→        { id: '1.2.6', description: 'Herramientas de ensamblaje' },
+    47→        { id: '1.2.7', description: 'EQUIPOS INFORMÁTICOS' },
+    48→      ],
+    49→    },
+    50→    {
+    51→      id: '1.3', title: 'TRANSPORTE Y ALMACENAJE',
+    52→      items: [
+    53→        { id: '1.3.1', description: 'Contenedores vacíos, cajas, bidones, botes, cubos…' },
+    54→        { id: '1.3.2', description: 'Pallets u otros elementos de apoyo, tacos' },
+    55→        { id: '1.3.3', description: 'Bolsas, plásticos, protecciones, elementos de flejado' },
+    56→        { id: '1.3.4', description: 'Productos de limpieza, paños, escobas…' },
+    57→        { id: '1.3.5', description: 'Otros (Indicar cuál)', hasOther: true },
+    58→      ],
+    59→    },
+    60→    {
+    61→      id: '1.4', title: 'MOBILIARIO',
+    62→      items: [
+    63→        { id: '1.4.1', description: 'Bancos de trabajo' },
+    64→        { id: '1.4.2', description: 'Paneles herramienta' },
+    65→        { id: '1.4.3', description: 'Armarios o taquillas' },
+    66→        { id: '1.4.4', description: 'Sillas, mesas' },
+    67→        { id: '1.4.5', description: 'Paneles u otros soportes para información' },
+    68→        { id: '1.4.6', description: 'Otros (Indicar cuál)', hasOther: true },
+    69→      ],
+    70→    },
+    71→    {
+    72→      id: '1.5', title: 'INFORMACIÓN',
+    73→      items: [
+    74→        { id: '1.5.1', description: 'Planos o Instrucciones de trabajo' },
+    75→        { id: '1.5.2', description: 'Posters u otra información divulgativa' },
+    76→        { id: '1.5.3', description: 'Gráficos o indicadores' },
+    77→        { id: '1.5.4', description: 'Carpetas o bandejas con documentación innecesaria' },
+    78→        { id: '1.5.5', description: 'Otros (Indicar cuál)', hasOther: true },
+    79→      ],
+    80→    },
+    81→  ],
+    82→  2: [
+    83→    {
+    84→      id: '2.1', title: 'EQUIPOS Y MÁQUINAS',
+    85→      items: [
+    86→        { id: '2.1.1', description: 'Los equipos y máquinas están identificados con su número de equipo correspondiente' },
+    87→        { id: '2.1.2', description: 'La identificación anterior es visible (no es necesario manipular partes del equipo)' },
+    88→        { id: '2.1.3', description: 'Otros (Indicar cuál)', hasOther: true },
+    89→      ],
+    90→    },
+    91→    {
+    92→      id: '2.2', title: 'PASILLOS Y LUGARES DE UBICACIÓN',
+    93→      items: [
+    94→        { id: '2.2.1', description: 'Los pasillos y zonas de trabajo delimitados claramente' },
+    95→        { id: '2.2.2', description: 'Cuando algo falta, ¿todo el mundo sabe lo que falta? Todos pueden reconocer donde deben ubicarse.' },
+    96→        { id: '2.2.3', description: 'Los pallets de entrada y salida de material' },
+    97→        { id: '2.2.4', description: 'Los equipos móviles (escaleras, transpaletas, carros, utillajes sobre ruedas)' },
+    98→        { id: '2.2.5', description: 'Los medios de transporte (transpaletas, plataformas, carretillas, coches, camiones…)' },
+    99→        { id: '2.2.6', description: 'Las herramientas cuentan con ubicaciones señalizadas inequívocamente (sistemas poka-yoke, siluetas, etiquetas identificativas)' },
+   100→        { id: '2.2.7', description: 'Consumibles' },
+   101→      ],
+   102→    },
+   103→    {
+   104→      id: '2.3', title: 'SEÑALIZACIÓN',
+   105→      items: [
+   106→        { id: '2.3.1', description: 'Están señalizados de forma visible e inequívoca los mandos de maniobra de los equipos y máquinas (sentido de movimiento, on/off, stop, parada de emergencia…)' },
+   107→        { id: '2.3.2', description: 'Se puede reconocer cuando las máquinas están en tensión (con señal luminosa tipo led o similar)' },
+   108→        { id: '2.3.3', description: 'Existe señalización de peligro cuando las máquinas están en funcionamiento (luz rotatoria luminosa, señal destellante, aviso sonoro, balizamiento o cartel advertencia)' },
+   109→        { id: '2.3.4', description: 'La señalización del lugar es adecuada y visible desde todos los puntos (en especial la relativa a medios de extinción y vías de evacuación)' },
+   110→        { id: '2.3.5', description: 'Otros (Indicar cuál)', hasOther: true },
+   111→      ],
+   112→    },
+   113→    {
+   114→      id: '2.4', title: 'STOCKS DE MATERIAL',
+   115→      items: [
+   116→        { id: '2.4.1', description: 'Están identificados los materiales en el área de trabajo?' },
+   117→        { id: '2.4.2', description: 'Las etiquetas identificativas están en buenas condiciones, son claras y visibles' },
+   118→        { id: '2.4.3', description: 'La identificación informa acerca del cliente y proveedor' },
+   119→        { id: '2.4.4', description: 'La identificación contiene la denominación del material, referencia o artículo' },
+   120→        { id: '2.4.5', description: 'Es correcta la información, coincide esta con el material al que identifican y su ubicación' },
+   121→        { id: '2.4.6', description: 'Otros (Indicar cuál)', hasOther: true },
+   122→      ],
+   123→    },
+   124→    {
+   125→      id: '2.5', title: 'LAYOUT / DISTRIBUCIÓN',
+   126→      items: [
+   127→        { id: '2.5.1', description: 'El layout (distribución) del área es lógico y funcional' },
+   128→        { id: '2.5.2', description: 'Los flujos de trabajo están optimizados' },
+   129→        { id: '2.5.3', description: 'Las distancias entre puestos de trabajo son adecuadas' },
+   130→        { id: '2.5.4', description: 'Existe espacio suficiente para circulación segura' },
+   131→      ],
+   132→    },
+   133→  ],
+   134→  3: [
+   135→    {
+   136→      id: '3.1', title: 'FUENTES DE SUCIEDAD',
+   137→      items: [
+   138→        { id: '3.1.1', description: 'Polvo ambiental' },
+   139→        { id: '3.1.2', description: 'Residuos de producción (virutas, recortes, etc.)' },
+   140→        { id: '3.1.3', description: 'Fugas de aceite, grasa u otros fluidos' },
+   141→        { id: '3.1.4', description: 'Derrames de productos químicos' },
+   142→        { id: '3.1.5', description: 'Restos de embalaje y packaging' },
+   143→        { id: '3.1.6', description: 'Basura acumulada' },
+   144→        { id: '3.1.7', description: 'Otros (Indicar cuál)', hasOther: true },
+   145→      ],
+   146→    },
+   147→    {
+   148→      id: '3.2', title: 'EQUIPOS DE LIMPIEZA',
+   149→      items: [
+   150→        { id: '3.2.1', description: 'Escobas y recogedores disponibles y en buen estado' },
+   151→        { id: '3.2.2', description: 'Fregonas y cubos identificados y accesibles' },
+   152→        { id: '3.2.3', description: 'Aspiradoras industriales funcionando' },
+   153→        { id: '3.2.4', description: 'Productos de limpieza apropiados para cada superficie' },
+   154→        { id: '3.2.5', description: 'Equipos de protección personal para limpieza (guantes, gafas)' },
+   155→        { id: '3.2.6', description: 'Otros (Indicar cuál)', hasOther: true },
+   156→      ],
+   157→    },
+   158→    {
+   159→      id: '3.3', title: 'RUTINAS DE LIMPIEZA',
+   160→      items: [
+   161→        { id: '3.3.1', description: 'Existe programa de limpieza diario establecido' },
+   162→        { id: '3.3.2', description: 'Las responsabilidades de limpieza están asignadas' },
+   163→        { id: '3.3.3', description: 'Se realizan limpiezas semanales profundas' },
+   164→        { id: '3.3.4', description: 'Hay checklists de limpieza visibles' },
+   165→        { id: '3.3.5', description: 'Se registra la actividad de limpieza realizada' },
+   166→      ],
+   167→    },
+   168→    {
+   169→      id: '3.4', title: 'CONDICIÓN GENERAL',
+   170→      items: [
+   171→        { id: '3.4.1', description: 'Suelos limpios y sin obstáculos' },
+   172→        { id: '3.4.2', description: 'Paredes y superficies verticales limpias' },
+   173→        { id: '3.4.3', description: 'Ventanas y cristales transparentes' },
+   174→        { id: '3.4.4', description: 'Máquinas y equipos sin acumulación de suciedad' },
+   175→        { id: '3.4.5', description: 'El ambiente general transmite orden y limpieza' },
+   176→      ],
+   177→    },
+   178→  ],
+   179→  4: [
+   180→    {
+   181→      id: '4.1', title: 'ESTÁNDARES VISUALES',
+   182→      items: [
+   183→        { id: '4.1.1', description: 'Existen estándares fotográficos de referencia ("cómo debe quedar")' },
+   184→        { id: '4.1.2', description: 'Los estándares visibles muestran el estado ideal' },
+   185→        { id: '4.1.3', description: 'Hay ejemplos de "antes/después"' },
+   186→        { id: '4.1.4', description: 'Los estándares están actualizados' },
+   187→        { id: '4.1.5', description: 'Todo el personal conoce los estándares' },
+   188→      ],
+   189→    },
+   190→    {
+   191→      id: '4.2', title: 'PROCEDIMIENTOS DOCUMENTADOS',
+   192→      items: [
+   193→        { id: '4.2.1', description: 'Existen procedimientos escritos de trabajo (SOPs)' },
+   194→        { id: '4.2.2', description: 'Los procedimientos están accesibles en el punto de uso' },
+   195→        { id: '4.2.3', description: 'Los procedimientos son claros y fáciles de entender' },
+   196→        { id: '4.2.4', description: 'Se actualizan cuando cambian los procesos' },
+   197→        { id: '4.2.5', description: 'Hay registro de formación en los procedimientos' },
+   198→      ],
+   199→    },
+   200→    {
+   201→      id: '4.3', title: 'CHECKLISTS Y VERIFICACIONES',
+   202→      items: [
+   203→        { id: '4.3.1', description: 'Existen checklists diarios de mantenimiento del orden' },
+   204→        { id: '4.3.2', description: 'Se realizan auditorías internas periódicas' },
+   205→        { id: '4.3.3', description: 'Hay indicadores visuales de cumplimiento (tableros)' },
+   206→        { id: '4.3.4', description: 'Las desviaciones se registran y corrigen' },
+   207→        { id: '4.3.5', description: 'Se revisan y actualizan los estándares regularmente' },
+   208→      ],
+   209→    },
+   210→    {
+   211→      id: '4.4', title: 'SEÑALIZACIÓN ESTANDARIZADA',
+   212→      items: [
+   213→        { id: '4.4.1', description: 'Código de colores uniforme en toda la planta' },
+   214→        { id: '4.4.2', description: 'Formato de etiquetas estandarizado' },
+   215→        { id: '4.4.3', description: 'Señales de seguridad normalizadas (ISO/OSHA)' },
+   216→        { id: '4.4.4', description: 'Identificación de áreas y zonas consistente' },
+   217→        { id: '4.4.5', description: 'La señalización es comprensible para todos' },
+   218→      ],
+   219→    },
+   220→  ],
+   221→  5: [
+   222→    {
+   223→      id: '5.1', title: 'DISCIPLINA Y HÁBITOS',
+   224→      items: [
+   225→        { id: '5.1.1', description: 'Los trabajadores siguen los procedimientos establecidos' },
+   226→        { id: '5.1.2', description: 'Se devuelve todo a su lugar después de usarlo' },
+   227→        { id: '5.1.3', description: 'La limpieza se realiza de forma sistemática' },
+   228→        { id: '5.1.4', description: 'Se reportan inmediatamente anomalías' },
+   229→        { id: '5.1.5', description: 'Hay respeto por los estándares establecidos' },
+   230→      ],
+   231→    },
+   232→    {
+   233→      id: '5.2', title: 'AUDITORÍAS Y SEGUIMIENTO',
+   234→      items: [
+   235→        { id: '5.2.1', description: 'Se realizan auditorías 5S regulares (semanales/mensuales)' },
+   236→        { id: '5.2.2', description: 'Los resultados se comunican al equipo' },
+   237→        { id: '5.2.3', description: 'Hay plan de acción para mejoras detectadas' },
+   238→        { id: '5.2.4', description: 'Se reconoce y premia el buen desempeño' },
+   239→        { id: '5.2.5', description: 'La dirección participa activamente en el seguimiento' },
+   240→      ],
+   241→    },
+   242→    {
+   243→      id: '5.3', title: 'MEJORA CONTINUA',
+   244→      items: [
+   245→        { id: '5.3.1', description: 'Se suguyen ideas de mejora del personal' },
+   246→        { id: '5.3.2', description: 'Se implementan mejoras propuestas' },
+   247→        { id: '5.3.3', description: 'Los indicadores de 5S mejoran con el tiempo' },
+   248→        { id: '5.3.4', description: 'Se comparten mejores prácticas entre turnos/áreas' },
+   249→        { id: '5.3.5', description: 'Hay satisfacción general con el entorno de trabajo' },
+   250→      ],
+   251→    },
+   252→    {
+   253→      id: '5.4', title: 'FORMACIÓN Y SENSIBILIZACIÓN',
+   254→      items: [
+   255→        { id: '5.4.1', description: 'Todo el personal ha recibido formación inicial en 5S' },
+   256→        { id: '5.4.2', description: 'Se realiza refresco periódico de conceptos 5S' },
+   257→        { id: '5.4.3', description: 'Nuevos incorporados reciben inducción 5S' },
+   258→        { id: '5.4.4', description: 'Existe material visual de apoyo (carteles, manuales)' },
+   259→        { id: '5.4.5', description: 'El liderazgo demuestra compromiso con 5S' },
+   260→      ],
+   261→    },
+   262→  ],
+   263→}
+   264→
+   265→// ══════════════════════════════════════════════════════════════════════════════
+   266→// FORMACIÓN CONTENT - Real theoretical content for each S
+   267→// ══════════════════════════════════════════════════════════════════════════════
+   268→
+   269→interface FormationContent {
+   270→  sections: Array<{
+   271→    title: string
+   272→    content: string
+   273→  }>
+   274→}
+   275→
+   276→const FORMATION_CONTENT: Record<number, FormationContent> = {
+   277→  1: {
+   278→    sections: [
+   279→      {
+   280→        title: '¿Qué es SEIRI (Clasificar)?',
+   281→        content: `SEIRI es el primer paso de la metodología 5S y significa "CLASIFICAR" en japonés. Consiste en separar rigurosamente los elementos necesarios de los innecesarios en el lugar de trabajo.
+   282→
+   283→OBJETIVO PRINCIPAL:
+   284→Eliminar del área de trabajo todo aquello que NO es necesario para las operaciones diarias. Esto incluye:
+   285→• Herramientas que no se usan
+   286→• Materiales obsoletos o defectuosos
+   287→• Documentación antigua
+   288→• Equipos rotos o en desuso
+   289→• Cualquier elemento que no tenga una función clara definida
+   290→
+   291→LA REGLA DE ORO:
+   292→"Si no lo has usado en el último año, probablemente no lo necesitas"`
+   293→
+   294→      },
+   295→      {
+   296→        title: 'Cómo aplicar SEIRI - Metodología paso a paso',
+   297→        content: `PASO 1: Etiquetado ROJO (Tagging)
+   298→Colocar etiquetas rojas a todos los elementos dudosos durante un período determinado (normalmente 1 semana a 1 mes). La etiqueta debe incluir:
+   299→- Nombre del elemento
+   300→- Razón de la clasificación como "dudoso"
+   301→- Fecha del etiquetado
+   302→- Quién lo etiquetó
+   303→
+   304→PASO 2: Clasificación en 3 categorías
+   305→1. NECESARIOS: Uso diario o semanal → Mantener en el puesto
+   306→2. DUDOSOS: Uso mensual o desconocido → Área de cuarentena
+   307→3. INNECESARIOS: No se usa → Eliminar o disponer
+   308→
+   309→PASO 3: Gestión del área de cuarentena
+   310→Establecer un lugar temporal para elementos dudosos. Si pasado el tiempo nadie los reclama, se descartan definitivamente.
+   311→
+   312→BENEFICIOS ESPERADOS:
+   313→- Más espacio disponible
+   314→- Menor tiempo de búsqueda
+   315→- Ambiente más ordenado
+   316→- Reducción de accidentes`
+   317→      }
+   318→    ]
+   319→  },
+   320→  2: {
+   321→    sections: [
+   322→      {
+   323→        title: '¿Qué es SEITON (Ordenar)?',
+   324→        content: `SEITON es el segundo paso de 5S y significa "ORDENAR" u "ORGANIZAR". Una vez eliminado lo innecesario, debemos organizar lo necesario de manera que sea FÁCIL DE ENCONTRAR, USAR Y DEVOLVER.
+   325→
+   326→PRINCIPIO CLAVE:
+   327→"Un lugar para cada cosa y cada cosa en su lugar"
+   328→
+   329→OBJETIVOS:
+   330→• Minimizar el tiempo de búsqueda de herramientas y materiales
+   331→• Establecer un sistema lógico de organización
+   332→• Facilitar el retorno de objetos a su lugar
+   333→• Hacer visible cualquier anomalía (falta algo)
+   334→
+   335→EL CONCEPTO POKA-YOKE:
+   336→Utilizar sistemas a prueba de errores que hacen imposible colocar un objeto en el lugar equivocado:
+   337→- Siluetas en paneles de herramientas
+   338→- Colores codificados por tipo
+   339→- Formas que solo permiten cierta orientación`
+   340→      },
+   341→      {
+   342→        title: 'Técnicas de implementación de SEITON',
+   343→        content: `TÉCNICA 1: Análisis de frecuencia de uso
+   344→• MUY FRECUENTE (diario): Al alcance de la mano, en el puesto
+   345→• FRECUENTE (semanal): Cerca del puesto, en armario o cajón
+   346→• OCASIONAL (mensual): En almacén cercano
+   347→• RARO (anual): En almacén central
+   348→
+   349→TÉCNICA 2: Señalización visual
+   350→• Etiquetas con nombre y foto del objeto
+   351→• Código de colores por categoría
+   352→• Líneas de suelo delimitando ubicaciones
+   353→• Números/letras identificativos de posición
+   354→
+   355→TÉCNICA 3: Organización ergonómica
+   356→• Objetos pesados: altura de la cintura para abajo
+   357→• Objetos ligeros y frecuentes: altura del pecho
+   358→• Objetos poco frecuentes: alto o bajo
+   359→• Objetos muy usados: mano derecha para diestros
+   360→
+   361→REGLA DE LOS 30 SEGUNDOS:
+   362→Cualquier persona debe poder encontrar cualquier herramienta en menos de 30 segundos`
+   363→      }
+   364→    ]
+   365→  },
+   366→  3: {
+   367→    sections: [
+   368→      {
+   369→        title: '¿Qué es SEISO (Limpiar)?',
+   370→        content: `SEISO es el tercer paso y significa "LIMPIAR". No se trata solo de limpieza estética, sino de **limpiar para inspeccionar**.
+   371→
+   372→CONCEPTO FUNDAMENTAL:
+   373→"La mejor forma de limpiar es no ensuciar, pero si ensucias, limpia inmediatamente"
+   374→
+   375→LIMPIEZA INSPECCIÓN:
+   376→Al limpiar, estamos también:
+   377→• Detectando fugas y escapes
+   378→• Identificando partes sueltas o dañadas
+   379→• Encontrando anomalías en máquinas
+   380→• Percibiendo olores o ruidos extraños
+   381→• Viendo desgaste prematuro
+   382→
+   383→TIPOS DE LIMPIEZA:
+   384→1. LIMPIEZA INICIAL (Shitsukoi): Limpieza profunda de arranque
+   385→2. LIMPIEZA DIARIA: Mantenimiento del nivel alcanzado
+   386→3. LIMPIEZA PROFUNDA: Periódica (semanal/mensual)
+   387→
+   388→EL CICLO LIMPIEZAR-INSPECCIONAR-CORREGIR:
+   389→Limpiar → Encontrar problema → Analizar causa → Corregir → Estandarizar`
+   390→      },
+   391→      {
+   392→        title: 'Implementación de SEISO',
+   393→        content: `PASO 1: Identificar fuentes de suciedad
+   394→Mapear TODAS las fuentes de contaminación:
+   395→• Polvo ambiental
+   396→• Virutas y residuos de producción
+   397→• Fugas de aceite/grasa
+   398→• Derrames químicos
+   399→• Residuos de embalaje
+   400→
+   401→PASO 2: Eliminar o reducir fuentes
+   402→• Instalar protectores y coberturas
+   403→• Reparar fugas inmediatamente
+   404→• Mejor procesos para generar menos residuos
+   405→• Cambiar a materiales menos contaminantes
+   406→
+   407→PASO 3: Establecer rutinas
+   408→• Limpieza de inicio de turno (5 min)
+   409→• Limpieza durante turno (mantenimiento)
+   410→• Limpieza fin de turno (10 min)
+   411→• Limpieza semanal profunda (30-60 min)
+   412→
+   413→PASO 4: Asignar responsables
+   414→Cada zona debe tener un responsable claro de limpieza. Rotar responsabilidades para compartir carga y conocimiento.
+   415→
+   416→HERRAMIENTAS NECESARIAS:
+   417→- Escoba, fregona, aspiradora
+   418→- Paños, bayetas
+   419→- Productos de limpieza adecuados
+   420→- EPP (guantes, gafas, calzado)`
+   421→      }
+   422→    ]
+   423→  },
+   424→  4: {
+   425→    sections: [
+   426→      {
+   427→        title: '¿Qué es SEIKETSU (Estandarizar)?',
+   428→        content: `SEIKETSU significa "ESTANDARIZAR" y es el cuarto paso. Consiste en crear normas y estándares que permitan **MANTENER** los logros conseguidos en las 3S anteriores.
+   429→
+   430→¿POR QUÉ ESTANDARIZAR?
+   431→Sin estándares, cada persona hace las cosas a su manera:
+   432→• Unos limpian bien, otros mal
+   433→• Unos ordenan, otros acumulan
+   434→• Los resultados son inconsistentes
+   435→• Es imposible mejorar lo que no se mide
+   436→
+   437→COMPONENTES DE UN ESTÁNDAR:
+   438→1. Qué hay que hacer (procedimiento)
+   439→2. Cómo hay que hacerlo (método)
+   440→3. Cuándo hay que hacerlo (frecuencia)
+   441→4. Quién lo hace (responsable)
+   442→5. Cuánto tiempo toma (estándar)
+   443→6. Cómo verificar que está bien (checklist)
+   444→
+   445→TIPOS DE ESTÁNDARES:
+   446→• Estándares visuales (fotos de referencia)
+   447→• Procedimientos operativos (SOPs)
+   448→• Checklists de verificación
+   449→• Indicadores y métricas`
+   450→      },
+   451→      {
+   452→        title: 'Creación y mantenimiento de estándares',
+   453→        content: `METODOLOGÍA PARA CREAR ESTÁNDARES:
+   454→
+   455→PASO 1: Documentar el estado ideal
+   456→• Tomar fotos del área perfectamente organizada
+   457→• Crear diagramas y esquemas
+   458→• Definir condiciones específicas medibles
+   459→
+   460→PASO 2: Escribir el procedimiento
+   461→Usar formato simple:
+   462→- Título claro
+   463→- Objetivo
+   464→- Alcance (dónde aplica)
+   465→- Responsable
+   466→- Paso a paso detallado
+   467→- Frecuencia
+   468→- Verificación
+   469→
+   470→PASO 3: Comunicar y formar
+   471→• Explicar el POR QUÉ de cada estándar
+   472→• Entrenar a todo el personal
+   473→• Publicar en lugar visible
+   474→• Disponible en el punto de uso
+   475→
+   476→PASO 4: Auditar y mejorar
+   477→• Revisar cumplimiento regularmente
+   478→• Actualizar cuando sea necesario
+   479→• Involucrar a los trabajadores en mejoras
+   480→• Celebrar los éxitos
+   481→
+   482→HERRAMIENTAS DE SOPORTE:
+   483→- Tablero 5S visual
+   484→- Fotografías de referencia (antes/después)
+   485→- Checklists diarios/semanales
+   486→- Auditorías internas`
+   487→      }
+   488→    ]
+   489→  },
+   490→  5: {
+   491→    sections: [
+   492→      {
+   493→        title: '¿Qué es SHITSUKE (Disciplina/Mantener)?',
+   494→        content: `SHITSUKE es el quinto y último paso, significa "DISCIPLINA" o "AUTODISCIPLINA". Es la capacidad de **cumplir consistentemente** todo lo establecido en las 4S anteriores.
+   495→
+   496→LA DISCIPLINA NO ES IMPONER, ES:
+   497→• Crear hábitos positivos
+   498→• Tener orgullo del trabajo bien hecho
+   499→• Comprensión del POR QUÉ
+   500→• Compromiso personal y colectivo
+   501→• Cultura de mejora continua
+   502→
+   503→EL CICLO DE SHITSUKE:
+   504→Hacer → Revisar → Corregir → Mejorar → Volver a Hacer
+   505→
+   506→FACTORES QUE FACILITAN LA DISCIPLINA:
+   507→1. Liderazgo comprometido (el jefe también cumple)
+   508→2. Formación continua
+   509→3. Reconocimiento y celebración
+   510→4. Visibilidad de resultados
+   511→5. Participación en decisiones
+   512→6. Tiempo dedicado (no es "tiempo perdido")
+   513→
+   514→SEÑALES DE QUE SHITSUKE FUNCIONA:
+   515→- Los estándares se cumplen sin recordatorios
+   516→- Las personas corrigen espontáneamente
+   517→- Hay sugerencias de mejora
+   518→- Nuevos integrantes se adaptan rápido
+   519→- El ambiente se mantiene consistente`
+   520→      },
+   521→      {
+   522→        title: 'Sosteniendo SHITSUKE a largo plazo',
+   523→        content: `ESTRATEGIAS PARA MANTENER LA DISCIPLINA:
+   524→
+   525→1. SISTEMA DE AUDITORÍAS
+   526→• Auditorías semanales rotativas
+   527→• Puntuación visible por área
+   528→• Premios al mejor equipo 5S del mes
+   529→• Planes de acción para áreas rezagadas
+   530→
+   531→2. VISUAL MANAGEMENT
+   532→• Tablero 5S con puntuaciones
+   533→• Fotos del estado actual vs ideal
+   534→• Gráficos de evolución temporal
+   535→• Indicadores de cumplimiento (%)
+   536→
+   537→3. PARTICIPACIÓN ACTIVA
+   538→• Reuniones breves diarias (5 min)
+   539→• Sugerencias de mejora premiadas
+   540→• Rotación de responsabilidades
+   541→• Celebración de logros
+   542→
+   543→4. FORMACIÓN CONTINUA
+   544→• Inducción 5S para nuevos
+   545→• Refrescos trimestrales
+   546→• Intercambio de experiencias
+   547→• Visitas a otras áreas/empresas
+   548→
+   549→5. LIDERAZGO EJEMPLAR
+   550→• Los mandos intermedios deben dar ejemplo
+   551→• Participar en auditorías
+   552→• Reconocer públicamente
+   553→• No tolerar incumplimientos
+   554→
+   555→KPIs RECOMENDADOS:
+   556→- % de cumplimiento de checklists
+   557→- Número de sugerencias implementadas
+   558→- Tiempo medio de resolución de anomalías
+   559→- Puntuación en auditorías 5S
+   560→- Índice de satisfacción del ambiente`
+   561→      }
+   562→    ]
+   563→  }
+   564→}
+   565→
+   566→// ══════════════════════════════════════════════════════════════════════════════
+   567→// EXAM QUESTIONS - Real multiple choice questions for each S
+   568→// ══════════════════════════════════════════════════════════════════════════════
+   569→
+   570→interface ExamQuestion {
+   571→  question: string
+   572→  options: string[]
+   573→  correctIndex: number
+   574→}
+   575→
+   576→interface ExamContent {
+   577→  questions: ExamQuestion[]
+   578→}
+   579→
+   580→const EXAM_QUESTIONS: Record<number, ExamContent> = {
+   581→  1: {
+   582→    questions: [
+   583→      {
+   584→        question: '¿Qué significa SEIRI en la metodología 5S?',
+   585→        options: ['Ordenar', 'Clasificar', 'Limpiar', 'Estandarizar'],
+   586→        correctIndex: 1
+   587→      },
+   588→      {
+   589→        question: '¿Cuál es el objetivo principal de SEIRI?',
+   590→        options: [
+   591→          'Limpiar todas las máquinas',
+   592→          'Crear procedimientos documentados',
+   593→          'Separar lo necesario de lo innecesario',
+   594→          'Asignar responsables por zona'
+   595→        ],
+   596→        correctIndex: 2
+   597→      },
+   598→      {
+   599→        question: '¿Qué color se usa normalmente para etiquetar elementos innecesarios en SEIRI?',
+   600→        options: ['Verde', 'Amarillo', 'Azul', 'Rojo'],
+   601→        correctIndex: 3
+   602→      },
+   603→      {
+   604→        question: 'Según la regla de SEIRI, ¿qué hacer con un objeto no usado en el último año?',
+   605→        options: [
+   606→          'Guardarlo en el almacén',
+   607→          'Considerarlo innecesario y clasificarlo',
+   608→          'Donarlo a otra área',
+   609→          'Preguntar al supervisor'
+   610→        ],
+   611→        correctIndex: 1
+   612→      },
+   613→      {
+   614→        question: '¿Qué es el "tagging" o etiquetado rojo en SEIRI?',
+   615→        options: [
+   616→          'Pintar de rojo los objetos peligrosos',
+   617→          'Etiquetar elementos dudosos para decidir después',
+   618→          'Marcar las salidas de emergencia',
+   619→          'Identificar herramientas de emergencia'
+   620→        ],
+   621→        correctIndex: 1
+   622→      },
+   623→      {
+   624→        question: '¿En cuántas categorías se clasifican los elementos en SEIRI?',
+   625→        options: ['2 categorías', '3 categorías', '4 categorías', '5 categorías'],
+   626→        correctIndex: 1
+   627→      },
+   628→      {
+   629→        question: '¿Dónde deben ir los elementos de uso DIARIO según SEIRI?',
+   630→        options: [
+   631→          'En el almacén central',
+   632→          'En el puesto de trabajo, al alcance',
+   633→          'En el archivo de documentación',
+   634→          'En el área de cuarentena'
+   635→        ],
+   636→        correctIndex: 1
+   637→      },
+   638→      {
+   639→        question: '¿Cuál es un BENEFICIO directo de aplicar SEIRI correctamente?',
+   640→        options: [
+   641→          'Mayor consumo de energía',
+   642→          'Más espacio disponible y menos tiempo de búsqueda',
+   643→          'Necesidad de más personal',
+   644→          'Aumento de inventario'
+   645→        ],
+   646→        correctIndex: 1
+   647→      }
+   648→    ]
+   649→  },
+   650→  2: {
+   651→    questions: [
+   652→      {
+   653→        question: '¿Qué significa SEITON en la metodología 5S?',
+   654→        options: ['Clasificar', 'Ordenar', 'Limpiar', 'Disciplina'],
+   655→        correctIndex: 1
+   656→      },
+   657→      {
+   658→        question: '¿Cuál es el principio clave de SEITON?',
+   659→        options: [
+   660→          'Limpiar todo daily',
+   661→          'Un lugar para cada cosa y cada cosa en su lugar',
+   662→          'Documentar todos los procedimientos',
+   663→          'Auditar semanalmente'
+   664→        ],
+   665→        correctIndex: 1
+   666→      },
+   667→      {
+   668→        question: '¿Qué es un sistema POKA-YOKE en SEITON?',
+   669→        options: [
+   670→          'Un software de gestión',
+   671→          'Un sistema a prueba de errores de colocación',
+   672→          'Un protocolo de seguridad',
+   673→          'Un formato de informe'
+   674→        ],
+   675→        correctIndex: 1
+   676→      },
+   677→      {
+   678→        question: '¿Dónde deben ubicarse los objetos de uso MUY FRECUENTE?',
+   679→        options: [
+   680→          'En el almacén lejano',
+   681→          'Al alcance de la mano en el puesto',
+   682→          'En archivadores altos',
+   683→          'Fuera del área de trabajo'
+   684→        ],
+   685→        correctIndex: 1
+   686→      },
+   687→      {
+   688→        question: '¿Cuál es la "Regla de los 30 segundos" en SEITON?',
+   689→        options: [
+   690→          'Tiempo máximo de limpieza',
+   691→          'Tiempo para encontrar cualquier herramienta',
+   692→          'Duración de la reunión diaria',
+   693→          'Tiempo de respuesta a emergencias'
+   694→        ],
+   695→        correctIndex: 1
+   696→      },
+   697→      {
+   698→        question: '¿Qué técnica de SEITON usa siluetas para identificar ubicaciones?',
+   699→        options: [
+   700→          'Codificación numérica',
+   701→          'Organización shadow board (panel silhouette)',
+   702→          'Etiquetado alfabético',
+   703→          'Señalización LED'
+   704→        ],
+   705→        correctIndex: 1
+   706→      },
+   707→      {
+   708→        question: '¿A qué altura deben ir los objetos PESADOS según ergonomía SEITON?',
+   709→        options: [
+   710→          'Por encima de la cabeza',
+   711→          'Altura del pecho o superior',
+   712→          'Altura de la cintura o inferior',
+   713→          'En el suelo'
+   714→        ],
+   715→        correctIndex: 2
+   716→      },
+   717→      {
+   718→        question: '¿Qué tipo de señal ayuda a identificar rápidamente ubicaciones en SEITON?',
+   719→        options: [
+   720→          'Señales auditivas',
+   721→          'Códigos de colores por categoría',
+   722→          'Olores característicos',
+   723→          'Texturas diferentes'
+   724→        ],
+   725→        correctIndex: 1
+   726→      }
+   727→    ]
+   728→  },
+   729→  3: {
+   730→    questions: [
+   731→      {
+   732→        question: '¿Qué significa SEISO en 5S?',
+   733→        options: ['Ordenar', 'Estandarizar', 'Limpiar', 'Disciplina'],
+   734→        correctIndex: 2
+   735→      },
+   736→      {
+   737→        question: '¿Cuál es el concepto fundamental de SEISO?',
+   738→        options: [
+   739→          'Limpiar cuando haya tiempo',
+   740→          'Limpiar para inspeccionar',
+   741→          'Contratar limpieza externa',
+   742→          'Limpiar solo al final del turno'
+   743→        ],
+   744→        correctIndex: 1
+   745→      },
+   746→      {
+   747→        question: 'Al limpiar en SEISO, ¿qué TAMBIÉN estamos haciendo?',
+   748→        options: [
+   749→          'Solo quitando polvo',
+   750→          'Inspeccionando y detectando anomalías',
+   751→          'Pintando las máquinas',
+   752→          'Reorganizando documentos'
+   753→        ],
+   754→        correctIndex: 1
+   755→      },
+   756→      {
+   757→        question: '¿Cuál NO es un tipo de limpieza en SEISO?',
+   758→        options: [
+   759→          'Limpieza inicial (Shitsukoi)',
+   760→          'Limpieza diaria',
+   761→          'Limpieza profunda periódica',
+   762→          'Limpieza anual obligatoria'
+   763→        ],
+   764→        correctIndex: 3
+   765→      },
+   766→      {
+   767→        question: '¿Qué es lo PRIMERO que debe hacerse en SEISO?',
+   768→        options: [
+   769→          'Comprar productos de limpieza',
+   770→          'Contratar personal de limpieza',
+   771→          'Identificar y eliminar fuentes de suciedad',
+   772→          'Crear checklists'
+   773→        ],
+   774→        correctIndex: 2
+   775→      },
+   776→      {
+   777→        question: '¿Qué hacer si detectamos una fuga de aceite al limpiar?',
+   778→        options: [
+   779→          'Solo limpiar el aceite',
+   780→          'Ignorar si es pequeña',
+   781→          'Reportar y reparar la fuente (limpieza-inspección)',
+   782→          'Tapar con un paño'
+   783→        ],
+   784→        correctIndex: 2
+   785→      },
+   786→      {
+   787→        question: '¿Cuánto tiempo se recomienda para limpieza de INICIO de turno?',
+   788→        options: [
+   789→          '0 minutos (no es necesario',
+   790→          'Aproximadamente 5 minutos',
+   791→          '30 minutos como mínimo',
+   792→          '1 hora completa'
+   793→        ],
+   794→        correctIndex: 1
+   795→      },
+   796→      {
+   797→        question: '¿Quién es responsable de la limpieza en SEISO?',
+   798→        options: [
+   799→          'Solo el personal de limpieza',
+   800→          'Solo el supervisor',
+   801→          'Cada trabajador de su área',
+   802→          'Solo mantenimiento'
+   803→        ],
+   804→        correctIndex: 2
+   805→      }
+   806→    ]
+   807→  },
+   808→  4: {
+   809→    questions: [
+   810→      {
+   811→        question: '¿Qué significa SEIKETSU?',
+   812→        options: ['Clasificar', 'Limpiar', 'Estandarizar', 'Mantener'],
+   813→        correctIndex: 2
+   814→      },
+   815→      {
+   816→        question: '¿Cuál es el propósito principal de SEIKETSU?',
+   817→        options: [
+   818→          'Limpiar más a fondo',
+   819→          'Crear normas para mantener las 3S anteriores',
+   820→          'Comprar más herramientas',
+   821→          'Contratar más personal'
+   822→        ],
+   823→        correctIndex: 1
+   824→      },
+   825→      {
+   826→        question: '¿Qué componente NO es parte de un estándar en SEIKETSU?',
+   827→        options: [
+   828→          'Qué hay que hacer',
+   829→          'Cómo hacerlo',
+   830→          'Cuándo y quién lo hace',
+   831→          'Cuánto cuesta el material'
+   832→        ],
+   833→        correctIndex: 3
+   834→      },
+   835→      {
+   836→        question: '¿Qué es un SOP en el contexto de SEIKETSU?',
+   837→        options: [
+   838→          'Standard Operating Procedure (Procedimiento Operativo Estándar)',
+   839→          'System Of Production',
+   840→          'Service Of Prevention',
+   841→          'Standard Order Processing'
+   842→        ],
+   843→        correctIndex: 0
+   844→      },
+   845→      {
+   846→        question: '¿Por qué los estándares deben estar en el PUNTO DE USO?',
+   847→        options: [
+   848→          'Para que se pierdan',
+   849→          'Para que sean accesibles cuando se necesiten',
+   850→          'Por requisitos legales',
+   851→          'Para decorar la pared'
+   852→        ],
+   853→        correctIndex: 1
+   854→      },
+   855→      {
+   856→        question: '¿Con qué frecuencia deben revisarse los estándares de SEIKETSU?',
+   857→        options: [
+   858→          'Nunca (una vez creados)',
+   859→          'Solo cuando falla algo',
+   860→          'Regularmente y cuando cambien los procesos',
+   861→          'Anualmente sin importar nada'
+   862→        ],
+   863→        correctIndex: 2
+   864→      },
+   865→      {
+   866→        question: '¿Qué herramienta visual ayuda mucho en SEIKETSU?',
+   867→        options: [
+   868→          'Fotos del estado ideal (referencia)',
+   869→          'Calculadoras complejas',
+   870→          'Relojes de pared',
+   871→          'Mapas de carreteras'
+   872→        ],
+   873→        correctIndex: 0
+   874→      },
+   875→      {
+   876→        question: '¿Quién debe participar en la creación de estándares?',
+   877→        options: [
+   878→          'Solo ingenieros',
+   879→          'Solo la dirección',
+   880→          'Los trabajadores que realizan la tarea',
+   881→          'Solo consultores externos'
+   882→        ],
+   883→        correctIndex: 2
+   884→      }
+   885→    ]
+   886→  },
+   887→  5: {
+   888→    questions: [
+   889→      {
+   890→        question: '¿Qué significa SHITSUKE?',
+   891→        options: ['Clasificar', 'Estandarizar', 'Disciplina/Autodisciplina', 'Ordenar'],
+   892→        correctIndex: 2
+   893→      },
+   894→      {
+   895→        question: '¿Cuál es la clave de SHITSUKE?',
+   896→        options: [
+   897→          'Imponer reglas estrictas',
+   898→          'Crear hábitos y autodisciplina',
+   899→          'Multar incumplimientos',
+   900→          'Contratar supervisores'
+   901→        ],
+   902→        correctIndex: 1
+   903→      },
+   904→      {
+   905→        question: '¿Qué indica que SHITSUKE está funcionando bien?',
+   906→        options: [
+   907→          'Los estándares se cumplen sin recordatorios constantes',
+   908→          'Hay muchos carteles en las paredes',
+   909→          'Se hacen reuniones largas',
+   910→          'El jefe siempre está presente'
+   911→        ],
+   912→        correctIndex: 0
+   913→      },
+   914→      {
+   915→        question: '¿Cuál es la mejor forma de mantener SHITSUKE?',
+   916→        options: [
+   917→          'Castigar errores',
+   918→          'Auditar, reconocer, involucrar y formar',
+   919→          'Ignorar pequeños desvíos',
+   920→          'Solo revisar una vez al año'
+   921→        ],
+   922→        correctIndex: 1
+   923→      },
+   924→      {
+   925→        question: '¿Qué rol tiene el LIDERAZGO en SHITSUKE?',
+   926→        options: [
+   927→          'Solo exigir a los demás',
+   928→          'Dar ejemplo cumpliendo también los estándares',
+   929→          'Delegar totalmente en supervisores',
+   930→          'No intervenir para no molestar'
+   931→        ],
+   932→        correctIndex: 1
+   933→      },
+   934→      {
+   935→        question: '¿Con qué frecuencia se recomiendan auditorías 5S para SHITSUKE?',
+   936→        options: [
+   937→          'Anualmente',
+   938→          'Trimestralmente',
+   939→          'Semanal o mensual (regular)',
+   940→          'Solo cuando hay visitas'
+   941→        ],
+   942→        correctIndex: 2
+   943→      },
+   944→      {
+   945→        question: '¿Qué hacer con las sugerencias de mejora en SHITSUKE?',
+   946→        options: [
+   947→          'Ignorarlas (pérdida de tiempo',
+   948→          'Reconocerlas, evaluarlas e implementar las viables',
+   949→          'Guardarlas para "cuando haya tiempo"',
+   950→          'Solo aceptar las de gerencia'
+   951→        ],
+   952→        correctIndex: 1
+   953→      },
+   954→      {
+   955→        question: '¿Cuál es señal de mala implementación de SHITSUKE?',
+   956→        options: [
+   957→          'Personal sugiere mejoras',
+   958→          'Se necesita constante recordatorio para cumplir estándares',
+   959→          'Los estándares se mejoran periodicamente',
+   960→          'Hay orgullo por el área de trabajo'
+   961→        ],
+   962→        correctIndex: 1
+   963→      }
+   964→    ]
+   965→  }
+   966→}
+   967→
+   968→// ══════════════════════════════════════════════════════════════════════════════
+   969→// INVENTORY CONFIGS (from 5s-constants.ts)
+   970→// ══════════════════════════════════════════════════════════════════════════════
+   971→
+   972→interface InventoryCategory {
+   973→  name: string
+   974→  icon?: string
+   975→  fields: Array<{ key: string; label: string; type: 'text' | 'select' | 'number'; options?: string[] }>
+   976→}
+   977→
+   978→interface InventoryConfig {
+   979→  title: string
+   980→  subtitle: string
+   981→  templateName: string
+   982→  categories: InventoryCategory[]
+   983→  extraFields: Array<{ key: string; label: string; type: string; required?: boolean }>
+   984→}
+   985→
+   986→const INVENTORY_CONFIGS: Record<number, InventoryConfig> = {
+   987→  1: {
+   988→    title: 'Inventario S1 - Clasificación de Elementos',
+   989→    subtitle: 'Clasifica cada elemento fotografiado como NECESARIO, DUDOSO o INNECESARIO',
+   990→    templateName: 'Clasificación Seiri',
+   991→    categories: [
+   992→      {
+   993→        name: 'Estado de Clasificación',
+   994→        icon: 'package',
+   995→        fields: [
+   996→          { key: 'estado', label: 'Clasificación', type: 'select', options: ['Necesario', 'Dudoso', 'Innecesario'] },
+   997→          { key: 'razon', label: 'Razón', type: 'text' },
+   998→          { key: 'frecuencia_uso', label: 'Última vez usado', type: 'select', options: ['Esta semana', 'Este mes', 'Hace 3 meses', 'Hace 6+ meses', 'No recuerda'] },
+   999→        ]
+  1000→      },
+  1001→      {
+  1002→        name: 'Decisión',
+  1003→        icon: 'check-circle',
+  1004→        fields: [
+  1005→          { key: 'decision', label: 'Acción', type: 'select', options: ['Mantener en sitio', 'Mover a almacén', 'Enviar a Jaula', 'Eliminar/Reciclar'] },
+  1006→          { key: 'ubicacion_destino', label: 'Ubicación destino', type: 'text' },
+  1007→        ]
+  1008→      }
+  1009→    ],
+  1010→    extraFields: [
+  1011→      { key: 'nombre_elemento', label: 'Nombre del elemento', type: 'text', required: true },
+  1012→      { key: 'categoria_original', label: 'Categoría original', type: 'select', options: ['Material', 'Herramienta', 'Equipo', 'Mobiliario', 'Documento', 'Otro'] },
+  1013→    ]
+  1014→  },
+  1015→  2: {
+  1016→    title: 'Inventario S2 - Organización de Necesarios',
+  1017→    subtitle: 'Define la frecuencia de uso y ubicación óptima para cada elemento necesario',
+  1018→    templateName: 'Organización Seiton',
+  1019→    categories: [
+  1020→      {
+  1021→        name: 'Frecuencia de Uso',
+  1022→        icon: 'clock',
+  1023→        fields: [
+  1024→          { key: 'frecuencia', label: 'Frecuencia', type: 'select', options: ['Diaria', 'Semanal', 'Mensual', 'Ocasional', 'Rara'] },
+  1025→          { key: 'ubicacion_actual', label: 'Ubicación actual', type: 'text' },
+  1026→          { key: 'ubicacion_optima', label: 'Ubicación óptima propuesta', type: 'text' },
+  1027→        ]
+  1028→      },
+  1029→      {
+  1030→        name: 'Identificación',
+  1031→        icon: 'tag',
+  1032→        fields: [
+  1033→          { key: 'tiene_etiqueta', label: 'Tiene etiqueta identificativa', type: 'select', options: ['Sí', 'No', 'Necesita'] },
+  1034→          { key: 'tipo_señalizacion', label: 'Tipo de señalización', type: 'select', options: ['Etiqueta', 'Silueta', 'Código color', 'Número', 'Ninguna'] },
+  1035→        ]
+  1036→      }
+  1037→    ],
+  1038→    extraFields: [
+  1039→      { key: 'nombre_elemento', label: 'Nombre del elemento', type: 'text', required: true },
+  1040→      { key: 'cantidad', label: 'Cantidad', type: 'number' },
+  1041→    ]
+  1042→  },
+  1043→  3: {
+  1044→    title: 'Inventario S3 - Puntos de Limpieza',
+  1045→    subtitle: 'Registra puntos de suciedad detectados y planes de limpieza',
+  1046→    templateName: 'Limpieza Seiso',
+  1047→    categories: [
+  1048→      {
+  1049→        name: 'Tipo de Suciedad',
+  1050→        icon: 'droplets',
+  1051→        fields: [
+  1052→          { key: 'tipo_suciedad', label: 'Tipo', type: 'select', options: ['Polvo', 'Grasa/Aceite', 'Virutas/Residuos', 'Manchas', 'Óxido', 'Otro'] },
+  1053→          { key: 'fuente', label: 'Fuente probable', type: 'text' },
+  1054→          { key: 'severidad', label: 'Severidad', type: 'select', options: ['Leve', 'Moderada', 'Grave'] },
+  1055→        ]
+  1056→      },
+  1057→      {
+  1058→        name: 'Plan de Limpieza',
+  1059→        icon: 'sparkles',
+  1060→        fields: [
+  1061→          { key: 'metodo_limpieza', label: 'Método de limpieza', type: 'select', options: ['Aspirado', 'Barrido', 'Fregado', 'Desengrasado', 'Especializado'] },
+  1062→          { key: 'frecuencia_recomendada', label: 'Frecuencia recomendada', type: 'select', options: ['Diaria', 'Semanal', 'Mensual', 'Caso por caso'] },
+  1063→          { key: 'responsable', label: 'Responsable asignado', type: 'text' },
+  1064→        ]
+  1065→      }
+  1066→    ],
+  1067→    extraFields: [
+  1068→      { key: 'nombre_punto', label: 'Nombre del punto/área', type: 'text', required: true },
+  1069→      { key: 'ubicacion', label: 'Ubicación específica', type: 'text' },
+  1070→    ]
+  1071→  },
+  1072→  4: {
+  1073→    title: 'Inventario S4 - Registro de Estándares',
+  1074→    subtitle: 'Documenta los estándares visuales y procedimientos del área',
+  1075→    templateName: 'Estandarización Seiketsu',
+  1076→    categories: [
+  1077→      {
+  1078→        name: 'Tipo de Estándar',
+  1079→        icon: 'file-text',
+  1080→        fields: [
+  1081→          { key: 'tipo_estandar', label: 'Tipo', type: 'select', options: ['Visual (foto)', 'Procedimiento (SOP)', 'Checklist', 'Señalización', 'Layout'] },
+  1082→          { key: 'nombre_estandar', label: 'Nombre del estándar', type: 'text' },
+  1083→          { key: 'descripcion', label: 'Descripción breve', type: 'text' },
+  1084→        ]
+  1085→      },
+  1086→      {
+  1087→        name: 'Implementación',
+  1088→        icon: 'check-square',
+  1089→        fields: [
+  1090→          { key: 'estado', label: 'Estado', type: 'select', options: ['En desarrollo', 'Publicado', 'En formación', 'Activo', 'Mejora pendiente'] },
+  1091→          { key: 'ubicacion_publicacion', label: 'Dónde se publica', type: 'text' },
+  1092→          { key: 'responsable_mantenimiento', label: 'Responsable de actualizar', type: 'text' },
+  1093→        ]
+  1094→      }
+  1095→    ],
+  1096→    extraFields: [
+  1097→      { key: 'titulo', label: 'Título del estándar', type: 'text', required: true },
+  1098→      { key: 'area_aplicacion', label: 'Área de aplicación', type: 'text' },
+  1099→    ]
+  1100→  },
+  1101→  5: {
+  1102→    title: 'Inventario S5 - Seguimiento de Cumplimiento',
+  1103→    subtitle: 'Evalúa el nivel de cumplimiento de los estándares establecidos',
+  1104→    templateName: 'Disciplina Shitsuke',
+  1105→    categories: [
+  1106→      {
+  1107→        name: 'Evaluación',
+  1108→        icon: 'clipboard-check',
+  1109→        fields: [
+  1110→          { key: 'nivel_cumplimiento', label: 'Nivel de cumplimiento', type: 'select', options: ['Cumplido (100%)', 'Parcial (50-99%)', 'Incumplido (<50%)', 'No aplicable'] },
+  1111→          { key: 'observaciones', label: 'Observaciones', type: 'text' },
+  1112→          { key: 'evidencia_foto', label: 'Tiene evidencia fotográfica', type: 'select', options: ['Sí', 'No'] },
+  1113→        ]
+  1114→      },
+  1115→      {
+  1116→        name: 'Acción Requerida',
+  1117→        icon: 'alert-triangle',
+  1118→        fields: [
+  1119→          { key: 'accion_requerida', label: 'Acción requerida', type: 'select', options: ['Ninguna', 'Corrección inmediata', 'Mejora a corto plazo', 'Revisión de estándar', 'Formación complementaria'] },
+  1120→          { key: 'fecha_compromiso', label: 'Fecha compromiso', type: 'text' },
+  1121→          { key: 'responsable_accion', label: 'Responsable de la acción', type: 'text' },
+  1122→        ]
+  1123→      }
+  1124→    ],
+  1125→    extraFields: [
+  1126→      { key: 'elemento_evaluado', label: 'Elemento/estándar evaluado', type: 'text', required: true },
+  1127→      { key: 'auditor', label: 'Nombre del auditor', type: 'text' },
+  1128→    ]
+  1129→  }
+  1130→}
+  1131→
+  1132→// ══════════════════════════════════════════════════════════════════════════════
+  1133→// MAIN SEED FUNCTION
+  1134→// ══════════════════════════════════════════════════════════════════════════════
+  1135→
+  1136→async function seedCompleteTemplates() {
+  1137→  console.log('╔══════════════════════════════════════════════════════════════╗')
+  1138→  console.log('║  v3.0.3 COMPLETE TEMPLATE SEED - Real Content for 5S App   ║')
+  1139→  console.log('╚══════════════════════════════════════════════════════════════╝\n')
+  1140→  
+  1141→  // Count existing
+  1142→  const existingCount = await db.template.count()
+  1143→  console.log(`📊 Plantillas existentes: ${existingCount}`)
+  1144→  
+  1145→  let created = 0
+  1146→  let updated = 0
+  1147→  const errors: string[] = []
+  1148→  
+  1149→  // Process each S-step (1-5)
+  1150→  for (let sStep = 1; sStep <= 5; sStep++) {
+  1151→    console.log(`\n━━━ Procesando S${sStep} ━━━`)
+  1152→    
+  1153→    // ─── TYPE: formacion ───
+  1154→    try {
+  1155→      const existing = await db.template.findFirst({
+  1156→        where: { type: 'formacion', sStep, companyId: null }
+  1157→      })
+  1158→      
+  1159→      const formationContent = FORMATION_CONTENT[sStep]
+  1160→      const contentStr = JSON.stringify(formationContent)
+  1161→      
+  1162→      if (existing) {
+  1163→        await db.template.update({
+  1164→          where: { id: existing.id },
+  1165→          data: {
+  1166→            title: `Formación S${sStep} - ${['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke'][sStep-1]}`,
+  1167→            description: `Contenido teórico completo para formación en ${['SEIRI (Clasificar)', 'SEITON (Ordenar)', 'SEISO (Limpiar)', 'SEIKETSU (Estandarizar)', 'SHITSUKE (Disciplina)'][sStep-1]}`,
+  1168→            content: contentStr,
+  1169→            active: true,
+  1170→          }
+  1171→        })
+  1172→        console.log(`  ✏️  formacion S${sStep}: ACTUALIZADA con contenido real`)
+  1173→        updated++
+  1174→      } else {
+  1175→        await db.template.create({
+  1176→          data: {
+  1177→            id: `tpl_form_s${sStep}_${Date.now()}`,
+  1178→            type: 'formacion',
+  1179→            sStep,
+  1180→            miniStep: 1,
+  1181→            title: `Formación S${sStep} - ${['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke'][sStep-1]}`,
+  1182→            description: `Contenido teórico completo para formación`,
+  1183→            content: contentStr,
+  1184→            notaMinima: 80,
+  1185→            active: true,
+  1186→            companyId: null,
+  1187→          }
+  1188→        })
+  1189→        console.log(`  ✅ formacion S${sStep}: CREADA con contenido real`)
+  1190→        created++
+  1191→      }
+  1192→    } catch (e: any) {
+  1193→      errors.push(`formacion S${sStep}: ${e.message}`)
+  1194→      console.log(`  ❌ formacion S${sStep}: ${e.message}`)
+  1195→    }
+  1196→    
+  1197→    // ─── TYPE: examen (NEW!) ───
+  1198→    try {
+  1199→      const existing = await db.template.findFirst({
+  1200→        where: { type: 'examen', sStep, companyId: null }
+  1201→      })
+  1202→      
+  1203→      const examContent = EXAM_QUESTIONS[sStep]
+  1204→      const contentStr = JSON.stringify(examContent)
+  1205→      
+  1206→      if (existing) {
+  1207→        await db.template.update({
+  1208→          where: { id: existing.id },
+  1209→          data: {
+  1210→            title: `Examen S${sStep} - ${['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke'][sStep-1]}`,
+  1211→            description: `Evaluación de conocimientos sobre ${['SEIRI', 'SEITON', 'SEISO', 'SEIKETSU', 'SHITSUKE'][sStep-1]} (${examContent.questions.length} preguntas)`,
+  1212→            content: contentStr,
+  1213→            notaMinima: 80,
+  1214→            active: true,
+  1215→          }
+  1216→        })
+  1217→        console.log(`  ✏️  examen S${sStep}: ACTUALIZADO (${examContent.questions.length} preguntas)`)
+  1218→        updated++
+  1219→      } else {
+  1220→        await db.template.create({
+  1221→          data: {
+  1222→            id: `tpl_exam_s${sStep}_${Date.now()}`,
+  1223→            type: 'examen',
+  1224→            sStep,
+  1225→            miniStep: 1,
+  1226→            title: `Examen S${sStep} - ${['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke'][sStep-1]}`,
+  1227→            description: `Evaluación de conocimientos (${examContent.questions.length} preguntas)`,
+  1228→            content: contentStr,
+  1229→            notaMinima: 80,
+  1230→            active: true,
+  1231→            companyId: null,
+  1232→            updatedAt: new Date(),
+  1233→          }
+  1234→        })
+  1235→        console.log(`  ✅ examen S${sStep}: CREADO (${examContent.questions.length} preguntas)`)
+  1236→        created++
+  1237→      }
+  1238→    } catch (e: any) {
+  1239→      errors.push(`examen S${sStep}: ${e.message}`)
+  1240→      console.log(`  ❌ examen S${sStep}: ${e.message}`)
+  1241→    }
+  1242→    
+  1243→    // ─── TYPE: autoevaluacion ───
+  1244→    try {
+  1245→      const existing = await db.template.findFirst({
+  1246→        where: { type: 'autoevaluacion', sStep, companyId: null }
+  1247→      })
+  1248→      
+  1249→      const auditSections = AUDIT_CHECKLISTS[sStep]
+  1250→      const contentStr = JSON.stringify({ sections: auditSections })
+  1251→      
+  1252→      if (existing) {
+  1253→        await db.template.update({
+  1254→          where: { id: existing.id },
+  1255→          data: {
+  1256→            title: `Autoevaluación S${sStep} - ${['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke'][sStep-1]}`,
+  1257→            description: `Checklist de autoevaluación con ${auditSections.reduce((sum, s) => sum + s.items.length, 0)} criterios`,
+  1258→            content: contentStr,
+  1259→            active: true,
+  1260→          }
+  1261→        })
+  1262→        console.log(`  ✏️  autoevaluacion S${sStep}: ACTUALIZADA (${auditSections.reduce((sum, s) => sum + s.items.length, 0)} items)`)
+  1263→        updated++
+  1264→      } else {
+  1265→        await db.template.create({
+  1266→          data: {
+  1267→            id: `tpl_auto_s${sStep}_${Date.now()}`,
+  1268→            type: 'autoevaluacion',
+  1269→            sStep,
+  1270→            miniStep: 4,
+  1271→            title: `Autoevaluación S${sStep} - ${['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke'][sStep-1]}`,
+  1272→            description: `Checklist de autoevaluación`,
+  1273→            content: contentStr,
+  1274→            notaMinima: 80,
+  1275→            active: true,
+  1276→            companyId: null,
+  1277→          }
+  1278→        })
+  1279→        console.log(`  ✅ autoevaluacion S${sStep}: CREADA (${auditSections.reduce((sum, s) => sum + s.items.length, 0)} items)`)
+  1280→        created++
+  1281→      }
+  1282→    } catch (e: any) {
+  1283→      errors.push(`autoevaluacion S${sStep}: ${e.message}`)
+  1284→      console.log(`  ❌ autoevaluacion S${sStep}: ${e.message}`)
+  1285→    }
+  1286→    
+  1287→    // ─── TYPE: auditoria ───
+  1288→    try {
+  1289→      const existing = await db.template.findFirst({
+  1290→        where: { type: 'auditoria', sStep, companyId: null }
+  1291→      })
+  1292→      
+  1293→      const auditSections = AUDIT_CHECKLISTS[sStep]
+  1294→      const contentStr = JSON.stringify({ sections: auditSections })
+  1295→      
+  1296→      if (existing) {
+  1297→        await db.template.update({
+  1298→          where: { id: existing.id },
+  1299→          data: {
+  1300→            title: `Auditoría S${sStep} - ${['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke'][sStep-1]}`,
+  1301→            description: `Checklist de auditoría con ${auditSections.reduce((sum, s) => sum + s.items.length, 0)} criterios`,
+  1302→            content: contentStr,
+  1303→            active: true,
+  1304→          }
+  1305→        })
+  1306→        console.log(`  ✏️  auditoria S${sStep}: ACTUALIZADA (${auditSections.reduce((sum, s) => sum + s.items.length, 0)} items)`)
+  1307→        updated++
+  1308→      } else {
+  1309→        await db.template.create({
+  1310→          data: {
+  1311→            id: `tpl_audit_s${sStep}_${Date.now()}`,
+  1312→            type: 'auditoria',
+  1313→            sStep,
+  1314→            miniStep: 5,
+  1315→            title: `Auditoría S${sStep} - ${['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke'][sStep-1]}`,
+  1316→            description: `Checklist de auditoría`,
+  1317→            content: contentStr,
+  1318→            notaMinima: 80,
+  1319→            active: true,
+  1320→            companyId: null,
+  1321→          }
+  1322→        })
+  1323→        console.log(`  ✅ auditoria S${sStep}: CREADA (${auditSections.reduce((sum, s) => sum + s.items.length, 0)} items)`)
+  1324→        created++
+  1325→      }
+  1326→    } catch (e: any) {
+  1327→      errors.push(`auditoria S${sStep}: ${e.message}`)
+  1328→      console.log(`  ❌ auditoria S${sStep}: ${e.message}`)
+  1329→    }
+  1330→    
+  1331→    // ─── TYPE: inventario ───
+  1332→    try {
+  1333→      const existing = await db.template.findFirst({
+  1334→        where: { type: 'inventario', sStep, companyId: null }
+  1335→      })
+  1336→      
+  1337→      const invConfig = INVENTORY_CONFIGS[sStep]
+  1338→      const contentStr = JSON.stringify(invConfig)
+  1339→      
+  1340→      if (existing) {
+  1341→        await db.template.update({
+  1342→          where: { id: existing.id },
+  1343→          data: {
+  1344→            title: invConfig.title,
+  1345→            description: invConfig.subtitle,
+  1346→            content: contentStr,
+  1347→            active: true,
+  1348→          }
+  1349→        })
+  1350→        console.log(`  ✏️  inventario S${sStep}: ACTUALIZADO (${invConfig.categories.length} categorías)`)
+  1351→        updated++
+  1352→      } else {
+  1353→        await db.template.create({
+  1354→          data: {
+  1355→            id: `tpl_inv_s${sStep}_${Date.now()}`,
+  1356→            type: 'inventario',
+  1357→            sStep,
+  1358→            miniStep: 3,
+  1359→            title: invConfig.title,
+  1360→            description: invConfig.subtitle,
+  1361→            content: contentStr,
+  1362→            active: true,
+  1363→            companyId: null,
+  1364→          }
+  1365→        })
+  1366→        console.log(`  ✅ inventario S${sStep}: CREADO (${invConfig.categories.length} categorías)`)
+  1367→        created++
+  1368→      }
+  1369→    } catch (e: any) {
+  1370→      errors.push(`inventario S${sStep}: ${e.message}`)
+  1371→      console.log(`  ❌ inventario S${sStep}: ${e.message}`)
+  1372→    }
+  1373→    
+  1374→    // ─── TYPE: fotos ───
+  1375→    try {
+  1376→      const existing = await db.template.findFirst({
+  1377→        where: { type: 'fotos', sStep, companyId: null }
+  1378→      })
+  1379→      
+  1380→      const minPhotosByS: Record<number, number> = { 1: 5, 2: 8, 3: 6, 4: 4, 5: 3 }
+  1381→      const contentStr = JSON.stringify({
+  1382→        instructions: [`Toma fotografías del área antes y después de aplicar ${['SEIRI (Clasificar)', 'SEITON (Ordenar)', 'SEISO (Limpiar)', 'SEIKETSU (Estandarizar)', 'SHITSUKE (Disciplina)'][sStep-1]}`],
+  1383→        minPhotos: minPhotosByS[sStep],
+  1384→        photoTypes: ['Antes', 'Después', 'Detalle problema', 'Detalle solución']
+  1385→      })
+  1386→      
+  1387→      if (existing) {
+  1388→        await db.template.update({
+  1389→          where: { id: existing.id },
+  1390→          data: {
+  1391→            title: `Registro Fotográfico S${sStep} - ${['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke'][sStep-1]}`,
+  1392→            description: `Plantilla para documentación fotográfica (mínimo ${minPhotosByS[sStep]} fotos)`,
+  1393→            content: contentStr,
+  1394→            minPhotos: minPhotosByS[sStep],
+  1395→            active: true,
+  1396→          }
+  1397→        })
+  1398→        console.log(`  ✏️  fotos S${sStep}: ACTUALIZADA (minPhotos=${minPhotosByS[sStep]})`)
+  1399→        updated++
+  1400→      } else {
+  1401→        await db.template.create({
+  1402→          data: {
+  1403→            id: `tpl_photo_s${sStep}_${Date.now()}`,
+  1404→            type: 'fotos',
+  1405→            sStep,
+  1406→            miniStep: 2,
+  1407→            title: `Registro Fotográfico S${sStep} - ${['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke'][sStep-1]}`,
+  1408→            description: `Plantilla para documentación fotográfica`,
+  1409→            content: contentStr,
+  1410→            minPhotos: minPhotosByS[sStep],
+  1411→            active: true,
+  1412→            companyId: null,
+  1413→          }
+  1414→        })
+  1415→        console.log(`  ✅ fotos S${sStep}: CREADA (minPhotos=${minPhotosByS[sStep]})`)
+  1416→        created++
+  1417→      }
+  1418→    } catch (e: any) {
+  1419→      errors.push(`fotos S${sStep}: ${e.message}`)
+  1420→      console.log(`  ❌ fotos S${sStep}: ${e.message}`)
+  1421→    }
+  1422→  }
+  1423→  
+  1424→  // Final summary
+  1425→  const finalCount = await db.template.count()
+  1426→  console.log('\n╔══════════════════════════════════════════════════════════════╗')
+  1427→  console.log('║                    RESUMEN FINAL                          ║')
+  1428→  console.log('╠══════════════════════════════════════════════════════════════╣')
+  1429→  console.log(`║  Plantillas antes:  ${existingCount.toString().padStart(4)}                               ║`)
+  1430→  console.log(`║  Plantillas después: ${finalCount.toString().padStart(4)}                               ║`)
+  1431→  console.log(`║  Creadas:             ${created.toString().padStart(4)}                               ║`)
+  1432→  console.log(`║  Actualizadas:        ${updated.toString().padStart(4)}                               ║`)
+  1433→  
+  1434→  if (errors.length > 0) {
+  1435→    console.log('║  ERRORES:                                                  ║')
+  1436→    errors.forEach(e => console.log(`║    - ${e}`))
+  1437→  }
+  1438→  
+  1439→  console.log('╚══════════════════════════════════════════════════════════════╝')
+  1440→  
+  1441→  // Show final state by type
+  1442→  console.log('\n📋 Estado final por tipo:')
+  1443→  const types = ['formacion', 'examen', 'autoevaluacion', 'auditoria', 'inventario', 'fotos']
+  1444→  for (const type of types) {
+  1445→    const count = await db.template.count({ where: { type }})
+  1446→    console.log(`   ${type.padEnd(15)}: ${count} plantillas`)
+  1447→  }
+  1448→}
+  1449→
+  1450→seedCompleteTemplates()
+  1451→  .then(() => process.exit(0))
+  1452→  .catch(err => {
+  1453→    console.error('Error fatal:', err)
+  1454→    process.exit(1)
+  1455→  })
+  1456→
