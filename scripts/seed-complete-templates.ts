@@ -1184,6 +1184,7 @@ async function seedCompleteTemplates() {
             notaMinima: 80,
             active: true,
             companyId: null,
+            updatedAt: new Date(),
           }
         })
         console.log(`  ✅ formacion S${sStep}: CREADA con contenido real`)
@@ -1274,6 +1275,7 @@ async function seedCompleteTemplates() {
             notaMinima: 80,
             active: true,
             companyId: null,
+            updatedAt: new Date(),
           }
         })
         console.log(`  ✅ autoevaluacion S${sStep}: CREADA (${auditSections.reduce((sum, s) => sum + s.items.length, 0)} items)`)
@@ -1318,6 +1320,7 @@ async function seedCompleteTemplates() {
             notaMinima: 80,
             active: true,
             companyId: null,
+            updatedAt: new Date(),
           }
         })
         console.log(`  ✅ auditoria S${sStep}: CREADA (${auditSections.reduce((sum, s) => sum + s.items.length, 0)} items)`)
@@ -1361,6 +1364,7 @@ async function seedCompleteTemplates() {
             content: contentStr,
             active: true,
             companyId: null,
+            updatedAt: new Date(),
           }
         })
         console.log(`  ✅ inventario S${sStep}: CREADO (${invConfig.categories.length} categorías)`)
@@ -1410,6 +1414,7 @@ async function seedCompleteTemplates() {
             minPhotos: minPhotosByS[sStep],
             active: true,
             companyId: null,
+            updatedAt: new Date(),
           }
         })
         console.log(`  ✅ fotos S${sStep}: CREADA (minPhotos=${minPhotosByS[sStep]})`)
