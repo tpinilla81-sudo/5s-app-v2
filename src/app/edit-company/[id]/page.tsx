@@ -130,7 +130,7 @@ export default function EditCompanyPage() {
             </div>
           </div>
           <div className="mt-3 inline-block bg-white/20 px-3 py-1 rounded-full text-xs font-mono">
-            v3.0.11 ✅ Página de edición completa
+            v3.0.12 ✅ Página de edición completa
           </div>
         </div>
       </div>

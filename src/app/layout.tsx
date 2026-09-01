@@ -123,7 +123,7 @@ export default function RootLayout({
             __html: `
               (function() {
                 // v3.0.11 - FORCE CACHE CLEAR
-                var CURRENT_VERSION = 'v3.0.11-FINAL';
+                var CURRENT_VERSION = 'v3.0.12';
                 
                 // Check if we need to force reload
                 var storedVersion = localStorage.getItem('_app_force_version');
