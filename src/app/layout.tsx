@@ -122,6 +122,30 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
+                // v3.0.11 - FORCE CACHE CLEAR
+                var CURRENT_VERSION = 'v3.0.11';
+                
+                // Check if we need to force reload
+                var storedVersion = localStorage.getItem('_app_force_version');
+                if (storedVersion !== CURRENT_VERSION) {
+                  console.log('[App] Version mismatch:', storedVersion, '->', CURRENT_VERSION, '- forcing clear');
+                  
+                  // Clear ALL storage
+                  try {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                  } catch(e) {}
+                  
+                  // Set new version
+                  localStorage.setItem('_app_force_version', CURRENT_VERSION);
+                  
+                  // Force reload with cache bust
+                  setTimeout(function() {
+                    window.location.href = window.location.pathname + '?_v=' + CURRENT_VERSION + '&_t=' + Date.now();
+                  }, 100);
+                  return;
+                }
+                
                 // STEP 1: Immediately clear ALL browser caches
                 if ('caches' in window) {
                   caches.keys().then(function(names) {
