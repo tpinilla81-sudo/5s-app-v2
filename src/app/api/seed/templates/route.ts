@@ -187,6 +187,7 @@ export async function POST(request: NextRequest) {
             description: `Contenido formativo sobre la ${s}ª S: ${S_NAMES[s - 1]} (${S_JAPANESE[s - 1]})`,
             content: JSON.stringify({ sections: [{ title: `¿Qué es ${S_JAPANESE[s - 1]}?`, content: `Formación sobre la ${s}ª S: ${S_NAMES[s - 1]}` }] }),
             notaMinima: 80,
+            updatedAt: new Date(),
           },
         })
         created++
@@ -204,6 +205,7 @@ export async function POST(request: NextRequest) {
             description: `Examen de evaluación sobre ${S_NAMES[s - 1]}`,
             content: JSON.stringify({ questions: [{ question: `Pregunta sobre ${S_JAPANESE[s - 1]}`, options: ['A', 'B', 'C', 'D'], correctIndex: 0 }] }),
             notaMinima: 80,
+            updatedAt: new Date(),
           },
         })
         created++
@@ -248,6 +250,7 @@ export async function POST(request: NextRequest) {
                 },
               ],
             }),
+            updatedAt: new Date(),
           },
         })
         created++
@@ -306,6 +309,7 @@ export async function POST(request: NextRequest) {
             title: `Inventario S${s} - ${S_JAPANESE[s - 1]}`,
             description: `Plantilla de inventario para ${S_NAMES[s - 1]}`,
             content: JSON.stringify(inventoryContent),
+            updatedAt: new Date(),
           },
         })
         created++
@@ -330,6 +334,7 @@ export async function POST(request: NextRequest) {
                 { key: 'mejoraTipo', label: 'Tipo de Mejora', type: 'select', options: ['seguridad', 'calidad', 'proceso', 'logistica'], required: true },
               ],
             }),
+            updatedAt: new Date(),
           },
         })
         created++
@@ -348,6 +353,7 @@ export async function POST(request: NextRequest) {
             description: `Checklist de autoevaluación para ${S_NAMES[s - 1]}`,
             content: JSON.stringify({ sections: auditSections || [] }),
             notaMinima: 70,
+            updatedAt: new Date(),
           },
         })
         created++
@@ -384,6 +390,7 @@ export async function POST(request: NextRequest) {
               sourceTypes: ['autoevaluacion', 'auditoria'],
               sStep: s,
             }),
+            updatedAt: new Date(),
           },
         })
         created++
@@ -444,6 +451,7 @@ export async function POST(request: NextRequest) {
               targetStandardCategory: 'plan_limpieza',
               targetS4Library: true,
             }),
+            updatedAt: new Date(),
           },
         })
         created++
@@ -462,6 +470,7 @@ export async function POST(request: NextRequest) {
             description: `Criterios de auditoría para ${S_NAMES[s - 1]}`,
             content: JSON.stringify({ sections: auditSections || [] }),
             notaMinima: 75,
+            updatedAt: new Date(),
           },
         })
         created++
@@ -494,6 +503,7 @@ export async function POST(request: NextRequest) {
               links: ['plan_accion', 'standards_library'],
               sStep: s,
             }),
+            updatedAt: new Date(),
           },
         })
         created++

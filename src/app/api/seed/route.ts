@@ -5,6 +5,13 @@ import { hashPassword } from '../../../lib/password'
 const S_NAMES = ['Revisar', 'Ordenar', 'Limpiar', 'Estandarizar', 'Mantener']
 const S_JAPANESE = ['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke']
 
+// Helper para generar IDs únicos (el modelo Template requiere id manual)
+function generateSeedTemplateId(type: string, sStep: number): string {
+  const timestamp = Date.now()
+  const random = Math.random().toString(36).substring(2, 8)
+  return `seed_${type}_s${sStep}_${timestamp}_${random}`
+}
+
 const TRAINING_CONTENT: Record<number, { sections: Array<{ title: string; content: string }> }> = {
   1: {
     sections: [
@@ -409,61 +416,72 @@ export async function POST() {
         // Training templates
         await db.template.create({
           data: {
+            id: generateSeedTemplateId('formacion', s),
             type: 'formacion',
             sStep: s,
             title: `Formación ${S_NAMES[s - 1]} - 5S`,
             description: `Contenido formativo sobre la ${s}ª S: ${S_NAMES[s - 1]} (${S_JAPANESE[s - 1]})`,
             content: JSON.stringify(TRAINING_CONTENT[s]),
+            updatedAt: new Date(),
           },
         })
 
         // Exam templates
         await db.template.create({
           data: {
+            id: generateSeedTemplateId('examen', s),
             type: 'examen',
             sStep: s,
             title: `Examen ${S_NAMES[s - 1]} - 5S`,
             description: `Examen de evaluación sobre ${S_NAMES[s - 1]}`,
             content: JSON.stringify(EXAM_QUESTIONS[s]),
+            updatedAt: new Date(),
           },
         })
 
         // Inventory templates
         await db.template.create({
           data: {
+            id: generateSeedTemplateId('inventario', s),
             type: 'inventario',
             sStep: s,
             title: `Plantilla Inventario ${S_NAMES[s - 1]}`,
             description: `Plantilla de inventario para ${S_NAMES[s - 1]}`,
             content: JSON.stringify(INVENTORY_TEMPLATES[s]),
+            updatedAt: new Date(),
           },
         })
 
         // Self-evaluation templates
         await db.template.create({
           data: {
+            id: generateSeedTemplateId('autoevaluacion', s),
             type: 'autoevaluacion',
             sStep: s,
             title: `Autoevaluación ${S_NAMES[s - 1]}`,
             description: `Checklist de autoevaluación para ${S_NAMES[s - 1]}`,
             content: JSON.stringify(AUTOEVAL_CHECKLISTS[s]),
+            updatedAt: new Date(),
           },
         })
 
         // Audit templates
         await db.template.create({
           data: {
+            id: generateSeedTemplateId('auditoria', s),
             type: 'auditoria',
             sStep: s,
             title: `Auditoría ${S_NAMES[s - 1]}`,
             description: `Criterios de auditoría para ${S_NAMES[s - 1]}`,
             content: JSON.stringify(AUDIT_TEMPLATES[s]),
+            updatedAt: new Date(),
           },
         })
 
         // Standard template (formato de mejora)
         await db.template.create({
           data: {
+            id: generateSeedTemplateId('estandar', s),
             type: 'estandar',
             sStep: s,
             title: `Formato Estándar de Mejora - ${S_NAMES[s - 1]}`,
@@ -477,6 +495,7 @@ export async function POST() {
                 { key: 'mejoraTipo', label: 'Tipo de Mejora', type: 'select', options: ['seguridad', 'calidad', 'proceso', 'logistica'], required: true },
               ],
             }),
+            updatedAt: new Date(),
           },
         })
 
@@ -490,6 +509,7 @@ export async function POST() {
         }
         await db.template.create({
           data: {
+            id: generateSeedTemplateId('fotos', s),
             type: 'fotos',
             sStep: s,
             miniStep: 2,
@@ -513,6 +533,7 @@ export async function POST() {
                 },
               ],
             }),
+            updatedAt: new Date(),
           },
         })
       }
