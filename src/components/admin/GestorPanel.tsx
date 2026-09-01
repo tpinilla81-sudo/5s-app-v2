@@ -843,7 +843,11 @@ export default function GestorPanel() {
               ) : (
                 <div className="grid gap-3">
                   {stats?.companies.map(company => (
-                    <Card key={company.id} className={`bg-slate-900/60 ${company.active ? 'border-violet-700/20' : 'border-red-700/30 opacity-60'}`}>
+                    <Card 
+                      key={company.id} 
+                      className={`bg-slate-900/60 ${company.active ? 'border-violet-700/20' : 'border-red-700/30 opacity-60'} hover:border-violet-500/40 transition-colors cursor-pointer`}
+                      onClick={() => editingCompany !== company.id && handleViewCompany(company)}
+                    >
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3 flex-1">
@@ -865,12 +869,13 @@ export default function GestorPanel() {
                                   <p className="text-sm font-semibold text-white">{company.name}</p>
                                   <div className="flex items-center gap-3 mt-1">
                                     <span className="text-[10px] text-violet-500">{company.description || 'Sin descripción'}</span>
+                                    <span className="text-[9px] text-blue-400 opacity-70">👁 Click para ver detalles</span>
                                   </div>
                                 </>
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
                             <div className="text-center">
                               <p className="text-lg font-bold text-white">{company.projectCount}</p>
                               <p className="text-[10px] text-violet-500">Proyectos</p>
@@ -882,15 +887,6 @@ export default function GestorPanel() {
                             <Badge className={`${company.active ? 'bg-green-900/30 text-green-400 border-green-700/30' : 'bg-red-900/30 text-red-400 border-red-700/30'} border text-[10px]`}>
                               {company.active ? 'Activa' : 'Inactiva'}
                             </Badge>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewCompany(company)}
-                              className="h-7 w-7 p-0 text-blue-400 hover:bg-blue-900/30"
-                              title="Ver detalles de la empresa"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
