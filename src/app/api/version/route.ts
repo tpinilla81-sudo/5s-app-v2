@@ -24,7 +24,7 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.7',
+    version: 'v3.0.11',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {
