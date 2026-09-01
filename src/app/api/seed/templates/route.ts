@@ -2,12 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, ensureSystemConfigTable } from '../../../../lib/db'
 import { AUDIT_CHECKLISTS, INVENTORY_CONFIGS } from '../../../../lib/5s-constants'
 
+// Helper para generar IDs únicos (el modelo Template requiere id manual)
+function generateTemplateId(type: string, sStep: number): string {
+  const timestamp = Date.now()
+  const random = Math.random().toString(36).substring(2, 8)
+  return `tpl_${type}_s${sStep}_${timestamp}_${random}`
+}
+
 /**
  * POST /api/seed/templates
  * Non-destructive seed: creates ONLY missing templates.
  * Creates templates for ALL S steps (1-5) and ALL types.
  * Tracks seeding state in SystemConfig so it doesn't re-run needlessly.
  * Supports ?force=true to force re-seed (e.g. after adding new template types).
+ * 
+ * v3.0.7 FIX: Incluye id explícito en todos los creates (modelo Template lo requiere)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -170,6 +179,7 @@ export async function POST(request: NextRequest) {
       if (!exists(s, 'formacion')) {
         await db.template.create({
           data: {
+            id: generateTemplateId('formacion', s),
             type: 'formacion',
             sStep: s,
             miniStep: 1,
@@ -186,6 +196,7 @@ export async function POST(request: NextRequest) {
       if (!exists(s, 'examen')) {
         await db.template.create({
           data: {
+            id: generateTemplateId('examen', s),
             type: 'examen',
             sStep: s,
             miniStep: 1,
@@ -209,6 +220,7 @@ export async function POST(request: NextRequest) {
         }
         await db.template.create({
           data: {
+            id: generateTemplateId('fotos', s),
             type: 'fotos',
             sStep: s,
             miniStep: 2,
@@ -287,6 +299,7 @@ export async function POST(request: NextRequest) {
 
         await db.template.create({
           data: {
+            id: generateTemplateId('inventario', s),
             type: 'inventario',
             sStep: s,
             miniStep: 3,
@@ -302,6 +315,7 @@ export async function POST(request: NextRequest) {
       if (!exists(s, 'estandar')) {
         await db.template.create({
           data: {
+            id: generateTemplateId('estandar', s),
             type: 'estandar',
             sStep: s,
             miniStep: 3,
@@ -326,6 +340,7 @@ export async function POST(request: NextRequest) {
         const auditSections = AUDIT_CHECKLISTS[s as keyof typeof AUDIT_CHECKLISTS]
         await db.template.create({
           data: {
+            id: generateTemplateId('autoevaluacion', s),
             type: 'autoevaluacion',
             sStep: s,
             miniStep: 4,
@@ -342,6 +357,7 @@ export async function POST(request: NextRequest) {
       if (!exists(s, 'plan_accion')) {
         await db.template.create({
           data: {
+            id: generateTemplateId('plan_accion', s),
             type: 'plan_accion',
             sStep: s,
             miniStep: 4,
@@ -377,6 +393,7 @@ export async function POST(request: NextRequest) {
       if (!exists(s, 'layout') && s === 2) {
         await db.template.create({
           data: {
+            id: generateTemplateId('layout', s),
             type: 'layout',
             sStep: s,
             miniStep: 3,
@@ -407,6 +424,7 @@ export async function POST(request: NextRequest) {
       if (!exists(s, 'plan_limpieza') && s === 3) {
         await db.template.create({
           data: {
+            id: generateTemplateId('plan_limpieza', s),
             type: 'plan_limpieza',
             sStep: s,
             miniStep: 3,
@@ -436,6 +454,7 @@ export async function POST(request: NextRequest) {
         const auditSections = AUDIT_CHECKLISTS[s as keyof typeof AUDIT_CHECKLISTS]
         await db.template.create({
           data: {
+            id: generateTemplateId('auditoria', s),
             type: 'auditoria',
             sStep: s,
             miniStep: 5,
@@ -451,6 +470,7 @@ export async function POST(request: NextRequest) {
       if (!exists(s, 'pdca') && s === 5) {
         await db.template.create({
           data: {
+            id: generateTemplateId('pdca', s),
             type: 'pdca',
             sStep: s,
             miniStep: 5,
