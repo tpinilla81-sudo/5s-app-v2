@@ -1016,6 +1016,15 @@ export default function GestorPanel() {
                             <Badge className={`${company.active ? 'bg-green-900/30 text-green-400 border-green-700/30' : 'bg-red-900/30 text-red-400 border-red-700/30'} border text-[10px]`}>
                               {company.active ? 'Activa' : 'Inactiva'}
                             </Badge>
+                            {/* ✅ NUEVO BOTÓN VISIBLE DE EDICIÓN */}
+                            <Button
+                              size="sm"
+                              onClick={(e) => { e.stopPropagation(); window.open(`/edit-company/${company.id}`, '_blank') }}
+                              className="bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white text-xs px-3 h-7 font-semibold hidden sm:inline-flex"
+                              title="Editar todos los datos (CIF, teléfono, dirección...)"
+                            >
+                              ✏️ EDITAR DATOS
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
