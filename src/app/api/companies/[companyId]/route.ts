@@ -107,12 +107,41 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { name, description, active } = body
+    const { 
+      name, description, active,
+      nif, sector, address, city, province, postalCode, country,
+      phone, website, billingEmail, billingName, billingNif,
+      billingAddress, billingCity, billingPostalCode, iban,
+      contactName, contactEmail, contactPhone
+    } = body
 
     const data: any = {}
     if (name !== undefined) data.name = name.trim()
     if (description !== undefined) data.description = description?.trim() || null
     if (active !== undefined) data.active = active
+    // Datos fiscales y de contacto
+    if (nif !== undefined) data.nif = nif?.trim() || null
+    if (sector !== undefined) data.sector = sector?.trim() || null
+    if (address !== undefined) data.address = address?.trim() || null
+    if (city !== undefined) data.city = city?.trim() || null
+    if (province !== undefined) data.province = province?.trim() || null
+    if (postalCode !== undefined) data.postalCode = postalCode?.trim() || null
+    if (country !== undefined) data.country = country?.trim() || null
+    if (phone !== undefined) data.phone = phone?.trim() || null
+    if (website !== undefined) data.website = website?.trim() || null
+    // Facturación
+    if (billingEmail !== undefined) data.billingEmail = billingEmail?.trim() || null
+    if (billingName !== undefined) data.billingName = billingName?.trim() || null
+    if (billingNif !== undefined) data.billingNif = billingNif?.trim() || null
+    if (billingAddress !== undefined) data.billingAddress = billingAddress?.trim() || null
+    if (billingCity !== undefined) data.billingCity = billingCity?.trim() || null
+    if (billingPostalCode !== undefined) data.billingPostalCode = billingPostalCode?.trim() || null
+    // Bancario
+    if (iban !== undefined) data.iban = iban?.trim() || null
+    // Contacto
+    if (contactName !== undefined) data.contactName = contactName?.trim() || null
+    if (contactEmail !== undefined) data.contactEmail = contactEmail?.trim() || null
+    if (contactPhone !== undefined) data.contactPhone = contactPhone?.trim() || null
 
     // Check for duplicate name if changing
     if (name) {
@@ -127,9 +156,7 @@ export async function PUT(
     const company = await db.company.update({
       where: { id: companyId },
       data,
-      include: {
-        _count: { select: { projects: true, members: true } },
-      },
+      include: { _count: { select: { projects: true, members: true } },
     })
 
     return NextResponse.json({
@@ -143,6 +170,26 @@ export async function PUT(
         updatedAt: company.updatedAt,
         projectCount: company._count.projects,
         memberCount: company._count.members,
+        // Todos los datos adicionales
+        nif: company.nif,
+        sector: company.sector,
+        address: company.address,
+        city: company.city,
+        province: company.province,
+        postalCode: company.postalCode,
+        country: company.country,
+        phone: company.phone,
+        website: company.website,
+        billingEmail: company.billingEmail,
+        billingName: company.billingName,
+        billingNif: company.billingNif,
+        billingAddress: company.billingAddress,
+        billingCity: company.billingCity,
+        billingPostalCode: company.billingPostalCode,
+        iban: company.iban,
+        contactName: company.contactName,
+        contactEmail: company.contactEmail,
+        contactPhone: company.contactPhone,
       },
     })
   } catch (error) {

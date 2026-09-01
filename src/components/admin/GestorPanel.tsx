@@ -169,8 +169,40 @@ export default function GestorPanel() {
     detail: any | null
     loading: boolean
     saving: boolean
-    data: { name: string; description: string; active: boolean }
-  }>({ open: false, company: null, detail: null, loading: false, saving: false, data: { name: '', description: '', active: true } })
+    data: {
+      name: string
+      description: string
+      active: boolean
+      nif: string
+      sector: string
+      address: string
+      city: string
+      province: string
+      postalCode: string
+      country: string
+      phone: string
+      website: string
+      billingEmail: string
+      billingName: string
+      billingNif: string
+      billingAddress: string
+      billingCity: string
+      billingPostalCode: string
+      iban: string
+      contactName: string
+      contactEmail: string
+      contactPhone: string
+    }
+  }>({ 
+    open: false, company: null, detail: null, loading: false, saving: false, 
+    data: { 
+      name: '', description: '', active: true,
+      nif: '', sector: '', address: '', city: '', province: '', postalCode: '', country: '',
+      phone: '', website: '', billingEmail: '', billingName: '', billingNif: '', 
+      billingAddress: '', billingCity: '', billingPostalCode: '', iban: '',
+      contactName: '', contactEmail: '', contactPhone: ''
+    }
+  })
 
   // v2.108 — Zonificación: configuración global del algoritmo.
   const [zoneConfig, setZoneConfig] = useState<{
@@ -358,16 +390,49 @@ export default function GestorPanel() {
       detail: null,
       loading: true,
       saving: false,
-      data: { name: company.name, description: company.description || '', active: company.active }
+      data: { 
+        name: company.name, 
+        description: company.description || '', 
+        active: company.active,
+        nif: '', sector: '', address: '', city: '', province: '', postalCode: '', country: '',
+        phone: '', website: '', billingEmail: '', billingName: '', billingNif: '',
+        billingAddress: '', billingCity: '', billingPostalCode: '', iban: '',
+        contactName: '', contactEmail: '', contactPhone: ''
+      }
     })
     try {
       const res = await fetch(`/api/companies/${company.id}`)
       const data = await res.json()
       if (data.success || data.company) {
+        const fullCompany = data.company || data
         setEditingCompanyDialog(prev => ({
           ...prev,
-          detail: data.company || data,
-          loading: false
+          detail: fullCompany,
+          loading: false,
+          data: {
+            name: fullCompany.name || prev.data.name,
+            description: fullCompany.description || '',
+            active: fullCompany.active !== undefined ? fullCompany.active : prev.data.active,
+            nif: fullCompany.nif || '',
+            sector: fullCompany.sector || '',
+            address: fullCompany.address || '',
+            city: fullCompany.city || '',
+            province: fullCompany.province || '',
+            postalCode: fullCompany.postalCode || '',
+            country: fullCompany.country || '',
+            phone: fullCompany.phone || '',
+            website: fullCompany.website || '',
+            billingEmail: fullCompany.billingEmail || '',
+            billingName: fullCompany.billingName || '',
+            billingNif: fullCompany.billingNif || '',
+            billingAddress: fullCompany.billingAddress || '',
+            billingCity: fullCompany.billingCity || '',
+            billingPostalCode: fullCompany.billingPostalCode || '',
+            iban: fullCompany.iban || '',
+            contactName: fullCompany.contactName || '',
+            contactEmail: fullCompany.contactEmail || '',
+            contactPhone: fullCompany.contactPhone || ''
+          }
         }))
       } else {
         setEditingCompanyDialog(prev => ({ ...prev, loading: false }))
@@ -1442,15 +1507,15 @@ export default function GestorPanel() {
       </Dialog>
 
       {/* ═══ EDIT COMPANY DIALOG (Full) ═══ */}
-      <Dialog open={editingCompanyDialog.open} onOpenChange={(open) => { if (!open) setEditingCompanyDialog({ open: false, company: null, detail: null, loading: false, saving: false, data: { name: '', description: '', active: true } }) }}>
-        <DialogContent className="bg-slate-900 border-violet-700/30 max-w-2xl max-h-[85vh] overflow-y-auto">
+      <Dialog open={editingCompanyDialog.open} onOpenChange={(open) => { if (!open) setEditingCompanyDialog({ open: false, company: null, detail: null, loading: false, saving: false, data: { name: '', description: '', active: true, nif: '', sector: '', address: '', city: '', province: '', postalCode: '', country: '', phone: '', website: '', billingEmail: '', billingName: '', billingNif: '', billingAddress: '', billingCity: '', billingPostalCode: '', iban: '', contactName: '', contactEmail: '', contactPhone: '' } }) }}>
+        <DialogContent className="bg-slate-900 border-violet-700/30 max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-violet-300 flex items-center gap-2">
               <Edit3 className="h-5 w-5" />
-              Editar Empresa
+              Editar Empresa - {editingCompanyDialog.company?.name}
             </DialogTitle>
             <DialogDescription className="text-violet-400">
-              Modifica los datos de la empresa y guarda los cambios
+              Modifica todos los datos de la empresa y guarda los cambios
             </DialogDescription>
           </DialogHeader>
           
@@ -1459,32 +1524,42 @@ export default function GestorPanel() {
               <Loader2 className="h-6 w-6 text-violet-400 animate-spin" />
             </div>
           ) : editingCompanyDialog.company && (
-            <div className="space-y-5">
-              {/* Editable fields */}
-              <div className="bg-slate-800/50 rounded-lg p-4 space-y-4">
-                <h4 className="text-sm font-semibold text-violet-300">Datos de la empresa</h4>
-                
-                <div className="space-y-2">
-                  <Label className="text-xs text-violet-400">Nombre *</Label>
-                  <Input 
-                    value={editingCompanyDialog.data.name} 
-                    onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, name: e.target.value } }))} 
-                    className="bg-slate-900 border-violet-700/30 text-white"
-                    placeholder="Nombre de la empresa"
-                  />
+            <div className="space-y-4">
+              {/* ─── DATOS BÁSICOS ─── */}
+              <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-violet-300 flex items-center gap-2">
+                  <Building2 className="h-4 w-4" /> Datos básicos
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">Nombre *</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.name} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, name: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="Nombre de la empresa"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">Sector</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.sector} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, sector: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="Ej: Automoción, Hostelería..."
+                    />
+                  </div>
                 </div>
-                
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label className="text-xs text-violet-400">Descripción</Label>
                   <textarea
                     value={editingCompanyDialog.data.description}
                     onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, description: e.target.value } }))}
-                    className="w-full bg-slate-900 border border-violet-700/30 text-white text-sm rounded-md px-3 py-2 min-h-[80px] resize-y focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    className="w-full bg-slate-900 border border-violet-700/30 text-white text-sm rounded-md px-3 py-2 min-h-[60px] resize-y focus:outline-none focus:ring-1 focus:ring-violet-500"
                     placeholder="Descripción de la empresa..."
                   />
                 </div>
-
-                <div className="flex items-center gap-3 pt-2">
+                <div className="flex items-center gap-3 pt-1">
                   <button
                     onClick={() => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, active: !d.data.active } }))}
                     className={`relative w-11 h-6 rounded-full transition-colors ${editingCompanyDialog.data.active ? 'bg-emerald-600' : 'bg-red-600'}`}
@@ -1492,12 +1567,223 @@ export default function GestorPanel() {
                     <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${editingCompanyDialog.data.active ? 'translate-x-5' : ''}`} />
                   </button>
                   <span className={`text-sm ${editingCompanyDialog.data.active ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {editingCompanyDialog.data.active ? 'Empresa activa' : 'Empresa inactiva'}
+                    {editingCompanyDialog.data.active ? '✓ Empresa activa' : '✗ Empresa inactiva'}
                   </span>
                 </div>
               </div>
 
-              {/* Read-only info */}
+              {/* ─── DATOS FISCALES ─── */}
+              <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-emerald-300 flex items-center gap-2">
+                  📋 Datos fiscales
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">CIF / NIF</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.nif} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, nif: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="B12345678"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">Web</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.website} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, website: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="https://www.ejemplo.com"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* ─── DIRECCIÓN ─── */}
+              <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-blue-300 flex items-center gap-2">
+                  📍 Dirección
+                </h4>
+                <div className="space-y-1">
+                  <Label className="text-xs text-violet-400">Dirección</Label>
+                  <Input 
+                    value={editingCompanyDialog.data.address} 
+                    onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, address: e.target.value } }))} 
+                    className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                    placeholder="Calle/Avenida, número, piso..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">Ciudad</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.city} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, city: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="Ciudad"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">Provincia</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.province} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, province: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="Provincia"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">C.P.</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.postalCode} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, postalCode: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="28001"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-violet-400">País</Label>
+                  <Input 
+                    value={editingCompanyDialog.data.country} 
+                    onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, country: e.target.value } }))} 
+                    className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                    placeholder="España"
+                  />
+                </div>
+              </div>
+
+              {/* ─── CONTACTO ─── */}
+              <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-amber-300 flex items-center gap-2">
+                  📞 Contacto
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">Teléfono</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.phone} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, phone: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="+34 600 000 000"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">Email de contacto</Label>
+                    <Input 
+                      type="email"
+                      value={editingCompanyDialog.data.contactEmail} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, contactEmail: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="contacto@empresa.com"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">Persona de contacto</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.contactName} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, contactName: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="Nombre del contacto"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">Teléfono contacto</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.contactPhone} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, contactPhone: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="+34 600 000 000"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* ─── FACTURACIÓN ─── */}
+              <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-purple-300 flex items-center gap-2">
+                  🧾 Datos de facturación
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">Razón social</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.billingName} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, billingName: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="Empresa SL"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">CIF facturación</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.billingNif} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, billingNif: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="B12345678"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-violet-400">Dirección facturación</Label>
+                  <Input 
+                    value={editingCompanyDialog.data.billingAddress} 
+                    onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, billingAddress: e.target.value } }))} 
+                    className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                    placeholder="Dirección de facturación"
+                  />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">Ciudad</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.billingCity} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, billingCity: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="Ciudad"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-violet-400">C.P.</Label>
+                    <Input 
+                      value={editingCompanyDialog.data.billingPostalCode} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, billingPostalCode: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="28001"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-1">
+                    <Label className="text-xs text-violet-400">Email facturación</Label>
+                    <Input 
+                      type="email"
+                      value={editingCompanyDialog.data.billingEmail} 
+                      onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, billingEmail: e.target.value } }))} 
+                      className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm"
+                      placeholder="factura@empresa.com"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* ─── BANCARIO ─── */}
+              <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-cyan-300 flex items-center gap-2">
+                  🏦 Datos bancarios
+                </h4>
+                <div className="space-y-1 max-w-md">
+                  <Label className="text-xs text-violet-400">IBAN</Label>
+                  <Input 
+                    value={editingCompanyDialog.data.iban} 
+                    onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, iban: e.target.value } }))} 
+                    className="bg-slate-900 border-violet-700/30 text-white h-9 text-sm font-mono"
+                    placeholder="ES00 0000 0000 0000 0000 0000"
+                  />
+                </div>
+              </div>
+
+              {/* ─── INFO READ-ONLY ─── */}
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="flex items-center gap-2 text-violet-300 bg-slate-800/30 rounded-lg px-3 py-2">
                   <Calendar className="h-3.5 w-3.5" />
@@ -1511,71 +1797,10 @@ export default function GestorPanel() {
 
               {/* Admin info */}
               {editingCompanyDialog.company.adminUser && (
-                <div className="bg-purple-900/20 border border-purple-700/30 rounded-lg p-4">
-                  <h4 className="text-sm font-semibold text-purple-300 mb-2 flex items-center gap-2">
-                    <Shield className="h-4 w-4" /> Administrador asignado
-                  </h4>
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-purple-700/50 flex items-center justify-center text-sm font-bold text-purple-200">
-                      {editingCompanyDialog.company.adminUser.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">{editingCompanyDialog.company.adminUser.name}</p>
-                      <p className="text-xs text-purple-400">{editingCompanyDialog.company.adminUser.email}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!editingCompanyDialog.company.adminUser && (
-                <div className="bg-amber-900/20 border border-amber-700/30 rounded-lg p-3">
-                  <p className="text-xs text-amber-400 flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4" /> Sin administrador - ve a "Administradores" para asignar uno
+                <div className="bg-purple-900/20 border border-purple-700/30 rounded-lg p-3">
+                  <p className="text-xs text-purple-300">
+                    👤 Admin: <strong>{editingCompanyDialog.company.adminUser.name}</strong> ({editingCompanyDialog.company.adminUser.email})
                   </p>
-                </div>
-              )}
-
-              {/* Projects list (read-only in edit mode) */}
-              {editingCompanyDialog.detail?.projects && editingCompanyDialog.detail.projects.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold text-violet-300 flex items-center gap-2">
-                    <Database className="h-4 w-4" /> Proyectos ({editingCompanyDialog.detail.projects.length})
-                  </h4>
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                    {editingCompanyDialog.detail.projects.map((project: any) => (
-                      <div key={project.id} className="bg-slate-800/50 rounded-lg p-2.5 flex items-center justify-between">
-                        <div>
-                          <p className="text-xs font-medium text-white">{project.name}</p>
-                          <p className="text-[10px] text-violet-500">{project.zoneCount || 0} zonas</p>
-                        </div>
-                        <Badge className={`${project.active ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'} border text-[9px]`}>
-                          {project.active ? 'Activo' : 'Inactivo'}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Members list (read-only in edit mode) */}
-              {editingCompanyDialog.detail?.members && editingCompanyDialog.detail.members.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold text-violet-300 flex items-center gap-2">
-                    <Users className="h-4 w-4" /> Miembros ({editingCompanyDialog.detail.members.length})
-                  </h4>
-                  <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {editingCompanyDialog.detail.members.map((member: any) => (
-                      <div key={member.id || member.userId} className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-800/30 rounded-lg">
-                        <div className="w-6 h-6 rounded-full bg-violet-700/40 flex items-center justify-center text-[10px] font-bold text-violet-200">
-                          {(member.user?.name || member.name || '?').charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-xs text-white truncate flex-1">{member.user?.name || member.name}</span>
-                        <Badge className={`${ROLE_COLORS[member.role || member.user?.role] || 'bg-gray-100 text-gray-700 border-gray-200'} border text-[8px]`}>
-                          {ROLE_LABELS[member.role || member.user?.role] || member.role}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               )}
 
@@ -1584,7 +1809,7 @@ export default function GestorPanel() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setEditingCompanyDialog({ open: false, company: null, detail: null, loading: false, saving: false, data: { name: '', description: '', active: true } })}
+                  onClick={() => setEditingCompanyDialog({ open: false, company: null, detail: null, loading: false, saving: false, data: { name: '', description: '', active: true, nif: '', sector: '', address: '', city: '', province: '', postalCode: '', country: '', phone: '', website: '', billingEmail: '', billingName: '', billingNif: '', billingAddress: '', billingCity: '', billingPostalCode: '', iban: '', contactName: '', contactEmail: '', contactPhone: '' } })}
                   className="border-slate-600 text-slate-400 hover:bg-slate-800"
                 >
                   Cancelar
@@ -1598,7 +1823,7 @@ export default function GestorPanel() {
                   {editingCompanyDialog.saving ? (
                     <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Guardando...</>
                   ) : (
-                    <><Save className="h-3.5 w-3.5 mr-1" /> Guardar cambios</>
+                    <><Save className="h-3.5 w-3.5 mr-1" /> Guardar todos los cambios</>
                   )}
                 </Button>
               </div>
