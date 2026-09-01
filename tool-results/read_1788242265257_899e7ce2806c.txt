@@ -1,0 +1,502 @@
+   501→   501→      : `¿Enviar email de inscripción a ${adminName} (${adminEmail})?\n\nNota: No se dispone de la contraseña en texto plano. El email indicará que debe restablecerla.\nSe enviará copia al gestor (${gestorEmail}).`
+   502→   502→
+   503→   503→    if (!confirm(confirmMsg)) return
+   504→   504→
+   505→   505→    setSendingEmailFor(companyId)
+   506→   506→    try {
+   507→   507→      const res = await fetch('/api/email', {
+   508→   508→        method: 'POST',
+   509→   509→        headers: { 'Content-Type': 'application/json' },
+   510→   510→        body: JSON.stringify({
+   511→   511→          type: 'admin_welcome',
+   512→   512→          adminName,
+   513→   513→          adminEmail,
+   514→   514→          adminPassword: adminPassword || '',
+   515→   515→          companyName,
+   516→   516→          gestorEmail,
+   517→   517→          sendCopy: true,
+   518→   518→        }),
+   519→   519→      })
+   520→   520→      const data = await res.json()
+   521→   521→      if (data.success) {
+   522→   522→        setEmailSentFor(prev => new Set(prev).add(companyId))
+   523→   523→        // Clear stored credentials after sending
+   524→   524→        setPendingCredentials(prev => {
+   525→   525→          const next = { ...prev }
+   526→   526→          delete next[companyId]
+   527→   527→          return next
+   528→   528→        })
+   529→   529→      } else {
+   530→   530→        alert(data.error || 'Error al enviar el email')
+   531→   531→      }
+   532→   532→    } catch (error) {
+   533→   533→      console.error('Error sending invitation email:', error)
+   534→   534→      alert('Error al enviar el email')
+   535→   535→    } finally {
+   536→   536→      setSendingEmailFor(null)
+   537→   537→    }
+   538→   538→  }
+   539→   539→
+   540→   540→  return (
+   541→   541→    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-violet-950/20 to-slate-950 text-white">
+   542→   542→      {/* Header */}
+   543→   543→      <header className="border-b border-violet-800/30 bg-slate-950 sticky top-0 z-10">
+   544→   544→        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+   545→   545→          <div className="flex items-center gap-3">
+   546→   546→            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg shadow-violet-500/30">
+   547→   547→              <Crown className="h-5 w-5 text-yellow-300" />
+   548→   548→            </div>
+   549→   549→            <div>
+   550→   550→              <h1 className="text-lg font-bold bg-gradient-to-r from-violet-300 to-purple-200 bg-clip-text text-transparent">
+   551→   551→                Gestor Panel
+   552→   552→              </h1>
+   553→   553→              <p className="text-xs text-violet-400">Dueño de la Plataforma</p>
+   554→   554→            </div>
+   555→   555→          </div>
+   556→   556→          <div className="flex items-center gap-2">
+   557→   557→            <Button
+   558→   558→              variant="outline"
+   559→   559→              size="sm"
+   560→   560→              onClick={() => {
+   561→   561→                if (!currentProject && projects.length > 0) {
+   562→   562→                  setCurrentProject(projects[0])
+   563→   563→                }
+   564→   564→                setCurrentView('board')
+   565→   565→              }}
+   566→   566→              className="gap-1.5 border-violet-700/50 text-violet-300 hover:bg-violet-900/30 hover:text-violet-200"
+   567→   567→            >
+   568→   568→              ← Vista App
+   569→   569→            </Button>
+   570→   570→            <Badge className="bg-gradient-to-r from-violet-600 to-purple-600 text-white border-0 px-3 py-1">
+   571→   571→              <Crown className="h-3 w-3 mr-1" /> GESTOR
+   572→   572→            </Badge>
+   573→   573→          </div>
+   574→   574→        </div>
+   575→   575→      </header>
+   576→   576→
+   577→   577→      {/* Tabs */}
+   578→   578→      <div className="border-b border-violet-800/20 bg-slate-950">
+   579→   579→        <div className="max-w-7xl mx-auto px-4 flex gap-0 overflow-x-auto">
+   580→   580→          {tabs.map(tab => (
+   581→   581→            <button
+   582→   582→              key={tab.key}
+   583→   583→              onClick={() => setActiveTab(tab.key)}
+   584→   584→              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
+   585→   585→                activeTab === tab.key
+   586→   586→                  ? 'border-violet-400 text-violet-300 bg-violet-900/20'
+   587→   587→                  : 'border-transparent text-violet-500 hover:text-violet-300 hover:border-violet-700/50'
+   588→   588→              }`}
+   589→   589→            >
+   590→   590→              {tab.icon}
+   591→   591→              {tab.label}
+   592→   592→            </button>
+   593→   593→          ))}
+   594→   594→        </div>
+   595→   595→      </div>
+   596→   596→
+   597→   597→      {/* Content */}
+   598→   598→      <main className="max-w-7xl mx-auto px-4 py-6">
+   599→   599→        <AnimatePresence mode="wait">
+   600→   600→          {/* ═══ DASHBOARD TAB (KPIs) ═══ */}
+   601→   601→          {activeTab === 'dashboard' && (
+   602→   602→            <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+   603→   603→              {isLoadingStats ? (
+   604→   604→                <div className="flex justify-center py-20"><Loader2 className="h-10 w-10 text-violet-400 animate-spin" /></div>
+   605→   605→              ) : stats ? (
+   606→   606→                <>
+   607→   607→                  {/* KPI Cards */}
+   608→   608→                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+   609→   609→                    <Card className="bg-gradient-to-br from-violet-900/40 to-purple-900/20 border-violet-700/30 text-white">
+   610→   610→                      <CardContent className="p-4">
+   611→   611→                        <div className="flex items-center justify-between mb-2">
+   612→   612→                          <Building2 className="h-5 w-5 text-violet-400" />
+   613→   613→                          <Badge className="bg-violet-800/50 text-violet-300 border-0 text-[10px]">
+   614→   614→                            {stats.totals.activeCompanies}/{stats.totals.companies} activas
+   615→   615→                          </Badge>
+   616→   616→                        </div>
+   617→   617→                        <p className="text-2xl font-bold">{stats.totals.companies}</p>
+   618→   618→                        <p className="text-xs text-violet-400">Empresas</p>
+   619→   619→                      </CardContent>
+   620→   620→                    </Card>
+   621→   621→                    <Card className="bg-gradient-to-br from-blue-900/40 to-indigo-900/20 border-blue-700/30 text-white">
+   622→   622→                      <CardContent className="p-4">
+   623→   623→                        <div className="flex items-center justify-between mb-2">
+   624→   624→                          <Users className="h-5 w-5 text-blue-400" />
+   625→   625→                          <Badge className="bg-blue-800/50 text-blue-300 border-0 text-[10px]">
+   626→   626→                            {stats.totals.activeUsers}/{stats.totals.users} activos
+   627→   627→                          </Badge>
+   628→   628→                        </div>
+   629→   629→                        <p className="text-2xl font-bold">{stats.totals.users}</p>
+   630→   630→                        <p className="text-xs text-blue-400">Usuarios</p>
+   631→   631→                      </CardContent>
+   632→   632→                    </Card>
+   633→   633→                    <Card className="bg-gradient-to-br from-emerald-900/40 to-green-900/20 border-emerald-700/30 text-white">
+   634→   634→                      <CardContent className="p-4">
+   635→   635→                        <div className="flex items-center justify-between mb-2">
+   636→   636→                          <TrendingUp className="h-5 w-5 text-emerald-400" />
+   637→   637→                          <Badge className="bg-emerald-800/50 text-emerald-300 border-0 text-[10px]">
+   638→   638→                            {stats.totals.activeProjects}/{stats.totals.projects} activos
+   639→   639→                          </Badge>
+   640→   640→                        </div>
+   641→   641→                        <p className="text-2xl font-bold">{stats.totals.projects}</p>
+   642→   642→                        <p className="text-xs text-emerald-400">Proyectos</p>
+   643→   643→                      </CardContent>
+   644→   644→                    </Card>
+   645→   645→                    <Card className="bg-gradient-to-br from-orange-900/40 to-amber-900/20 border-orange-700/30 text-white">
+   646→   646→                      <CardContent className="p-4">
+   647→   647→                        <div className="flex items-center justify-between mb-2">
+   648→   648→                          <AlertTriangle className="h-5 w-5 text-orange-400" />
+   649→   649→                          <Badge className="bg-orange-800/50 text-orange-300 border-0 text-[10px]">
+   650→   650→                            de {stats.totals.actions} total
+   651→   651→                          </Badge>
+   652→   652→                        </div>
+   653→   653→                        <p className="text-2xl font-bold">{stats.totals.openActions}</p>
+   654→   654→                        <p className="text-xs text-orange-400">Acciones Abiertas</p>
+   655→   655→                      </CardContent>
+   656→   656→                    </Card>
+   657→   657→                  </div>
+   658→   658→
+   659→   659→                  {/* Role distribution + Platform health */}
+   660→   660→                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+   661→   661→                    <Card className="bg-slate-900/60 border-violet-700/20">
+   662→   662→                      <CardHeader className="pb-3">
+   663→   663→                        <CardTitle className="text-sm text-violet-300 flex items-center gap-2">
+   664→   664→                          <Users className="h-4 w-4" /> Distribución de Roles
+   665→   665→                        </CardTitle>
+   666→   666→                      </CardHeader>
+   667→   667→                      <CardContent>
+   668→   668→                        <div className="space-y-2">
+   669→   669→                          {Object.entries(stats.roleDistribution).map(([role, count]) => (
+   670→   670→                            <div key={role} className="flex items-center justify-between">
+   671→   671→                              <div className="flex items-center gap-2">
+   672→   672→                                <Badge className={`${ROLE_COLORS[role] || 'bg-gray-100 text-gray-700 border-gray-200'} border text-xs`}>
+   673→   673→                                  {ROLE_LABELS[role] || role}
+   674→   674→                                </Badge>
+   675→   675→                              </div>
+   676→   676→                              <div className="flex items-center gap-2">
+   677→   677→                                <div className="w-24 h-2 bg-slate-800 rounded-full overflow-hidden">
+   678→   678→                                  <div
+   679→   679→                                    className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full"
+   680→   680→                                    style={{ width: `${Math.min((count / stats.totals.users) * 100, 100)}%` }}
+   681→   681→                                  />
+   682→   682→                                </div>
+   683→   683→                                <span className="text-sm font-semibold text-white w-8 text-right">{count}</span>
+   684→   684→                              </div>
+   685→   685→                            </div>
+   686→   686→                          ))}
+   687→   687→                        </div>
+   688→   688→                      </CardContent>
+   689→   689→                    </Card>
+   690→   690→
+   691→   691→                    <Card className="bg-slate-900/60 border-violet-700/20">
+   692→   692→                      <CardHeader className="pb-3">
+   693→   693→                        <CardTitle className="text-sm text-violet-300 flex items-center gap-2">
+   694→   694→                          <Activity className="h-4 w-4" /> Salud de Plataforma
+   695→   695→                        </CardTitle>
+   696→   696→                      </CardHeader>
+   697→   697→                      <CardContent>
+   698→   698→                        <div className="space-y-3">
+   699→   699→                          <div className="flex items-center justify-between">
+   700→   700→                            <span className="text-xs text-violet-400">Empresas activas</span>
+   701→   701→                            <span className="text-sm font-bold text-white">
+   702→   702→                              {stats.totals.companies > 0 ? Math.round((stats.totals.activeCompanies / stats.totals.companies) * 100) : 0}%
+   703→   703→                            </span>
+   704→   704→                          </div>
+   705→   705→                          <div className="flex items-center justify-between">
+   706→   706→                            <span className="text-xs text-violet-400">Usuarios activos</span>
+   707→   707→                            <span className="text-sm font-bold text-white">
+   708→   708→                              {stats.totals.users > 0 ? Math.round((stats.totals.activeUsers / stats.totals.users) * 100) : 0}%
+   709→   709→                            </span>
+   710→   710→                          </div>
+   711→   711→                          <div className="flex items-center justify-between">
+   712→   712→                            <span className="text-xs text-violet-400">Proyectos activos</span>
+   713→   713→                            <span className="text-sm font-bold text-white">
+   714→   714→                              {stats.totals.projects > 0 ? Math.round((stats.totals.activeProjects / stats.totals.projects) * 100) : 0}%
+   715→   715→                            </span>
+   716→   716→                          </div>
+   717→   717→                          <div className="flex items-center justify-between">
+   718→   718→                            <span className="text-xs text-violet-400">Plantillas disponibles</span>
+   719→   719→                            <span className="text-sm font-bold text-white">{stats.totals.templates}</span>
+   720→   720→                          </div>
+   721→   721→                          <div className="flex items-center justify-between">
+   722→   722→                            <span className="text-xs text-violet-400">Auditorías realizadas</span>
+   723→   723→                            <span className="text-sm font-bold text-white">{stats.totals.auditResults}</span>
+   724→   724→                          </div>
+   725→   725→                        </div>
+   726→   726→                      </CardContent>
+   727→   727→                    </Card>
+   728→   728→                  </div>
+   729→   729→
+   730→   730→                  {/* Recent users */}
+   731→   731→                  <Card className="bg-slate-900/60 border-violet-700/20">
+   732→   732→                    <CardHeader className="pb-3">
+   733→   733→                      <CardTitle className="text-sm text-violet-300 flex items-center gap-2">
+   734→   734→                        <Activity className="h-4 w-4" /> Últimos Usuarios Registrados
+   735→   735→                      </CardTitle>
+   736→   736→                    </CardHeader>
+   737→   737→                    <CardContent>
+   738→   738→                      <div className="space-y-2">
+   739→   739→                        {stats.recentUsers.map(user => (
+   740→   740→                          <div key={user.id} className="flex items-center justify-between py-1.5 border-b border-violet-800/20 last:border-0">
+   741→   741→                            <div className="flex items-center gap-2">
+   742→   742→                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${user.active ? 'bg-violet-800/50 text-violet-300' : 'bg-gray-800/50 text-gray-500'}`}>
+   743→   743→                                {user.name.charAt(0).toUpperCase()}
+   744→   744→                              </div>
+   745→   745→                              <div>
+   746→   746→                                <p className="text-xs font-medium text-white">{user.name}</p>
+   747→   747→                                <p className="text-[10px] text-violet-500">{user.email}</p>
+   748→   748→                              </div>
+   749→   749→                            </div>
+   750→   750→                            <div className="flex items-center gap-2">
+   751→   751→                              <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700 border-gray-200'} border text-[10px]`}>
+   752→   752→                                {ROLE_LABELS[user.role] || user.role}
+   753→   753→                              </Badge>
+   754→   754→                              {user.active ? (
+   755→   755→                                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+   756→   756→                              ) : (
+   757→   757→                                <XCircle className="h-3.5 w-3.5 text-red-500" />
+   758→   758→                              )}
+   759→   759→                            </div>
+   760→   760→                          </div>
+   761→   761→                        ))}
+   762→   762→                        {stats.recentUsers.length === 0 && (
+   763→   763→                          <p className="text-xs text-violet-500 text-center py-4">Aún no hay usuarios registrados</p>
+   764→   764→                        )}
+   765→   765→                      </div>
+   766→   766→                    </CardContent>
+   767→   767→                  </Card>
+   768→   768→                </>
+   769→   769→              ) : (
+   770→   770→                <div className="text-center py-12 text-violet-500">
+   771→   771→                  <p>No se pudieron cargar las estadísticas</p>
+   772→   772→                </div>
+   773→   773→              )}
+   774→   774→            </motion.div>
+   775→   775→          )}
+   776→   776→
+   777→   777→          {/* ═══ EMPRESAS TAB ═══ */}
+   778→   778→          {activeTab === 'empresas' && (
+   779→   779→            <motion.div key="empresas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+   780→   780→              <div className="flex justify-between items-center">
+   781→   781→                <p className="text-sm text-violet-400">Todas las empresas de la plataforma</p>
+   782→   782→                <Button
+   783→   783→                  onClick={() => setShowNewCompany(true)}
+   784→   784→                  className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white"
+   785→   785→                  size="sm"
+   786→   786→                >
+   787→   787→                  <Plus className="h-4 w-4 mr-1" /> Nueva Empresa
+   788→   788→                </Button>
+   789→   789→              </div>
+   790→   790→
+   791→   791→              {/* New company form */}
+   792→   792→              {showNewCompany && (
+   793→   793→                <Card className="bg-violet-900/20 border-violet-700/30">
+   794→   794→                  <CardHeader className="pb-3">
+   795→   795→                    <CardTitle className="text-sm text-violet-300 flex items-center gap-2">
+   796→   796→                      <Plus className="h-4 w-4 text-violet-400" /> Crear Nueva Empresa
+   797→   797→                    </CardTitle>
+   798→   798→                  </CardHeader>
+   799→   799→                  <CardContent className="space-y-3">
+   800→   800→                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   801→   801→                      <div className="space-y-1">
+   802→   802→                        <Label className="text-xs text-violet-400">Nombre *</Label>
+   803→   803→                        <Input placeholder="Nombre de la empresa" value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} className="bg-slate-900/60 border-violet-700/30 text-white" />
+   804→   804→                      </div>
+   805→   805→                      <div className="space-y-1">
+   806→   806→                        <Label className="text-xs text-violet-400">Descripción</Label>
+   807→   807→                        <Input placeholder="Descripción (opcional)" value={newCompanyDesc} onChange={e => setNewCompanyDesc(e.target.value)} className="bg-slate-900/60 border-violet-700/30 text-white" />
+   808→   808→                      </div>
+   809→   809→                    </div>
+   810→   810→                    <div className="flex gap-2 justify-end">
+   811→   811→                      <Button variant="outline" size="sm" onClick={() => setShowNewCompany(false)} className="border-violet-700/50 text-violet-300">Cancelar</Button>
+   812→   812→                      <Button size="sm" onClick={handleCreateCompany} disabled={!newCompanyName.trim()} className="bg-gradient-to-r from-violet-600 to-purple-600 text-white">Crear</Button>
+   813→   813→                    </div>
+   814→   814→                  </CardContent>
+   815→   815→                </Card>
+   816→   816→              )}
+   817→   817→
+   818→   818→              {isLoadingStats ? (
+   819→   819→                <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 text-violet-400 animate-spin" /></div>
+   820→   820→              ) : (
+   821→   821→                <div className="grid gap-3">
+   822→   822→                  {stats?.companies.map(company => (
+   823→   823→                    <Card key={company.id} className={`bg-slate-900/60 ${company.active ? 'border-violet-700/20' : 'border-red-700/30 opacity-60'}`}>
+   824→   824→                      <CardContent className="p-4">
+   825→   825→                        <div className="flex items-center justify-between">
+   826→   826→                          <div className="flex items-center gap-3 flex-1">
+   827→   827→                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${company.active ? 'bg-violet-800/40' : 'bg-red-900/30'}`}>
+   828→   828→                              <Building2 className={`h-5 w-5 ${company.active ? 'text-violet-400' : 'text-red-400'}`} />
+   829→   829→                            </div>
+   830→   830→                            <div className="flex-1">
+   831→   831→                              {editingCompany === company.id ? (
+   832→   832→                                <div className="space-y-2" onClick={e => e.stopPropagation()}>
+   833→   833→                                  <Input value={editCompanyData.name} onChange={e => setEditCompanyData(d => ({ ...d, name: e.target.value }))} className="bg-slate-800 border-violet-700/30 text-white text-sm" />
+   834→   834→                                  <Input value={editCompanyData.description} onChange={e => setEditCompanyData(d => ({ ...d, description: e.target.value }))} className="bg-slate-800 border-violet-700/30 text-white text-sm" placeholder="Descripción" />
+   835→   835→                                  <div className="flex gap-2">
+   836→   836→                                    <Button size="sm" onClick={() => handleUpdateCompany(company.id)} className="bg-violet-600 text-white h-7"><Check className="h-3 w-3 mr-1" />Guardar</Button>
+   837→   837→                                    <Button size="sm" variant="ghost" onClick={() => setEditingCompany(null)} className="text-violet-400 h-7">Cancelar</Button>
+   838→   838→                                  </div>
+   839→   839→                                </div>
+   840→   840→                              ) : (
+   841→   841→                                <>
+   842→   842→                                  <p className="text-sm font-semibold text-white">{company.name}</p>
+   843→   843→                                  <div className="flex items-center gap-3 mt-1">
+   844→   844→                                    <span className="text-[10px] text-violet-500">{company.description || 'Sin descripción'}</span>
+   845→   845→                                  </div>
+   846→   846→                                </>
+   847→   847→                              )}
+   848→   848→                            </div>
+   849→   849→                          </div>
+   850→   850→                          <div className="flex items-center gap-3">
+   851→   851→                            <div className="text-center">
+   852→   852→                              <p className="text-lg font-bold text-white">{company.projectCount}</p>
+   853→   853→                              <p className="text-[10px] text-violet-500">Proyectos</p>
+   854→   854→                            </div>
+   855→   855→                            <div className="text-center">
+   856→   856→                              <p className="text-lg font-bold text-white">{company.memberCount}</p>
+   857→   857→                              <p className="text-[10px] text-violet-500">Miembros</p>
+   858→   858→                            </div>
+   859→   859→                            <Badge className={`${company.active ? 'bg-green-900/30 text-green-400 border-green-700/30' : 'bg-red-900/30 text-red-400 border-red-700/30'} border text-[10px]`}>
+   860→   860→                              {company.active ? 'Activa' : 'Inactiva'}
+   861→   861→                            </Badge>
+   862→   862→                            <Button
+   863→   863→                              variant="ghost"
+   864→   864→                              size="sm"
+   865→   865→                              onClick={() => handleToggleCompanyActive(company.id, company.active)}
+   866→   866→                              className={`h-7 w-7 p-0 ${company.active ? 'text-green-500 hover:bg-green-900/30' : 'text-red-500 hover:bg-red-900/30'}`}
+   867→   867→                              title={company.active ? 'Desactivar' : 'Activar'}
+   868→   868→                            >
+   869→   869→                              {company.active ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+   870→   870→                            </Button>
+   871→   871→                            <Button
+   872→   872→                              variant="ghost"
+   873→   873→                              size="sm"
+   874→   874→                              onClick={() => { setEditingCompany(company.id); setEditCompanyData({ name: company.name, description: company.description || '', active: company.active }) }}
+   875→   875→                              className="h-7 w-7 p-0 text-violet-400 hover:bg-violet-900/30"
+   876→   876→                              title="Editar"
+   877→   877→                            >
+   878→   878→                              <Edit3 className="h-4 w-4" />
+   879→   879→                            </Button>
+   880→   880→                            <Button
+   881→   881→                              variant="ghost"
+   882→   882→                              size="sm"
+   883→   883→                              onClick={() => handleDeleteCompany(company.id)}
+   884→   884→                              className="h-7 w-7 p-0 text-red-400 hover:bg-red-900/30"
+   885→   885→                              title="Eliminar empresa"
+   886→   886→                            >
+   887→   887→                              <Trash2 className="h-4 w-4" />
+   888→   888→                            </Button>
+   889→   889→                          </div>
+   890→   890→                        </div>
+   891→   891→                      </CardContent>
+   892→   892→                    </Card>
+   893→   893→                  ))}
+   894→   894→                  {(!stats || stats.companies.length === 0) && (
+   895→   895→                    <Card className="bg-slate-900/60 border-violet-700/20">
+   896→   896→                      <CardContent className="py-12 text-center">
+   897→   897→                        <Building2 className="h-10 w-10 text-violet-700 mx-auto mb-3" />
+   898→   898→                        <p className="text-sm text-violet-500">No hay empresas creadas todavía</p>
+   899→   899→                        <p className="text-xs text-violet-600 mt-1">Pulsa "Nueva Empresa" para crear la primera</p>
+   900→   900→                      </CardContent>
+   901→   901→                    </Card>
+   902→   902→                  )}
+   903→   903→                </div>
+   904→   904→              )}
+   905→   905→            </motion.div>
+   906→   906→          )}
+   907→   907→
+   908→   908→          {/* ═══ ADMINISTRADORES TAB ═══ */}
+   909→   909→          {activeTab === 'admins' && (
+   910→   910→            <motion.div key="admins" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+   911→   911→              <div className="flex items-center gap-2 mb-2">
+   912→   912→                <Shield className="h-5 w-5 text-violet-400" />
+   913→   913→                <h2 className="text-lg font-bold text-white">Administradores por Empresa</h2>
+   914→   914→              </div>
+   915→   915→              <p className="text-sm text-violet-400 -mt-2">
+   916→   916→                Asigna un administrador a cada empresa. El administrador gestionará los usuarios, proyectos y zonas de su empresa.
+   917→   917→              </p>
+   918→   918→
+   919→   919→              {isLoadingStats ? (
+   920→   920→                <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 text-violet-400 animate-spin" /></div>
+   921→   921→              ) : stats && stats.companies.length > 0 ? (
+   922→   922→                <div className="grid gap-3">
+   923→   923→                  {stats.companies.map(company => (
+   924→   924→                    <Card key={company.id} className="bg-slate-900/60 border-violet-700/20">
+   925→   925→                      <CardContent className="p-4">
+   926→   926→                        <div className="flex items-center justify-between gap-2 sm:gap-4 flex-wrap">
+   927→   927→                          {/* Company info */}
+   928→   928→                          <div className="flex items-center gap-3 flex-1 min-w-0">
+   929→   929→                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${company.active ? 'bg-violet-800/40' : 'bg-red-900/30'}`}>
+   930→   930→                              <Building2 className={`h-5 w-5 ${company.active ? 'text-violet-400' : 'text-red-400'}`} />
+   931→   931→                            </div>
+   932→   932→                            <div className="flex-1 min-w-0">
+   933→   933→                              <p className="text-sm font-semibold text-white truncate">{company.name}</p>
+   934→   934→                              <p className="text-[10px] text-violet-500">
+   935→   935→                                {company.projectCount} proyectos · {company.memberCount} miembros
+   936→   936→                              </p>
+   937→   937→                            </div>
+   938→   938→                          </div>
+   939→   939→
+   940→   940→                          {/* Admin info */}
+   941→   941→                          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+   942→   942→                            {company.adminUser ? (
+   943→   943→                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-900/20 border border-purple-700/30">
+   944→   944→                                <div className="w-7 h-7 rounded-full bg-purple-700/50 flex items-center justify-center text-xs font-bold text-purple-200">
+   945→   945→                                  {company.adminUser.name.charAt(0).toUpperCase()}
+   946→   946→                                </div>
+   947→   947→                                <div className="text-left">
+   948→   948→                                  <p className="text-xs font-medium text-white">{company.adminUser.name}</p>
+   949→   949→                                  <p className="text-[10px] text-purple-400">{company.adminUser.email}</p>
+   950→   950→                                </div>
+   951→   951→                                <Badge className="bg-purple-900/40 text-purple-300 border-purple-700/30 border text-[10px] ml-1">
+   952→   952→                                  ADMIN
+   953→   953→                                </Badge>
+   954→   954→                              </div>
+   955→   955→                            ) : (
+   956→   956→                              <Badge className="bg-amber-900/30 text-amber-400 border-amber-700/30 border text-[10px]">
+   957→   957→                                Sin admin
+   958→   958→                              </Badge>
+   959→   959→                            )}
+   960→   960→
+   961→   961→                            {/* Action buttons */}
+   962→   962→                            {company.adminUser ? (
+   963→   963→                              <div className="flex items-center gap-2">
+   964→   964→                                {pendingCredentials[company.id] && !emailSentFor.has(company.id) && (
+   965→   965→                                  <Badge className="bg-amber-900/40 text-amber-300 border-amber-700/30 border text-[9px] animate-pulse">
+   966→   966→                                    Credenciales pendientes
+   967→   967→                                  </Badge>
+   968→   968→                                )}
+   969→   969→                                <Button
+   970→   970→                                  variant="outline"
+   971→   971→                                  size="sm"
+   972→   972→                                  onClick={() => handleSendInvitationEmail(company.id)}
+   973→   973→                                  disabled={sendingEmailFor === company.id}
+   974→   974→                                  className={`border-emerald-700/50 h-7 text-xs ${
+   975→   975→                                    emailSentFor.has(company.id)
+   976→   976→                                      ? 'bg-emerald-900/30 text-emerald-400'
+   977→   977→                                      : 'text-emerald-400 hover:bg-emerald-900/30'
+   978→   978→                                  }`}
+   979→   979→                                >
+   980→   980→                                  {sendingEmailFor === company.id ? (
+   981→   981→                                    <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Enviando...</>
+   982→   982→                                  ) : emailSentFor.has(company.id) ? (
+   983→   983→                                    <><CheckCircle2 className="h-3 w-3 mr-1" /> Enviado</>
+   984→   984→                                  ) : (
+   985→   985→                                    <><Mail className="h-3 w-3 mr-1" /> Enviar Email</>
+   986→   986→                                  )}
+   987→   987→                                </Button>
+   988→   988→                                <Button
+   989→   989→                                  variant="outline"
+   990→   990→                                  size="sm"
+   991→   991→                                  onClick={() => handleRemoveAdmin(company.id, company.adminUser!.id)}
+   992→   992→                                  className="border-red-700/50 text-red-400 hover:bg-red-900/30 h-7 text-xs"
+   993→   993→                                >
+   994→   994→                                  <X className="h-3 w-3 mr-1" /> Quitar
+   995→   995→                                </Button>
+   996→   996→                              </div>
+   997→   997→                            ) : (
+   998→   998→                              <Button
+   999→   999→                                size="sm"
+  1000→  1000→                                onClick={() => {
+
+[showing lines 501-1000 of 1386; use offset=1001 with limit to continue reading]
