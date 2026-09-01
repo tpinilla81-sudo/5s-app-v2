@@ -38,6 +38,9 @@ import {
   BookOpen,
   MapPin,
   Save,
+  Eye,
+  Calendar,
+  Clock,
 } from 'lucide-react'
 import ResourceList from './ResourceList'
 import TemplateManager from './TemplateManager'
@@ -155,6 +158,9 @@ export default function GestorPanel() {
   const [emailSentFor, setEmailSentFor] = useState<Set<string>>(new Set()) // company ids where email was already sent
   const [pendingCredentials, setPendingCredentials] = useState<Record<string, { name: string; email: string; password: string }>>({}) // companyId -> credentials
   const [deleteCompanyDialog, setDeleteCompanyDialog] = useState<{ open: boolean; companyId: string; companyName: string; projectCount: number }>({ open: false, companyId: '', companyName: '', projectCount: 0 })
+
+  // Company detail view
+  const [viewingCompany, setViewingCompany] = useState<{ open: boolean; company: PlatformStats['companies'][0] | null; detail: any | null; loading: boolean }>({ open: false, company: null, detail: null, loading: false })
 
   // v2.108 — Zonificación: configuración global del algoritmo.
   const [zoneConfig, setZoneConfig] = useState<{
@@ -314,6 +320,23 @@ export default function GestorPanel() {
       }
     } catch (error) {
       console.error('Error deleting company:', error)
+    }
+  }
+
+  // ─── View Company Details ──────────────────────────────────────────────
+  const handleViewCompany = async (company: PlatformStats['companies'][0]) => {
+    setViewingCompany({ open: true, company, detail: null, loading: true })
+    try {
+      const res = await fetch(`/api/companies/${company.id}`)
+      const data = await res.json()
+      if (data.success || data.company) {
+        setViewingCompany(prev => ({ ...prev, detail: data.company || data, loading: false }))
+      } else {
+        setViewingCompany(prev => ({ ...prev, loading: false }))
+      }
+    } catch (error) {
+      console.error('Error loading company details:', error)
+      setViewingCompany(prev => ({ ...prev, loading: false }))
     }
   }
 
@@ -862,6 +885,15 @@ export default function GestorPanel() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              onClick={() => handleViewCompany(company)}
+                              className="h-7 w-7 p-0 text-blue-400 hover:bg-blue-900/30"
+                              title="Ver detalles de la empresa"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleToggleCompanyActive(company.id, company.active)}
                               className={`h-7 w-7 p-0 ${company.active ? 'text-green-500 hover:bg-green-900/30' : 'text-red-500 hover:bg-red-900/30'}`}
                               title={company.active ? 'Desactivar' : 'Activar'}
@@ -1174,6 +1206,181 @@ export default function GestorPanel() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* ═══ VIEW COMPANY DETAILS DIALOG ═══ */}
+      <Dialog open={viewingCompany.open} onOpenChange={(open) => { if (!open) setViewingCompany({ open: false, company: null, detail: null, loading: false }) }}>
+        <DialogContent className="bg-slate-900 border-violet-700/30 max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-violet-300 flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Detalles de la Empresa
+            </DialogTitle>
+            <DialogDescription className="text-violet-400">
+              Información completa de la empresa y sus datos asociados
+            </DialogDescription>
+          </DialogHeader>
+          
+          {viewingCompany.loading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 text-violet-400 animate-spin" />
+            </div>
+          ) : viewingCompany.company && (
+            <div className="space-y-5">
+              {/* Company basic info */}
+              <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-base font-bold text-white">{viewingCompany.company.name}</h3>
+                    <p className="text-xs text-violet-400 mt-1">{viewingCompany.company.description || 'Sin descripción'}</p>
+                  </div>
+                  <Badge className={`${viewingCompany.company.active ? 'bg-green-900/30 text-green-400 border-green-700/30' : 'bg-red-900/30 text-red-400 border-red-700/30'} border text-xs`}>
+                    {viewingCompany.company.active ? 'Activa' : 'Inactiva'}
+                  </Badge>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-violet-300">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Creada: {new Date(viewingCompany.company.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </div>
+                  <div className="flex items-center gap-2 text-violet-300">
+                    <Users className="h-3.5 w-3.5" />
+                    ID: {viewingCompany.company.id.substring(0, 12)}...
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-700">
+                  <div className="text-center bg-slate-900/50 rounded p-2">
+                    <p className="text-xl font-bold text-white">{viewingCompany.company.projectCount}</p>
+                    <p className="text-[10px] text-violet-500">Proyectos</p>
+                  </div>
+                  <div className="text-center bg-slate-900/50 rounded p-2">
+                    <p className="text-xl font-bold text-white">{viewingCompany.company.memberCount}</p>
+                    <p className="text-[10px] text-violet-500">Miembros</p>
+                  </div>
+                  <div className="text-center bg-slate-900/50 rounded p-2">
+                    <p className="text-xl font-bold text-white">{viewingCompany.detail?.projects?.length || viewingCompany.company.projectCount || 0}</p>
+                    <p className="text-[10px] text-violet-500">Zonas totales</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Admin info */}
+              {viewingCompany.company.adminUser && (
+                <div className="bg-purple-900/20 border border-purple-700/30 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-purple-300 mb-2 flex items-center gap-2">
+                    <Shield className="h-4 w-4" /> Administrador asignado
+                  </h4>
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-purple-700/50 flex items-center justify-center text-sm font-bold text-purple-200">
+                      {viewingCompany.company.adminUser.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-white">{viewingCompany.company.adminUser.name}</p>
+                      <p className="text-xs text-purple-400">{viewingCompany.company.adminUser.email}</p>
+                    </div>
+                    <Badge className="bg-purple-900/40 text-purple-300 border-purple-700/30 border text-[10px] ml-auto">
+                      ADMIN
+                    </Badge>
+                  </div>
+                </div>
+              )}
+
+              {!viewingCompany.company.adminUser && (
+                <div className="bg-amber-900/20 border border-amber-700/30 rounded-lg p-3">
+                  <p className="text-xs text-amber-400 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" /> Esta empresa no tiene administrador asignado
+                  </p>
+                </div>
+              )}
+
+              {/* Projects list */}
+              {viewingCompany.detail?.projects && viewingCompany.detail.projects.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-violet-300 flex items-center gap-2">
+                    <Database className="h-4 w-4" /> Proyectos ({viewingCompany.detail.projects.length})
+                  </h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {viewingCompany.detail.projects.map((project: any) => (
+                      <div key={project.id} className="bg-slate-800/50 rounded-lg p-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-white">{project.name}</p>
+                          <p className="text-[10px] text-violet-500 mt-0.5">
+                            {project.zoneCount || 0} zonas · {project.memberCount || 0} miembros
+                            {project.startDate && ` · Inicio: ${new Date(project.startDate).toLocaleDateString('es-ES')}`}
+                          </p>
+                        </div>
+                        <Badge className={`${project.active ? 'bg-green-900/30 text-green-400 border-green-700/30' : 'bg-red-900/30 text-red-400 border-red-700/30'} border text-[10px]`}>
+                          {project.active ? 'Activo' : 'Inactivo'}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Members list */}
+              {viewingCompany.detail?.members && viewingCompany.detail.members.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-violet-300 flex items-center gap-2">
+                    <Users className="h-4 w-4" /> Miembros ({viewingCompany.detail.members.length})
+                  </h4>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {viewingCompany.detail.members.map((member: any) => (
+                      <div key={member.id || member.userId} className="flex items-center gap-2 px-3 py-2 bg-slate-800/30 rounded-lg">
+                        <div className="w-7 h-7 rounded-full bg-violet-700/40 flex items-center justify-center text-xs font-bold text-violet-200">
+                          {(member.user?.name || member.name || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-white truncate">{member.user?.name || member.name}</p>
+                          <p className="text-[10px] text-violet-500 truncate">{member.user?.email || member.email}</p>
+                        </div>
+                        <Badge className={`${ROLE_COLORS[member.role || member.user?.role] || 'bg-gray-100 text-gray-700 border-gray-200'} border text-[9px]`}>
+                          {ROLE_LABELS[member.role || member.user?.role] || member.role || member.user?.role}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-3 border-t border-slate-700">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setViewingCompany({ open: false, company: null, detail: null, loading: false })
+                    setEditingCompany(viewingCompany.company!.id)
+                    setEditCompanyData({ 
+                      name: viewingCompany.company!.name, 
+                      description: viewingCompany.company!.description || '', 
+                      active: viewingCompany.company!.active 
+                    })
+                    setActiveTab('empresas')
+                  }}
+                  className="border-violet-700/50 text-violet-300 hover:bg-violet-900/20"
+                >
+                  <Edit3 className="h-3.5 w-3.5 mr-1" /> Editar empresa
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setViewingCompany({ open: false, company: null, detail: null, loading: false })
+                    setAssigningAdminTo(viewingCompany.company!.id)
+                    setActiveTab('admins')
+                  }}
+                  className={!viewingCompany.company?.adminUser ? "border-emerald-700/50 text-emerald-400 hover:bg-emerald-900/20" : "border-purple-700/50 text-purple-400 hover:bg-purple-900/20"}
+                >
+                  <UserPlus className="h-3.5 w-3.5 mr-1" /> 
+                  {viewingCompany.company?.adminUser ? 'Gestionar admin' : 'Asignar admin'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ═══ DELETE COMPANY DIALOG ═══ */}
       <Dialog open={deleteCompanyDialog.open} onOpenChange={(open) => { if (!open) setDeleteCompanyDialog(d => ({ ...d, open: false })) }}>
