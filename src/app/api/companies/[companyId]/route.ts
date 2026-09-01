@@ -56,6 +56,30 @@ export async function GET(
         active: company.active,
         createdAt: company.createdAt,
         updatedAt: company.updatedAt,
+        // Datos fiscales y contacto
+        nif: company.nif,
+        sector: company.sector,
+        address: company.address,
+        city: company.city,
+        province: company.province,
+        postalCode: company.postalCode,
+        country: company.country,
+        phone: company.phone,
+        website: company.website,
+        // Facturación
+        billingEmail: company.billingEmail,
+        billingName: company.billingName,
+        billingNif: company.billingNif,
+        billingAddress: company.billingAddress,
+        billingCity: company.billingCity,
+        billingPostalCode: company.billingPostalCode,
+        // Bancario
+        iban: company.iban,
+        // Contacto
+        contactName: company.contactName,
+        contactEmail: company.contactEmail,
+        contactPhone: company.contactPhone,
+        // Relaciones
         projects: company.projects.map((p) => ({
           id: p.id,
           name: p.name,
