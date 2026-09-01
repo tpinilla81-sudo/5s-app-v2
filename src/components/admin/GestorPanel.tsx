@@ -162,6 +162,16 @@ export default function GestorPanel() {
   // Company detail view
   const [viewingCompany, setViewingCompany] = useState<{ open: boolean; company: PlatformStats['companies'][0] | null; detail: any | null; loading: boolean }>({ open: false, company: null, detail: null, loading: false })
 
+  // Company edit dialog (full data editing)
+  const [editingCompanyDialog, setEditingCompanyDialog] = useState<{
+    open: boolean
+    company: PlatformStats['companies'][0] | null
+    detail: any | null
+    loading: boolean
+    saving: boolean
+    data: { name: string; description: string; active: boolean }
+  }>({ open: false, company: null, detail: null, loading: false, saving: false, data: { name: '', description: '', active: true } })
+
   // v2.108 — Zonificación: configuración global del algoritmo.
   const [zoneConfig, setZoneConfig] = useState<{
     maxM2PorZona: number
@@ -337,6 +347,59 @@ export default function GestorPanel() {
     } catch (error) {
       console.error('Error loading company details:', error)
       setViewingCompany(prev => ({ ...prev, loading: false }))
+    }
+  }
+
+  // ─── Edit Company (Full Dialog) ─────────────────────────────────────────
+  const handleEditCompany = async (company: PlatformStats['companies'][0]) => {
+    setEditingCompanyDialog({
+      open: true,
+      company,
+      detail: null,
+      loading: true,
+      saving: false,
+      data: { name: company.name, description: company.description || '', active: company.active }
+    })
+    try {
+      const res = await fetch(`/api/companies/${company.id}`)
+      const data = await res.json()
+      if (data.success || data.company) {
+        setEditingCompanyDialog(prev => ({
+          ...prev,
+          detail: data.company || data,
+          loading: false
+        }))
+      } else {
+        setEditingCompanyDialog(prev => ({ ...prev, loading: false }))
+      }
+    } catch (error) {
+      console.error('Error loading company for edit:', error)
+      setEditingCompanyDialog(prev => ({ ...prev, loading: false }))
+    }
+  }
+
+  const handleSaveEditedCompany = async () => {
+    if (!editingCompanyDialog.company) return
+    setEditingCompanyDialog(prev => ({ ...prev, saving: true }))
+    try {
+      const res = await fetch(`/api/companies/${editingCompanyDialog.company.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingCompanyDialog.data)
+      })
+      if (res.ok) {
+        setEditingCompanyDialog({ open: false, company: null, detail: null, loading: false, saving: false, data: { name: '', description: '', active: true } })
+        await loadStats()
+        await fetchCompanies()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Error al guardar cambios')
+        setEditingCompanyDialog(prev => ({ ...prev, saving: false }))
+      }
+    } catch (error) {
+      console.error('Error saving company:', error)
+      alert('Error de conexión al guardar')
+      setEditingCompanyDialog(prev => ({ ...prev, saving: false }))
     }
   }
 
@@ -899,9 +962,9 @@ export default function GestorPanel() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => { setEditingCompany(company.id); setEditCompanyData({ name: company.name, description: company.description || '', active: company.active }) }}
+                              onClick={(e) => { e.stopPropagation(); handleEditCompany(company) }}
                               className="h-7 w-7 p-0 text-violet-400 hover:bg-violet-900/30"
-                              title="Editar"
+                              title="Editar empresa"
                             >
                               <Edit3 className="h-4 w-4" />
                             </Button>
@@ -1371,6 +1434,172 @@ export default function GestorPanel() {
                 >
                   <UserPlus className="h-3.5 w-3.5 mr-1" /> 
                   {viewingCompany.company?.adminUser ? 'Gestionar admin' : 'Asignar admin'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ EDIT COMPANY DIALOG (Full) ═══ */}
+      <Dialog open={editingCompanyDialog.open} onOpenChange={(open) => { if (!open) setEditingCompanyDialog({ open: false, company: null, detail: null, loading: false, saving: false, data: { name: '', description: '', active: true } }) }}>
+        <DialogContent className="bg-slate-900 border-violet-700/30 max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-violet-300 flex items-center gap-2">
+              <Edit3 className="h-5 w-5" />
+              Editar Empresa
+            </DialogTitle>
+            <DialogDescription className="text-violet-400">
+              Modifica los datos de la empresa y guarda los cambios
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingCompanyDialog.loading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 text-violet-400 animate-spin" />
+            </div>
+          ) : editingCompanyDialog.company && (
+            <div className="space-y-5">
+              {/* Editable fields */}
+              <div className="bg-slate-800/50 rounded-lg p-4 space-y-4">
+                <h4 className="text-sm font-semibold text-violet-300">Datos de la empresa</h4>
+                
+                <div className="space-y-2">
+                  <Label className="text-xs text-violet-400">Nombre *</Label>
+                  <Input 
+                    value={editingCompanyDialog.data.name} 
+                    onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, name: e.target.value } }))} 
+                    className="bg-slate-900 border-violet-700/30 text-white"
+                    placeholder="Nombre de la empresa"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-xs text-violet-400">Descripción</Label>
+                  <textarea
+                    value={editingCompanyDialog.data.description}
+                    onChange={e => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, description: e.target.value } }))}
+                    className="w-full bg-slate-900 border border-violet-700/30 text-white text-sm rounded-md px-3 py-2 min-h-[80px] resize-y focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    placeholder="Descripción de la empresa..."
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    onClick={() => setEditingCompanyDialog(d => ({ ...d, data: { ...d.data, active: !d.data.active } }))}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${editingCompanyDialog.data.active ? 'bg-emerald-600' : 'bg-red-600'}`}
+                  >
+                    <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${editingCompanyDialog.data.active ? 'translate-x-5' : ''}`} />
+                  </button>
+                  <span className={`text-sm ${editingCompanyDialog.data.active ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {editingCompanyDialog.data.active ? 'Empresa activa' : 'Empresa inactiva'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Read-only info */}
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="flex items-center gap-2 text-violet-300 bg-slate-800/30 rounded-lg px-3 py-2">
+                  <Calendar className="h-3.5 w-3.5" />
+                  Creada: {new Date(editingCompanyDialog.company.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </div>
+                <div className="flex items-center gap-2 text-violet-300 bg-slate-800/30 rounded-lg px-3 py-2">
+                  <Database className="h-3.5 w-3.5" />
+                  {editingCompanyDialog.company.projectCount} proyectos · {editingCompanyDialog.company.memberCount} miembros
+                </div>
+              </div>
+
+              {/* Admin info */}
+              {editingCompanyDialog.company.adminUser && (
+                <div className="bg-purple-900/20 border border-purple-700/30 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-purple-300 mb-2 flex items-center gap-2">
+                    <Shield className="h-4 w-4" /> Administrador asignado
+                  </h4>
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-purple-700/50 flex items-center justify-center text-sm font-bold text-purple-200">
+                      {editingCompanyDialog.company.adminUser.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-white">{editingCompanyDialog.company.adminUser.name}</p>
+                      <p className="text-xs text-purple-400">{editingCompanyDialog.company.adminUser.email}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!editingCompanyDialog.company.adminUser && (
+                <div className="bg-amber-900/20 border border-amber-700/30 rounded-lg p-3">
+                  <p className="text-xs text-amber-400 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" /> Sin administrador - ve a "Administradores" para asignar uno
+                  </p>
+                </div>
+              )}
+
+              {/* Projects list (read-only in edit mode) */}
+              {editingCompanyDialog.detail?.projects && editingCompanyDialog.detail.projects.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-violet-300 flex items-center gap-2">
+                    <Database className="h-4 w-4" /> Proyectos ({editingCompanyDialog.detail.projects.length})
+                  </h4>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {editingCompanyDialog.detail.projects.map((project: any) => (
+                      <div key={project.id} className="bg-slate-800/50 rounded-lg p-2.5 flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-medium text-white">{project.name}</p>
+                          <p className="text-[10px] text-violet-500">{project.zoneCount || 0} zonas</p>
+                        </div>
+                        <Badge className={`${project.active ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'} border text-[9px]`}>
+                          {project.active ? 'Activo' : 'Inactivo'}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Members list (read-only in edit mode) */}
+              {editingCompanyDialog.detail?.members && editingCompanyDialog.detail.members.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-violet-300 flex items-center gap-2">
+                    <Users className="h-4 w-4" /> Miembros ({editingCompanyDialog.detail.members.length})
+                  </h4>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {editingCompanyDialog.detail.members.map((member: any) => (
+                      <div key={member.id || member.userId} className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-800/30 rounded-lg">
+                        <div className="w-6 h-6 rounded-full bg-violet-700/40 flex items-center justify-center text-[10px] font-bold text-violet-200">
+                          {(member.user?.name || member.name || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-xs text-white truncate flex-1">{member.user?.name || member.name}</span>
+                        <Badge className={`${ROLE_COLORS[member.role || member.user?.role] || 'bg-gray-100 text-gray-700 border-gray-200'} border text-[8px]`}>
+                          {ROLE_LABELS[member.role || member.user?.role] || member.role}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-3 pt-3 border-t border-slate-700">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditingCompanyDialog({ open: false, company: null, detail: null, loading: false, saving: false, data: { name: '', description: '', active: true } })}
+                  className="border-slate-600 text-slate-400 hover:bg-slate-800"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSaveEditedCompany}
+                  disabled={editingCompanyDialog.saving || !editingCompanyDialog.data.name.trim()}
+                  className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white flex-1"
+                >
+                  {editingCompanyDialog.saving ? (
+                    <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Guardando...</>
+                  ) : (
+                    <><Save className="h-3.5 w-3.5 mr-1" /> Guardar cambios</>
+                  )}
                 </Button>
               </div>
             </div>
