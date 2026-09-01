@@ -180,7 +180,7 @@ export async function PUT(
     const company = await db.company.update({
       where: { id: companyId },
       data,
-      include: { _count: { select: { projects: true, members: true } },
+      include: { _count: { select: { projects: true, members: true } } }
     })
 
     return NextResponse.json({
