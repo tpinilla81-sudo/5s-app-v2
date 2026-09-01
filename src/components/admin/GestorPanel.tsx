@@ -1028,7 +1028,7 @@ export default function GestorPanel() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={(e) => { e.stopPropagation(); handleEditCompany(company) }}
+                              onClick={(e) => { e.stopPropagation(); window.location.href = `/edit-company/${company.id}` }}
                               className="h-7 w-7 p-0 text-violet-400 hover:bg-violet-900/30"
                               title="Editar empresa"
                             >
