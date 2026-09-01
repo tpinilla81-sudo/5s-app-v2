@@ -1509,7 +1509,12 @@ export default function GestorPanel() {
       {/* ═══ EDIT COMPANY DIALOG (Full) ═══ */}
       <Dialog open={editingCompanyDialog.open} onOpenChange={(open) => { if (!open) setEditingCompanyDialog({ open: false, company: null, detail: null, loading: false, saving: false, data: { name: '', description: '', active: true, nif: '', sector: '', address: '', city: '', province: '', postalCode: '', country: '', phone: '', website: '', billingEmail: '', billingName: '', billingNif: '', billingAddress: '', billingCity: '', billingPostalCode: '', iban: '', contactName: '', contactEmail: '', contactPhone: '' } }) }}>
         <DialogContent className="bg-slate-900 border-violet-700/30 max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+          {/* v3.0.11 VERSION BADGER */}
+          <div className="bg-gradient-to-r from-emerald-600 to-cyan-600 text-white text-xs font-bold px-4 py-1.5 rounded-t-lg flex items-center gap-2">
+            <span className="inline-block w-2 h-2 bg-white rounded-full animate-pulse"></span>
+            v3.0.11 ✅ Formulario completo con CIF, Teléfono y más campos
+          </div>
+          <DialogHeader className="pt-4">
             <DialogTitle className="text-violet-300 flex items-center gap-2">
               <Edit3 className="h-5 w-5" />
               Editar Empresa - {editingCompanyDialog.company?.name}
