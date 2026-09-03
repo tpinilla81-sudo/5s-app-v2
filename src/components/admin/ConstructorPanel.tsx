@@ -1205,14 +1205,35 @@ const handleSaveGestorProfile = async () => {
                   {company.active ? 'Activa' : 'Inactiva'}
                  </Badge>
                 </div>
-                <div className="flex items-center gap-1 ml-2 shrink-0">
-                 <Button variant="ghost" size="sm" onClick={() => { setEditingCompany(company.id); setEditCompanyData({ name: company.name, description: company.description || '', active: company.active }) }} className="h-7 w-7 p-0 text-violet-500 hover:bg-violet-50">
-                  <Edit3 className="h-4 w-4" />
-                 </Button>
-                 <Button variant="ghost" size="sm" onClick={() => handleToggleCompanyActive(company.id, company.active)} className={`h-7 w-7 p-0 ${company.active ? 'text-red-500 hover:bg-red-100' : 'text-green-500 hover:bg-green-50'}`}>
+                <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                 {/* ✏️ BOTÓN EDITAR EMPRESA - CON TEXTO Y TOOLTIP */}
+                 <a
+                  href={`/edit-company/${company.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white text-xs font-bold px-2.5 py-1.5 rounded-md shadow-md border border-cyan-300/50"
+                  title="✏️ EDITAR EMPRESA: Modificar todos los datos (CIF, NIF, dirección, teléfono, contacto, facturación, IBAN...)"
+                 >
+                  <Edit3 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">EDITAR</span>
+                 </a>
+                 {/* 🔄 BOTÓN ACTIVAR/DESACTIVAR */}
+                 <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => handleToggleCompanyActive(company.id, company.active)} 
+                  className={`h-8 w-8 p-0 rounded-md ${company.active ? 'text-green-600 hover:bg-green-50 border border-green-200' : 'text-red-600 hover:bg-red-50 border border-red-200'}`}
+                  title={`🔄 ${company.active ? 'DESACTIVAR empresa: La empresa ya no podrá usar la aplicación' : 'ACTIVAR empresa: La empresa podrá usar la aplicación nuevamente'}`}
+                 >
                   {company.active ? <XCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
                  </Button>
-                 <Button variant="ghost" size="sm" onClick={() => setDeletingCompany({ id: company.id, name: company.name, projectCount: company.projectCount })} className="h-7 w-7 p-0 text-red-400 hover:bg-red-50 hover:text-red-600">
+                 {/* 🗑️ BOTÓN ELIMINAR */}
+                 <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setDeletingCompany({ id: company.id, name: company.name, projectCount: company.projectCount })} 
+                  className="h-8 w-8 p-0 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-md border border-red-200"
+                  title="🗑️ ELIMINAR empresa: Borrar permanentemente esta empresa y todos sus datos (NO se puede deshacer)"
+                 >
                   <Trash2 className="h-4 w-4" />
                  </Button>
                 </div>

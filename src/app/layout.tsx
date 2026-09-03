@@ -122,8 +122,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                // v3.0.18 - BOTON EDITAR CON TEXTO Y TOOLTIPS
-                var CURRENT_VERSION = 'v3.0.18';
+                // v3.0.19 - BOTON EDITAR EN CONSTRUCTOR PANEL (CORRECTO)
+                var CURRENT_VERSION = 'v3.0.19';
                 
                 // Check if we need to force reload
                 var storedVersion = localStorage.getItem('_app_force_version');
