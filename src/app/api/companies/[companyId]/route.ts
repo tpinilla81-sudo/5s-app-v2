@@ -34,18 +34,22 @@ export async function GET(
           },
           orderBy: { createdAt: 'desc' },
         },
-        members: {
-          include: {
-            user: { select: { id: true, name: true, email: true, role: true, active: true } },
-          },
-          orderBy: { joinedAt: 'desc' },
-        },
+        // Nota: Company no tiene 'members' directo, usamos CompanyMember
       },
     })
 
     if (!company) {
       return NextResponse.json({ success: false, error: 'Empresa no encontrada' }, { status: 404 })
     }
+
+    // Obtener miembros por separado usando CompanyMember
+    const members = await db.companyMember.findMany({
+      where: { companyId },
+      include: {
+        user: { select: { id: true, name: true, email: true, role: true, active: true } },
+      },
+      orderBy: { joinedAt: 'desc' },
+    })
 
     return NextResponse.json({
       success: true,
@@ -91,7 +95,7 @@ export async function GET(
           zones: p.zones,
           memberCount: p._count.members,
         })),
-        members: company.members.map((m) => ({
+        members: members.map((m) => ({
           id: m.id,
           userId: m.userId,
           companyId: m.companyId,

@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.23 - MOSTRAR ERROR REAL EN MODAL - 2026-09-03
+// v3.0.24 - CORREGIR ERROR PRISMA MEMBERS - 2026-09-03
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.23',
+    version: 'v3.0.24',
     buildTime: '2026-09-03T07:30:00Z',
-    feature: 'MOSTRAR_ERROR_REAL_API_MODAL',
+    feature: 'CORREGIR_PRISMA_COMPANY_MEMBERS_ERROR',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {
