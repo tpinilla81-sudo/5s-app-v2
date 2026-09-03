@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog'
-import { Loader2, Save, Building2, Users, Shield, Mail, Phone, Key, AlertTriangle, RefreshCw } from 'lucide-react'
+import { Loader2, Save, Building2, Users, Shield, Mail, Phone, Key, AlertTriangle, RefreshCw, Eye, EyeOff, Lock, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface FullEditCompanyModalProps {
@@ -25,6 +25,7 @@ interface AdminInfo {
   name: string
   email: string
   role: string
+  active: boolean
   joinedAt: string
 }
 
@@ -155,6 +156,7 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
               name: adminMember.user.name,
               email: adminMember.user.email,
               role: adminMember.user.role,
+              active: adminMember.user.active !== false, // default true
               joinedAt: adminMember.joinedAt
             })
           } else {
@@ -269,30 +271,75 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
                 👤 Administrador Asignado
               </h3>
               {admin ? (
-                <div className="bg-white rounded-lg p-4 border border-violet-100 space-y-3">
+                <div className="bg-white rounded-lg p-4 border border-violet-100 space-y-4">
+                  {/* Fila principal: Nombre y Email */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-violet-500" />
-                      <div>
-                        <p className="text-[10px] text-slate-500 uppercase">Nombre</p>
-                        <p className="font-semibold text-slate-800">{admin.name}</p>
+                    <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg">
+                      <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center">
+                        <Users className="h-5 w-5 text-violet-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-slate-500 uppercase font-semibold">Nombre completo</p>
+                        <p className="font-bold text-slate-800 truncate">{admin.name}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-violet-500" />
-                      <div>
-                        <p className="text-[10px] text-slate-500 uppercase">Email</p>
-                        <p className="font-medium text-slate-800">{admin.email}</p>
+                    <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <Mail className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-slate-500 uppercase font-semibold">Email de acceso</p>
+                        <p className="font-medium text-slate-800 truncate">{admin.email}</p>
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-violet-100">
-                    <Badge className="bg-violet-100 text-violet-700 border-violet-300">
+
+                  {/* Fila de estado y rol */}
+                  <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-violet-100">
+                    <Badge className={`${
+                      admin.active 
+                        ? 'bg-green-100 text-green-700 border-green-300' 
+                        : 'bg-red-100 text-red-700 border-red-300'
+                    } px-3 py-1`}>
+                      {admin.active ? (
+                        <><CheckCircle2 className="h-3 w-3 mr-1" /> Cuenta Activa</>
+                      ) : (
+                        <><EyeOff className="h-3 w-3 mr-1" /> Cuenta Inactiva</>
+                      )}
+                    </Badge>
+                    <Badge className="bg-violet-100 text-violet-700 border-violet-300 px-3 py-1">
                       <Key className="h-3 w-3 mr-1" />
                       Rol: {admin.role === 'admin' ? 'Administrador' : admin.role}
                     </Badge>
-                    <span className="text-xs text-slate-500">
-                      Asignado: {admin.joinedAt ? new Date(admin.joinedAt).toLocaleDateString('es-ES', { 
+                  </div>
+
+                  {/* Sección de Credenciales */}
+                  <div className="mt-3 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg">
+                    <h4 className="font-semibold text-amber-800 mb-2 flex items-center gap-2 text-sm">
+                      <Lock className="h-4 w-4" />
+                      🔐 Credenciales de Acceso
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      <div className="bg-white p-2 rounded border border-amber-200">
+                        <p className="text-[10px] text-amber-600 uppercase font-semibold">Usuario (Email)</p>
+                        <p className="font-mono text-slate-700 font-medium">{admin.email}</p>
+                      </div>
+                      <div className="bg-white p-2 rounded border border-amber-200">
+                        <p className="text-[10px] text-amber-600 uppercase font-semibold">Contraseña</p>
+                        <p className="font-mono text-slate-500 italic">•••••••• (configurada)</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Nota: Por seguridad, la contraseña no se muestra. Usa "Restablecer" si es necesario.
+                    </p>
+                  </div>
+
+                  {/* Fecha de asignación */}
+                  <div className="text-xs text-slate-500 pt-2 border-t border-violet-100 flex items-center justify-between">
+                    <span>📅 Asignado a esta empresa:</span>
+                    <span className="font-medium">
+                      {admin.joinedAt ? new Date(admin.joinedAt).toLocaleDateString('es-ES', { 
                         day: '2-digit', 
                         month: '2-digit', 
                         year: 'numeric',
@@ -303,10 +350,10 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
                   </div>
                 </div>
               ) : (
-                <div className="bg-orange-50 rounded-lg p-4 border border-orange-200 text-center">
-                  <Users className="h-8 w-8 text-orange-400 mx-auto mb-2" />
-                  <p className="text-orange-600 font-medium">Sin administrador asignado</p>
-                  <p className="text-orange-400 text-sm">Esta empresa no tiene un administrador asignado aún</p>
+                <div className="bg-orange-50 rounded-lg p-6 border border-orange-200 text-center">
+                  <Users className="h-12 w-12 text-orange-400 mx-auto mb-3" />
+                  <p className="text-orange-700 font-bold text-lg">Sin administrador asignado</p>
+                  <p className="text-orange-500 text-sm mt-1">Esta empresa no tiene un administrador asignado aún</p>
                 </div>
               )}
             </section>

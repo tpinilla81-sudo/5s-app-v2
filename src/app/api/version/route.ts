@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.25 - CORREGIR CAMPO USER MAYUSCULAS - 2026-09-03
+// v3.0.26 - MEJORAR INFO ADMINISTRADOR - 2026-09-03
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.25',
+    version: 'v3.0.26',
     buildTime: '2026-09-03T07:30:00Z',
-    feature: 'CORREGIR_PRISMA_USER_MAYUSCULAS',
+    feature: 'MEJORAR_INFO_ADMINISTRADOR_MODAL',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {
