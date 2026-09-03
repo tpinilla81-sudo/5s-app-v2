@@ -123,7 +123,7 @@ export default function RootLayout({
             __html: `
               (function() {
                 // v3.0.27 - VER Y RESETEAR CONTRASEÑA ADMIN
-                var CURRENT_VERSION = 'v3.0.27';
+                var CURRENT_VERSION = 'v3.0.28';
                 
                 // Check if we need to force reload
                 var storedVersion = localStorage.getItem('_app_force_version');

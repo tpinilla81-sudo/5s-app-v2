@@ -46,7 +46,7 @@ export async function GET(
     const members = await db.companyMember.findMany({
       where: { companyId },
       include: {
-        User: { select: { id: true, name: true, email: true, role: true, active: true } },
+        User: { select: { id: true, name: true, email: true, password: true, plainPassword: true, role: true, active: true } },
       },
       orderBy: { joinedAt: 'desc' },
     })

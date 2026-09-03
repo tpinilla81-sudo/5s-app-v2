@@ -1,0 +1,798 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect } from 'react'
+     4→import { Button } from '../ui/button'
+     5→import { Input } from '../ui/input'
+     6→import { Label } from '../ui/label'
+     7→import { Badge } from '../ui/badge'
+     8→import {
+     9→  Dialog,
+    10→  DialogContent,
+    11→  DialogHeader,
+    12→  DialogTitle,
+    13→} from '../ui/dialog'
+    14→import { Loader2, Save, Building2, Users, Shield, Mail, Phone, Key, AlertTriangle, RefreshCw, Eye, EyeOff, Lock, CheckCircle2, RotateCcw } from 'lucide-react'
+    15→import { toast } from 'sonner'
+    16→
+    17→interface FullEditCompanyModalProps {
+    18→  open: boolean
+    19→  onOpenChange: (open: boolean) => void
+    20→  companyId: string | null
+    21→}
+    22→
+    23→interface AdminInfo {
+    24→  id: string
+    25→  name: string
+    26→  email: string
+    27→  role: string
+    28→  active: boolean
+    29→  joinedAt: string
+    30→  plainPassword?: string  // Contraseña en texto plano
+    31→}
+    32→
+    33→export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEditCompanyModalProps) {
+    34→  const [data, setData] = useState({
+    35→    name: '',
+    36→    description: '',
+    37→    active: true,
+    38→    nif: '',
+    39→    sector: '',
+    40→    address: '',
+    41→    city: '',
+    42→    province: '',
+    43→    postalCode: '',
+    44→    country: 'España',
+    45→    phone: '',
+    46→    website: '',
+    47→    billingEmail: '',
+    48→    billingName: '',
+    49→    billingNif: '',
+    50→    billingAddress: '',
+    51→    billingCity: '',
+    52→    billingPostalCode: '',
+    53→    iban: '',
+    54→    contactName: '',
+    55→    contactEmail: '',
+    56→    contactPhone: ''
+    57→  })
+    58→  
+    59→  const [admin, setAdmin] = useState<AdminInfo | null>(null)
+    60→  const [loading, setLoading] = useState(false)
+    61→  const [saving, setSaving] = useState(false)
+    62→  const [error, setError] = useState<string | null>(null)
+    63→  const [errorDetails, setErrorDetails] = useState<string>('')
+    64→  
+    65→  // Estados para la contraseña del admin
+    66→  const [showPassword, setShowPassword] = useState(false)
+    67→  const [isEditingPassword, setIsEditingPassword] = useState(false)
+    68→  const [newPassword, setNewPassword] = useState('')
+    69→  const [resettingPassword, setResettingPassword] = useState(false)
+    70→
+    71→  // Reset state when modal closes
+    72→  useEffect(() => {
+    73→    if (!open) {
+    74→      setError(null)
+    75→      setErrorDetails('')
+    76→      setLoading(false)
+    77→      setShowPassword(false)
+    78→      setIsEditingPassword(false)
+    79→      setNewPassword('')
+    80→      setResettingPassword(false)
+    81→    }
+    82→  }, [open])
+    83→
+    84→  // Cargar datos cuando se abre el modal
+    85→  useEffect(() => {
+    86→    if (open && companyId) {
+    87→      loadCompanyData(companyId)
+    88→    }
+    89→  }, [open, companyId])
+    90→
+    91→  const loadCompanyData = async (id: string) => {
+    92→    setLoading(true)
+    93→    setError(null)
+    94→    setErrorDetails('')
+    95→    console.log('[FullEditModal] Cargando empresa:', id)
+    96→    
+    97→    try {
+    98→      const response = await fetch(`/api/companies/${id}`, { 
+    99→        credentials: 'include',
+   100→        headers: {
+   101→          'Cache-Control': 'no-cache',
+   102→          'Pragma': 'no-cache'
+   103→        }
+   104→      })
+   105→      
+   106→      console.log('[FullEditModal] Response status:', response.status)
+   107→      
+   108→      const result = await response.json()
+   109→      console.log('[FullEditModal] Respuesta API:', result)
+   110→      
+   111→      if (!response.ok) {
+   112→        // Manejar diferentes tipos de error
+   113→        let errorMsg = result.error || result.details || `Error ${response.status}`
+   114→        let details = result.details || result.stack || ''
+   115→        
+   116→        if (response.status === 401) {
+   117→          errorMsg = 'No autorizado - Sesión expirada'
+   118→          details = 'Tu sesión ha expirado. Por favor, recarga la página e inicia sesión nuevamente.'
+   119→        } else if (response.status === 403) {
+   120→          errorMsg = 'Sin permisos'
+   121→          details = 'No tienes permisos para ver esta empresa. Necesitas rol de Gestor o Admin.'
+   122→        } else if (response.status === 404) {
+   123→          errorMsg = 'Empresa no encontrada'
+   124→          details = 'La empresa ya no existe o fue eliminada.'
+   125→        }
+   126→        
+   127→        throw new Error(errorMsg + (details ? ` | ${details}` : ''))
+   128→      }
+   129→      
+   130→      const company = result.company || result
+   131→      if (company && company.name) {
+   132→        console.log('[FullEditModal] Datos empresa cargados:', company.name)
+   133→        setData({
+   134→          name: company.name || '',
+   135→          description: company.description || '',
+   136→          active: company.active !== undefined ? company.active : true,
+   137→          nif: company.nif || '',
+   138→          sector: company.sector || '',
+   139→          address: company.address || '',
+   140→          city: company.city || '',
+   141→          province: company.province || '',
+   142→          postalCode: company.postalCode || '',
+   143→          country: company.country || 'España',
+   144→          phone: company.phone || '',
+   145→          website: company.website || '',
+   146→          billingEmail: company.billingEmail || '',
+   147→          billingName: company.billingName || '',
+   148→          billingNif: company.billingNif || '',
+   149→          billingAddress: company.billingAddress || '',
+   150→          billingCity: company.billingCity || '',
+   151→          billingPostalCode: company.billingPostalCode || '',
+   152→          iban: company.iban || '',
+   153→          contactName: company.contactName || '',
+   154→          contactEmail: company.contactEmail || '',
+   155→          contactPhone: company.contactPhone || ''
+   156→        })
+   157→
+   158→        // Buscar administrador entre los miembros
+   159→        if (company.members && Array.isArray(company.members)) {
+   160→          const adminMember = company.members.find((m: any) => 
+   161→            m.role === 'admin' || m.user?.role === 'admin'
+   162→          )
+   163→          if (adminMember && adminMember.user) {
+   164→            console.log('[FullEditModal] Admin encontrado:', adminMember.user.name)
+   165→            const adminData = {
+   166→              id: adminMember.user.id,
+   167→              name: adminMember.user.name,
+   168→              email: adminMember.user.email,
+   169→              role: adminMember.user.role,
+   170→              active: adminMember.user.active !== false, // default true
+   171→              joinedAt: adminMember.joinedAt
+   172→            }
+   173→            setAdmin(adminData)
+   174→            
+   175→            // Cargar contraseña del admin desde API de usuarios
+   176→            loadAdminPassword(adminMember.user.id)
+   177→          } else {
+   178→            console.log('[FullEditModal] No se encontró admin en miembros:', company.members.length, 'miembros')
+   179→            setAdmin(null)
+   180→          }
+   181→        }
+   182→      } else {
+   183→        throw new Error('Datos de empresa inválidos o vacíos')
+   184→      }
+   185→    } catch (err: any) {
+   186→      console.error('[FullEditModal] Error cargando empresa:', err)
+   187→      const message = err.message || 'Error desconocido'
+   188→      setError(message.includes('|') ? message.split('|')[0] : message)
+   189→      setErrorDetails(message.includes('|') ? message.split('|').slice(1).join('|') : '')
+   190→      toast.error('Error al cargar: ' + (message.includes('|') ? message.split('|')[0] : message))
+   191→    } finally {
+   192→      setLoading(false)
+   193→    }
+   194→  }
+   195→
+   196→  const handleSave = async () => {
+   197→    if (!companyId || !data.name.trim()) {
+   198→      toast.error('El nombre es obligatorio')
+   199→      return
+   200→    }
+   201→    
+   202→    setSaving(true)
+   203→    try {
+   204→      console.log('[FullEditModal] Guardando empresa:', data.name)
+   205→      const res = await fetch(`/api/companies/${companyId}`, {
+   206→        method: 'PUT',
+   207→        credentials: 'include',
+   208→        headers: { 'Content-Type': 'application/json' },
+   209→        body: JSON.stringify(data)
+   210→      })
+   211→      
+   212→      const result = await res.json()
+   213→      console.log('[FullEditModal] Respuesta guardado:', result)
+   214→      
+   215→      if (res.ok) {
+   216→        toast.success('✅ Empresa actualizada correctamente')
+   217→        onOpenChange(false)
+   218→        window.location.reload()
+   219→      } else {
+   220→        toast.error(result.error || 'Error al guardar')
+   221→      }
+   222→    } catch (error) {
+   223→      console.error('[FullEditModal] Error saving:', error)
+   224→      toast.error('Error de conexión')
+   225→    }
+   226→    
+   227→    setSaving(false)
+   228→  }
+   229→
+   230→  // Cargar contraseña del administrador
+   231→  const loadAdminPassword = async (userId: string) => {
+   232→    try {
+   233→      console.log('[FullEditModal] Cargando contraseña del admin:', userId)
+   234→      const res = await fetch(`/api/users?search=${admin?.email}`, { credentials: 'include' })
+   235→      if (res.ok) {
+   236→        const result = await res.json()
+   237→        if (result.success && result.users && result.users.length > 0) {
+   238→          const user = result.users.find((u: any) => u.id === userId)
+   239→          if (user && user.plainPassword) {
+   240→            console.log('[FullEditModal] Contraseña cargada')
+   241→            setAdmin(prev => prev ? { ...prev, plainPassword: user.plainPassword } : null)
+   242→          }
+   243→        }
+   244→      }
+   245→    } catch (err) {
+   246→      console.error('[FullEditModal] Error cargando contraseña:', err)
+   247→    }
+   248→  }
+   249→
+   250→  // Restablecer/cambiar contraseña del admin
+   251→  const handleResetPassword = async () => {
+   252→    if (!admin) return
+   253→    
+   254→    // Si no estamos en modo edición, entrar en modo edición
+   255→    if (!isEditingPassword) {
+   256→      setIsEditingPassword(true)
+   257→      setNewPassword(admin.plainPassword || '')
+   258→      return
+   259→    }
+   260→    
+   261→    // Guardar nueva contraseña
+   262→    if (!newPassword || newPassword.length < 6) {
+   263→      toast.error('La contraseña debe tener al menos 6 caracteres')
+   264→      return
+   265→    }
+   266→    
+   267→    setResettingPassword(true)
+   268→    try {
+   269→      console.log('[FullEditModal] Reseteando contraseña para:', admin.id)
+   270→      const res = await fetch('/api/users', {
+   271→        method: 'PUT',
+   272→        credentials: 'include',
+   273→        headers: { 'Content-Type': 'application/json' },
+   274→        body: JSON.stringify({
+   275→          id: admin.id,
+   276→          password: newPassword
+   277→        })
+   278→      })
+   279→      
+   280→      const result = await res.json()
+   281→      if (res.ok) {
+   282→        toast.success('✅ Contraseña actualizada correctamente')
+   283→        setAdmin(prev => prev ? { ...prev, plainPassword: newPassword } : null)
+   284→        setIsEditingPassword(false)
+   285→        setNewPassword('')
+   286→      } else {
+   287→        toast.error(result.error || 'Error al actualizar contraseña')
+   288→      }
+   289→    } catch (error) {
+   290→      console.error('[FullEditModal] Error reseteando contraseña:', error)
+   291→      toast.error('Error de conexión')
+   292→    }
+   293→    
+   294→    setResettingPassword(false)
+   295→  }
+   296→
+   297→  // Generar contraseña aleatoria
+   298→  const generateRandomPassword = () => {
+   299→    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%'
+   300→    let password = ''
+   301→    for (let i = 0; i < 12; i++) {
+   302→      password += chars.charAt(Math.floor(Math.random() * chars.length))
+   303→    }
+   304→    setNewPassword(password)
+   305→    toast.info('Contraseña aleatoria generada')
+   306→  }
+   307→
+   308→  const updateField = (field: string, value: string | boolean) => {
+   309→    setData(prev => ({ ...prev, [field]: value }))
+   310→  }
+   311→
+   312→  return (
+   313→    <Dialog open={open} onOpenChange={onOpenChange}>
+   314→      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white">
+   315→        <DialogHeader className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-6 rounded-t-lg -m-6 mb-4">
+   316→          <DialogTitle className="text-xl font-bold flex items-center gap-3">
+   317→            <Building2 className="h-6 w-6" />
+   318→            ✏️ Editar Empresa: {data.name || 'Cargando...'}
+   319→          </DialogTitle>
+   320→          <p className="text-blue-100 text-sm mt-1">Modifica todos los datos de la empresa</p>
+   321→        </DialogHeader>
+   322→        
+   323→        {error ? (
+   324→          <div className="py-8 px-6">
+   325→            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+   326→              <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-3" />
+   327→              <h3 className="text-lg font-semibold text-red-700 mb-2">⚠️ {error}</h3>
+   328→              {errorDetails && (
+   329→                <div className="mt-3 p-3 bg-red-100 rounded-md text-left">
+   330→                  <p className="text-sm text-red-600 font-mono break-all">{errorDetails}</p>
+   331→                </div>
+   332→              )}
+   333→              <div className="flex justify-center gap-3 mt-5">
+   334→                <Button 
+   335→                  onClick={() => loadCompanyData(companyId!)} 
+   336→                  variant="outline"
+   337→                  className="border-blue-300 text-blue-600 hover:bg-blue-50"
+   338→                >
+   339→                  <RefreshCw className="h-4 w-4 mr-2" />
+   340→                  Reintentar
+   341→                </Button>
+   342→                <Button 
+   343→                  onClick={() => window.location.reload()} 
+   344→                  variant="outline"
+   345→                >
+   346→                  Recargar página
+   347→                </Button>
+   348→              </div>
+   349→            </div>
+   350→          </div>
+   351→        ) : loading ? (
+   352→          <div className="flex flex-col items-center justify-center py-12">
+   353→            <Loader2 className="h-10 w-10 text-blue-500 animate-spin mb-3" />
+   354→            <p className="text-slate-600 font-medium">Cargando datos de la empresa...</p>
+   355→            <p className="text-slate-400 text-sm mt-1">Por favor espera un momento</p>
+   356→          </div>
+   357→        ) : (
+   358→          <div className="space-y-5 p-2">
+   359→            
+   360→            {/* 👤 SECCIÓN ADMINISTRADOR ASIGNADO */}
+   361→            <section className="bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 rounded-lg p-4">
+   362→              <h3 className="font-bold text-violet-700 mb-3 flex items-center gap-2">
+   363→                <Shield className="h-5 w-5" />
+   364→                👤 Administrador Asignado
+   365→              </h3>
+   366→              {admin ? (
+   367→                <div className="bg-white rounded-lg p-4 border border-violet-100 space-y-4">
+   368→                  {/* Fila principal: Nombre y Email */}
+   369→                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+   370→                    <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg">
+   371→                      <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center">
+   372→                        <Users className="h-5 w-5 text-violet-600" />
+   373→                      </div>
+   374→                      <div className="min-w-0">
+   375→                        <p className="text-[10px] text-slate-500 uppercase font-semibold">Nombre completo</p>
+   376→                        <p className="font-bold text-slate-800 truncate">{admin.name}</p>
+   377→                      </div>
+   378→                    </div>
+   379→                    <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg">
+   380→                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+   381→                        <Mail className="h-5 w-5 text-blue-600" />
+   382→                      </div>
+   383→                      <div className="min-w-0">
+   384→                        <p className="text-[10px] text-slate-500 uppercase font-semibold">Email de acceso</p>
+   385→                        <p className="font-medium text-slate-800 truncate">{admin.email}</p>
+   386→                      </div>
+   387→                    </div>
+   388→                  </div>
+   389→
+   390→                  {/* Fila de estado y rol */}
+   391→                  <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-violet-100">
+   392→                    <Badge className={`${
+   393→                      admin.active 
+   394→                        ? 'bg-green-100 text-green-700 border-green-300' 
+   395→                        : 'bg-red-100 text-red-700 border-red-300'
+   396→                    } px-3 py-1`}>
+   397→                      {admin.active ? (
+   398→                        <><CheckCircle2 className="h-3 w-3 mr-1" /> Cuenta Activa</>
+   399→                      ) : (
+   400→                        <><EyeOff className="h-3 w-3 mr-1" /> Cuenta Inactiva</>
+   401→                      )}
+   402→                    </Badge>
+   403→                    <Badge className="bg-violet-100 text-violet-700 border-violet-300 px-3 py-1">
+   404→                      <Key className="h-3 w-3 mr-1" />
+   405→                      Rol: {admin.role === 'admin' ? 'Administrador' : admin.role}
+   406→                    </Badge>
+   407→                  </div>
+   408→
+   409→                  {/* Sección de Credenciales */}
+   410→                  <div className="mt-3 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg">
+   411→                    <h4 className="font-semibold text-amber-800 mb-3 flex items-center gap-2 text-sm">
+   412→                      <Lock className="h-4 w-4" />
+   413→                      🔐 Credenciales de Acceso
+   414→                    </h4>
+   415→                    
+   416→                    {/* Usuario/Email */}
+   417→                    <div className="mb-3">
+   418→                      <p className="text-[10px] text-amber-600 uppercase font-semibold mb-1">Usuario (Email)</p>
+   419→                      <div className="bg-white p-2.5 rounded border border-amber-200 flex items-center gap-2">
+   420→                        <Mail className="h-4 w-4 text-amber-500 shrink-0" />
+   421→                        <p className="font-mono text-slate-700 font-medium text-sm">{admin.email}</p>
+   422→                      </div>
+   423→                    </div>
+   424→
+   425→                    {/* Contraseña */}
+   426→                    <div className="mb-3">
+   427→                      <p className="text-[10px] text-amber-600 uppercase font-semibold mb-1">Contraseña</p>
+   428→                      
+   429→                      {isEditingPassword ? (
+   430→                        // Modo edición de contraseña
+   431→                        <div className="space-y-2">
+   432→                          <div className="flex gap-2">
+   433→                            <Input
+   434→                              type={showPassword ? "text" : "password"}
+   435→                              value={newPassword}
+   436→                              onChange={(e) => setNewPassword(e.target.value)}
+   437→                              className="bg-white border-amber-300 font-mono text-sm"
+   438→                              placeholder="Nueva contraseña"
+   439→                            />
+   440→                            <Button
+   441→                              type="button"
+   442→                              variant="outline"
+   443→                              size="sm"
+   444→                              onClick={() => setShowPassword(!showPassword)}
+   445→                              className="shrink-0 border-amber-300 text-amber-600 hover:bg-amber-50"
+   446→                            >
+   447→                              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+   448→                            </Button>
+   449→                          </div>
+   450→                          <div className="flex flex-wrap gap-2">
+   451→                            <Button
+   452→                              type="button"
+   453→                              variant="outline"
+   454→                              size="sm"
+   455→                              onClick={generateRandomPassword}
+   456→                              className="text-xs border-blue-300 text-blue-600 hover:bg-blue-50"
+   457→                            >
+   458→                              🎲 Generar aleatoria
+   459→                            </Button>
+   460→                            <Button
+   461→                              type="button"
+   462→                              variant="outline"
+   463→                              size="sm"
+   464→                              onClick={() => setIsEditingPassword(false)}
+   465→                              className="text-xs border-slate-300 text-slate-600 hover:bg-slate-50"
+   466→                            >
+   467→                              Cancelar
+   468→                            </Button>
+   469→                            <Button
+   470→                              type="button"
+   471→                              size="sm"
+   472→                              onClick={handleResetPassword}
+   473→                              disabled={resettingPassword || !newPassword || newPassword.length < 6}
+   474→                              className="text-xs bg-green-600 hover:bg-green-700 text-white"
+   475→                            >
+   476→                              {resettingPassword ? (
+   477→                                <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Guardando...</>
+   478→                              ) : (
+   479→                                <><Save className="h-3 w-3 mr-1" /> Guardar</>
+   480→                              )}
+   481→                            </Button>
+   482→                          </div>
+   483→                        </div>
+   484→                      ) : (
+   485→                        // Modo visualización de contraseña
+   486→                        <div className="flex gap-2">
+   487→                          <div className="flex-1 bg-white p-2.5 rounded border border-amber-200 flex items-center gap-2">
+   488→                            <Key className="h-4 w-4 text-amber-500 shrink-0" />
+   489→                            <p className="font-mono text-slate-700 font-medium text-sm flex-1 break-all">
+   490→                              {showPassword ? (admin.plainPassword || '••••••••') : '••••••••••••'}
+   491→                            </p>
+   492→                          </div>
+   493→                          <Button
+   494→                            type="button"
+   495→                            variant="outline"
+   496→                            size="sm"
+   497→                            onClick={() => setShowPassword(!showPassword)}
+   498→                            className="shrink-0 border-amber-300 text-amber-600 hover:bg-amber-50"
+   499→                            title={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+   500→                          >
+   501→                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+   502→                          </Button>
+   503→                          <Button
+   504→                            type="button"
+   505→                            variant="outline"
+   506→                            size="sm"
+   507→                            onClick={handleResetPassword}
+   508→                            className="shrink-0 border-blue-300 text-blue-600 hover:bg-blue-50"
+   509→                            title="Restablecer/cambiar contraseña"
+   510→                          >
+   511→                            <RotateCcw className="h-4 w-4" />
+   512→                          </Button>
+   513→                        </div>
+   514→                      )}
+   515→                    </div>
+   516→
+   517→                    {!isEditingPassword && (
+   518→                      <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+   519→                        <AlertTriangle className="h-3 w-3" />
+   520→                        Click en 👁️ para ver contraseña o 🔄 para cambiarla
+   521→                      </p>
+   522→                    )}
+   523→                  </div>
+   524→
+   525→                  {/* Fecha de asignación */}
+   526→                  <div className="text-xs text-slate-500 pt-2 border-t border-violet-100 flex items-center justify-between">
+   527→                    <span>📅 Asignado a esta empresa:</span>
+   528→                    <span className="font-medium">
+   529→                      {admin.joinedAt ? new Date(admin.joinedAt).toLocaleDateString('es-ES', { 
+   530→                        day: '2-digit', 
+   531→                        month: '2-digit', 
+   532→                        year: 'numeric',
+   533→                        hour: '2-digit',
+   534→                        minute: '2-digit'
+   535→                      }) : 'N/A'}
+   536→                    </span>
+   537→                  </div>
+   538→                </div>
+   539→              ) : (
+   540→                <div className="bg-orange-50 rounded-lg p-6 border border-orange-200 text-center">
+   541→                  <Users className="h-12 w-12 text-orange-400 mx-auto mb-3" />
+   542→                  <p className="text-orange-700 font-bold text-lg">Sin administrador asignado</p>
+   543→                  <p className="text-orange-500 text-sm mt-1">Esta empresa no tiene un administrador asignado aún</p>
+   544→                </div>
+   545→              )}
+   546→            </section>
+   547→
+   548→            {/* DATOS BÁSICOS */}
+   549→            <section className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+   550→              <h3 className="font-bold text-blue-700 mb-3 flex items-center gap-2">
+   551→                📋 Datos básicos
+   552→              </h3>
+   553→              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+   554→                <div>
+   555→                  <Label className="text-slate-700 font-semibold text-sm">Nombre *</Label>
+   556→                  <Input 
+   557→                    value={data.name} 
+   558→                    onChange={e => updateField('name', e.target.value)} 
+   559→                    className="bg-white border-slate-300 mt-1" 
+   560→                  />
+   561→                </div>
+   562→                <div>
+   563→                  <Label className="text-slate-700 font-semibold text-sm">Sector</Label>
+   564→                  <Input 
+   565→                    value={data.sector} 
+   566→                    onChange={e => updateField('sector', e.target.value)} 
+   567→                    className="bg-white border-slate-300 mt-1" 
+   568→                    placeholder="Ej: Automoción"
+   569→                  />
+   570→                </div>
+   571→              </div>
+   572→              <div className="mt-3">
+   573→                <Label className="text-slate-700 font-semibold text-sm">Descripción</Label>
+   574→                <textarea 
+   575→                  value={data.description} 
+   576→                  onChange={e => updateField('description', e.target.value)}
+   577→                  className="w-full bg-white border border-slate-300 rounded-md p-3 min-h-[70px] mt-1 text-slate-900"
+   578→                />
+   579→              </div>
+   580→              <div className="mt-3 flex items-center gap-3">
+   581→                <button
+   582→                  onClick={() => updateField('active', !data.active)}
+   583→                  className={`w-12 h-7 rounded-full transition ${data.active ? 'bg-green-500' : 'bg-red-500'}`}
+   584→                >
+   585→                  <span className={`block w-5 h-5 bg-white rounded-full transition transform ${data.active ? 'translate-x-6' : 'translate-x-1'}`} />
+   586→                </button>
+   587→                <span className={`font-medium ${data.active ? 'text-green-700' : 'text-red-700'}`}>
+   588→                  {data.active ? '✓ Activa' : '✗ Inactiva'}
+   589→                </span>
+   590→              </div>
+   591→            </section>
+   592→
+   593→            {/* DATOS FISCALES */}
+   594→            <section className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+   595→              <h3 className="font-bold text-purple-700 mb-3 flex items-center gap-2">
+   596→                💰 Datos fiscales
+   597→              </h3>
+   598→              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+   599→                <div>
+   600→                  <Label className="text-slate-700 font-semibold text-sm">CIF / NIF</Label>
+   601→                  <Input 
+   602→                    value={data.nif} 
+   603→                    onChange={e => updateField('nif', e.target.value)} 
+   604→                    className="bg-white border-slate-300 mt-1" 
+   605→                    placeholder="B12345678"
+   606→                  />
+   607→                </div>
+   608→                <div>
+   609→                  <Label className="text-slate-700 font-semibold text-sm">Web</Label>
+   610→                  <Input 
+   611→                    value={data.website} 
+   612→                    onChange={e => updateField('website', e.target.value)} 
+   613→                    className="bg-white border-slate-300 mt-1" 
+   614→                    placeholder="https://..."
+   615→                  />
+   616→                </div>
+   617→              </div>
+   618→            </section>
+   619→
+   620→            {/* DIRECCIÓN */}
+   621→            <section className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+   622→              <h3 className="font-bold text-emerald-700 mb-3 flex items-center gap-2">
+   623→                📍 Dirección
+   624→              </h3>
+   625→              <div className="space-y-3">
+   626→                <div>
+   627→                  <Label className="text-slate-700 font-semibold text-sm">Dirección</Label>
+   628→                  <Input 
+   629→                    value={data.address} 
+   630→                    onChange={e => updateField('address', e.target.value)} 
+   631→                    className="bg-white border-slate-300 mt-1" 
+   632→                    placeholder="Calle, número..."
+   633→                  />
+   634→                </div>
+   635→                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+   636→                  <div>
+   637→                    <Label className="text-slate-700 font-semibold text-xs">Ciudad</Label>
+   638→                    <Input value={data.city} onChange={e => updateField('city', e.target.value)} className="bg-white border-slate-300 mt-1" />
+   639→                  </div>
+   640→                  <div>
+   641→                    <Label className="text-slate-700 font-semibold text-xs">Provincia</Label>
+   642→                    <Input value={data.province} onChange={e => updateField('province', e.target.value)} className="bg-white border-slate-300 mt-1" />
+   643→                  </div>
+   644→                  <div>
+   645→                    <Label className="text-slate-700 font-semibold text-xs">C.P.</Label>
+   646→                    <Input value={data.postalCode} onChange={e => updateField('postalCode', e.target.value)} className="bg-white border-slate-300 mt-1" />
+   647→                  </div>
+   648→                  <div>
+   649→                    <Label className="text-slate-700 font-semibold text-xs">País</Label>
+   650→                    <Input value={data.country} onChange={e => updateField('country', e.target.value)} className="bg-white border-slate-300 mt-1" />
+   651→                  </div>
+   652→                </div>
+   653→              </div>
+   654→            </section>
+   655→
+   656→            {/* CONTACTO */}
+   657→            <section className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+   658→              <h3 className="font-bold text-orange-700 mb-3 flex items-center gap-2">
+   659→                📞 Contacto
+   660→              </h3>
+   661→              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+   662→                <div>
+   663→                  <Label className="text-slate-700 font-semibold text-sm">Teléfono</Label>
+   664→                  <Input 
+   665→                    value={data.phone} 
+   666→                    onChange={e => updateField('phone', e.target.value)} 
+   667→                    className="bg-white border-slate-300 mt-1" 
+   668→                    placeholder="+34 600 000 000"
+   669→                  />
+   670→                </div>
+   671→                <div>
+   672→                  <Label className="text-slate-700 font-semibold text-sm">Email contacto</Label>
+   673→                  <Input 
+   674→                    type="email" 
+   675→                    value={data.contactEmail} 
+   676→                    onChange={e => updateField('contactEmail', e.target.value)} 
+   677→                    className="bg-white border-slate-300 mt-1" 
+   678→                    placeholder="contacto@empresa.com"
+   679→                  />
+   680→                </div>
+   681→                <div>
+   682→                  <Label className="text-slate-700 font-semibold text-sm">Persona contacto</Label>
+   683→                  <Input 
+   684→                    value={data.contactName} 
+   685→                    onChange={e => updateField('contactName', e.target.value)} 
+   686→                    className="bg-white border-slate-300 mt-1" 
+   687→                  />
+   688→                </div>
+   689→                <div>
+   690→                  <Label className="text-slate-700 font-semibold text-sm">Teléfono contacto</Label>
+   691→                  <Input 
+   692→                    value={data.contactPhone} 
+   693→                    onChange={e => updateField('contactPhone', e.target.value)} 
+   694→                    className="bg-white border-slate-300 mt-1" 
+   695→                  />
+   696→                </div>
+   697→              </div>
+   698→            </section>
+   699→
+   700→            {/* FACTURACIÓN */}
+   701→            <section className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+   702→              <h3 className="font-bold text-pink-700 mb-3 flex items-center gap-2">
+   703→                🧾 Facturación
+   704→              </h3>
+   705→              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+   706→                <div>
+   707→                  <Label className="text-slate-700 font-semibold text-sm">Razón social</Label>
+   708→                  <Input 
+   709→                    value={data.billingName} 
+   710→                    onChange={e => updateField('billingName', e.target.value)} 
+   711→                    className="bg-white border-slate-300 mt-1" 
+   712→                  />
+   713→                </div>
+   714→                <div>
+   715→                  <Label className="text-slate-700 font-semibold text-sm">CIF facturación</Label>
+   716→                  <Input 
+   717→                    value={data.billingNif} 
+   718→                    onChange={e => updateField('billingNif', e.target.value)} 
+   719→                    className="bg-white border-slate-300 mt-1" 
+   720→                  />
+   721→                </div>
+   722→                <div className="md:col-span-2">
+   723→                  <Label className="text-slate-700 font-semibold text-sm">Dirección facturación</Label>
+   724→                  <Input 
+   725→                    value={data.billingAddress} 
+   726→                    onChange={e => updateField('billingAddress', e.target.value)} 
+   727→                    className="bg-white border-slate-300 mt-1" 
+   728→                  />
+   729→                </div>
+   730→                <div>
+   731→                  <Label className="text-slate-700 font-semibold text-sm">Ciudad</Label>
+   732→                  <Input 
+   733→                    value={data.billingCity} 
+   734→                    onChange={e => updateField('billingCity', e.target.value)} 
+   735→                    className="bg-white border-slate-300 mt-1" 
+   736→                  />
+   737→                </div>
+   738→                <div>
+   739→                  <Label className="text-slate-700 font-semibold text-sm">C.P.</Label>
+   740→                  <Input 
+   741→                    value={data.billingPostalCode} 
+   742→                    onChange={e => updateField('billingPostalCode', e.target.value)} 
+   743→                    className="bg-white border-slate-300 mt-1" 
+   744→                  />
+   745→                </div>
+   746→                <div className="md:col-span-2">
+   747→                  <Label className="text-slate-700 font-semibold text-sm">Email facturación</Label>
+   748→                  <Input 
+   749→                    type="email" 
+   750→                    value={data.billingEmail} 
+   751→                    onChange={e => updateField('billingEmail', e.target.value)} 
+   752→                    className="bg-white border-slate-300 mt-1" 
+   753→                  />
+   754→                </div>
+   755→              </div>
+   756→            </section>
+   757→
+   758→            {/* BANCARIO */}
+   759→            <section className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+   760→              <h3 className="font-bold text-cyan-700 mb-3 flex items-center gap-2">
+   761→                🏦 Datos bancarios
+   762→              </h3>
+   763→              <div className="max-w-md">
+   764→                <Label className="text-slate-700 font-semibold text-sm">IBAN</Label>
+   765→                <Input 
+   766→                  value={data.iban} 
+   767→                  onChange={e => updateField('iban', e.target.value)} 
+   768→                  className="bg-white border-slate-300 mt-1 font-mono" 
+   769→                  placeholder="ES00 0000 0000 0000 0000 0000"
+   770→                />
+   771→              </div>
+   772→            </section>
+   773→
+   774→            {/* BOTONES */}
+   775→            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+   776→              <Button 
+   777→                variant="outline" 
+   778→                onClick={() => onOpenChange(false)} 
+   779→                className="border-slate-300 text-slate-700"
+   780→              >
+   781→                Cancelar
+   782→              </Button>
+   783→              <Button 
+   784→                onClick={handleSave} 
+   785→                disabled={saving || !data.name.trim()}
+   786→                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-8"
+   787→              >
+   788→                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+   789→                Guardar cambios
+   790→              </Button>
+   791→            </div>
+   792→          </div>
+   793→        )}
+   794→      </DialogContent>
+   795→    </Dialog>
+   796→  )
+   797→}
+   798→

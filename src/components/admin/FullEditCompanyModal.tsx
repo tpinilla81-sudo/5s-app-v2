@@ -168,12 +168,11 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
               email: adminMember.user.email,
               role: adminMember.user.role,
               active: adminMember.user.active !== false, // default true
-              joinedAt: adminMember.joinedAt
+              joinedAt: adminMember.joinedAt,
+              plainPassword: adminMember.user.plainPassword || adminMember.user.password || ''  // Contraseña en texto plano
             }
+            console.log('[FullEditModal] Contraseña incluida:', adminData.plainPassword ? 'SÍ (' + adminData.plainPassword.length + ' chars)' : 'NO')
             setAdmin(adminData)
-            
-            // Cargar contraseña del admin desde API de usuarios
-            loadAdminPassword(adminMember.user.id)
           } else {
             console.log('[FullEditModal] No se encontró admin en miembros:', company.members.length, 'miembros')
             setAdmin(null)
