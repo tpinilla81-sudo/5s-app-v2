@@ -978,15 +978,6 @@ export default function GestorPanel() {
                       onClick={() => editingCompany !== company.id && handleViewCompany(company)}
                     >
                       <CardContent className="p-4">
-                        {/* 🔥 BANNER DE EDICIÓN - IMPOSIBLE DE IGNORAR */}
-                        <a
-                          href={`/edit-company/${company.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="block bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-black font-black text-center py-3 px-4 rounded-lg mb-3 text-sm uppercase tracking-wide shadow-2xl border-4 border-yellow-200 hover:border-white transition-all hover:scale-[1.02] animate-pulse"
-                        >
-                          🔧 EDITAR DATOS COMPLETOS DE LA EMPRESA → (CIF, Dirección, Teléfono, IBAN...)
-                        </a>
-                        
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3 flex-1">
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${company.active ? 'bg-violet-800/40' : 'bg-red-900/30'}`}>
@@ -1024,30 +1015,33 @@ export default function GestorPanel() {
                             <Badge className={`${company.active ? 'bg-green-900/30 text-green-400 border-green-700/30' : 'bg-red-900/30 text-red-400 border-red-700/30'} border text-[10px]`}>
                               {company.active ? 'Activa' : 'Inactiva'}
                             </Badge>
-                            {/* ✏️ BOTÓN EDITAR - SIEMPRE VISIBLE */}
-                            <a
-                              href={`/edit-company/${company.id}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center gap-1 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-lg border-2 border-yellow-400/60"
-                              title="Editar empresa"
+                            {/* ✏️✅ BOTÓN EDITAR EMPRESA - CON TEXTO Y TOOLTIP */}
+                            <Button
+                              size="sm"
+                              onClick={(e) => { e.stopPropagation(); window.location.href = `/edit-company/${company.id}` }}
+                              className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-lg border-2 border-cyan-300/50 flex items-center gap-1.5"
+                              title="✏️ EDITAR EMPRESA: Modificar todos los datos (CIF, NIF, dirección, teléfono, contacto, facturación, IBAN...)"
                             >
-                              <Edit3 className="h-3.5 w-3.5" /> EDITAR
-                            </a>
+                              <Edit3 className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">EDITAR</span>
+                            </Button>
+                            {/* 🔄 BOTÓN ACTIVAR/DESACTIVAR */}
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleToggleCompanyActive(company.id, company.active)}
-                              className={`h-7 w-7 p-0 ${company.active ? 'text-green-500 hover:bg-green-900/30' : 'text-red-500 hover:bg-red-900/30'}`}
-                              title={company.active ? 'Desactivar' : 'Activar'}
+                              className={`h-8 w-8 p-0 rounded-md ${company.active ? 'text-green-500 hover:bg-green-900/40 border border-green-700/30' : 'text-red-500 hover:bg-red-900/40 border border-red-700/30'}`}
+                              title={`🔄 ${company.active ? 'DESACTIVAR empresa: La empresa ya no podrá usar la aplicación' : 'ACTIVAR empresa: La empresa podrá usar la aplicación nuevamente'}`}
                             >
                               {company.active ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
                             </Button>
+                            {/* 🗑️ BOTÓN ELIMINAR */}
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDeleteCompany(company.id)}
-                              className="h-7 w-7 p-0 text-red-400 hover:bg-red-900/30"
-                              title="Eliminar empresa"
+                              className="h-8 w-8 p-0 text-red-400 hover:bg-red-900/40 rounded-md border border-red-700/30"
+                              title="🗑️ ELIMINAR empresa: Borrar permanentemente esta empresa y todos sus datos (NO se puede deshacer)"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
