@@ -122,8 +122,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                // v3.0.24 - CORREGIR ERROR PRISMA MEMBERS
-                var CURRENT_VERSION = 'v3.0.24';
+                // v3.0.25 - CORREGIR CAMPO USER MAYUSCULAS
+                var CURRENT_VERSION = 'v3.0.25';
                 
                 // Check if we need to force reload
                 var storedVersion = localStorage.getItem('_app_force_version');

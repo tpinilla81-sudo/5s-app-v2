@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.24 - CORREGIR ERROR PRISMA MEMBERS - 2026-09-03
+// v3.0.25 - CORREGIR CAMPO USER MAYUSCULAS - 2026-09-03
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.24',
+    version: 'v3.0.25',
     buildTime: '2026-09-03T07:30:00Z',
-    feature: 'CORREGIR_PRISMA_COMPANY_MEMBERS_ERROR',
+    feature: 'CORREGIR_PRISMA_USER_MAYUSCULAS',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

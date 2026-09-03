@@ -46,7 +46,7 @@ export async function GET(
     const members = await db.companyMember.findMany({
       where: { companyId },
       include: {
-        user: { select: { id: true, name: true, email: true, role: true, active: true } },
+        User: { select: { id: true, name: true, email: true, role: true, active: true } },
       },
       orderBy: { joinedAt: 'desc' },
     })
@@ -101,7 +101,7 @@ export async function GET(
           companyId: m.companyId,
           role: m.role,
           joinedAt: m.joinedAt,
-          user: m.user,
+          user: m.User,  // El campo en Prisma es 'User' (mayúscula)
         })),
       },
     })
