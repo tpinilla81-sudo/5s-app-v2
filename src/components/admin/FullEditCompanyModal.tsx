@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog'
-import { Loader2, Save, Building2, Users, Shield, Mail, Phone, Key } from 'lucide-react'
+import { Loader2, Save, Building2, Users, Shield, Mail, Phone, Key, AlertTriangle, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface FullEditCompanyModalProps {
@@ -58,82 +58,125 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorDetails, setErrorDetails] = useState<string>('')
+
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!open) {
+      setError(null)
+      setErrorDetails('')
+      setLoading(false)
+    }
+  }, [open])
 
   // Cargar datos cuando se abre el modal
   useEffect(() => {
     if (open && companyId) {
-      setLoading(true)
-      setError(null)
-      console.log('[FullEditModal] Cargando empresa:', companyId)
-      
-      fetch(`/api/companies/${companyId}`, { credentials: 'include' })
-        .then(async (r) => {
-          const result = await r.json()
-          console.log('[FullEditModal] Respuesta API:', result)
-          
-          if (!r.ok) {
-            throw new Error(result.error || `Error ${r.status}`)
-          }
-          
-          const company = result.company || result
-          if (company && company.name) {
-            console.log('[FullEditModal] Datos empresa cargados:', company.name)
-            setData({
-              name: company.name || '',
-              description: company.description || '',
-              active: company.active !== undefined ? company.active : true,
-              nif: company.nif || '',
-              sector: company.sector || '',
-              address: company.address || '',
-              city: company.city || '',
-              province: company.province || '',
-              postalCode: company.postalCode || '',
-              country: company.country || 'España',
-              phone: company.phone || '',
-              website: company.website || '',
-              billingEmail: company.billingEmail || '',
-              billingName: company.billingName || '',
-              billingNif: company.billingNif || '',
-              billingAddress: company.billingAddress || '',
-              billingCity: company.billingCity || '',
-              billingPostalCode: company.billingPostalCode || '',
-              iban: company.iban || '',
-              contactName: company.contactName || '',
-              contactEmail: company.contactEmail || '',
-              contactPhone: company.contactPhone || ''
-            })
-
-            // Buscar administrador entre los miembros
-            if (company.members && Array.isArray(company.members)) {
-              const adminMember = company.members.find((m: any) => 
-                m.role === 'admin' || m.user?.role === 'admin'
-              )
-              if (adminMember && adminMember.user) {
-                console.log('[FullEditModal] Admin encontrado:', adminMember.user.name)
-                setAdmin({
-                  id: adminMember.user.id,
-                  name: adminMember.user.name,
-                  email: adminMember.user.email,
-                  role: adminMember.user.role,
-                  joinedAt: adminMember.joinedAt
-                })
-              } else {
-                console.log('[FullEditModal] No se encontró admin en miembros:', company.members.length, 'miembros')
-                setAdmin(null)
-              }
-            }
-          } else {
-            throw new Error('Datos de empresa inválidos')
-          }
-        })
-        .catch(err => {
-          console.error('[FullEditModal] Error cargando empresa:', err)
-          setError(err.message || 'Error al cargar datos')
-          toast.error('Error al cargar: ' + (err.message || 'Error desconocido'))
-        })
-        .finally(() => setLoading(false))
+      loadCompanyData(companyId)
     }
   }, [open, companyId])
+
+  const loadCompanyData = async (id: string) => {
+    setLoading(true)
+    setError(null)
+    setErrorDetails('')
+    console.log('[FullEditModal] Cargando empresa:', id)
+    
+    try {
+      const response = await fetch(`/api/companies/${id}`, { 
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      })
+      
+      console.log('[FullEditModal] Response status:', response.status)
+      
+      const result = await response.json()
+      console.log('[FullEditModal] Respuesta API:', result)
+      
+      if (!response.ok) {
+        // Manejar diferentes tipos de error
+        let errorMsg = result.error || `Error ${response.status}`
+        let details = ''
+        
+        if (response.status === 401) {
+          errorMsg = 'No autorizado - Sesión expirada'
+          details = 'Tu sesión ha expirado. Por favor, recarga la página e inicia sesión nuevamente.'
+        } else if (response.status === 403) {
+          errorMsg = 'Sin permisos'
+          details = 'No tienes permisos para ver esta empresa. Necesitas rol de Gestor o Admin.'
+        } else if (response.status === 404) {
+          errorMsg = 'Empresa no encontrada'
+          details = 'La empresa ya no existe o fue eliminada.'
+        } else {
+          details = JSON.stringify(result, null, 2)
+        }
+        
+        throw new Error(errorMsg + (details ? ` | ${details}` : ''))
+      }
+      
+      const company = result.company || result
+      if (company && company.name) {
+        console.log('[FullEditModal] Datos empresa cargados:', company.name)
+        setData({
+          name: company.name || '',
+          description: company.description || '',
+          active: company.active !== undefined ? company.active : true,
+          nif: company.nif || '',
+          sector: company.sector || '',
+          address: company.address || '',
+          city: company.city || '',
+          province: company.province || '',
+          postalCode: company.postalCode || '',
+          country: company.country || 'España',
+          phone: company.phone || '',
+          website: company.website || '',
+          billingEmail: company.billingEmail || '',
+          billingName: company.billingName || '',
+          billingNif: company.billingNif || '',
+          billingAddress: company.billingAddress || '',
+          billingCity: company.billingCity || '',
+          billingPostalCode: company.billingPostalCode || '',
+          iban: company.iban || '',
+          contactName: company.contactName || '',
+          contactEmail: company.contactEmail || '',
+          contactPhone: company.contactPhone || ''
+        })
+
+        // Buscar administrador entre los miembros
+        if (company.members && Array.isArray(company.members)) {
+          const adminMember = company.members.find((m: any) => 
+            m.role === 'admin' || m.user?.role === 'admin'
+          )
+          if (adminMember && adminMember.user) {
+            console.log('[FullEditModal] Admin encontrado:', adminMember.user.name)
+            setAdmin({
+              id: adminMember.user.id,
+              name: adminMember.user.name,
+              email: adminMember.user.email,
+              role: adminMember.user.role,
+              joinedAt: adminMember.joinedAt
+            })
+          } else {
+            console.log('[FullEditModal] No se encontró admin en miembros:', company.members.length, 'miembros')
+            setAdmin(null)
+          }
+        }
+      } else {
+        throw new Error('Datos de empresa inválidos o vacíos')
+      }
+    } catch (err: any) {
+      console.error('[FullEditModal] Error cargando empresa:', err)
+      const message = err.message || 'Error desconocido'
+      setError(message.includes('|') ? message.split('|')[0] : message)
+      setErrorDetails(message.includes('|') ? message.split('|').slice(1).join('|') : '')
+      toast.error('Error al cargar: ' + (message.includes('|') ? message.split('|')[0] : message))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleSave = async () => {
     if (!companyId || !data.name.trim()) {
@@ -157,7 +200,6 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
       if (res.ok) {
         toast.success('✅ Empresa actualizada correctamente')
         onOpenChange(false)
-        // Recargar la página para ver los cambios
         window.location.reload()
       } else {
         toast.error(result.error || 'Error al guardar')
@@ -186,16 +228,38 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
         </DialogHeader>
         
         {error ? (
-          <div className="py-8 text-center">
-            <div className="text-red-500 mb-3">⚠️ {error}</div>
-            <Button onClick={() => window.location.reload()} variant="outline">
-              Recargar página
-            </Button>
+          <div className="py-8 px-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+              <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-3" />
+              <h3 className="text-lg font-semibold text-red-700 mb-2">⚠️ {error}</h3>
+              {errorDetails && (
+                <div className="mt-3 p-3 bg-red-100 rounded-md text-left">
+                  <p className="text-sm text-red-600 font-mono break-all">{errorDetails}</p>
+                </div>
+              )}
+              <div className="flex justify-center gap-3 mt-5">
+                <Button 
+                  onClick={() => loadCompanyData(companyId!)} 
+                  variant="outline"
+                  className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reintentar
+                </Button>
+                <Button 
+                  onClick={() => window.location.reload()} 
+                  variant="outline"
+                >
+                  Recargar página
+                </Button>
+              </div>
+            </div>
           </div>
         ) : loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
-            <span className="ml-3 text-slate-600">Cargando datos de la empresa...</span>
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-10 w-10 text-blue-500 animate-spin mb-3" />
+            <p className="text-slate-600 font-medium">Cargando datos de la empresa...</p>
+            <p className="text-slate-400 text-sm mt-1">Por favor espera un momento</p>
           </div>
         ) : (
           <div className="space-y-5 p-2">

@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.21 - MODAL EDITAR EMPRESA CON DATOS Y ADMIN - 2026-09-03
+// v3.0.22 - MEJORAR ERROR HANDLING EN MODAL EDITAR - 2026-09-03
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.21',
+    version: 'v3.0.22',
     buildTime: '2026-09-03T07:30:00Z',
-    feature: 'MODAL_EDITAR_EMPRESA_DATOS_ADMIN',
+    feature: 'MODAL_EDITAR_ERROR_HANDLING_MEJORADO',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {
