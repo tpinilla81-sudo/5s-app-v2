@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.20 - BOTON EDITAR EN CONSTRUCTOR PANEL (ARCHIVO CORRECTO) - 2026-09-03
+// v3.0.21 - MODAL EDITAR EMPRESA CON DATOS Y ADMIN - 2026-09-03
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.20',
+    version: 'v3.0.21',
     buildTime: '2026-09-03T07:30:00Z',
-    feature: 'BOTON_EDITAR_CONSTRUCTOR_PANEL_CORRECTO',
+    feature: 'MODAL_EDITAR_EMPRESA_DATOS_ADMIN',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

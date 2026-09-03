@@ -4,19 +4,28 @@ import { useState, useEffect } from 'react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
+import { Badge } from '../ui/badge'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog'
-import { Loader2, Save, Building2 } from 'lucide-react'
+import { Loader2, Save, Building2, Users, Shield, Mail, Phone, Key } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface FullEditCompanyModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   companyId: string | null
+}
+
+interface AdminInfo {
+  id: string
+  name: string
+  email: string
+  role: string
+  joinedAt: string
 }
 
 export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEditCompanyModalProps) {
@@ -45,18 +54,30 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
     contactPhone: ''
   })
   
+  const [admin, setAdmin] = useState<AdminInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Cargar datos cuando se abre el modal
   useEffect(() => {
     if (open && companyId) {
       setLoading(true)
+      setError(null)
+      console.log('[FullEditModal] Cargando empresa:', companyId)
+      
       fetch(`/api/companies/${companyId}`, { credentials: 'include' })
-        .then(r => r.json())
-        .then(result => {
+        .then(async (r) => {
+          const result = await r.json()
+          console.log('[FullEditModal] Respuesta API:', result)
+          
+          if (!r.ok) {
+            throw new Error(result.error || `Error ${r.status}`)
+          }
+          
           const company = result.company || result
           if (company && company.name) {
+            console.log('[FullEditModal] Datos empresa cargados:', company.name)
             setData({
               name: company.name || '',
               description: company.description || '',
@@ -81,9 +102,35 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
               contactEmail: company.contactEmail || '',
               contactPhone: company.contactPhone || ''
             })
+
+            // Buscar administrador entre los miembros
+            if (company.members && Array.isArray(company.members)) {
+              const adminMember = company.members.find((m: any) => 
+                m.role === 'admin' || m.user?.role === 'admin'
+              )
+              if (adminMember && adminMember.user) {
+                console.log('[FullEditModal] Admin encontrado:', adminMember.user.name)
+                setAdmin({
+                  id: adminMember.user.id,
+                  name: adminMember.user.name,
+                  email: adminMember.user.email,
+                  role: adminMember.user.role,
+                  joinedAt: adminMember.joinedAt
+                })
+              } else {
+                console.log('[FullEditModal] No se encontró admin en miembros:', company.members.length, 'miembros')
+                setAdmin(null)
+              }
+            }
+          } else {
+            throw new Error('Datos de empresa inválidos')
           }
         })
-        .catch(err => console.error('Error loading company:', err))
+        .catch(err => {
+          console.error('[FullEditModal] Error cargando empresa:', err)
+          setError(err.message || 'Error al cargar datos')
+          toast.error('Error al cargar: ' + (err.message || 'Error desconocido'))
+        })
         .finally(() => setLoading(false))
     }
   }, [open, companyId])
@@ -96,6 +143,7 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
     
     setSaving(true)
     try {
+      console.log('[FullEditModal] Guardando empresa:', data.name)
       const res = await fetch(`/api/companies/${companyId}`, {
         method: 'PUT',
         credentials: 'include',
@@ -103,17 +151,19 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
         body: JSON.stringify(data)
       })
       
+      const result = await res.json()
+      console.log('[FullEditModal] Respuesta guardado:', result)
+      
       if (res.ok) {
         toast.success('✅ Empresa actualizada correctamente')
         onOpenChange(false)
         // Recargar la página para ver los cambios
         window.location.reload()
       } else {
-        const error = await res.json()
-        toast.error(error.error || 'Error al guardar')
+        toast.error(result.error || 'Error al guardar')
       }
     } catch (error) {
-      console.error('Error saving:', error)
+      console.error('[FullEditModal] Error saving:', error)
       toast.error('Error de conexión')
     }
     
@@ -130,21 +180,80 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
         <DialogHeader className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-6 rounded-t-lg -m-6 mb-4">
           <DialogTitle className="text-xl font-bold flex items-center gap-3">
             <Building2 className="h-6 w-6" />
-            ✏️ Editar Empresa: {data.name}
+            ✏️ Editar Empresa: {data.name || 'Cargando...'}
           </DialogTitle>
           <p className="text-blue-100 text-sm mt-1">Modifica todos los datos de la empresa</p>
         </DialogHeader>
         
-        {loading ? (
+        {error ? (
+          <div className="py-8 text-center">
+            <div className="text-red-500 mb-3">⚠️ {error}</div>
+            <Button onClick={() => window.location.reload()} variant="outline">
+              Recargar página
+            </Button>
+          </div>
+        ) : loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
-            <span className="ml-3 text-slate-600">Cargando datos...</span>
+            <span className="ml-3 text-slate-600">Cargando datos de la empresa...</span>
           </div>
         ) : (
           <div className="space-y-5 p-2">
+            
+            {/* 👤 SECCIÓN ADMINISTRADOR ASIGNADO */}
+            <section className="bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 rounded-lg p-4">
+              <h3 className="font-bold text-violet-700 mb-3 flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                👤 Administrador Asignado
+              </h3>
+              {admin ? (
+                <div className="bg-white rounded-lg p-4 border border-violet-100 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-violet-500" />
+                      <div>
+                        <p className="text-[10px] text-slate-500 uppercase">Nombre</p>
+                        <p className="font-semibold text-slate-800">{admin.name}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-violet-500" />
+                      <div>
+                        <p className="text-[10px] text-slate-500 uppercase">Email</p>
+                        <p className="font-medium text-slate-800">{admin.email}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-violet-100">
+                    <Badge className="bg-violet-100 text-violet-700 border-violet-300">
+                      <Key className="h-3 w-3 mr-1" />
+                      Rol: {admin.role === 'admin' ? 'Administrador' : admin.role}
+                    </Badge>
+                    <span className="text-xs text-slate-500">
+                      Asignado: {admin.joinedAt ? new Date(admin.joinedAt).toLocaleDateString('es-ES', { 
+                        day: '2-digit', 
+                        month: '2-digit', 
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : 'N/A'}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-orange-50 rounded-lg p-4 border border-orange-200 text-center">
+                  <Users className="h-8 w-8 text-orange-400 mx-auto mb-2" />
+                  <p className="text-orange-600 font-medium">Sin administrador asignado</p>
+                  <p className="text-orange-400 text-sm">Esta empresa no tiene un administrador asignado aún</p>
+                </div>
+              )}
+            </section>
+
             {/* DATOS BÁSICOS */}
             <section className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-              <h3 className="font-bold text-blue-700 mb-3">📋 Datos básicos</h3>
+              <h3 className="font-bold text-blue-700 mb-3 flex items-center gap-2">
+                📋 Datos básicos
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-slate-700 font-semibold text-sm">Nombre *</Label>
@@ -187,7 +296,9 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
 
             {/* DATOS FISCALES */}
             <section className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-              <h3 className="font-bold text-purple-700 mb-3">📋 Datos fiscales</h3>
+              <h3 className="font-bold text-purple-700 mb-3 flex items-center gap-2">
+                💰 Datos fiscales
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-slate-700 font-semibold text-sm">CIF / NIF</Label>
@@ -212,7 +323,9 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
 
             {/* DIRECCIÓN */}
             <section className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-              <h3 className="font-bold text-emerald-700 mb-3">📍 Dirección</h3>
+              <h3 className="font-bold text-emerald-700 mb-3 flex items-center gap-2">
+                📍 Dirección
+              </h3>
               <div className="space-y-3">
                 <div>
                   <Label className="text-slate-700 font-semibold text-sm">Dirección</Label>
@@ -246,7 +359,9 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
 
             {/* CONTACTO */}
             <section className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-              <h3 className="font-bold text-orange-700 mb-3">📞 Contacto</h3>
+              <h3 className="font-bold text-orange-700 mb-3 flex items-center gap-2">
+                📞 Contacto
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-slate-700 font-semibold text-sm">Teléfono</Label>
@@ -288,7 +403,9 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
 
             {/* FACTURACIÓN */}
             <section className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-              <h3 className="font-bold text-pink-700 mb-3">🧾 Facturación</h3>
+              <h3 className="font-bold text-pink-700 mb-3 flex items-center gap-2">
+                🧾 Facturación
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-slate-700 font-semibold text-sm">Razón social</Label>
@@ -344,7 +461,9 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
 
             {/* BANCARIO */}
             <section className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-              <h3 className="font-bold text-cyan-700 mb-3">🏦 Datos bancarios</h3>
+              <h3 className="font-bold text-cyan-700 mb-3 flex items-center gap-2">
+                🏦 Datos bancarios
+              </h3>
               <div className="max-w-md">
                 <Label className="text-slate-700 font-semibold text-sm">IBAN</Label>
                 <Input 

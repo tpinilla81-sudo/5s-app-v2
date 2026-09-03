@@ -1,0 +1,2002 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import { use5SStore } from '../../lib/store'
+     6→import { Button } from '../ui/button'
+     7→import { Input } from '../ui/input'
+     8→import { Label } from '../ui/label'
+     9→import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+    10→import {
+    11→ Select,
+    12→ SelectContent,
+    13→ SelectItem,
+    14→ SelectTrigger,
+    15→ SelectValue,
+    16→} from '../ui/select'
+    17→import { Badge } from '../ui/badge'
+    18→import {
+    19→ Table,
+    20→ TableBody,
+    21→ TableCell,
+    22→ TableHead,
+    23→ TableHeader,
+    24→ TableRow,
+    25→} from '../ui/table'
+    26→import {
+    27→ Dialog,
+    28→ DialogContent,
+    29→ DialogHeader,
+    30→ DialogTitle,
+    31→} from '../ui/dialog'
+    32→import {
+    33→ Crown,
+    34→ Building2,
+    35→ Users,
+    36→ CreditCard,
+    37→ Settings,
+    38→
+    39→ Plus,
+    40→ Edit3,
+    41→ Check,
+    42→ X,
+    43→ Loader2,
+    44→ Shield,
+    45→ Activity,
+    46→ TrendingUp,
+    47→ AlertTriangle,
+    48→ CheckCircle2,
+    49→ XCircle,
+    50→ Eye,
+    51→ EyeOff,
+    52→ BarChart3,
+    53→
+    54→ Zap,
+    55→ Save,
+    56→ Trash2,
+    57→ Key,
+    58→ BookOpen,
+    59→ Mail,
+    60→ Send,
+    61→ MailWarning,
+    62→ MapPin,
+    63→} from 'lucide-react'
+    64→import { toast } from 'sonner'
+    65→import TemplateManager from './TemplateManager'
+    66→import { FullEditCompanyModal } from './FullEditCompanyModal'
+    67→// Tablero5S removed — the board is defined and is what it is
+    68→
+    69→// ─── Types ───────────────────────────────────────────────────────────────────
+    70→
+    71→interface PlatformStats {
+    72→ totals: {
+    73→  companies: number
+    74→  activeCompanies: number
+    75→  users: number
+    76→  activeUsers: number
+    77→  projects: number
+    78→  activeProjects: number
+    79→  templates: number
+    80→  auditResults: number
+    81→  actions: number
+    82→  openActions: number
+    83→ }
+    84→ roleDistribution: Record<string, number>
+    85→ companies: Array<{
+    86→  id: string
+    87→  name: string
+    88→  description: string | null
+    89→  active: boolean
+    90→  createdAt: string
+    91→  projectCount: number
+    92→  memberCount: number
+    93→ }>
+    94→ recentUsers: Array<{
+    95→  id: string
+    96→  name: string
+    97→  email: string
+    98→  role: string
+    99→  active: boolean
+   100→  createdAt: string
+   101→ }>
+   102→ projects: Array<{
+   103→  id: string
+   104→  name: string
+   105→  description: string | null
+   106→  company: string
+   107→  companyId: string | null
+   108→  companyName: string | null
+   109→  active: boolean
+   110→  startDate: string
+   111→  createdAt: string
+   112→  memberCount: number
+   113→  zoneCount: number
+   114→ }>
+   115→ users: Array<{
+   116→  id: string
+   117→  name: string
+   118→  email: string
+   119→  role: string
+   120→  active: boolean
+   121→  createdAt: string
+   122→  companies: Array<{ id: string; name: string; role: string }>
+   123→  projects: Array<{ id: string; name: string; company: string; role: string }>
+   124→ }>
+   125→}
+   126→
+   127→interface Subscription {
+   128→ id: string
+   129→ companyId: string
+   130→ plan: string
+   131→ status: string
+   132→ maxUsers: number
+   133→ maxProjects: number
+   134→ price: number
+   135→ startDate: string
+   136→ endDate: string | null
+   137→ trialEndsAt: string | null
+   138→ notes: string | null
+   139→ createdAt: string
+   140→ updatedAt: string
+   141→ company?: { id: string; name: string; active: boolean }
+   142→}
+   143→
+   144→// ─── Constants ───────────────────────────────────────────────────────────────
+   145→
+   146→const ROLE_LABELS: Record<string, string> = {
+   147→ gestor: 'Gestor (Dueño)',
+   148→ admin: 'Admin de Empresa',
+   149→ gerente: 'Gerente',
+   150→ responsable: 'Responsable',
+   151→ empleado: 'Empleado',
+   152→ auditor: 'Auditor',
+   153→}
+   154→
+   155→const ROLE_COLORS: Record<string, string> = {
+   156→ gestor: 'bg-red-100 text-red-700 border-red-200',
+   157→ admin: 'bg-purple-100 text-purple-700 border-purple-200',
+   158→ gerente: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+   159→ responsable: 'bg-blue-100 text-blue-700 border-blue-200',
+   160→ empleado: 'bg-green-100 text-green-700 border-green-200',
+   161→ auditor: 'bg-orange-100 text-orange-700 border-orange-200',
+   162→}
+   163→
+   164→const SUBSCRIPTION_STATUS: Record<string, { label: string; color: string }> = {
+   165→ activa: { label: 'Activa', color: 'bg-green-100 text-green-700 border-green-200' },
+   166→ prueba: { label: 'Prueba', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+   167→ vencida: { label: 'Vencida', color: 'bg-red-100 text-red-700 border-red-200' },
+   168→ cancelada: { label: 'Cancelada', color: 'bg-gray-100 text-gray-700 border-gray-200' },
+   169→}
+   170→
+   171→const PLAN_LABELS: Record<string, string> = {
+   172→ gratuito: 'Gratuito',
+   173→ basico: 'Básico',
+   174→ profesional: 'Profesional',
+   175→ enterprise: 'Enterprise',
+   176→}
+   177→
+   178→const PLAN_COLORS: Record<string, string> = {
+   179→ gratuito: 'bg-gray-100 text-gray-700 border-gray-200',
+   180→ basico: 'bg-blue-100 text-blue-700 border-blue-200',
+   181→ profesional: 'bg-violet-100 text-violet-700 border-violet-200',
+   182→ enterprise: 'bg-amber-100 text-amber-700 border-amber-200',
+   183→}
+   184→
+   185→const PLAN_DEFAULTS: Record<string, { maxUsers: number; maxProjects: number; price: number }> = {
+   186→ gratuito: { maxUsers: 5, maxProjects: 1, price: 0 },
+   187→ basico: { maxUsers: 15, maxProjects: 3, price: 49 },
+   188→ profesional: { maxUsers: 50, maxProjects: 10, price: 149 },
+   189→ enterprise: { maxUsers: -1, maxProjects: -1, price: 299 },
+   190→}
+   191→
+   192→type ConstructorTab = 'empresas' | 'configuracion' | 'administracion'
+   193→
+   194→type ConfigSubTab = 'plantillas' | 'roles' | 'general' | 'zonificacion'
+   195→
+   196→// Permission display definitions for the matrix
+   197→const PROJECT_PERMISSION_LABELS: Record<string, string> = {
+   198→ view_board: 'Ver Tablero',
+   199→ view_progress: 'Ver Progreso',
+   200→ view_project: 'Ver Proyecto',
+   201→ edit_project: 'Editar Proyecto',
+   202→ manage_zones: 'Gestionar Zonas',
+   203→ view_team: 'Ver Equipo',
+   204→ add_members: 'Agregar Miembros',
+   205→ remove_members: 'Eliminar Miembros',
+   206→ change_roles: 'Cambiar Roles',
+   207→ manage_training: 'Gestionar Formación',
+   208→ delete_photos: 'Eliminar Fotos',
+   209→ delete_inventory: 'Eliminar Inventario',
+   210→ approve_audit: 'Aprobar Auditoría',
+   211→ delete_project: 'Eliminar Proyecto',
+   212→ reset_data: 'Reiniciar Datos',
+   213→ manage_templates: 'Gestionar Plantillas',
+   214→ skip_steps: 'Saltar Pasos',
+   215→ notify_audit: 'Notificar Auditoría',
+   216→ accept_audit_meeting: 'Aceptar Reunión',
+   217→}
+   218→
+   219→const PLATFORM_PERMISSION_LABELS: Record<string, string> = {
+   220→ platform_create_company: 'Crear Empresas',
+   221→ platform_edit_company: 'Editar Empresas',
+   222→ platform_delete_company: 'Eliminar Empresas',
+   223→ platform_view_companies: 'Ver Empresas',
+   224→ platform_activate_company: 'Activar/Desactivar',
+   225→ platform_assign_admin: 'Asignar Admin',
+   226→ platform_remove_admin: 'Quitar Admin',
+   227→ platform_reset_admin_pwd: 'Resetear Contraseña',
+   228→ platform_view_all_users: 'Ver Todos los Usuarios',
+   229→ platform_edit_users: 'Editar Usuarios',
+   230→ platform_manage_contracts: 'Gestionar Contratos',
+   231→ platform_view_contracts: 'Ver Contratos',
+   232→ platform_manage_subscriptions: 'Gestionar Suscripciones',
+   233→ platform_set_company_limits: 'Definir Límites',
+   234→ platform_config: 'Configurar Plataforma',
+   235→ platform_manage_templates: 'Gestionar Plantillas',
+   236→ platform_view_stats: 'Ver Estadísticas',
+   237→ platform_send_notifications: 'Enviar Notificaciones',
+   238→}
+   239→
+   240→// ─── Component ───────────────────────────────────────────────────────────────
+   241→
+   242→export default function ConstructorPanel() {
+   243→ const { setCurrentView, fetchProjects, fetchCompanies, projects, setCurrentProject, currentProject, currentUser } = use5SStore()
+   244→ const [activeTab, setActiveTab] = useState<ConstructorTab>('empresas')
+   245→ const [configSubTab, setConfigSubTab] = useState<ConfigSubTab>('plantillas')
+   246→
+   247→ // v2.108 — Zonificación: configuración global del algoritmo (maxM2PorZona, prefijo, textos del wizard)
+   248→ const [zoneConfig, setZoneConfig] = useState<{
+   249→  maxM2PorZona: number
+   250→  questionLabels: { zonas: string; prefijo: string }
+   251→  defaultPrefix: string
+   252→ } | null>(null)
+   253→ const [zoneConfigLoading, setZoneConfigLoading] = useState(true)
+   254→ const [zoneConfigSaving, setZoneConfigSaving] = useState(false)
+   255→ const [zoneConfigSaved, setZoneConfigSaved] = useState(false)
+   256→
+   257→ // Platform stats
+   258→ const [stats, setStats] = useState<PlatformStats | null>(null)
+   259→ const [isLoadingStats, setIsLoadingStats] = useState(false)
+   260→
+   261→ // Users management
+   262→ const [users, setUsers] = useState<PlatformStats['users']>([])
+   263→ const [isLoadingUsers, setIsLoadingUsers] = useState(false)
+   264→ const [editingUser, setEditingUser] = useState<string | null>(null)
+   265→ const [editUserData, setEditUserData] = useState({ name: '', email: '', role: '', active: true })
+   266→ const [filterCompany, setFilterCompany] = useState<string>('')
+   267→ const [filterRole, setFilterRole] = useState<string>('')
+   268→
+   269→ // Companies management
+   270→ const [showNewCompany, setShowNewCompany] = useState(false)
+   271→ const [editingCompany, setEditingCompany] = useState<string | null>(null)
+   272→ const [editCompanyData, setEditCompanyData] = useState({ name: '', description: '', active: true })
+   273→ const [isCreatingCompany, setIsCreatingCompany] = useState(false)
+   274→
+   275→ // New company form
+   276→ const [newCompanyName, setNewCompanyName] = useState('')
+   277→ const [newCompanyDesc, setNewCompanyDesc] = useState('')
+   278→ const [newCompanyNif, setNewCompanyNif] = useState('')
+   279→ const [newCompanySector, setNewCompanySector] = useState('')
+   280→ const [newCompanyCity, setNewCompanyCity] = useState('')
+   281→ const [newCompanyPhone, setNewCompanyPhone] = useState('')
+   282→ const [adminMode, setAdminMode] = useState<'create' | 'assign'>('create')
+   283→ const [newAdminName, setNewAdminName] = useState('')
+   284→ const [newAdminEmail, setNewAdminEmail] = useState('')
+   285→ const [newAdminPassword, setNewAdminPassword] = useState('')
+   286→ const [assignUserId, setAssignUserId] = useState('')
+   287→ const [assignUserSearch, setAssignUserSearch] = useState('')
+   288→ const [assignUserResults, setAssignUserResults] = useState<Array<{ id: string; name: string; email: string; role: string }>>([])
+   289→ const [newSubPlan, setNewSubPlan] = useState('gratuito')
+   290→ const [newSubStatus, setNewSubStatus] = useState('activa')
+   291→ const [newSubMaxUsers, setNewSubMaxUsers] = useState(5)
+   292→ const [newSubMaxProjects, setNewSubMaxProjects] = useState(1)
+   293→ const [newSubPrice, setNewSubPrice] = useState(0)
+   294→ const [newSubEndDate, setNewSubEndDate] = useState('')
+   295→ const [newSubTrialEndsAt, setNewSubTrialEndsAt] = useState('')
+   296→ const [newSubNotes, setNewSubNotes] = useState('')
+   297→
+   298→ // Subscriptions
+   299→ const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
+   300→ const [isLoadingSubs, setIsLoadingSubs] = useState(false)
+   301→ const [editingSub, setEditingSub] = useState<Subscription | null>(null)
+   302→ const [editSubData, setEditSubData] = useState<any>({})
+   303→
+   304→ // Company admins map: companyId → admin user info
+   305→ const [companyAdmins, setCompanyAdmins] = useState<Record<string, { name: string; email: string }>>({})
+   306→
+   307→ // Email sending state
+   308→ const [sendingEmailFor, setSendingEmailFor] = useState<string | null>(null) // companyId being sent
+   309→ const [emailConfigStatus, setEmailConfigStatus] = useState<'checking' | 'ok' | 'not_configured'>('checking')
+   310→
+   311→ // Delete company confirmation
+   312→ const [deletingCompany, setDeletingCompany] = useState<{ id: string; name: string; projectCount: number } | null>(null)
+   313→
+   314→// ✏️ Modal edición completa empresa
+   315→const [showFullEditModal, setShowFullEditModal] = useState(false)
+   316→const [fullEditCompanyId, setFullEditCompanyId] = useState<string | null>(null)
+   317→
+   318→
+   319→ // Gestor profile edit
+   320→ const [showGestorProfile, setShowGestorProfile] = useState(false)
+   321→ const [gestorProfileData, setGestorProfileData] = useState({ name: '', email: '', currentPassword: '', newPassword: '', confirmNewPassword: '' })
+   322→ const [isSavingProfile, setIsSavingProfile] = useState(false)
+   323→ const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+   324→
+   325→ // Password reset
+   326→ const [resetPasswordUserId, setResetPasswordUserId] = useState<string | null>(null)
+   327→ const [newPassword, setNewPassword] = useState('')
+   328→ const [showPassword, setShowPassword] = useState(false)
+   329→
+   330→ // Delete user confirmation
+   331→ const [deletingUser, setDeletingUser] = useState<{ id: string; name: string; email: string; role: string } | null>(null)
+   332→
+   333→ // Permissions
+   334→ const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>>>({})
+   335→ const [isLoadingPermissions, setIsLoadingPermissions] = useState(false)
+   336→ const [savingPermissions, setSavingPermissions] = useState(false)
+   337→
+   338→ // ─── Data loading ────────────────────────────────────────────────────────
+   339→ const loadStats = useCallback(async () => {
+   340→  setIsLoadingStats(true)
+   341→  try {
+   342→   const res = await fetch('/api/platform-stats')
+   343→   const data = await res.json()
+   344→   if (data.success) {
+   345→    setStats(data.data)
+   346→    setUsers(data.data.users || [])
+   347→   }
+   348→  } catch (error) {
+   349→   console.error('Error loading platform stats:', error)
+   350→  } finally {
+   351→   setIsLoadingStats(false)
+   352→  }
+   353→ }, [])
+   354→
+   355→ const loadUsers = useCallback(async () => {
+   356→  setIsLoadingUsers(true)
+   357→  try {
+   358→   const res = await fetch('/api/users')
+   359→   const data = await res.json()
+   360→   if (data.success) {
+   361→    setUsers(data.users || [])
+   362→   }
+   363→  } catch (error) {
+   364→   console.error('Error loading users:', error)
+   365→  } finally {
+   366→   setIsLoadingUsers(false)
+   367→  }
+   368→ }, [])
+   369→
+   370→ const loadSubscriptions = useCallback(async () => {
+   371→  setIsLoadingSubs(true)
+   372→  try {
+   373→   const res = await fetch('/api/subscriptions')
+   374→   const data = await res.json()
+   375→   if (data.success) {
+   376→    setSubscriptions(data.subscriptions || [])
+   377→   }
+   378→  } catch (error) {
+   379→   console.error('Error loading subscriptions:', error)
+   380→  } finally {
+   381→   setIsLoadingSubs(false)
+   382→  }
+   383→ }, [])
+   384→
+   385→ const loadPermissions = useCallback(async () => {
+   386→  setIsLoadingPermissions(true)
+   387→  try {
+   388→   const res = await fetch('/api/permissions')
+   389→   const data = await res.json()
+   390→   if (data.permissions) {
+   391→    setPermissions(data.permissions)
+   392→   }
+   393→  } catch (error) {
+   394→   console.error('Error loading permissions:', error)
+   395→  } finally {
+   396→   setIsLoadingPermissions(false)
+   397→  }
+   398→ }, [])
+   399→
+   400→ const loadCompanyAdmins = useCallback(async () => {
+   401→  if (!stats?.companies) return
+   402→  try {
+   403→   const adminMap: Record<string, { name: string; email: string }> = {}
+   404→   for (const company of stats.companies) {
+   405→    const res = await fetch(`/api/companies/${company.id}/members`)
+   406→    const data = await res.json()
+   407→    if (data.success && data.members) {
+   408→     const adminMember = data.members.find((m: any) => m.role === 'admin_empresa')
+   409→     if (adminMember?.user) {
+   410→      adminMap[company.id] = { name: adminMember.user.name, email: adminMember.user.email }
+   411→     }
+   412→    }
+   413→   }
+   414→   setCompanyAdmins(adminMap)
+   415→  } catch (error) {
+   416→   console.error('Error loading company admins:', error)
+   417→  }
+   418→ }, [stats?.companies])
+   419→
+   420→ // v2.108 — Carga la configuración global del algoritmo de zonificación
+   421→ const loadZoneConfig = useCallback(async () => {
+   422→  setZoneConfigLoading(true)
+   423→  try {
+   424→   const res = await fetch('/api/zone-config')
+   425→   if (res.ok) {
+   426→    const data = await res.json()
+   427→    setZoneConfig({
+   428→     maxM2PorZona: data.maxM2PorZona,
+   429→     questionLabels: data.questionLabels,
+   430→     defaultPrefix: data.defaultPrefix,
+   431→    })
+   432→   }
+   433→  } catch (e) {
+   434→   console.error('loadZoneConfig error:', e)
+   435→  } finally {
+   436→   setZoneConfigLoading(false)
+   437→  }
+   438→ }, [])
+   439→
+   440→ const handleSaveZoneConfig = async () => {
+   441→  if (!zoneConfig) return
+   442→  setZoneConfigSaving(true)
+   443→  try {
+   444→   const res = await fetch('/api/zone-config', {
+   445→    method: 'PUT',
+   446→    headers: { 'Content-Type': 'application/json' },
+   447→    body: JSON.stringify(zoneConfig),
+   448→   })
+   449→   if (res.ok) {
+   450→    setZoneConfigSaved(true)
+   451→    setTimeout(() => setZoneConfigSaved(false), 2500)
+   452→   } else {
+   453→    const data = await res.json()
+   454→    toast.error(data.error || 'Error al guardar configuración')
+   455→   }
+   456→  } catch (e) {
+   457→   toast.error('Error de conexión al guardar configuración')
+   458→  } finally {
+   459→   setZoneConfigSaving(false)
+   460→  }
+   461→ }
+   462→
+   463→ useEffect(() => {
+   464→  loadStats()
+   465→  loadPermissions() // Pre-load permissions so they're always available
+   466→  loadZoneConfig() // v2.108 — pre-carga config de zonificación
+   467→  // Run schema migration once on load (adds missing columns like invitationEmailSent)
+   468→  fetch('/api/migrate/schema', { method: 'POST' }).catch(() => {})
+   469→  // Check email configuration status
+   470→  fetch('/api/email/config')
+   471→   .then(r => r.json())
+   472→   .then(data => setEmailConfigStatus(data.configured ? 'ok' : 'not_configured'))
+   473→   .catch(() => setEmailConfigStatus('not_configured'))
+   474→ }, [loadStats, loadPermissions, loadZoneConfig])
+   475→
+   476→ useEffect(() => {
+   477→  if (activeTab === 'administracion') {
+   478→   loadUsers()
+   479→   loadSubscriptions()
+   480→  }
+   481→ }, [activeTab, loadUsers, loadSubscriptions])
+   482→
+   483→ // v2.108.1 — Re-carga config de zonificación al abrir el sub-tab (por si la
+   484→ // migración acababa de crear la tabla y la carga inicial había fallado)
+   485→ useEffect(() => {
+   486→  if (activeTab === 'configuracion' && configSubTab === 'zonificacion') {
+   487→   loadZoneConfig()
+   488→  }
+   489→ }, [activeTab, configSubTab, loadZoneConfig])
+   490→
+   491→ useEffect(() => {
+   492→  if (stats?.companies && stats.companies.length > 0 && activeTab === 'empresas') {
+   493→   loadCompanyAdmins()
+   494→  }
+   495→ }, [stats?.companies, activeTab, loadCompanyAdmins])
+   496→
+   497→ // ─── Company actions ────────────────────────────────────────────────────
+   498→ const resetNewCompanyForm = () => {
+   499→  setNewCompanyName('')
+   500→  setNewCompanyDesc('')
+   501→  setNewCompanyNif('')
+   502→  setNewCompanySector('')
+   503→  setNewCompanyCity('')
+   504→  setNewCompanyPhone('')
+   505→  setAdminMode('create')
+   506→  setNewAdminName('')
+   507→  setNewAdminEmail('')
+   508→  setNewAdminPassword('')
+   509→  setAssignUserId('')
+   510→  setAssignUserSearch('')
+   511→  setAssignUserResults([])
+   512→  setNewSubPlan('gratuito')
+   513→  setNewSubStatus('activa')
+   514→  const defaults = PLAN_DEFAULTS['gratuito']
+   515→  setNewSubMaxUsers(defaults.maxUsers)
+   516→  setNewSubMaxProjects(defaults.maxProjects)
+   517→  setNewSubPrice(defaults.price)
+   518→  setNewSubEndDate('')
+   519→  setNewSubTrialEndsAt('')
+   520→  setNewSubNotes('')
+   521→ }
+   522→
+   523→ const handleCreateCompanyFull = async () => {
+   524→  if (!newCompanyName.trim()) return
+   525→  setIsCreatingCompany(true)
+   526→  let companyId: string | null = null
+   527→  try {
+   528→   // Step 1: Create company
+   529→   const companyRes = await fetch('/api/companies', {
+   530→    method: 'POST',
+   531→    headers: { 'Content-Type': 'application/json' },
+   532→    body: JSON.stringify({ name: newCompanyName, description: newCompanyDesc || undefined, nif: newCompanyNif || undefined, sector: newCompanySector || undefined, city: newCompanyCity || undefined, phone: newCompanyPhone || undefined }),
+   533→   })
+   534→   const companyData = await companyRes.json()
+   535→   if (!companyRes.ok) {
+   536→    toast.error('Error al crear empresa', { description: companyData.error || 'Error desconocido', duration: 5000 })
+   537→    return
+   538→   }
+   539→   companyId = companyData.company?.id || companyData.id
+   540→
+   541→   // Step 2: Create or assign admin
+   542→   let adminUserId: string | null = null
+   543→   if (adminMode === 'create') {
+   544→    if (!newAdminName.trim() || !newAdminEmail.trim() || !newAdminPassword.trim()) {
+   545→     toast.warning('Datos incompletos', { description: 'Complete los datos del administrador', duration: 4000 })
+   546→     // Company was created but admin data is missing — still close dialog and refresh
+   547→     setShowNewCompany(false)
+   548→     resetNewCompanyForm()
+   549→     await loadStats()
+   550→     await fetchCompanies()
+   551→     return
+   552→    }
+   553→    // Create user with role 'admin' via /api/users
+   554→    const userRes = await fetch('/api/users', {
+   555→     method: 'POST',
+   556→     headers: { 'Content-Type': 'application/json' },
+   557→     body: JSON.stringify({
+   558→      name: newAdminName,
+   559→      email: newAdminEmail,
+   560→      password: newAdminPassword,
+   561→      role: 'admin',
+   562→      active: true,
+   563→     }),
+   564→    })
+   565→    const userData = await userRes.json()
+   566→    if (!userRes.ok) {
+   567→     toast.error('Error al crear admin', { description: userData.error || 'Error desconocido', duration: 5000 })
+   568→     // Company was created but admin creation failed — still close dialog and refresh
+   569→     setShowNewCompany(false)
+   570→     resetNewCompanyForm()
+   571→     await loadStats()
+   572→     await fetchCompanies()
+   573→     return
+   574→    }
+   575→    adminUserId = userData.user?.id
+   576→   } else {
+   577→    // Assign existing user
+   578→    if (!assignUserId) {
+   579→     toast.warning('Seleccionar usuario', { description: 'Seleccione un usuario para asignar como administrador', duration: 4000 })
+   580→     setShowNewCompany(false)
+   581→     resetNewCompanyForm()
+   582→     await loadStats()
+   583→     await fetchCompanies()
+   584→     return
+   585→    }
+   586→    adminUserId = assignUserId
+   587→    // Update user role to 'admin' if not already
+   588→    const existingUser = users.find(u => u.id === assignUserId)
+   589→    if (existingUser && existingUser.role !== 'admin') {
+   590→     await fetch('/api/users', {
+   591→      method: 'PUT',
+   592→      headers: { 'Content-Type': 'application/json' },
+   593→      body: JSON.stringify({ id: assignUserId, role: 'admin' }),
+   594→     })
+   595→    }
+   596→   }
+   597→
+   598→   // Step 3: Add admin to company as admin_empresa
+   599→   if (adminUserId && companyId) {
+   600→    const memberRes = await fetch(`/api/companies/${companyId}/members`, {
+   601→     method: 'POST',
+   602→     headers: { 'Content-Type': 'application/json' },
+   603→     body: JSON.stringify({ userId: adminUserId, role: 'admin_empresa' }),
+   604→    })
+   605→    if (!memberRes.ok) {
+   606→     const memberData = await memberRes.json()
+   607→     console.error('Error adding admin to company:', memberData.error)
+   608→    }
+   609→   }
+   610→
+   611→   // Step 4: Create subscription
+   612→   if (companyId) {
+   613→    const subRes = await fetch('/api/subscriptions', {
+   614→     method: 'POST',
+   615→     headers: { 'Content-Type': 'application/json' },
+   616→     body: JSON.stringify({
+   617→      companyId,
+   618→      plan: newSubPlan,
+   619→      status: newSubStatus,
+   620→      maxUsers: newSubMaxUsers,
+   621→      maxProjects: newSubMaxProjects,
+   622→      price: newSubPrice,
+   623→      endDate: newSubEndDate || undefined,
+   624→      trialEndsAt: newSubTrialEndsAt || undefined,
+   625→      notes: newSubNotes || undefined,
+   626→     }),
+   627→    })
+   628→    if (!subRes.ok) {
+   629→     console.error('Error creating subscription')
+   630→    }
+   631→   }
+   632→
+   633→   // Note: Welcome email is NOT sent automatically.
+   634→   // The gestor can send it manually using the "Enviar Email" button on the company card.
+   635→
+   636→   setShowNewCompany(false)
+   637→   resetNewCompanyForm()
+   638→   await loadStats()
+   639→   await fetchCompanies()
+   640→  } catch (error) {
+   641→   console.error('Error creating company with admin:', error)
+   642→   toast.error('Error al crear empresa', { description: 'Revise la consola para detalles', duration: 5000 })
+   643→   // Still refresh data even on error — the company might have been created
+   644→   await loadStats()
+   645→   await fetchCompanies()
+   646→  } finally {
+   647→   setIsCreatingCompany(false)
+   648→  }
+   649→ }
+   650→
+   651→ const handleUpdateCompany = async (companyId: string) => {
+   652→  try {
+   653→   const res = await fetch(`/api/companies/${companyId}`, {
+   654→    method: 'PUT',
+   655→    headers: { 'Content-Type': 'application/json' },
+   656→    body: JSON.stringify(editCompanyData),
+   657→   })
+   658→   if (res.ok) {
+   659→    setEditingCompany(null)
+   660→    await loadStats()
+   661→    await fetchCompanies()
+   662→   } else {
+   663→    const data = await res.json()
+   664→    toast.error('Error al actualizar', { description: data.error || 'Error desconocido', duration: 5000 })
+   665→   }
+   666→  } catch (error) {
+   667→   console.error('Error updating company:', error)
+   668→  }
+   669→ }
+   670→
+   671→ const handleToggleCompanyActive = async (companyId: string, currentActive: boolean) => {
+   672→  try {
+   673→   const res = await fetch(`/api/companies/${companyId}`, {
+   674→    method: 'PUT',
+   675→    headers: { 'Content-Type': 'application/json' },
+   676→    body: JSON.stringify({ active: !currentActive }),
+   677→   })
+   678→   if (res.ok) {
+   679→    await loadStats()
+   680→    await fetchCompanies()
+   681→   }
+   682→  } catch (error) {
+   683→   console.error('Error toggling company active:', error)
+   684→  }
+   685→ }
+   686→
+   687→ const handleDeleteCompany = async (companyId: string) => {
+   688→  try {
+   689→   const res = await fetch(`/api/companies/${companyId}`, {
+   690→    method: 'DELETE',
+   691→   })
+   692→   const data = await res.json()
+   693→   if (res.ok) {
+   694→    setDeletingCompany(null)
+   695→    await loadStats()
+   696→    await fetchCompanies()
+   697→    await loadCompanyAdmins()
+   698→    await loadUsers() // Refresh users list since admins may have been deleted
+   699→    toast.success('Empresa eliminada', { description: data.message || 'La empresa ha sido eliminada', duration: 4000 })
+   700→   } else {
+   701→    toast.error('Error al eliminar', { description: data.error || 'Error desconocido', duration: 5000 })
+   702→   }
+   703→  } catch (error) {
+   704→   console.error('Error deleting company:', error)
+   705→   toast.error('Error', { description: 'Error al eliminar la empresa', duration: 5000 })
+   706→  }
+   707→ }
+   708→
+   709→ // ─── Email sending actions ────────────────────────────────────────────────
+   710→const handleSendInvitationEmail = async (companyId: string) => {
+   711→  const company = stats?.companies.find(c => c.id === companyId)
+   712→  if (!company) return
+   713→
+   714→  const admin = companyAdmins[companyId]
+   715→  if (!admin) {
+   716→   toast.warning('Sin administrador', { description: 'Esta empresa no tiene administrador asignado', duration: 4000 })
+   717→   return
+   718→  }
+   719→
+   720→  setSendingEmailFor(companyId)
+   721→  try {
+   722→   const res = await fetch('/api/email', {
+   723→    method: 'POST',
+   724→    headers: { 'Content-Type': 'application/json' },
+   725→    body: JSON.stringify({
+   726→     type: 'admin_welcome',
+   727→     companyId,
+   728→     adminName: admin.name,
+   729→     adminEmail: admin.email,
+   730→     adminPassword: '', // Password not stored — email will say "contact gestor"
+   731→     companyName: company.name,
+   732→     gestorEmail: currentUser?.email || undefined, // CC to gestor
+   733→    }),
+   734→   })
+   735→   const data = await res.json()
+   736→   if (data.success) {
+   737→    if (data.testingMode) {
+   738→     toast.success('Email enviado (modo prueba)', {
+   739→      description: data.message || `En modo prueba, el email se envió a tu dirección en lugar de a ${admin.email}. Para enviar a otros, verifica un dominio en resend.com/domains.`,
+   740→      duration: 8000,
+   741→     })
+   742→    } else {
+   743→     toast.success('Email enviado', {
+   744→      description: `Invitación enviada a ${admin.email} con copia a ${currentUser?.email}`,
+   745→      duration: 5000,
+   746→     })
+   747→    }
+   748→    // Reload stats to refresh invitationEmailSent flag
+   749→    await loadStats()
+   750→    await loadCompanyAdmins()
+   751→   } else {
+   752→    const errorMsg = data.error || 'Error al enviar el email'
+   753→    const isConfigError = errorMsg.includes('RESEND_API_KEY') || errorMsg.includes('API key')
+   754→    if (isConfigError) {
+   755→     toast.error('Email no configurado', {
+   756→      description: 'La API key de Resend no está configurada en Vercel. Ve a Vercel → Settings → Environment Variables y añade RESEND_API_KEY con una clave válida (empieza con "re_").',
+   757→      duration: 10000,
+   758→     })
+   759→     setEmailConfigStatus('not_configured')
+   760→    } else {
+   761→     toast.error('Error al enviar email', {
+   762→      description: errorMsg,
+   763→      duration: 6000,
+   764→     })
+   765→    }
+   766→   }
+   767→  } catch (error) {
+   768→   console.error('Error sending invitation email:', error)
+   769→   toast.error('Error de conexión', {
+   770→    description: 'No se pudo conectar con el servidor para enviar el email.',
+   771→    duration: 5000,
+   772→   })
+   773→  } finally {
+   774→   setSendingEmailFor(null)
+   775→  }
+   776→ }
+   777→
+   778→ // ─── Gestor profile actions ─────────────────────────────────────────────
+   779→const handleSaveGestorProfile = async () => {
+   780→  if (!currentUser) return
+   781→  setIsSavingProfile(true)
+   782→  setProfileMessage(null)
+   783→
+   784→  try {
+   785→    // Validate email
+   786→    if (!gestorProfileData.email.trim()) {
+   787→      setProfileMessage({ type: 'error', text: 'El email no puede estar vacío' })
+   788→      setIsSavingProfile(false)
+   789→      return
+   790→    }
+   791→
+   792→    // Validate name
+   793→    if (!gestorProfileData.name.trim()) {
+   794→      setProfileMessage({ type: 'error', text: 'El nombre no puede estar vacío' })
+   795→      setIsSavingProfile(false)
+   796→      return
+   797→    }
+   798→
+   799→    // If changing password, validate
+   800→    if (gestorProfileData.newPassword) {
+   801→      if (gestorProfileData.newPassword.length < 6) {
+   802→        setProfileMessage({ type: 'error', text: 'La nueva contraseña debe tener al menos 6 caracteres' })
+   803→        setIsSavingProfile(false)
+   804→        return
+   805→      }
+   806→      if (gestorProfileData.newPassword !== gestorProfileData.confirmNewPassword) {
+   807→        setProfileMessage({ type: 'error', text: 'Las contraseñas no coinciden' })
+   808→        setIsSavingProfile(false)
+   809→        return
+   810→      }
+   811→      // Verify current password
+   812→      if (!gestorProfileData.currentPassword) {
+   813→        setProfileMessage({ type: 'error', text: 'Debes introducir tu contraseña actual para cambiarla' })
+   814→        setIsSavingProfile(false)
+   815→        return
+   816→      }
+   817→      // Verify current password using dedicated verify endpoint
+   818→      try {
+   819→        const verifyRes = await fetch('/api/users/verify-password', {
+   820→          method: 'POST',
+   821→          headers: { 'Content-Type': 'application/json' },
+   822→          body: JSON.stringify({ userId: currentUser.id, password: gestorProfileData.currentPassword }),
+   823→        })
+   824→        const verifyData = await verifyRes.json()
+   825→        if (!verifyData.valid) {
+   826→          setProfileMessage({ type: 'error', text: 'La contraseña actual es incorrecta' })
+   827→          setIsSavingProfile(false)
+   828→          return
+   829→        }
+   830→      } catch (verifyErr) {
+   831→        console.error('Password verification error:', verifyErr)
+   832→        setProfileMessage({ type: 'error', text: 'Error al verificar la contraseña' })
+   833→        setIsSavingProfile(false)
+   834→        return
+   835→      }
+   836→    }
+   837→
+   838→    // Update user
+   839→    const updatePayload: Record<string, unknown> = {
+   840→      id: currentUser.id,
+   841→      name: gestorProfileData.name.trim(),
+   842→      email: gestorProfileData.email.trim().toLowerCase(),
+   843→    }
+   844→    if (gestorProfileData.newPassword) {
+   845→      updatePayload.password = gestorProfileData.newPassword
+   846→    }
+   847→
+   848→    const res = await fetch('/api/users', {
+   849→      method: 'PUT',
+   850→      headers: { 'Content-Type': 'application/json' },
+   851→      body: JSON.stringify(updatePayload),
+   852→    })
+   853→    const data = await res.json()
+   854→
+   855→    if (data.success) {
+   856→      // Update local store properly using setState to trigger re-render
+   857→      use5SStore.setState(state => {
+   858→        if (state.currentUser) {
+   859→          state.currentUser.name = gestorProfileData.name.trim()
+   860→          state.currentUser.email = gestorProfileData.email.trim().toLowerCase()
+   861→        }
+   862→        return state
+   863→      })
+   864→      setProfileMessage({ type: 'success', text: 'Perfil actualizado correctamente' })
+   865→      setTimeout(() => {
+   866→        setShowGestorProfile(false)
+   867→        setProfileMessage(null)
+   868→      }, 2000)
+   869→    } else {
+   870→      setProfileMessage({ type: 'error', text: data.error || 'Error al actualizar el perfil' })
+   871→    }
+   872→  } catch (error) {
+   873→    console.error('Error updating gestor profile:', error)
+   874→    setProfileMessage({ type: 'error', text: 'Error de conexión al guardar' })
+   875→  } finally {
+   876→    setIsSavingProfile(false)
+   877→  }
+   878→ }
+   879→
+   880→ // ─── Subscription actions ─────────────────────────────────────────────
+   881→ const handleUpdateSubscription = async () => {
+   882→  if (!editingSub) return
+   883→  try {
+   884→   const res = await fetch(`/api/subscriptions/${editingSub.id}`, {
+   885→    method: 'PUT',
+   886→    headers: { 'Content-Type': 'application/json' },
+   887→    body: JSON.stringify(editSubData),
+   888→   })
+   889→   if (res.ok) {
+   890→    setEditingSub(null)
+   891→    setEditSubData({})
+   892→    await loadSubscriptions()
+   893→   } else {
+   894→    const data = await res.json()
+   895→    toast.error('Error de suscripción', { description: data.error || 'Error desconocido', duration: 5000 })
+   896→   }
+   897→  } catch (error) {
+   898→   console.error('Error updating subscription:', error)
+   899→  }
+   900→ }
+   901→
+   902→ // ─── User actions ────────────────────────────────────────────────────────
+   903→ const handleUpdateUser = async (userId: string) => {
+   904→  try {
+   905→   // Validate email if changing
+   906→   if (editUserData.email && !editUserData.email.trim()) {
+   907→    toast.warning('Email vacío', { description: 'El email no puede estar vacío', duration: 4000 })
+   908→    return
+   909→   }
+   910→   const res = await fetch('/api/users', {
+   911→    method: 'PUT',
+   912→    headers: { 'Content-Type': 'application/json' },
+   913→    body: JSON.stringify({ id: userId, ...editUserData }),
+   914→   })
+   915→   if (res.ok) {
+   916→    setEditingUser(null)
+   917→    await loadUsers()
+   918→    await loadStats()
+   919→    // If the updated user is the current gestor, update the store too
+   920→    if (currentUser && userId === currentUser.id) {
+   921→     const store = use5SStore.getState()
+   922→     if (store.currentUser) {
+   923→      if (editUserData.name) store.currentUser.name = editUserData.name
+   924→      if (editUserData.email) store.currentUser.email = editUserData.email.trim().toLowerCase()
+   925→     }
+   926→    }
+   927→   } else {
+   928→    const data = await res.json()
+   929→    toast.error('Error al actualizar', { description: data.error || 'Error desconocido', duration: 5000 })
+   930→   }
+   931→  } catch (error) {
+   932→   console.error('Error updating user:', error)
+   933→  }
+   934→ }
+   935→
+   936→ const handleToggleActive = async (userId: string, currentActive: boolean) => {
+   937→  try {
+   938→   const res = await fetch('/api/users', {
+   939→    method: 'PUT',
+   940→    headers: { 'Content-Type': 'application/json' },
+   941→    body: JSON.stringify({ id: userId, active: !currentActive }),
+   942→   })
+   943→   if (res.ok) {
+   944→    await loadUsers()
+   945→    await loadStats()
+   946→   }
+   947→  } catch (error) {
+   948→   console.error('Error toggling user active:', error)
+   949→  }
+   950→ }
+   951→
+   952→ const handleResetPassword = async (userId: string) => {
+   953→  if (!newPassword || newPassword.length < 6) {
+   954→   toast.warning('Contraseña corta', { description: 'La contraseña debe tener al menos 6 caracteres', duration: 4000 })
+   955→   return
+   956→  }
+   957→  try {
+   958→   const res = await fetch('/api/users', {
+   959→    method: 'PUT',
+   960→    headers: { 'Content-Type': 'application/json' },
+   961→    body: JSON.stringify({ id: userId, password: newPassword }),
+   962→   })
+   963→   if (res.ok) {
+   964→    setResetPasswordUserId(null)
+   965→    setNewPassword('')
+   966→    toast.success('Contraseña actualizada', { description: 'La contraseña se ha actualizado correctamente', duration: 3000 })
+   967→   }
+   968→  } catch (error) {
+   969→   console.error('Error resetting password:', error)
+   970→  }
+   971→ }
+   972→
+   973→ const handleDeleteUser = async (userId: string) => {
+   974→  try {
+   975→   const res = await fetch(`/api/users?id=${userId}`, { method: 'DELETE' })
+   976→   const data = await res.json()
+   977→   if (res.ok) {
+   978→    setDeletingUser(null)
+   979→    await loadUsers()
+   980→    await loadStats()
+   981→   } else {
+   982→    toast.error('Error al eliminar', { description: data.error || 'Error desconocido', duration: 5000 })
+   983→   }
+   984→  } catch (error) {
+   985→   console.error('Error deleting user:', error)
+   986→   toast.error('Error', { description: 'Error al eliminar usuario', duration: 5000 })
+   987→  }
+   988→ }
+   989→
+   990→ // ─── Assign user search ──────────────────────────────────────────────
+   991→ const handleSearchUsers = async (query: string) => {
+   992→  setAssignUserSearch(query)
+   993→  if (query.length < 3) {
+   994→   setAssignUserResults([])
+   995→   return
+   996→  }
+   997→  try {
+   998→   const res = await fetch(`/api/users?search=${encodeURIComponent(query)}`)
+   999→   const data = await res.json()
+  1000→   if (data.success) {
+  1001→    setAssignUserResults(data.users.map((u: any) => ({ id: u.id, name: u.name, email: u.email, role: u.role })))
+  1002→   }
+  1003→  } catch (error) {
+  1004→   console.error('Error searching users:', error)
+  1005→  }
+  1006→ }
+  1007→
+  1008→ // ─── Permissions actions ─────────────────────────────────────────────
+  1009→ const handleTogglePermission = (role: string, permission: string) => {
+  1010→  setPermissions(prev => ({
+  1011→   ...prev,
+  1012→   [role]: {
+  1013→    ...(prev[role] || {}),
+  1014→    [permission]: !(prev[role]?.[permission]),
+  1015→   },
+  1016→  }))
+  1017→ }
+  1018→
+  1019→ const handleSavePermissions = async () => {
+  1020→  setSavingPermissions(true)
+  1021→  try {
+  1022→   const res = await fetch('/api/permissions', {
+  1023→    method: 'PUT',
+  1024→    headers: { 'Content-Type': 'application/json' },
+  1025→    body: JSON.stringify({ permissions }),
+  1026→   })
+  1027→   if (res.ok) {
+  1028→    toast.success('Permisos guardados', { description: 'Los permisos se han guardado correctamente', duration: 3000 })
+  1029→   } else {
+  1030→    const data = await res.json()
+  1031→    toast.error('Error de permisos', { description: data.error || 'Error desconocido', duration: 5000 })
+  1032→   }
+  1033→  } catch (error) {
+  1034→   console.error('Error saving permissions:', error)
+  1035→  } finally {
+  1036→   setSavingPermissions(false)
+  1037→  }
+  1038→ }
+  1039→
+  1040→ const handleResetPermissions = async () => {
+  1041→  if (!confirm('¿Restaurar permisos a los valores por defecto? Se perderán todas las personalizaciones.')) return
+  1042→  try {
+  1043→   const res = await fetch('/api/permissions', { method: 'POST' })
+  1044→   if (res.ok) {
+  1045→    const data = await res.json()
+  1046→    setPermissions(data.permissions)
+  1047→    toast.success('Permisos restaurados', { description: 'Los permisos han sido restaurados a los valores por defecto', duration: 3000 })
+  1048→   }
+  1049→  } catch (error) {
+  1050→   console.error('Error resetting permissions:', error)
+  1051→  }
+  1052→ }
+  1053→
+  1054→ // ─── Filtered users ────────────────────────────────────────────────────
+  1055→ const filteredUsers = users.filter(u => {
+  1056→  if (filterCompany && filterCompany !== '__all__' && !u.companies.some(c => c.id === filterCompany) && !u.projects.some(p => p.company === filterCompany)) return false
+  1057→  if (filterRole && filterRole !== '__all__' && u.role !== filterRole) return false
+  1058→  return true
+  1059→ })
+  1060→
+  1061→ // Helper: get subscription for a company
+  1062→ const getSubForCompany = (companyId: string): Subscription | undefined => {
+  1063→  return subscriptions.find(s => s.companyId === companyId)
+  1064→ }
+  1065→
+  1066→ // ─── Render ──────────────────────────────────────────────────────────────
+  1067→ const tabs: { key: ConstructorTab; label: string; icon: React.ReactNode }[] = [
+  1068→  { key: 'empresas', label: 'Empresas', icon: <Building2 className="h-4 w-4" /> },
+  1069→  { key: 'configuracion', label: 'Configuración', icon: <Settings className="h-4 w-4" /> },
+  1070→  { key: 'administracion', label: 'Administración', icon: <Shield className="h-4 w-4" /> },
+  1071→ ]
+  1072→
+  1073→ const configSubTabs: { key: ConfigSubTab; label: string; icon: React.ReactNode }[] = [
+  1074→  { key: 'plantillas', label: 'Plantillas', icon: <BookOpen className="h-4 w-4" /> },
+  1075→  { key: 'roles', label: 'Roles y Permisos', icon: <Shield className="h-4 w-4" /> },
+  1076→  { key: 'zonificacion', label: 'Zonificación', icon: <MapPin className="h-4 w-4" /> },
+  1077→  { key: 'general', label: 'Config. General', icon: <Settings className="h-4 w-4" /> },
+  1078→ ]
+  1079→
+  1080→ return (
+  1081→  <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 text-slate-800">
+  1082→   {/* Header */}
+  1083→   <header className="border-b border-slate-200 bg-white shadow-sm sticky top-0 z-10">
+  1084→    <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+  1085→     <div className="flex items-center gap-3">
+  1086→      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+  1087→       <Crown className="h-5 w-5 text-yellow-300" />
+  1088→      </div>
+  1089→      <div>
+  1090→       <h1 className="text-lg font-bold text-violet-700">
+  1091→        Panel de Gestión
+  1092→       </h1>
+  1093→       <p className="text-xs text-slate-500">Dueño de la Plataforma 5S</p>
+  1094→      </div>
+  1095→     </div>
+  1096→     <div className="flex items-center gap-3">
+  1097→      {currentUser && (
+  1098→       <button
+  1099→        onClick={() => {
+  1100→         setGestorProfileData({ name: currentUser.name, email: currentUser.email, currentPassword: '', newPassword: '', confirmNewPassword: '' })
+  1101→         setProfileMessage(null)
+  1102→         setShowGestorProfile(true)
+  1103→        }}
+  1104→        className="text-right hover:bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 transition-colors cursor-pointer group"
+  1105→        title="Cambiar correo / contraseña"
+  1106→       >
+  1107→        <p className="text-xs font-medium text-slate-700 group-hover:text-amber-700">{currentUser.name}</p>
+  1108→        <p className="text-[10px] text-slate-500 group-hover:text-amber-600 flex items-center gap-1">
+  1109→         {currentUser.email}
+  1110→         <Key className="h-2.5 w-2.5" />
+  1111→        </p>
+  1112→       </button>
+  1113→      )}
+  1114→      <Badge className="bg-gradient-to-r from-violet-600 to-purple-600 text-white border-0 px-3 py-1">
+  1115→       <Crown className="h-3 w-3 mr-1" /> GESTOR
+  1116→      </Badge>
+  1117→     </div>
+  1118→    </div>
+  1119→   </header>
+  1120→
+  1121→   {/* Tabs */}
+  1122→   <div className="bg-white border-b">
+  1123→    <div className="max-w-7xl mx-auto px-4 flex gap-0 overflow-x-auto">
+  1124→     {tabs.map(tab => (
+  1125→      <button
+  1126→       key={tab.key}
+  1127→       onClick={() => setActiveTab(tab.key)}
+  1128→       className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
+  1129→        activeTab === tab.key
+  1130→         ? 'border-violet-500 text-violet-700 bg-violet-50'
+  1131→         : 'border-transparent text-slate-500 hover:text-violet-600 hover:border-violet-300'
+  1132→       }`}
+  1133→      >
+  1134→       {tab.icon}
+  1135→       {tab.label}
+  1136→      </button>
+  1137→     ))}
+  1138→    </div>
+  1139→   </div>
+  1140→
+  1141→   {/* Content */}
+  1142→   <main className="max-w-7xl mx-auto px-4 py-6">
+  1143→    <AnimatePresence mode="wait">
+  1144→
+  1145→     {/* ═══ EMPRESAS TAB ═══ */}
+  1146→     {activeTab === 'empresas' && (
+  1147→      <motion.div key="empresas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+  1148→       {/* Email config warning */}
+  1149→       {emailConfigStatus === 'not_configured' && (
+  1150→        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-3">
+  1151→         <MailWarning className="h-5 w-5 text-amber-500 shrink-0" />
+  1152→         <div className="flex-1">
+  1153→          <p className="text-sm font-medium text-amber-800">Email no configurado</p>
+  1154→          <p className="text-xs text-amber-600">Los correos de invitación no se pueden enviar. Configura <code className="bg-amber-100 px-1 rounded">RESEND_API_KEY</code> en Vercel → Settings → Environment Variables (clave válida de <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="underline font-medium">resend.com</a> que empieza con "re_").</p>
+  1155→         </div>
+  1156→         <a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer">
+  1157→          <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-100 h-7 text-xs">
+  1158→           Ir a Vercel
+  1159→          </Button>
+  1160→         </a>
+  1161→        </div>
+  1162→       )}
+  1163→       <div className="flex justify-between items-center">
+  1164→        <p className="text-sm text-slate-500">Gestiona empresas, administradores y suscripciones</p>
+  1165→        <Button
+  1166→         onClick={() => { resetNewCompanyForm(); setShowNewCompany(true) }}
+  1167→         className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white"
+  1168→         size="sm"
+  1169→        >
+  1170→         <Plus className="h-4 w-4 mr-1" /> Nueva Empresa
+  1171→        </Button>
+  1172→       </div>
+  1173→
+  1174→       {isLoadingStats ? (
+  1175→        <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 text-violet-500 animate-spin" /></div>
+  1176→       ) : (
+  1177→        <div className="grid gap-4">
+  1178→         {stats?.companies.map(company => {
+  1179→          const admin = companyAdmins[company.id]
+  1180→          const adminUser = company.adminUser // From platform-stats, includes invitationEmailSent
+  1181→          const sub = getSubForCompany(company.id)
+  1182→          const emailSent = adminUser?.invitationEmailSent || false
+  1183→          const isSendingEmail = sendingEmailFor === company.id
+  1184→          return (
+  1185→           <Card key={company.id} className={`bg-white shadow-sm hover:shadow-md transition-shadow ${company.active ? 'border-violet-100' : 'border-red-200 opacity-60'}`}>
+  1186→            <CardContent className="p-4">
+  1187→             <div className="space-y-3">
+  1188→              {/* Row 1: Company info + edit */}
+  1189→              {editingCompany === company.id ? (
+  1190→               <div className="space-y-2" onClick={e => e.stopPropagation()}>
+  1191→                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+  1192→                 <Input value={editCompanyData.name} onChange={e => setEditCompanyData(d => ({ ...d, name: e.target.value }))} className="bg-white border-slate-300 text-slate-800 text-sm" />
+  1193→                 <Input value={editCompanyData.description} onChange={e => setEditCompanyData(d => ({ ...d, description: e.target.value }))} className="bg-white border-slate-300 text-slate-800 text-sm" placeholder="Descripción" />
+  1194→                </div>
+  1195→                <div className="flex gap-2">
+  1196→                 <Button size="sm" onClick={() => handleUpdateCompany(company.id)} className="bg-violet-600 text-white h-7"><Check className="h-3 w-3 mr-1" />Guardar</Button>
+  1197→                 <Button size="sm" variant="ghost" onClick={() => setEditingCompany(null)} className="text-violet-500 h-7">Cancelar</Button>
+  1198→                </div>
+  1199→               </div>
+  1200→              ) : (
+  1201→               <div className="flex items-center justify-between">
+  1202→                <div className="flex items-center gap-3 flex-1 min-w-0">
+  1203→                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${company.active ? 'bg-violet-100' : 'bg-red-100'}`}>
+  1204→                  <Building2 className={`h-5 w-5 ${company.active ? 'text-violet-500' : 'text-red-500'}`} />
+  1205→                 </div>
+  1206→                 <div className="min-w-0">
+  1207→                  <p className="text-sm font-semibold text-slate-800 truncate">{company.name}</p>
+  1208→                  <p className="text-[10px] text-slate-500 truncate">{company.description || 'Sin descripción'}</p>
+  1209→                 </div>
+  1210→                 <Badge className={`${company.active ? 'bg-green-100 text-green-600 border-green-200' : 'bg-red-100 text-red-600 border-red-200'} border text-[10px] shrink-0`}>
+  1211→                  {company.active ? 'Activa' : 'Inactiva'}
+  1212→                 </Badge>
+  1213→                </div>
+  1214→                <div className="flex items-center gap-1.5 ml-2 shrink-0">
+  1215→                 {/* ✏️ BOTÓN EDITAR EMPRESA - ABRE MODAL */}
+  1216→                 <Button 
+  1217→                  variant="default" 
+  1218→                  size="sm" 
+  1219→                  onClick={(e) => { e.stopPropagation(); setFullEditCompanyId(company.id); setShowFullEditModal(true) }}
+  1220→                  className="inline-flex items-center gap-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white text-xs font-bold px-2.5 py-1.5 rounded-md shadow-md border border-cyan-300/50"
+  1221→                  title="✏️ EDITAR EMPRESA: Modificar todos los datos (CIF, NIF, dirección, teléfono, contacto, facturación, IBAN...)"
+  1222→                 >
+  1223→                  <Edit3 className="h-3.5 w-3.5" />
+  1224→                  <span className="hidden sm:inline">EDITAR</span>
+  1225→                 </Button>
+  1226→                 {/* 🔄 BOTÓN ACTIVAR/DESACTIVAR */}
+  1227→                 <Button 
+  1228→                  variant="ghost" 
+  1229→                  size="sm" 
+  1230→                  onClick={() => handleToggleCompanyActive(company.id, company.active)} 
+  1231→                  className={`h-8 w-8 p-0 rounded-md ${company.active ? 'text-green-600 hover:bg-green-50 border border-green-200' : 'text-red-600 hover:bg-red-50 border border-red-200'}`}
+  1232→                  title={`🔄 ${company.active ? 'DESACTIVAR empresa: La empresa ya no podrá usar la aplicación' : 'ACTIVAR empresa: La empresa podrá usar la aplicación nuevamente'}`}
+  1233→                 >
+  1234→                  {company.active ? <XCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+  1235→                 </Button>
+  1236→                 {/* 🗑️ BOTÓN ELIMINAR */}
+  1237→                 <Button 
+  1238→                  variant="ghost" 
+  1239→                  size="sm" 
+  1240→                  onClick={() => setDeletingCompany({ id: company.id, name: company.name, projectCount: company.projectCount })} 
+  1241→                  className="h-8 w-8 p-0 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-md border border-red-200"
+  1242→                  title="🗑️ ELIMINAR empresa: Borrar permanentemente esta empresa y todos sus datos (NO se puede deshacer)"
+  1243→                 >
+  1244→                  <Trash2 className="h-4 w-4" />
+  1245→                 </Button>
+  1246→                </div>
+  1247→               </div>
+  1248→              )}
+  1249→
+  1250→              {/* Row 2: Admin + Subscription */}
+  1251→              {editingCompany !== company.id && (
+  1252→               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-0 md:pl-13">
+  1253→                {/* Admin info */}
+  1254→                <div className="flex items-center gap-2 bg-slate-50 rounded-lg p-2.5">
+  1255→                 <Users className="h-4 w-4 text-slate-500 shrink-0" />
+  1256→                 <div className="min-w-0 flex-1">
+  1257→                  <p className="text-[10px] text-slate-500 uppercase tracking-wider">Administrador</p>
+  1258→                  {admin ? (
+  1259→                   <div className="min-w-0">
+  1260→                    <p className="text-xs font-medium text-slate-800 truncate">{admin.name}</p>
+  1261→                    <p className="text-[10px] text-slate-500 truncate">{admin.email}</p>
+  1262→                   </div>
+  1263→                  ) : (
+  1264→                   <Badge className="bg-orange-100 text-orange-600 border-orange-200 border text-[10px]">Sin administrador</Badge>
+  1265→                  )}
+  1266→                 </div>
+  1267→                 {/* Send invitation email button */}
+  1268→                 {admin && (
+  1269→                  <Button
+  1270→                   variant="ghost"
+  1271→                   size="sm"
+  1272→                   onClick={() => handleSendInvitationEmail(company.id)}
+  1273→                   disabled={isSendingEmail}
+  1274→                   className={`h-7 px-2 text-[10px] shrink-0 ${
+  1275→                    emailSent
+  1276→                     ? 'text-green-600 hover:bg-green-50'
+  1277→                     : 'text-violet-600 hover:bg-violet-50'
+  1278→                   }`}
+  1279→                   title={emailSent ? 'Email ya enviado. Click para reenviar.' : 'Enviar email de invitación con copia al gestor'}
+  1280→                  >
+  1281→                   {isSendingEmail ? (
+  1282→                    <Loader2 className="h-3 w-3 animate-spin" />
+  1283→                   ) : emailSent ? (
+  1284→                    <><Mail className="h-3 w-3 mr-1" />Enviado</>
+  1285→                   ) : (
+  1286→                    <><Send className="h-3 w-3 mr-1" />Enviar</>
+  1287→                   )}
+  1288→                  </Button>
+  1289→                 )}
+  1290→                </div>
+  1291→
+  1292→                {/* Subscription info */}
+  1293→                <div className="flex items-center gap-2 bg-slate-50 rounded-lg p-2.5">
+  1294→                 <CreditCard className="h-4 w-4 text-slate-500 shrink-0" />
+  1295→                 <div className="min-w-0 flex-1">
+  1296→                  <p className="text-[10px] text-slate-500 uppercase tracking-wider">Suscripción</p>
+  1297→                  {sub ? (
+  1298→                   <div className="flex flex-wrap items-center gap-1.5">
+  1299→                    <Badge className={`${PLAN_COLORS[sub.plan] || PLAN_COLORS.gratuito} border text-[10px]`}>
+  1300→                     {PLAN_LABELS[sub.plan] || sub.plan}
+  1301→                    </Badge>
+  1302→                    <Badge className={`${SUBSCRIPTION_STATUS[sub.status]?.color || SUBSCRIPTION_STATUS.activa.color} border text-[10px]`}>
+  1303→                     {SUBSCRIPTION_STATUS[sub.status]?.label || sub.status}
+  1304→                    </Badge>
+  1305→                    <span className="text-[10px] text-slate-500">
+  1306→                     {sub.maxUsers === -1 ? '∞' : sub.maxUsers} users · {sub.maxProjects === -1 ? '∞' : sub.maxProjects} proj
+  1307→                    </span>
+  1308→                    {sub.price > 0 && <span className="text-[10px] text-emerald-600 font-medium">${sub.price}/mo</span>}
+  1309→                    {sub.endDate && <span className="text-[10px] text-slate-500">hasta {new Date(sub.endDate).toLocaleDateString('es-ES')}</span>}
+  1310→                   </div>
+  1311→                  ) : (
+  1312→                   <Badge className="bg-gray-100 text-gray-500 border-gray-200 border text-[10px]">Sin suscripción</Badge>
+  1313→                  )}
+  1314→                 </div>
+  1315→                 {sub && (
+  1316→                  <Button
+  1317→                   variant="ghost"
+  1318→                   size="sm"
+  1319→                   onClick={() => { setEditingSub(sub); setEditSubData({ plan: sub.plan, status: sub.status, maxUsers: sub.maxUsers, maxProjects: sub.maxProjects, price: sub.price, endDate: sub.endDate ? sub.endDate.split('T')[0] : '', trialEndsAt: sub.trialEndsAt ? sub.trialEndsAt.split('T')[0] : '', notes: sub.notes || '' }) }}
+  1320→                   className="h-7 w-7 p-0 text-violet-500 hover:bg-violet-50 shrink-0"
+  1321→                  >
+  1322→                   <Edit3 className="h-3 w-3" />
+  1323→                  </Button>
+  1324→                 )}
+  1325→                </div>
+  1326→               </div>
+  1327→              )}
+  1328→
+  1329→              {/* Stats row */}
+  1330→              {editingCompany !== company.id && (
+  1331→               <div className="flex items-center gap-4 pl-0 md:pl-13">
+  1332→                <div className="text-center">
+  1333→                 <p className="text-sm font-bold text-slate-900">{company.projectCount}</p>
+  1334→                 <p className="text-[10px] text-slate-500">Proyectos</p>
+  1335→                </div>
+  1336→                <div className="text-center">
+  1337→                 <p className="text-sm font-bold text-slate-900">{company.memberCount}</p>
+  1338→                 <p className="text-[10px] text-slate-500">Miembros</p>
+  1339→                </div>
+  1340→               </div>
+  1341→              )}
+  1342→             </div>
+  1343→            </CardContent>
+  1344→           </Card>
+  1345→          )
+  1346→         })}
+  1347→         {(!stats || stats.companies.length === 0) && (
+  1348→          <div className="text-center py-12 text-slate-400">
+  1349→           <Building2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+  1350→           <p>No hay empresas registradas</p>
+  1351→          </div>
+  1352→         )}
+  1353→        </div>
+  1354→       )}
+  1355→      </motion.div>
+  1356→     )}
+  1357→
+  1358→     {/* ═══ CONFIGURACIÓN TAB ═══ */}
+  1359→     {activeTab === 'configuracion' && (
+  1360→      <motion.div key="configuracion" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+  1361→       <div className="flex items-center gap-2 mb-2">
+  1362→        <Settings className="h-5 w-5 text-violet-500" />
+  1363→        <h2 className="text-lg font-bold text-slate-800">Configuración de Plataforma</h2>
+  1364→       </div>
+  1365→
+  1366→       {/* Sub-tabs */}
+  1367→       <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+  1368→        {configSubTabs.map(st => (
+  1369→         <button
+  1370→          key={st.key}
+  1371→          onClick={() => setConfigSubTab(st.key)}
+  1372→          className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-all ${
+  1373→           configSubTab === st.key
+  1374→            ? 'bg-white text-violet-700 shadow-sm'
+  1375→            : 'text-slate-500 hover:text-violet-600 hover:bg-white/50'
+  1376→          }`}
+  1377→         >
+  1378→          {st.icon}
+  1379→          {st.label}
+  1380→         </button>
+  1381→        ))}
+  1382→       </div>
+  1383→
+  1384→       {/* Sub-tab content */}
+  1385→       <AnimatePresence mode="wait">
+  1386→        {/* Plantillas */}
+  1387→        {configSubTab === 'plantillas' && (
+  1388→         <motion.div key="plantillas" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+  1389→          <div className="flex items-center gap-2 mb-3">
+  1390→           <BookOpen className="h-4 w-4 text-violet-500" />
+  1391→           <span className="text-sm text-violet-700">Plantillas genéricas 5S — el administrador de cada empresa las puede adaptar</span>
+  1392→          </div>
+  1393→          <div className="bg-white border border-violet-100 shadow-sm rounded-lg p-4">
+  1394→           <TemplateManager />
+  1395→          </div>
+  1396→         </motion.div>
+  1397→        )}
+  1398→
+  1399→        {/* Roles y Permisos */}
+  1400→        {configSubTab === 'roles' && (
+  1401→         <motion.div key="roles" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+  1402→          <div className="flex items-center justify-between">
+  1403→           <div className="flex items-center gap-2">
+  1404→            <Shield className="h-4 w-4 text-violet-500" />
+  1405→            <span className="text-sm text-violet-700">Matriz de permisos por rol</span>
+  1406→           </div>
+  1407→           <div className="flex gap-2">
+  1408→            <Button variant="outline" size="sm" onClick={handleResetPermissions} className="border-violet-300 text-violet-700 text-xs h-7">
+  1409→             Restaurar Defecto
+  1410→            </Button>
+  1411→            <Button size="sm" onClick={handleSavePermissions} disabled={savingPermissions} className="bg-gradient-to-r from-violet-600 to-purple-600 text-white text-xs h-7">
+  1412→             {savingPermissions ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+  1413→             Guardar
+  1414→            </Button>
+  1415→           </div>
+  1416→          </div>
+  1417→
+  1418→          {isLoadingPermissions ? (
+  1419→           <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 text-violet-500 animate-spin" /></div>
+  1420→          ) : (
+  1421→           <div className="space-y-6">
+  1422→            {/* Platform permissions */}
+  1423→            <Card className="bg-white border-violet-100 shadow-sm hover:shadow-md transition-shadow">
+  1424→             <CardHeader className="pb-2">
+  1425→              <CardTitle className="text-xs text-violet-700 flex items-center gap-2">
+  1426→               <Crown className="h-3 w-3" /> Permisos de Plataforma (Nivel Gestor)
+  1427→              </CardTitle>
+  1428→             </CardHeader>
+  1429→             <CardContent className="p-0">
+  1430→              <div className="overflow-x-auto">
+  1431→               <Table>
+  1432→                <TableHeader>
+  1433→                 <TableRow className="border-slate-200 hover:bg-transparent">
+  1434→                  <TableHead className="text-slate-600 text-xs min-w-[180px]">Permiso</TableHead>
+  1435→                  {['gestor', 'admin', 'gerente', 'responsable', 'empleado', 'auditor'].map(role => (
+  1436→                   <TableHead key={role} className="text-slate-600 text-[10px] text-center min-w-[70px]">
+  1437→                    {ROLE_LABELS[role]?.split(' ')[0] || role}
+  1438→                   </TableHead>
+  1439→                  ))}
+  1440→                 </TableRow>
+  1441→                </TableHeader>
+  1442→                <TableBody>
+  1443→                 {Object.entries(PLATFORM_PERMISSION_LABELS).map(([perm, label]) => (
+  1444→                  <TableRow key={perm} className="border-slate-100 hover:bg-violet-50">
+  1445→                   <TableCell className="text-xs text-violet-700">{label}</TableCell>
+  1446→                   {['gestor', 'admin', 'gerente', 'responsable', 'empleado', 'auditor'].map(role => (
+  1447→                    <TableCell key={`${role}-${perm}`} className="text-center">
+  1448→                     <button
+  1449→                      onClick={() => handleTogglePermission(role, perm)}
+  1450→                      className={`w-6 h-6 rounded-md flex items-center justify-center transition-all ${
+  1451→                       permissions[role]?.[perm]
+  1452→                        ? 'bg-green-100 text-green-600 hover:bg-green-200'
+  1453→                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+  1454→                      }`}
+  1455→                     >
+  1456→                      {permissions[role]?.[perm] ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+  1457→                     </button>
+  1458→                    </TableCell>
+  1459→                   ))}
+  1460→                  </TableRow>
+  1461→                 ))}
+  1462→                </TableBody>
+  1463→               </Table>
+  1464→              </div>
+  1465→             </CardContent>
+  1466→            </Card>
+  1467→
+  1468→            {/* Project permissions */}
+  1469→            <Card className="bg-white border-violet-100 shadow-sm hover:shadow-md transition-shadow">
+  1470→             <CardHeader className="pb-2">
+  1471→              <CardTitle className="text-xs text-violet-700 flex items-center gap-2">
+  1472→               <Building2 className="h-3 w-3" /> Permisos de Proyecto (Nivel Empresa)
+  1473→              </CardTitle>
+  1474→             </CardHeader>
+  1475→             <CardContent className="p-0">
+  1476→              <div className="overflow-x-auto">
+  1477→               <Table>
+  1478→                <TableHeader>
+  1479→                 <TableRow className="border-slate-200 hover:bg-transparent">
+  1480→                  <TableHead className="text-slate-600 text-xs min-w-[180px]">Permiso</TableHead>
+  1481→                  {['gestor', 'admin', 'gerente', 'responsable', 'empleado', 'auditor'].map(role => (
+  1482→                   <TableHead key={role} className="text-slate-600 text-[10px] text-center min-w-[70px]">
+  1483→                    {ROLE_LABELS[role]?.split(' ')[0] || role}
+  1484→                   </TableHead>
+  1485→                  ))}
+  1486→                 </TableRow>
+  1487→                </TableHeader>
+  1488→                <TableBody>
+  1489→                 {Object.entries(PROJECT_PERMISSION_LABELS).map(([perm, label]) => (
+  1490→                  <TableRow key={perm} className="border-slate-100 hover:bg-violet-50">
+  1491→                   <TableCell className="text-xs text-violet-700">{label}</TableCell>
+  1492→                   {['gestor', 'admin', 'gerente', 'responsable', 'empleado', 'auditor'].map(role => (
+  1493→                    <TableCell key={`${role}-${perm}`} className="text-center">
+  1494→                     <button
+  1495→                      onClick={() => handleTogglePermission(role, perm)}
+  1496→                      className={`w-6 h-6 rounded-md flex items-center justify-center transition-all ${
+  1497→                       permissions[role]?.[perm]
+  1498→                        ? 'bg-green-100 text-green-600 hover:bg-green-200'
+  1499→                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+  1500→                      }`}
+  1501→                     >
+  1502→                      {permissions[role]?.[perm] ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+  1503→                     </button>
+  1504→                    </TableCell>
+  1505→                   ))}
+  1506→                  </TableRow>
+  1507→                 ))}
+  1508→                </TableBody>
+  1509→               </Table>
+  1510→              </div>
+  1511→             </CardContent>
+  1512→            </Card>
+  1513→           </div>
+  1514→          )}
+  1515→         </motion.div>
+  1516→        )}
+  1517→
+  1518→        {/* Zonificación (v2.108) — configuración global del algoritmo */}
+  1519→        {configSubTab === 'zonificacion' && (
+  1520→         <motion.div key="zonificacion" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+  1521→          <div className="flex items-center gap-2 mb-3">
+  1522→           <MapPin className="h-4 w-4 text-violet-500" />
+  1523→           <span className="text-sm text-violet-700">
+  1524→            Algoritmo de zonificación — define el límite de m² por zona y los textos del wizard que verán los administradores
+  1525→           </span>
+  1526→          </div>
+  1527→
+  1528→          {zoneConfigLoading ? (
+  1529→           <div className="flex items-center gap-2 text-sm text-slate-500 py-8 justify-center">
+  1530→            <Loader2 className="h-4 w-4 animate-spin" /> Cargando configuración…
+  1531→           </div>
+  1532→          ) : !zoneConfig ? (
+  1533→           <div className="text-sm text-red-600 py-8 text-center">
+  1534→            No se pudo cargar la configuración. Verifica que la migración v2.107 esté aplicada.
+  1535→           </div>
+  1536→          ) : (
+  1537→           <div className="bg-white border border-violet-100 shadow-sm rounded-lg p-5 max-w-2xl space-y-5">
+  1538→            {/* m² máximo por zona */}
+  1539→            <div>
+  1540→             <Label className="text-xs font-semibold block mb-1.5">
+  1541→              m² máximo por zona
+  1542→             </Label>
+  1543→             <Input
+  1544→              type="number" min={50} step={50}
+  1545→              value={zoneConfig.maxM2PorZona}
+  1546→              onChange={(e) => setZoneConfig({
+  1547→               ...zoneConfig,
+  1548→               maxM2PorZona: parseFloat(e.target.value) || 0,
+  1549→              })}
+  1550→              className="h-9 text-sm max-w-[200px]"
+  1551→             />
+  1552→             <p className="text-[11px] text-slate-500 mt-1">
+  1553→              Si una zona supera este m², el algoritmo la divide en sub-zonas.
+  1554→              Ej. 800 m² y una zona de 801 → se divide en 2.
+  1555→             </p>
+  1556→            </div>
+  1557→
+  1558→            {/* Prefijo propuesto */}
+  1559→            <div>
+  1560→             <Label className="text-xs font-semibold block mb-1.5">
+  1561→              Prefijo propuesto para sub-zonas
+  1562→             </Label>
+  1563→             <Input
+  1564→              value={zoneConfig.defaultPrefix}
+  1565→              onChange={(e) => setZoneConfig({
+  1566→               ...zoneConfig,
+  1567→               defaultPrefix: e.target.value,
+  1568→              })}
+  1569→              className="h-9 text-sm max-w-[200px]"
+  1570→              maxLength={6}
+  1571→             />
+  1572→             <p className="text-[11px] text-slate-500 mt-1">
+  1573→              El admin puede sobreescribir los nombres manualmente; este es solo el prefijo por defecto.
+  1574→             </p>
+  1575→            </div>
+  1576→
+  1577→            {/* Texto pregunta "zonas iniciales" */}
+  1578→            <div>
+  1579→             <Label className="text-xs font-semibold block mb-1.5">
+  1580→              Texto de la etiqueta "zonas iniciales"
+  1581→             </Label>
+  1582→             <Input
+  1583→              value={zoneConfig.questionLabels.zonas}
+  1584→              onChange={(e) => setZoneConfig({
+  1585→               ...zoneConfig,
+  1586→               questionLabels: { ...zoneConfig.questionLabels, zonas: e.target.value },
+  1587→              })}
+  1588→              className="h-9 text-sm"
+  1589→             />
+  1590→            </div>
+  1591→
+  1592→            {/* Texto pregunta "prefijo" */}
+  1593→            <div>
+  1594→             <Label className="text-xs font-semibold block mb-1.5">
+  1595→              Texto de la etiqueta "prefijo"
+  1596→             </Label>
+  1597→             <Input
+  1598→              value={zoneConfig.questionLabels.prefijo}
+  1599→              onChange={(e) => setZoneConfig({
+  1600→               ...zoneConfig,
+  1601→               questionLabels: { ...zoneConfig.questionLabels, prefijo: e.target.value },
+  1602→              })}
+  1603→              className="h-9 text-sm"
+  1604→             />
+  1605→            </div>
+  1606→
+  1607→            <div className="flex items-center gap-3 pt-3 border-t">
+  1608→             <Button
+  1609→              onClick={handleSaveZoneConfig}
+  1610→              disabled={zoneConfigSaving}
+  1611→              className="bg-gradient-to-r from-violet-600 to-purple-600 text-white"
+  1612→             >
+  1613→              {zoneConfigSaving ? (
+  1614→               <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Guardando…</>
+  1615→              ) : (
+  1616→               <><Save className="h-4 w-4 mr-1" /> Guardar configuración</>
+  1617→              )}
+  1618→             </Button>
+  1619→             {zoneConfigSaved && (
+  1620→              <span className="text-xs text-emerald-600 flex items-center gap-1">
+  1621→               <CheckCircle2 className="h-3 w-3" /> Guardado
+  1622→              </span>
+  1623→             )}
+  1624→            </div>
+  1625→           </div>
+  1626→          )}
+  1627→         </motion.div>
+  1628→        )}
+  1629→
+  1630→        {/* Configuración General */}
+  1631→       </AnimatePresence>
+  1632→      </motion.div>
+  1633→     )}
+  1634→
+  1635→     {/* ═══ ADMINISTRACIÓN TAB ═══ */}
+  1636→     {activeTab === 'administracion' && (
+  1637→      <motion.div key="administracion" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+  1638→       <div className="flex items-center gap-2">
+  1639→        <Shield className="h-5 w-5 text-violet-500" />
+  1640→        <h2 className="text-lg font-bold text-slate-800">Administración General</h2>
+  1641→       </div>
+  1642→
+  1643→       {/* KPI Cards */}
+  1644→       {isLoadingStats ? (
+  1645→        <div className="flex justify-center py-12"><Loader2 className="h-10 w-10 text-violet-500 animate-spin" /></div>
+  1646→       ) : stats ? (
+  1647→        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+  1648→         <Card className="bg-white border-violet-200 shadow-sm text-slate-800">
+  1649→          <CardContent className="p-4">
+  1650→           <div className="flex items-center justify-between mb-2">
+  1651→            <Building2 className="h-5 w-5 text-violet-500" />
+  1652→            <Badge className="bg-violet-100 text-violet-600 border-0 text-[10px]">
+  1653→             {stats.totals.activeCompanies}/{stats.totals.companies} activas
+  1654→            </Badge>
+  1655→           </div>
+  1656→           <p className="text-2xl font-bold text-slate-900">{stats.totals.companies}</p>
+  1657→           <p className="text-xs text-slate-500">Empresas</p>
+  1658→          </CardContent>
+  1659→         </Card>
+  1660→         <Card className="bg-white border-blue-200 shadow-sm text-slate-800">
+  1661→          <CardContent className="p-4">
+  1662→           <div className="flex items-center justify-between mb-2">
+  1663→            <Users className="h-5 w-5 text-blue-500" />
+  1664→            <Badge className="bg-blue-100 text-blue-600 border-0 text-[10px]">
+  1665→             {stats.totals.activeUsers}/{stats.totals.users} activos
+  1666→            </Badge>
+  1667→           </div>
+  1668→           <p className="text-2xl font-bold text-slate-900">{stats.totals.users}</p>
+  1669→           <p className="text-xs text-slate-500">Usuarios</p>
+  1670→          </CardContent>
+  1671→         </Card>
+  1672→         <Card className="bg-white border-emerald-200 shadow-sm text-slate-800">
+  1673→          <CardContent className="p-4">
+  1674→           <div className="flex items-center justify-between mb-2">
+  1675→            <TrendingUp className="h-5 w-5 text-emerald-500" />
+  1676→            <Badge className="bg-emerald-100 text-emerald-600 border-0 text-[10px]">
+  1677→             {stats.totals.activeProjects}/{stats.totals.projects} activos
+  1678→            </Badge>
+  1679→           </div>
+  1680→           <p className="text-2xl font-bold text-slate-900">{stats.totals.projects}</p>
+  1681→           <p className="text-xs text-slate-500">Proyectos</p>
+  1682→          </CardContent>
+  1683→         </Card>
+  1684→         <Card className="bg-white border-orange-200 shadow-sm text-slate-800">
+  1685→          <CardContent className="p-4">
+  1686→           <div className="flex items-center justify-between mb-2">
+  1687→            <AlertTriangle className="h-5 w-5 text-orange-500" />
+  1688→            <Badge className="bg-orange-100 text-orange-600 border-0 text-[10px]">
+  1689→             de {stats.totals.actions} total
+  1690→            </Badge>
+  1691→           </div>
+  1692→           <p className="text-2xl font-bold text-slate-900">{stats.totals.openActions}</p>
+  1693→           <p className="text-xs text-slate-500">Acciones Abiertas</p>
+  1694→          </CardContent>
+  1695→         </Card>
+  1696→        </div>
+  1697→       ) : null}
+  1698→
+  1699→       {/* Suscripciones Overview */}
+  1700→       <Card className="bg-white border-violet-100 shadow-sm hover:shadow-md transition-shadow">
+  1701→        <CardHeader className="pb-3">
+  1702→         <CardTitle className="text-sm text-violet-700 flex items-center gap-2">
+  1703→          <CreditCard className="h-4 w-4" /> Suscripciones
+  1704→         </CardTitle>
+  1705→        </CardHeader>
+  1706→        <CardContent className="p-0">
+  1707→         {isLoadingSubs ? (
+  1708→          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 text-violet-500 animate-spin" /></div>
+  1709→         ) : (
+  1710→          <div className="overflow-x-auto">
+  1711→           <Table>
+  1712→            <TableHeader>
+  1713→             <TableRow className="border-slate-200 hover:bg-transparent">
+  1714→              <TableHead className="text-slate-600 text-xs">Empresa</TableHead>
+  1715→              <TableHead className="text-slate-600 text-xs">Plan</TableHead>
+  1716→              <TableHead className="text-slate-600 text-xs">Estado</TableHead>
+  1717→              <TableHead className="text-slate-600 text-xs">Límites</TableHead>
+  1718→              <TableHead className="text-slate-600 text-xs">Precio</TableHead>
+  1719→              <TableHead className="text-slate-600 text-xs">Fin</TableHead>
+  1720→              <TableHead className="text-slate-600 text-xs">Acciones</TableHead>
+  1721→             </TableRow>
+  1722→            </TableHeader>
+  1723→            <TableBody>
+  1724→             {subscriptions.map(sub => (
+  1725→              <TableRow key={sub.id} className="border-slate-100 hover:bg-violet-50">
+  1726→               <TableCell className="text-xs text-slate-800 font-medium">
+  1727→                {sub.company?.name || '—'}
+  1728→                {!sub.company?.active && <Badge className="ml-1 bg-red-100 text-red-600 border-red-200 border text-[8px]">Inactiva</Badge>}
+  1729→               </TableCell>
+  1730→               <TableCell>
+  1731→                <Badge className={`${PLAN_COLORS[sub.plan] || PLAN_COLORS.gratuito} border text-[10px]`}>
+  1732→                 {PLAN_LABELS[sub.plan] || sub.plan}
+  1733→                </Badge>
+  1734→               </TableCell>
+  1735→               <TableCell>
+  1736→                <Badge className={`${SUBSCRIPTION_STATUS[sub.status]?.color || SUBSCRIPTION_STATUS.activa.color} border text-[10px]`}>
+  1737→                 {SUBSCRIPTION_STATUS[sub.status]?.label || sub.status}
+  1738→                </Badge>
+  1739→               </TableCell>
+  1740→               <TableCell className="text-[10px] text-slate-500">
+  1741→                {sub.maxUsers === -1 ? '∞' : sub.maxUsers}U / {sub.maxProjects === -1 ? '∞' : sub.maxProjects}P
+  1742→               </TableCell>
+  1743→               <TableCell className="text-xs text-emerald-600 font-medium">
+  1744→                {sub.price > 0 ? `$${sub.price}/mo` : 'Gratis'}
+  1745→               </TableCell>
+  1746→               <TableCell className="text-[10px] text-slate-500">
+  1747→                {sub.endDate ? new Date(sub.endDate).toLocaleDateString('es-ES') : '—'}
+  1748→               </TableCell>
+  1749→               <TableCell>
+  1750→                <Button variant="ghost" size="sm" onClick={() => { setEditingSub(sub); setEditSubData({ plan: sub.plan, status: sub.status, maxUsers: sub.maxUsers, maxProjects: sub.maxProjects, price: sub.price, endDate: sub.endDate ? sub.endDate.split('T')[0] : '', trialEndsAt: sub.trialEndsAt ? sub.trialEndsAt.split('T')[0] : '', notes: sub.notes || '' }) }} className="h-6 w-6 p-0 text-violet-500 hover:bg-violet-50">
+  1751→                 <Edit3 className="h-3 w-3" />
+  1752→                </Button>
+  1753→               </TableCell>
+  1754→              </TableRow>
+  1755→             ))}
+  1756→             {subscriptions.length === 0 && (
+  1757→              <TableRow>
+  1758→               <TableCell colSpan={7} className="text-center py-6 text-slate-400 text-xs">No hay suscripciones registradas</TableCell>
+  1759→              </TableRow>
+  1760→             )}
+  1761→            </TableBody>
+  1762→           </Table>
+  1763→          </div>
+  1764→         )}
+  1765→        </CardContent>
+  1766→       </Card>
+  1767→
+  1768→       {/* Usuarios */}
+  1769→       <Card className="bg-white border-violet-100 shadow-sm hover:shadow-md transition-shadow">
+  1770→        <CardHeader className="pb-3">
+  1771→         <CardTitle className="text-sm text-violet-700 flex items-center gap-2">
+  1772→          <Users className="h-4 w-4" /> Usuarios
+  1773→         </CardTitle>
+  1774→        </CardHeader>
+  1775→        <CardContent>
+  1776→         {/* Filters */}
+  1777→         <div className="flex flex-wrap gap-3 mb-4">
+  1778→          <Select value={filterCompany} onValueChange={setFilterCompany}>
+  1779→           <SelectTrigger className="w-48 bg-white border-slate-300 shadow-sm text-slate-800 text-xs h-8">
+  1780→            <SelectValue placeholder="Filtrar por empresa" />
+  1781→           </SelectTrigger>
+  1782→           <SelectContent>
+  1783→            <SelectItem value="__all__">Todas las empresas</SelectItem>
+  1784→            {stats?.companies.map(c => (
+  1785→             <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+  1786→            ))}
+  1787→           </SelectContent>
+  1788→          </Select>
+  1789→          <Select value={filterRole} onValueChange={setFilterRole}>
+  1790→           <SelectTrigger className="w-40 bg-white border-slate-300 shadow-sm text-slate-800 text-xs h-8">
+  1791→            <SelectValue placeholder="Filtrar por rol" />
+  1792→           </SelectTrigger>
+  1793→           <SelectContent>
+  1794→            <SelectItem value="__all__">Todos los roles</SelectItem>
+  1795→            {Object.entries(ROLE_LABELS).map(([key, label]) => (
+  1796→             <SelectItem key={key} value={key}>{label}</SelectItem>
+  1797→            ))}
+  1798→           </SelectContent>
+  1799→          </Select>
+  1800→         </div>
+  1801→
+  1802→         {isLoadingUsers ? (
+  1803→          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 text-violet-500 animate-spin" /></div>
+  1804→         ) : (
+  1805→          <div className="overflow-x-auto">
+  1806→           <Table>
+  1807→            <TableHeader>
+  1808→             <TableRow className="border-slate-200 hover:bg-transparent">
+  1809→              <TableHead className="text-slate-600 text-xs">Usuario</TableHead>
+  1810→              <TableHead className="text-slate-600 text-xs">Email</TableHead>
+  1811→              <TableHead className="text-slate-600 text-xs">Rol</TableHead>
+  1812→              <TableHead className="text-slate-600 text-xs">Empresa</TableHead>
+  1813→              <TableHead className="text-slate-600 text-xs">Estado</TableHead>
+  1814→              <TableHead className="text-slate-600 text-xs">Acciones</TableHead>
+  1815→             </TableRow>
+  1816→            </TableHeader>
+  1817→            <TableBody>
+  1818→             {filteredUsers.map(user => (
+  1819→              <TableRow key={user.id} className={`border-slate-100 ${user.role === 'gestor' ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-violet-50'}`}>
+  1820→               <TableCell>
+  1821→                {editingUser === user.id ? (
+  1822→                 <Input value={editUserData.name} onChange={e => setEditUserData(d => ({ ...d, name: e.target.value }))} className="bg-white border-slate-300 text-slate-800 text-xs h-7 w-36" />
+  1823→                ) : (
+  1824→                 <div className="flex items-center gap-2">
+  1825→                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${user.role === 'gestor' ? 'bg-red-100 text-red-700' : user.active ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-500'}`}>
+  1826→                   {user.name.charAt(0).toUpperCase()}
+  1827→                  </div>
+  1828→                  <span className="text-xs text-slate-800 font-medium">{user.name}</span>
+  1829→                 </div>
+  1830→                )}
+  1831→               </TableCell>
+  1832→               <TableCell>
+  1833→                {editingUser === user.id ? (
+  1834→                 <Input type="email" value={editUserData.email} onChange={e => setEditUserData(d => ({ ...d, email: e.target.value }))} className="bg-white border-slate-300 text-slate-800 text-xs h-7 w-48" />
+  1835→                ) : (
+  1836→                 <span className="text-xs text-slate-500">{user.email}</span>
+  1837→                )}
+  1838→               </TableCell>
+  1839→               <TableCell>
+  1840→                {editingUser === user.id ? (
+  1841→                 <Select value={editUserData.role} onValueChange={val => setEditUserData(d => ({ ...d, role: val }))} disabled={user.role === 'gestor'}>
+  1842→                  <SelectTrigger className="bg-white border-slate-300 text-slate-800 text-xs h-7 w-36">
+  1843→                   <SelectValue />
+  1844→                  </SelectTrigger>
+  1845→                  <SelectContent>
+  1846→                   {Object.entries(ROLE_LABELS).map(([key, label]) => (
+  1847→                    <SelectItem key={key} value={key}>{label}</SelectItem>
+  1848→                   ))}
+  1849→                  </SelectContent>
+  1850→                 </Select>
+  1851→                ) : (
+  1852→                 <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700 border-gray-200'} border text-[10px]`}>
+  1853→                  {ROLE_LABELS[user.role] || user.role}
+  1854→                 </Badge>
+  1855→                )}
+  1856→               </TableCell>
+  1857→               <TableCell className="text-xs text-slate-500">
+  1858→                {user.companies.length > 0
+  1859→                 ? user.companies.map(c => c.name).join(', ')
+  1860→                 : user.projects.length > 0
+  1861→                  ? [...new Set(user.projects.map(p => p.company))].join(', ')
+  1862→                  : '—'}
+  1863→               </TableCell>
+  1864→               <TableCell>
+  1865→                {user.active ? (
+  1866→                 <Badge className="bg-green-100 text-green-600 border-green-200 border text-[10px]">Activo</Badge>
+  1867→                ) : (
+  1868→                 <Badge className="bg-red-100 text-red-600 border-red-200 border text-[10px]">Inactivo</Badge>
+  1869→                )}
+  1870→               </TableCell>
+  1871→               <TableCell>
+  1872→                <div className="flex items-center gap-1">
+  1873→                 {editingUser === user.id ? (
+  1874→                  <>
+  1875→                   <Button size="sm" onClick={() => handleUpdateUser(user.id)} className="bg-violet-600 text-white h-6 w-6 p-0"><Check className="h-3 w-3" /></Button>
+  1876→                   <Button size="sm" variant="ghost" onClick={() => setEditingUser(null)} className="text-violet-500 h-6 w-6 p-0"><X className="h-3 w-3" /></Button>
+  1877→                  </>
+  1878→                 ) : (
+  1879→                  <>
+  1880→                   <Button variant="ghost" size="sm" onClick={() => { setEditingUser(user.id); setEditUserData({ name: user.name, email: user.email, role: user.role, active: user.active }) }} className="h-6 w-6 p-0 text-violet-500 hover:bg-violet-50" title="Editar usuario">
+  1881→                    <Edit3 className="h-3 w-3" />
+  1882→                   </Button>
+  1883→                   <Button variant="ghost" size="sm" onClick={() => handleToggleActive(user.id, user.active)} className={`h-6 w-6 p-0 ${user.active ? 'text-red-500 hover:bg-red-100' : 'text-green-500 hover:bg-green-50'}`} title={user.active ? 'Desactivar' : 'Activar'}>
+  1884→                    {user.active ? <XCircle className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
+  1885→                   </Button>
+  1886→                   <Button variant="ghost" size="sm" onClick={() => { setResetPasswordUserId(user.id); setNewPassword('') }} className="h-6 w-6 p-0 text-violet-500 hover:bg-violet-50" title="Cambiar contraseña">
+  1887→                    <Key className="h-3 w-3" />
+  1888→                   </Button>
+  1889→                   {user.role !== 'gestor' && (
+  1890→                    <Button variant="ghost" size="sm" onClick={() => setDeletingUser({ id: user.id, name: user.name, email: user.email, role: user.role })} className="h-6 w-6 p-0 text-red-500 hover:bg-red-100" title="Eliminar usuario">
+  1891→                     <Trash2 className="h-3 w-3" />
+  1892→                    </Button>
+  1893→                   )}
+  1894→                   {user.role === 'gestor' && (
+  1895→                    <Button variant="ghost" size="sm" onClick={() => setDeletingUser({ id: user.id, name: user.name, email: user.email, role: user.role })} className="h-6 w-6 p-0 text-red-400 hover:bg-red-100" title="Eliminar gestor (solo si hay más de uno)">
+  1896→                     <Trash2 className="h-3 w-3" />
+  1897→                    </Button>
+  1898→                   )}
+  1899→                  </>
+  1900→                 )}
+  1901→                </div>
+  1902→               </TableCell>
+  1903→              </TableRow>
+  1904→             ))}
+  1905→            </TableBody>
+  1906→           </Table>
+  1907→          </div>
+  1908→         )}
+  1909→         <div className="mt-3">
+  1910→          <p className="text-xs text-slate-500">{filteredUsers.length} de {users.length} usuarios</p>
+  1911→         </div>
+  1912→        </CardContent>
+  1913→       </Card>
+  1914→
+  1915→       {/* Actividad Reciente */}
+  1916→       <Card className="bg-white border-violet-100 shadow-sm hover:shadow-md transition-shadow">
+  1917→        <CardHeader className="pb-3">
+  1918→         <CardTitle className="text-sm text-violet-700 flex items-center gap-2">
+  1919→          <Activity className="h-4 w-4" /> Actividad Reciente
+  1920→         </CardTitle>
+  1921→        </CardHeader>
+  1922→        <CardContent>
+  1923→         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  1924→          {/* Recent users */}
+  1925→          <div>
+  1926→           <p className="text-xs text-slate-500 mb-2 uppercase tracking-wider">Últimos Usuarios</p>
+  1927→           <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+  1928→            {stats?.recentUsers.map(user => (
+  1929→             <div key={user.id} className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+  1930→              <div className="flex items-center gap-2">
+  1931→               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${user.active ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-500'}`}>
+  1932→                {user.name.charAt(0).toUpperCase()}
+  1933→               </div>
+  1934→               <div>
+  1935→                <p className="text-xs font-medium text-slate-800">{user.name}</p>
+  1936→                <p className="text-[10px] text-slate-500">{user.email}</p>
+  1937→               </div>
+  1938→              </div>
+  1939→              <div className="flex items-center gap-2">
+  1940→               <Badge className={`${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700 border-gray-200'} border text-[10px]`}>
+  1941→                {ROLE_LABELS[user.role] || user.role}
+  1942→               </Badge>
+  1943→               {user.active ? (
+  1944→                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+  1945→               ) : (
+  1946→                <XCircle className="h-3.5 w-3.5 text-red-500" />
+  1947→               )}
+  1948→              </div>
+  1949→             </div>
+  1950→            ))}
+  1951→            {(!stats?.recentUsers || stats.recentUsers.length === 0) && (
+  1952→             <p className="text-xs text-slate-400 text-center py-4">Sin actividad reciente</p>
+  1953→            )}
+  1954→           </div>
+  1955→          </div>
+  1956→
+  1957→          {/* Recent projects */}
+  1958→          <div>
+  1959→           <p className="text-xs text-slate-500 mb-2 uppercase tracking-wider">Proyectos</p>
+  1960→           <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+  1961→            {stats?.projects.slice(0, 10).map(project => (
+  1962→             <div key={project.id} className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+  1963→              <div className="flex items-center gap-2 min-w-0">
+  1964→               <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${project.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+  1965→                <TrendingUp className="h-3.5 w-3.5" />
+  1966→               </div>
+  1967→               <div className="min-w-0">
+  1968→                <p className="text-xs font-medium text-slate-800 truncate">{project.name}</p>
+  1969→                <p className="text-[10px] text-slate-500 truncate">{project.companyName || project.company}</p>
+  1970→               </div>
+  1971→              </div>
+  1972→              <div className="flex items-center gap-2 shrink-0">
+  1973→               <span className="text-[10px] text-slate-500">{project.memberCount} members</span>
+  1974→               {project.active ? (
+  1975→                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+  1976→               ) : (
+  1977→                <XCircle className="h-3.5 w-3.5 text-red-500" />
+  1978→               )}
+  1979→              </div>
+  1980→             </div>
+  1981→            ))}
+  1982→            {(!stats?.projects || stats.projects.length === 0) && (
+  1983→             <p className="text-xs text-slate-400 text-center py-4">Sin proyectos</p>
+  1984→            )}
+  1985→           </div>
+  1986→          </div>
+  1987→         </div>
+  1988→        </CardContent>
+  1989→       </Card>
+  1990→      </motion.div>
+  1991→     )}
+  1992→    </AnimatePresence>
+  1993→   </main>
+  1994→
+  1995→   {/* ═══ DIALOGS ═══ */}
+  1996→
+  1997→   {/* New Company Dialog */}
+  1998→   <Dialog open={showNewCompany} onOpenChange={(open) => { if (!open) { setShowNewCompany(false); resetNewCompanyForm() } }}>
+  1999→    <DialogContent className="bg-white border-slate-200 max-w-2xl max-h-[90vh] overflow-y-auto">
+  2000→     <DialogHeader>
+
+[showing lines 1-2000 of 2524; use offset=2001 with limit to continue reading]
