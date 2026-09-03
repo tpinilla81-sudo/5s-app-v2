@@ -201,6 +201,7 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
     setSaving(true)
     try {
       console.log('[FullEditModal] Guardando empresa:', data.name)
+      console.log('[FullEditModal] Datos a enviar:', JSON.stringify(data, null, 2))
       const res = await fetch(`/api/companies/${companyId}`, {
         method: 'PUT',
         credentials: 'include',
@@ -210,17 +211,21 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
       
       const result = await res.json()
       console.log('[FullEditModal] Respuesta guardado:', result)
+      console.log('[FullEditModal] Status:', res.status, res.statusText)
       
       if (res.ok) {
         toast.success('✅ Empresa actualizada correctamente')
         onOpenChange(false)
         window.location.reload()
       } else {
-        toast.error(result.error || 'Error al guardar')
+        // Mostrar error detallado
+        const errorMsg = result.error || result.details || `Error ${res.status}: ${res.statusText}`
+        console.error('[FullEditModal] Error detallado:', errorMsg)
+        toast.error(`❌ ${errorMsg}`, { duration: 5000 })
       }
     } catch (error) {
       console.error('[FullEditModal] Error saving:', error)
-      toast.error('Error de conexión')
+      toast.error('❌ Error de conexión al guardar')
     }
     
     setSaving(false)

@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.28 - CORREGIR VISIBILIDAD CONTRASEÑA (plainPassword) - 2026-09-03
+// v3.0.29 - MEJORAR ERRORES GUARDADO + DETALLES - 2026-09-03
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.28',
-    buildTime: '2026-09-03T07:45:00Z',
-    feature: 'CORREGIR_VISIBILIDAD_CONTRASENA_PLAIN',
+    version: 'v3.0.29',
+    buildTime: '2026-09-03T08:00:00Z',
+    feature: 'MEJORAR_ERRORES_GUARDADO_DETALLES',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

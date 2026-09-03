@@ -230,7 +230,15 @@ export async function PUT(
     })
   } catch (error) {
     console.error('Update company error:', error)
-    return NextResponse.json({ success: false, error: 'Error al actualizar empresa' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Error al actualizar empresa'
+    const errorStack = error instanceof Error ? error.stack : ''
+    console.error('Update error details:', { message: errorMessage, stack: errorStack })
+    return NextResponse.json({ 
+      success: false, 
+      error: errorMessage,
+      details: errorMessage,
+      stack: process.env.NODE_ENV === 'development' ? errorStack : undefined
+    }, { status: 500 })
   }
 }
 
