@@ -122,8 +122,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                // v3.0.22 - MEJORAR ERROR HANDLING EN MODAL EDITAR
-                var CURRENT_VERSION = 'v3.0.22';
+                // v3.0.23 - MOSTRAR ERROR REAL EN MODAL
+                var CURRENT_VERSION = 'v3.0.23';
                 
                 // Check if we need to force reload
                 var storedVersion = localStorage.getItem('_app_force_version');

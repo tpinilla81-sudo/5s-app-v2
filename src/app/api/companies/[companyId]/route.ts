@@ -103,7 +103,15 @@ export async function GET(
     })
   } catch (error) {
     console.error('Get company error:', error)
-    return NextResponse.json({ success: false, error: 'Error al obtener empresa' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+    const errorStack = error instanceof Error ? error.stack : ''
+    console.error('Error details:', { message: errorMessage, stack: errorStack })
+    return NextResponse.json({ 
+      success: false, 
+      error: `Error al obtener empresa: ${errorMessage}`,
+      details: errorMessage,
+      stack: process.env.NODE_ENV === 'development' ? errorStack : undefined
+    }, { status: 500 })
   }
 }
 

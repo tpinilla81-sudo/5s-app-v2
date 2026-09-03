@@ -98,8 +98,8 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
       
       if (!response.ok) {
         // Manejar diferentes tipos de error
-        let errorMsg = result.error || `Error ${response.status}`
-        let details = ''
+        let errorMsg = result.error || result.details || `Error ${response.status}`
+        let details = result.details || result.stack || ''
         
         if (response.status === 401) {
           errorMsg = 'No autorizado - Sesión expirada'
@@ -110,8 +110,6 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
         } else if (response.status === 404) {
           errorMsg = 'Empresa no encontrada'
           details = 'La empresa ya no existe o fue eliminada.'
-        } else {
-          details = JSON.stringify(result, null, 2)
         }
         
         throw new Error(errorMsg + (details ? ` | ${details}` : ''))
