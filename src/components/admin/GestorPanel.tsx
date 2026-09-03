@@ -978,6 +978,15 @@ export default function GestorPanel() {
                       onClick={() => editingCompany !== company.id && handleViewCompany(company)}
                     >
                       <CardContent className="p-4">
+                        {/* 🔥 BANNER DE EDICIÓN - IMPOSIBLE DE IGNORAR */}
+                        <a
+                          href={`/edit-company/${company.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="block bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-black font-black text-center py-3 px-4 rounded-lg mb-3 text-sm uppercase tracking-wide shadow-2xl border-4 border-yellow-200 hover:border-white transition-all hover:scale-[1.02] animate-pulse"
+                        >
+                          🔧 EDITAR DATOS COMPLETOS DE LA EMPRESA → (CIF, Dirección, Teléfono, IBAN...)
+                        </a>
+                        
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3 flex-1">
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${company.active ? 'bg-violet-800/40' : 'bg-red-900/30'}`}>
@@ -998,13 +1007,12 @@ export default function GestorPanel() {
                                   <p className="text-sm font-semibold text-white">{company.name}</p>
                                   <div className="flex items-center gap-3 mt-1">
                                     <span className="text-[10px] text-violet-500">{company.description || 'Sin descripción'}</span>
-                                    <span className="text-[9px] text-blue-400 opacity-70">👁 Click para ver detalles</span>
                                   </div>
                                 </>
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                             <div className="text-center">
                               <p className="text-lg font-bold text-white">{company.projectCount}</p>
                               <p className="text-[10px] text-violet-500">Proyectos</p>
@@ -1016,15 +1024,15 @@ export default function GestorPanel() {
                             <Badge className={`${company.active ? 'bg-green-900/30 text-green-400 border-green-700/30' : 'bg-red-900/30 text-red-400 border-red-700/30'} border text-[10px]`}>
                               {company.active ? 'Activa' : 'Inactiva'}
                             </Badge>
-                            {/* ✅ NUEVO BOTÓN VISIBLE DE EDICIÓN */}
-                            <Button
-                              size="sm"
-                              onClick={(e) => { e.stopPropagation(); window.open(`/edit-company/${company.id}`, '_blank') }}
-                              className="bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white text-xs px-3 h-7 font-semibold hidden sm:inline-flex"
-                              title="Editar todos los datos (CIF, teléfono, dirección...)"
+                            {/* ✏️ BOTÓN EDITAR - SIEMPRE VISIBLE */}
+                            <a
+                              href={`/edit-company/${company.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-lg border-2 border-yellow-400/60"
+                              title="Editar empresa"
                             >
-                              ✏️ EDITAR DATOS
-                            </Button>
+                              <Edit3 className="h-3.5 w-3.5" /> EDITAR
+                            </a>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1033,15 +1041,6 @@ export default function GestorPanel() {
                               title={company.active ? 'Desactivar' : 'Activar'}
                             >
                               {company.active ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => { e.stopPropagation(); window.location.href = `/edit-company/${company.id}` }}
-                              className="h-7 w-7 p-0 text-violet-400 hover:bg-violet-900/30"
-                              title="Editar empresa"
-                            >
-                              <Edit3 className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"

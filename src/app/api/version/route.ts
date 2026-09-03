@@ -4,6 +4,8 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+// v3.0.15 - BANNER EDITAR VISIBLE - SOLUCION DEFINITIVA
+
 export async function GET() {
   // Debug: check database companies
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -24,7 +26,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.12',
+    version: 'v3.0.15',
+    buildTime: '2026-09-01T10:20:00Z',
+    feature: 'BANNER_EDITAR_IMPOSIBLE_IGNORAR',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {
