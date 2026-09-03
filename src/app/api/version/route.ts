@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.16 - BANNER EN PAGE.TSX - SOLUCION DEFINITIVA - 2026-09-03
+// v3.0.17 - BANNER DENTRO TARJETA + DATOS CARGADOS - 2026-09-03
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.16',
-    buildTime: '2026-09-03T06:50:00Z',
-    feature: 'BANNER_EDICION_EN_PAGE_TSX',
+    version: 'v3.0.17',
+    buildTime: '2026-09-03T07:00:00Z',
+    feature: 'BANNER_DENTRO_TARJETA_DATOS_CARGADOS',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

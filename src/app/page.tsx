@@ -180,14 +180,14 @@ export default function HomePage() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showGerencia, setShowGerencia] = useState(false);
-  const [appVersion, setAppVersion] = useState<string>('v3.0.16');
+  const [appVersion, setAppVersion] = useState<string>('v3.0.17');
 
   // Fetch version on mount
   useEffect(() => {
     fetch('/api/version', { cache: 'no-store' })
       .then(r => r.json())
-      .then(v => setAppVersion(v.version || 'v3.0.16'))
-      .catch(() => setAppVersion('v3.0.16'));
+      .then(v => setAppVersion(v.version || 'v3.0.17'))
+      .catch(() => setAppVersion('v3.0.17'));
   }, []);
   const isMobile = useIsMobile();
 
@@ -1989,20 +1989,6 @@ export default function HomePage() {
               {/* ═══ TAB: GESTIÓN (Solo Gestor - Dueño de la app) ═══ */}
               {activeTab === 'gestion' && isGestor && (
                 <motion.div key="gestion" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 min-h-0 overflow-auto p-4">
-                  {/* 🔥 BANNER DE EDICIÓN - v3.0.16 - IMPOSIBLE DE IGNORAR */}
-                  <a
-                    href="/edit-company/cmspt3byi000zky04x6srpvjv"
-                    className="block bg-gradient-to-r from-yellow-300 via-orange-500 to-red-600 text-black font-black text-center py-4 px-6 rounded-xl mb-4 text-base uppercase tracking-wider shadow-2xl border-4 border-yellow-200 hover:border-white transition-all hover:scale-[1.02] hover:shadow-orange-500/50 animate-pulse"
-                    style={{ animationDuration: '1.5s' }}
-                  >
-                    <span className="text-2xl mr-2">🔧</span>
-                    EDITAR DATOS COMPLETOS DE LA EMPRESA
-                    <span className="text-2xl ml-2">→</span>
-                    <div className="text-sm font-bold mt-1 opacity-90">
-                      CIF · NIF · Dirección · Teléfono · Contacto · Facturación · IBAN
-                    </div>
-                  </a>
-                  
                   <ConstructorPanel />
                 </motion.div>
               )}

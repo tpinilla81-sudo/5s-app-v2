@@ -43,38 +43,49 @@ export default function EditCompanyPage() {
 
   useEffect(() => {
     if (companyId) {
-      fetch(`/api/companies/${companyId}`)
+      fetch(`/api/companies/${companyId}`, {
+        credentials: 'include',
+        headers: { 'Cache-Control': 'no-cache' }
+      })
         .then(r => r.json())
         .then(result => {
+          console.log('[EditCompany] API Response:', result)
           const company = result.company || result
-          setCompanyName(company.name || '')
-          setData({
-            name: company.name || '',
-            description: company.description || '',
-            active: company.active !== undefined ? company.active : true,
-            nif: company.nif || '',
-            sector: company.sector || '',
-            address: company.address || '',
-            city: company.city || '',
-            province: company.province || '',
-            postalCode: company.postalCode || '',
-            country: company.country || '',
-            phone: company.phone || '',
-            website: company.website || '',
-            billingEmail: company.billingEmail || '',
-            billingName: company.billingName || '',
-            billingNif: company.billingNif || '',
-            billingAddress: company.billingAddress || '',
-            billingCity: company.billingCity || '',
-            billingPostalCode: company.billingPostalCode || '',
-            iban: company.iban || '',
-            contactName: company.contactName || '',
-            contactEmail: company.contactEmail || '',
-            contactPhone: company.contactPhone || ''
-          })
+          if (company && company.name) {
+            setCompanyName(company.name || '')
+            setData({
+              name: company.name || '',
+              description: company.description || '',
+              active: company.active !== undefined ? company.active : true,
+              nif: company.nif || '',
+              sector: company.sector || '',
+              address: company.address || '',
+              city: company.city || '',
+              province: company.province || '',
+              postalCode: company.postalCode || '',
+              country: company.country || 'España',
+              phone: company.phone || '',
+              website: company.website || '',
+              billingEmail: company.billingEmail || '',
+              billingName: company.billingName || '',
+              billingNif: company.billingNif || '',
+              billingAddress: company.billingAddress || '',
+              billingCity: company.billingCity || '',
+              billingPostalCode: company.billingPostalCode || '',
+              iban: company.iban || '',
+              contactName: company.contactName || '',
+              contactEmail: company.contactEmail || '',
+              contactPhone: company.contactPhone || ''
+            })
+          } else {
+            console.error('[EditCompany] No company data in response')
+          }
           setLoading(false)
         })
-        .catch(() => setLoading(false))
+        .catch(err => {
+          console.error('[EditCompany] Error fetching:', err)
+          setLoading(false)
+        })
     }
   }, [companyId])
 
@@ -83,6 +94,7 @@ export default function EditCompanyPage() {
     try {
       const res = await fetch(`/api/companies/${companyId}`, {
         method: 'PUT',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       })
@@ -130,7 +142,7 @@ export default function EditCompanyPage() {
             </div>
           </div>
           <div className="mt-3 inline-block bg-white/20 px-3 py-1 rounded-full text-xs font-mono">
-            v3.0.12 ✅ Página de edición completa
+            v3.0.16 ✅ Página de edición con datos cargados
           </div>
         </div>
       </div>
