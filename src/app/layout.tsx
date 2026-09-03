@@ -122,8 +122,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                // v3.0.26 - MEJORAR INFO ADMINISTRADOR
-                var CURRENT_VERSION = 'v3.0.26';
+                // v3.0.27 - VER Y RESETEAR CONTRASEÑA ADMIN
+                var CURRENT_VERSION = 'v3.0.27';
                 
                 // Check if we need to force reload
                 var storedVersion = localStorage.getItem('_app_force_version');

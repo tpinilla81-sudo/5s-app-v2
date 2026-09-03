@@ -180,14 +180,14 @@ export default function HomePage() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showGerencia, setShowGerencia] = useState(false);
-  const [appVersion, setAppVersion] = useState<string>('v3.0.26');
+  const [appVersion, setAppVersion] = useState<string>('v3.0.27');
 
   // Fetch version on mount
   useEffect(() => {
     fetch('/api/version', { cache: 'no-store' })
       .then(r => r.json())
-      .then(v => setAppVersion(v.version || 'v3.0.26'))
-      .catch(() => setAppVersion('v3.0.26'));
+      .then(v => setAppVersion(v.version || 'v3.0.27'))
+      .catch(() => setAppVersion('v3.0.27'));
   }, []);
   const isMobile = useIsMobile();
 

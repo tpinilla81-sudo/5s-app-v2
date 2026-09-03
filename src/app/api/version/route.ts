@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.26 - MEJORAR INFO ADMINISTRADOR - 2026-09-03
+// v3.0.27 - VER Y RESETEAR CONTRASEÑA ADMIN - 2026-09-03
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.26',
+    version: 'v3.0.27',
     buildTime: '2026-09-03T07:30:00Z',
-    feature: 'MEJORAR_INFO_ADMINISTRADOR_MODAL',
+    feature: 'VER_RESETEAR_CONTRASENA_ADMIN',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

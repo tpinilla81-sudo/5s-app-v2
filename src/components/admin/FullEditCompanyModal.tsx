@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog'
-import { Loader2, Save, Building2, Users, Shield, Mail, Phone, Key, AlertTriangle, RefreshCw, Eye, EyeOff, Lock, CheckCircle2 } from 'lucide-react'
+import { Loader2, Save, Building2, Users, Shield, Mail, Phone, Key, AlertTriangle, RefreshCw, Eye, EyeOff, Lock, CheckCircle2, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface FullEditCompanyModalProps {
@@ -27,6 +27,7 @@ interface AdminInfo {
   role: string
   active: boolean
   joinedAt: string
+  plainPassword?: string  // Contraseña en texto plano
 }
 
 export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEditCompanyModalProps) {
@@ -60,6 +61,12 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [errorDetails, setErrorDetails] = useState<string>('')
+  
+  // Estados para la contraseña del admin
+  const [showPassword, setShowPassword] = useState(false)
+  const [isEditingPassword, setIsEditingPassword] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [resettingPassword, setResettingPassword] = useState(false)
 
   // Reset state when modal closes
   useEffect(() => {
@@ -67,6 +74,10 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
       setError(null)
       setErrorDetails('')
       setLoading(false)
+      setShowPassword(false)
+      setIsEditingPassword(false)
+      setNewPassword('')
+      setResettingPassword(false)
     }
   }, [open])
 
@@ -151,14 +162,18 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
           )
           if (adminMember && adminMember.user) {
             console.log('[FullEditModal] Admin encontrado:', adminMember.user.name)
-            setAdmin({
+            const adminData = {
               id: adminMember.user.id,
               name: adminMember.user.name,
               email: adminMember.user.email,
               role: adminMember.user.role,
               active: adminMember.user.active !== false, // default true
               joinedAt: adminMember.joinedAt
-            })
+            }
+            setAdmin(adminData)
+            
+            // Cargar contraseña del admin desde API de usuarios
+            loadAdminPassword(adminMember.user.id)
           } else {
             console.log('[FullEditModal] No se encontró admin en miembros:', company.members.length, 'miembros')
             setAdmin(null)
@@ -210,6 +225,84 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
     }
     
     setSaving(false)
+  }
+
+  // Cargar contraseña del administrador
+  const loadAdminPassword = async (userId: string) => {
+    try {
+      console.log('[FullEditModal] Cargando contraseña del admin:', userId)
+      const res = await fetch(`/api/users?search=${admin?.email}`, { credentials: 'include' })
+      if (res.ok) {
+        const result = await res.json()
+        if (result.success && result.users && result.users.length > 0) {
+          const user = result.users.find((u: any) => u.id === userId)
+          if (user && user.plainPassword) {
+            console.log('[FullEditModal] Contraseña cargada')
+            setAdmin(prev => prev ? { ...prev, plainPassword: user.plainPassword } : null)
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[FullEditModal] Error cargando contraseña:', err)
+    }
+  }
+
+  // Restablecer/cambiar contraseña del admin
+  const handleResetPassword = async () => {
+    if (!admin) return
+    
+    // Si no estamos en modo edición, entrar en modo edición
+    if (!isEditingPassword) {
+      setIsEditingPassword(true)
+      setNewPassword(admin.plainPassword || '')
+      return
+    }
+    
+    // Guardar nueva contraseña
+    if (!newPassword || newPassword.length < 6) {
+      toast.error('La contraseña debe tener al menos 6 caracteres')
+      return
+    }
+    
+    setResettingPassword(true)
+    try {
+      console.log('[FullEditModal] Reseteando contraseña para:', admin.id)
+      const res = await fetch('/api/users', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: admin.id,
+          password: newPassword
+        })
+      })
+      
+      const result = await res.json()
+      if (res.ok) {
+        toast.success('✅ Contraseña actualizada correctamente')
+        setAdmin(prev => prev ? { ...prev, plainPassword: newPassword } : null)
+        setIsEditingPassword(false)
+        setNewPassword('')
+      } else {
+        toast.error(result.error || 'Error al actualizar contraseña')
+      }
+    } catch (error) {
+      console.error('[FullEditModal] Error reseteando contraseña:', error)
+      toast.error('Error de conexión')
+    }
+    
+    setResettingPassword(false)
+  }
+
+  // Generar contraseña aleatoria
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%'
+    let password = ''
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    setNewPassword(password)
+    toast.info('Contraseña aleatoria generada')
   }
 
   const updateField = (field: string, value: string | boolean) => {
@@ -314,25 +407,119 @@ export function FullEditCompanyModal({ open, onOpenChange, companyId }: FullEdit
                   </div>
 
                   {/* Sección de Credenciales */}
-                  <div className="mt-3 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg">
-                    <h4 className="font-semibold text-amber-800 mb-2 flex items-center gap-2 text-sm">
+                  <div className="mt-3 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg">
+                    <h4 className="font-semibold text-amber-800 mb-3 flex items-center gap-2 text-sm">
                       <Lock className="h-4 w-4" />
                       🔐 Credenciales de Acceso
                     </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                      <div className="bg-white p-2 rounded border border-amber-200">
-                        <p className="text-[10px] text-amber-600 uppercase font-semibold">Usuario (Email)</p>
-                        <p className="font-mono text-slate-700 font-medium">{admin.email}</p>
-                      </div>
-                      <div className="bg-white p-2 rounded border border-amber-200">
-                        <p className="text-[10px] text-amber-600 uppercase font-semibold">Contraseña</p>
-                        <p className="font-mono text-slate-500 italic">•••••••• (configurada)</p>
+                    
+                    {/* Usuario/Email */}
+                    <div className="mb-3">
+                      <p className="text-[10px] text-amber-600 uppercase font-semibold mb-1">Usuario (Email)</p>
+                      <div className="bg-white p-2.5 rounded border border-amber-200 flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-amber-500 shrink-0" />
+                        <p className="font-mono text-slate-700 font-medium text-sm">{admin.email}</p>
                       </div>
                     </div>
-                    <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-                      <AlertTriangle className="h-3 w-3" />
-                      Nota: Por seguridad, la contraseña no se muestra. Usa "Restablecer" si es necesario.
-                    </p>
+
+                    {/* Contraseña */}
+                    <div className="mb-3">
+                      <p className="text-[10px] text-amber-600 uppercase font-semibold mb-1">Contraseña</p>
+                      
+                      {isEditingPassword ? (
+                        // Modo edición de contraseña
+                        <div className="space-y-2">
+                          <div className="flex gap-2">
+                            <Input
+                              type={showPassword ? "text" : "password"}
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              className="bg-white border-amber-300 font-mono text-sm"
+                              placeholder="Nueva contraseña"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="shrink-0 border-amber-300 text-amber-600 hover:bg-amber-50"
+                            >
+                              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={generateRandomPassword}
+                              className="text-xs border-blue-300 text-blue-600 hover:bg-blue-50"
+                            >
+                              🎲 Generar aleatoria
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setIsEditingPassword(false)}
+                              className="text-xs border-slate-300 text-slate-600 hover:bg-slate-50"
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={handleResetPassword}
+                              disabled={resettingPassword || !newPassword || newPassword.length < 6}
+                              className="text-xs bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              {resettingPassword ? (
+                                <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Guardando...</>
+                              ) : (
+                                <><Save className="h-3 w-3 mr-1" /> Guardar</>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        // Modo visualización de contraseña
+                        <div className="flex gap-2">
+                          <div className="flex-1 bg-white p-2.5 rounded border border-amber-200 flex items-center gap-2">
+                            <Key className="h-4 w-4 text-amber-500 shrink-0" />
+                            <p className="font-mono text-slate-700 font-medium text-sm flex-1 break-all">
+                              {showPassword ? (admin.plainPassword || '••••••••') : '••••••••••••'}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="shrink-0 border-amber-300 text-amber-600 hover:bg-amber-50"
+                            title={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleResetPassword}
+                            className="shrink-0 border-blue-300 text-blue-600 hover:bg-blue-50"
+                            title="Restablecer/cambiar contraseña"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {!isEditingPassword && (
+                      <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Click en 👁️ para ver contraseña o 🔄 para cambiarla
+                      </p>
+                    )}
                   </div>
 
                   {/* Fecha de asignación */}
