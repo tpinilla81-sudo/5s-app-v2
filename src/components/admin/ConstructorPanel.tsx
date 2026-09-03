@@ -63,6 +63,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import TemplateManager from './TemplateManager'
+import { FullEditCompanyModal } from './FullEditCompanyModal'
 // Tablero5S removed — the board is defined and is what it is
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -309,6 +310,11 @@ export default function ConstructorPanel() {
 
  // Delete company confirmation
  const [deletingCompany, setDeletingCompany] = useState<{ id: string; name: string; projectCount: number } | null>(null)
+
+// ✏️ Modal edición completa empresa
+const [showFullEditModal, setShowFullEditModal] = useState(false)
+const [fullEditCompanyId, setFullEditCompanyId] = useState<string | null>(null)
+
 
  // Gestor profile edit
  const [showGestorProfile, setShowGestorProfile] = useState(false)
@@ -1206,16 +1212,17 @@ const handleSaveGestorProfile = async () => {
                  </Badge>
                 </div>
                 <div className="flex items-center gap-1.5 ml-2 shrink-0">
-                 {/* ✏️ BOTÓN EDITAR EMPRESA - CON TEXTO Y TOOLTIP */}
-                 <a
-                  href={`/edit-company/${company.id}`}
-                  onClick={(e) => e.stopPropagation()}
+                 {/* ✏️ BOTÓN EDITAR EMPRESA - ABRE MODAL */}
+                 <Button 
+                  variant="default" 
+                  size="sm" 
+                  onClick={(e) => { e.stopPropagation(); setFullEditCompanyId(company.id); setShowFullEditModal(true) }}
                   className="inline-flex items-center gap-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white text-xs font-bold px-2.5 py-1.5 rounded-md shadow-md border border-cyan-300/50"
                   title="✏️ EDITAR EMPRESA: Modificar todos los datos (CIF, NIF, dirección, teléfono, contacto, facturación, IBAN...)"
                  >
                   <Edit3 className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">EDITAR</span>
-                 </a>
+                 </Button>
                  {/* 🔄 BOTÓN ACTIVAR/DESACTIVAR */}
                  <Button 
                   variant="ghost" 
@@ -2503,6 +2510,14 @@ const handleSaveGestorProfile = async () => {
      </DialogContent>
     </Dialog>
    )}
+
+
+    {/* ✏️ MODAL EDITAR EMPRESA COMPLETA */}
+    <FullEditCompanyModal
+      open={showFullEditModal}
+      onOpenChange={setShowFullEditModal}
+      companyId={fullEditCompanyId}
+    />
   </div>
- )
+)
 }
