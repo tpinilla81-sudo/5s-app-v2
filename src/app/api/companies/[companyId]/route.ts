@@ -192,7 +192,7 @@ export async function PUT(
     const company = await db.company.update({
       where: { id: companyId },
       data,
-      include: { _count: { select: { projects: true, members: true } } }
+      include: { _count: { select: { projects: true } } }
     })
 
     return NextResponse.json({
@@ -205,7 +205,6 @@ export async function PUT(
         createdAt: company.createdAt,
         updatedAt: company.updatedAt,
         projectCount: company._count.projects,
-        memberCount: company._count.members,
         // Todos los datos adicionales
         nif: company.nif,
         sector: company.sector,
