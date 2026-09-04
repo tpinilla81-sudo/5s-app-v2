@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.39 - FIX MemberZone.id en asignación a zona - 2026-09-04
+// v3.0.40 - Script limpieza datos residuos - 2026-09-04
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.39',
-    buildTime: '2026-09-04T12:30:00Z',
-    feature: 'FIX_MEMBERZONE_ID_ZONE_ASSIGNMENT',
+    version: 'v3.0.40',
+    buildTime: '2026-09-04T12:45:00Z',
+    feature: 'CLEANUP_SCRIPT_RESIDUAL_DATA',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

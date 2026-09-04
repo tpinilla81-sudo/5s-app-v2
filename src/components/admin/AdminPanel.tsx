@@ -1472,6 +1472,54 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
     }
   }
 
+  // v3.0.39: Limpiar datos residuos/huérfanos
+  const handleCleanupData = async () => {
+    if (!confirm('¿Ejecutar limpieza de datos?\n\nEsto eliminará:\n- MemberZone huérfanos (sin ProjectMember o Zone válidos)\n- ProjectMember sin User o Project válidos\n- CompanyMember sin User o Company válidos\n\n¿Continuar?')) {
+      return
+    }
+
+    try {
+      const userRes = await fetch('/api/auth')
+      const userData = await userRes.json()
+      
+      const res = await fetch('/api/admin/cleanup', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user': JSON.stringify(userData.user || userData)
+        }
+      })
+      
+      const data = await res.json()
+      
+      if (res.ok) {
+        const msg = data.cleanup ? 
+          `✅ Limpieza completada!\n\n` +
+          `- MemberZone huérfanos: ${data.cleanup.orphanMemberZonesRemoved || 0}\n` +
+          `- MemberZone con zona inválida: ${data.cleanup.invalidZoneMemberZonesRemoved || 0}\n` +
+          `- ProjectMember sin usuario: ${data.cleanup.invalidUserMembersRemoved || 0}\n` +
+          `- ProjectMember sin proyecto: ${data.cleanup.invalidProjectMembersRemoved || 0}\n` +
+          `- CompanyMember sin usuario: ${data.cleanup.invalidCompanyMembersRemoved || 0}\n` +
+          `- CompanyMember sin empresa: ${data.cleanup.invalidCompanyRefsRemoved || 0}` :
+          data.message
+        
+        alert(msg)
+        
+        // Recargar datos
+        await Promise.all([loadUsers(), loadProjects(), loadCompanies()])
+        
+        if (data.summary) {
+          console.log('[cleanup] Resumen:', data.summary)
+        }
+      } else {
+        alert(`❌ Error en limpieza:\n\n${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error cleanup:', error)
+      alert('❌ Error de conexión al ejecutar limpieza')
+    }
+  }
+
   const handleAddGerente = async () => {
     if (!expandedCompanyId || !addGerenteUserId) return
     try {
@@ -2340,6 +2388,17 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
                   Datos fiscales y de facturación de tu empresa
                 </p>
                 <div className="flex gap-2">
+                  {/* v3.0.39: Botón para limpiar datos residuos */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCleanupData}
+                    className="text-red-600 border-red-300 hover:bg-red-50"
+                    title="Eliminar datos huérfanos/inconsistentes de la BD"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Limpiar Datos
+                  </Button>
                   {myCompany && (
                     <Button
                       variant={isEditingMyCompany ? 'outline' : 'default'}
