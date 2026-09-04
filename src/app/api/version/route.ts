@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.32 - PLANTILLAS EN PROYECTOS + PERMISOS BORRADO - 2026-09-03
+// v3.0.33 - FIX MemberZone RELATION + FIX-USERS API - 2026-09-04
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.32',
-    buildTime: '2026-09-03T09:15:00Z',
-    feature: 'PLANTILLAS_PROYECTOS_PERMISOS_BORRADO',
+    version: 'v3.0.33',
+    buildTime: '2026-09-04T10:30:00Z',
+    feature: 'FIX_MEMBERZONE_FIX_USERS_API',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

@@ -103,13 +103,13 @@ export async function POST(request: NextRequest) {
       // Obtener zonas del proyecto
       const projectZones = projects.find(p => p.id === targetProject!.id)?.zones || []
       
-      // Crear ProjectMember con zonas
+      // Crear ProjectMember con zonas - FIX: Usar 'MemberZone' (nombre correcto en Prisma)
       const member = await db.projectMember.create({
         data: {
           userId: user.id,
           projectId: targetProject.id,
           role: user.role || 'empleado',
-          zones: {
+          MemberZone: {
             create: projectZones.map(zone => ({ zoneId: zone.id }))
           }
         }
