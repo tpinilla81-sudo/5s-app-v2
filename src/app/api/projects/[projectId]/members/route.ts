@@ -172,13 +172,13 @@ export async function POST(
       validZoneIds.push(...allZones.map(z => z.id))
     }
 
-    // Create member with zones
+    // Create member with zones - FIX: Use 'MemberZone' (Prisma relation name), not 'zones'
     const member = await db.projectMember.create({
       data: {
         userId: user.id,
         projectId,
         role: memberRole,
-        zones: {
+        MemberZone: {
           create: validZoneIds.map(zoneId => ({
             zoneId,
           })),
@@ -196,9 +196,9 @@ export async function POST(
             plainPassword: true,
           },
         },
-        zones: {
+        MemberZone: {
           include: {
-            zone: {
+            Zone: {
               select: {
                 id: true,
                 name: true,
@@ -216,11 +216,11 @@ export async function POST(
       role: member.role,
       joinedAt: member.joinedAt,
       user: member.user,
-      zones: member.zones.map(mz => ({
-        id: mz.zone.id,
-        name: mz.zone.name,
-        color: mz.zone.color,
-      })),
+      zones: member.MemberZone?.map(mz => ({
+        id: mz.Zone.id,
+        name: mz.Zone.name,
+        color: mz.Zone.color,
+      })) || [],
       generatedPassword: isNewUser ? rawPassword : undefined,
     }
 
