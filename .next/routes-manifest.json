@@ -183,6 +183,12 @@
       "namedRegex": "^/api/actions(?:/)?$"
     },
     {
+      "page": "/api/admin/cleanup",
+      "regex": "^/api/admin/cleanup(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin/cleanup(?:/)?$"
+    },
+    {
       "page": "/api/admin/fix-users",
       "regex": "^/api/admin/fix\\-users(?:/)?$",
       "routeKeys": {},
@@ -277,6 +283,12 @@
       "regex": "^/api/db\\-status(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/db\\-status(?:/)?$"
+    },
+    {
+      "page": "/api/debug/memberzone-test",
+      "regex": "^/api/debug/memberzone\\-test(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/debug/memberzone\\-test(?:/)?$"
     },
     {
       "page": "/api/debug-companies",

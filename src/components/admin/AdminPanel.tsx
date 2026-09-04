@@ -306,6 +306,8 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
   const [newCompanyUserEmail, setNewCompanyUserEmail] = useState('')
   const [newCompanyUserPassword, setNewCompanyUserPassword] = useState('')
   const [newCompanyUserRole, setNewCompanyUserRole] = useState('empleado')
+  // v3.0.42: Selector de zonas al crear usuario desde empresa
+  const [newCompanyUserZones, setNewCompanyUserZones] = useState<string[]>([])
 
   // ─── 5S Steps state ────────────────────────────────────────────────────
   const [progress5S, setProgress5S] = useState<Array<{ id: string; sStep: number; miniStep: number; completed: boolean; score: number | null; notes: string | null; zoneId: string | null; zoneName?: string }>>([])
@@ -468,20 +470,47 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
         body: JSON.stringify({ userId, role: newCompanyUserRole }),
       })
 
-      // 3. v3.0.41: Asignar automáticamente al PRIMER proyecto de la empresa
+      // 3. v3.0.42: Asignar automáticamente al PRIMER proyecto de la empresa CON ZONAS
       const firstProject = allProjects.find(p => p.company === myCompany.name) || allProjects[0]
       let projectAssigned = false
       let projectError = ''
+      let assignedZoneNames: string[] = []
       
       if (firstProject) {
         try {
+          // v3.0.42: Enviar las zonas seleccionadas por el admin
+          const bodyPayload: any = { 
+            userId, 
+            role: newCompanyUserRole 
+          }
+          
+          // Si el admin seleccionó zonas específicas, enviarlas; si no, el backend auto-asigna todas
+          if (newCompanyUserZones.length > 0) {
+            bodyPayload.zoneIds = newCompanyUserZones
+            // Obtener nombres de las zonas para el mensaje
+            if (selectedProjectId === firstProject.id && projectZones.length > 0) {
+              assignedZoneNames = projectZones
+                .filter(z => newCompanyUserZones.includes(z.id))
+                .map(z => z.name)
+            }
+          }
+          
           const assignProjectRes = await fetch(`/api/projects/${firstProject.id}/members`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, role: newCompanyUserRole }),
+            body: JSON.stringify(bodyPayload),
           })
           if (assignProjectRes.ok) {
             projectAssigned = true
+            // Si no tenemos los nombres, intentar obtenerlos de la respuesta
+            if (assignedZoneNames.length === 0 && newCompanyUserZones.length > 0) {
+              try {
+                const resData = await assignProjectRes.json()
+                if (resData.member?.zones) {
+                  assignedZoneNames = resData.member.zones.map((z: any) => z.name)
+                }
+              } catch (_) { /* ignorar error al parsear respuesta */ }
+            }
           } else {
             const errData = await assignProjectRes.json()
             projectError = errData.error || 'Error desconocido'
@@ -497,11 +526,18 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
       setNewCompanyUserEmail('')
       setNewCompanyUserPassword('')
       setNewCompanyUserRole('empleado')
+      setNewCompanyUserZones([]) // v3.0.42: Limpiar selección de zonas
       setShowAddCompanyUser(false)
-      // 5. Mostrar resultado con detalle (v3.0.41)
+      
+      // 5. Mostrar resultado con detalle (v3.0.42 mejorado)
       let msg = `✅ Usuario "${name}" creado y añadido a ${myCompany.name}.`
       if (projectAssigned) {
         msg += `\n\n✅ Asignado al proyecto: ${firstProject?.name}`
+        if (newCompanyUserZones.length > 0 && assignedZoneNames.length > 0) {
+          msg += `\n\n📍 Zonas asignadas: ${assignedZoneNames.join(', ')}`
+        } else if (newCompanyUserZones.length === 0) {
+          msg += `\n\n📍 Zonas: Todas las zonas del proyecto (auto-asignadas)`
+        }
       } else if (projectError) {
         msg += `\n\n⚠️ No se pudo asignar al proyecto:\n${projectError}\n\nPuedes asignarlo manualmente desde PROYECTOS → Miembros`
       }
@@ -2570,6 +2606,81 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
                                     </SelectContent>
                                   </Select>
                                 </div>
+
+                                {/* v3.0.42: Selector de ZONAS del proyecto destino */}
+                                {(() => {
+                                  // Encontrar el primer proyecto de esta empresa
+                                  const targetProject = allProjects.find(p => p.company === myCompany?.name) || allProjects[0]
+                                  if (!targetProject) return null
+                                  
+                                  // Cargar zonas del proyecto (usamos projectZones si es el proyecto seleccionado, o mostramos un indicador)
+                                  const zonesForProject = selectedProjectId === targetProject.id 
+                                    ? projectZones 
+                                    : [] // Las zonas se cargarán cuando se seleccione el proyecto
+                                  
+                                  return (
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[10px] font-medium text-purple-700 flex items-center gap-1">
+                                        <MapPin className="h-3 w-3" />
+                                        Zonas asignadas (proyecto: {targetProject.name})
+                                        {zonesForProject.length === 0 && selectedProjectId !== targetProject.id && (
+                                          <span className="text-orange-500 font-normal">* Selecciona este proyecto arriba para ver zonas</span>
+                                        )}
+                                      </Label>
+                                      {zonesForProject.length > 0 ? (
+                                        <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-white rounded border">
+                                          {zonesForProject.map(zone => (
+                                            <label
+                                              key={zone.id}
+                                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] cursor-pointer transition-colors border ${
+                                                newCompanyUserZones.includes(zone.id)
+                                                  ? 'bg-purple-600 text-white border-purple-700'
+                                                  : 'bg-white text-gray-600 border-gray-300 hover:border-purple-400'
+                                              }`}
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                className="sr-only"
+                                                checked={newCompanyUserZones.includes(zone.id)}
+                                                onChange={e => {
+                                                  if (e.target.checked) {
+                                                    setNewCompanyUserZones(prev => [...prev, zone.id])
+                                                  } else {
+                                                    setNewCompanyUserZones(prev => prev.filter(id => id !== zone.id))
+                                                  }
+                                                }}
+                                              />
+                                              <span
+                                                className="w-2 h-2 rounded-full flex-shrink-0"
+                                                style={{ backgroundColor: zone.color }}
+                                              />
+                                              {zone.name}
+                                            </label>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="text-[10px] text-muted-foreground italic p-2 bg-yellow-50 rounded border border-yellow-200">
+                                          ⚠️ No hay zonas cargadas. Se asignarán todas las zonas del proyecto automáticamente.
+                                          <br />
+                                          <span className="text-[9px]">(Selecciona el proyecto "{targetProject.name}" arriba para elegir zonas específicas)</span>
+                                        </p>
+                                      )}
+                                      {newCompanyUserZones.length > 0 && (
+                                        <p className="text-[9px] text-purple-600">
+                                          ✓ {newCompanyUserZones.length} zona(s) seleccionada(s)
+                                          <button
+                                            type="button"
+                                            className="ml-2 underline hover:text-purple-800"
+                                            onClick={() => setNewCompanyUserZones([])}
+                                          >
+                                            Limpiar selección
+                                          </button>
+                                        </p>
+                                      )}
+                                    </div>
+                                  )
+                                })()}
+                                <input type="hidden" name="zoneIds" value={newCompanyUserZones.join(',')} />
                                 <Button
                                   size="sm"
                                   className="w-full h-8 text-xs bg-purple-600 text-white"
