@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '../../../../../lib/db'
 import { hashPassword } from '../../../../../lib/password'
+import { cuid } from '@prisma/client'
 
 // GET /api/projects/[projectId]/members - List members with zones, role, and password
 // v3.0.1: FIX - Corregidos nombres de relaciones Prisma
@@ -172,7 +173,7 @@ export async function POST(
       validZoneIds.push(...allZones.map(z => z.id))
     }
 
-    // Create member with zones - FIX: Use 'MemberZone' (Prisma relation name), not 'zones'
+    // Create member with zones - FIX: Use 'MemberZone' + include 'id' required
     const member = await db.projectMember.create({
       data: {
         userId: user.id,
@@ -180,6 +181,7 @@ export async function POST(
         role: memberRole,
         MemberZone: {
           create: validZoneIds.map(zoneId => ({
+            id: cuid(),
             zoneId,
           })),
         },

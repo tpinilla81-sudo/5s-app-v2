@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '../../../../lib/db'
+import { cuid } from '@prisma/client'
 
 // POST /api/admin/fix-users - Asigna todos los usuarios sin proyecto
 // Este endpoint corrige el bug donde usuarios creados desde "Datos Empresa → Usuarios"
@@ -104,14 +105,17 @@ export async function POST(request: NextRequest) {
       // Obtener zonas del proyecto
       const projectZones = projects.find(p => p.id === targetProject!.id)?.zones || []
       
-      // Crear ProjectMember con zonas - FIX: Usar 'MemberZone' (nombre correcto en Prisma)
+      // Crear ProjectMember con zonas - FIX: Usar 'MemberZone' + incluir 'id' requerido
       const member = await db.projectMember.create({
         data: {
           userId: user.id,
           projectId: targetProject.id,
           role: user.role || 'empleado',
           MemberZone: {
-            create: projectZones.map(zone => ({ zoneId: zone.id }))
+            create: projectZones.map(zone => ({
+              id: cuid(),
+              zoneId: zone.id
+            }))
           }
         }
       })
