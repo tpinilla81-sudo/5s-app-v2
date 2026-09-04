@@ -948,15 +948,21 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ zoneId }),
       })
+      const data = await res.json().catch(() => ({}))
       if (res.ok) {
         await loadProjectDetail(selectedProjectId)
         await loadProjects()
+        // v3.0.32: Feedback visual con detalles
+        alert(`Zona "${zoneName}" eliminada correctamente.\n${data.details ? `Miembros desasignados: ${data.details.memberAssignmentsRemoved}` : ''}`)
       } else {
-        const data = await res.json()
-        alert(data.error || 'Error al eliminar zona')
+        const errMsg = data.error || `Error HTTP ${res.status}`
+        console.error('Error deleting zone:', res.status, data)
+        alert(`No se pudo borrar la zona:\n\n${errMsg}`)
       }
     } catch (error) {
       console.error('Error deleting zone:', error)
+      const msg = error instanceof Error ? error.message : String(error)
+      alert(`Error de red al eliminar zona:\n\n${msg}`)
     }
   }
 

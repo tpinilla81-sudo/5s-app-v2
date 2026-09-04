@@ -192,6 +192,8 @@ export async function PATCH(
 
 // DELETE /api/projects/[projectId]/zones - Remove a zone
 //
+// v3.0.32: Admin Y gestor pueden borrar zonas
+//
 // ORDEN DE BORRADO (v3.0.7 - CORREGIDO):
 // 1. MemberZone (asignaciones de miembros a esta zona) - PRIMERO
 // 2. Zone (la zona en sí) - DESPUÉS
@@ -216,6 +218,18 @@ export async function DELETE(
       )
     }
 
+    // ─── v3.0.32: VERIFICAR AUTENTICACIÓN ───
+    const { getAuthUser } = await import('../../../../lib/auth-helpers')
+    const user = await getAuthUser(request)
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'No autenticado' },
+        { status: 401 }
+      )
+    }
+
+    console.log(`[DELETE /zones] User: ${user.email} (${user.role}) deleting zone ${zoneId} from project ${projectId}`)
+
     // Verify zone belongs to project
     const zone = await db.zone.findUnique({
       where: { id: zoneId },
@@ -236,6 +250,11 @@ export async function DELETE(
         { error: 'Zona no encontrada en este proyecto' },
         { status: 404 }
       )
+    }
+
+    // v3.0.32: Verificar que zona jaula puede ser borrada (advertencia pero permitir)
+    if (zone.isJaula) {
+      console.warn(`[DELETE /zones] WARNING: Deleting JAULA zone ${zoneId} from project ${projectId}`)
     }
 
     // Ejecutar borrado en orden correcto (transaccional)
