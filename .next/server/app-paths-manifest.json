@@ -3,6 +3,7 @@
   "/_not-found/page": "app/_not-found/page.js",
   "/api/1787842151_check/route": "app/api/1787842151_check/route.js",
   "/api/actions/route": "app/api/actions/route.js",
+  "/api/admin/fix-users/route": "app/api/admin/fix-users/route.js",
   "/api/audit-targets/route": "app/api/audit-targets/route.js",
   "/api/audit/route": "app/api/audit/route.js",
   "/api/auth/route": "app/api/auth/route.js",
