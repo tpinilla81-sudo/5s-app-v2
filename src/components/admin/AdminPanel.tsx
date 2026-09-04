@@ -1429,7 +1429,8 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
 
     try {
       // Obtener info del usuario actual para la autenticación
-      const userRes = await fetch('/api/auth/me')
+      // FIX v3.0.34: Usar /api/auth (no /api/auth/me que no existe)
+      const userRes = await fetch('/api/auth')
       const userData = await userRes.json()
       
       const res = await fetch('/api/admin/fix-users', {

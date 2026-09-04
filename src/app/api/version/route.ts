@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.34 - FIX MemberZone ALL FILES - 2026-09-04
+// v3.0.35 - FIX auth endpoint + MemberZone - 2026-09-04
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.34',
-    buildTime: '2026-09-04T11:00:00Z',
-    feature: 'FIX_MEMBERZONE_ALL_FILES',
+    version: 'v3.0.35',
+    buildTime: '2026-09-04T11:30:00Z',
+    feature: 'FIX_AUTH_ENDPOINT_MEMBERZONE',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {
