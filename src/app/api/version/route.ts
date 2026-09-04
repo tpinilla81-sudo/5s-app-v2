@@ -26,7 +26,7 @@ export async function GET() {
 
   return NextResponse.json({
     version: 'v3.0.33',
-    buildTime: '2026-09-04T10:30:00Z',
+    buildTime: '2026-09-04T10:45:00Z',
     feature: 'FIX_MEMBERZONE_FIX_USERS_API',
     timestamp: new Date().toISOString(),
     debug: dbInfo
