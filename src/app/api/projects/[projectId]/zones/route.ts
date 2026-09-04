@@ -239,6 +239,7 @@ export async function DELETE(
     console.log(`[DELETE /zones] User: ${user.email} (${user.role}) deleting zone ${zoneId} from project ${projectId}`)
 
     // Verify zone belongs to project
+    // v3.0.32-fix: Simplificar _count para evitar errores de campos inexistentes
     const zone = await db.zone.findUnique({
       where: { id: zoneId },
       include: {
@@ -246,8 +247,6 @@ export async function DELETE(
           select: { 
             MemberZone: true,        // Miembros asignados a esta zona
             inventoryItems: true,     // Items de inventario en esta zona
-            progress: true,          // Progreso en esta zona
-            employeeProgress: true,  // Progreso de empleados en esta zona
           }
         }
       }
