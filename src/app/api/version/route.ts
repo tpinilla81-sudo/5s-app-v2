@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.35 - FIX auth endpoint + MemberZone - 2026-09-04
+// v3.0.36 - FIX Company (mayúscula) en Prisma - 2026-09-04
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.35',
-    buildTime: '2026-09-04T11:30:00Z',
-    feature: 'FIX_AUTH_ENDPOINT_MEMBERZONE',
+    version: 'v3.0.36',
+    buildTime: '2026-09-04T11:45:00Z',
+    feature: 'FIX_COMPANY_UPPERCASE_PRISMA',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

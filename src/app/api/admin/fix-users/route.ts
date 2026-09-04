@@ -68,10 +68,11 @@ export async function POST(request: NextRequest) {
       }
 
       // Usuario SIN proyecto - buscar su empresa
+      // FIX v3.0.35: Usar 'Company' (nombre correcto en Prisma, no 'company')
       const companyMember = await db.companyMember.findFirst({
         where: { userId: user.id },
         include: { 
-          company: { 
+          Company: { 
             include: { 
               projects: { 
                 where: { active: true },
@@ -85,8 +86,8 @@ export async function POST(request: NextRequest) {
       // Determinar proyecto objetivo
       let targetProject = null
       
-      if (companyMember?.company.projects.length > 0) {
-        targetProject = companyMember.company.projects[0]
+      if (companyMember?.Company?.projects.length > 0) {
+        targetProject = companyMember.Company.projects[0]
       } else if (projects.length > 0) {
         targetProject = projects[0]
       }
