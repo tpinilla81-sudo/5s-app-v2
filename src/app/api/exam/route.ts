@@ -122,10 +122,10 @@ export async function POST(request: NextRequest) {
         if (!effectiveZoneId) {
           const memberRecord = await db.projectMember.findFirst({
             where: { userId: body.userId, projectId: lookupProjectId },
-            include: { zones: true },
+            include: { MemberZone: true },
           })
-          if (memberRecord && memberRecord.zones.length > 0) {
-            effectiveZoneId = memberRecord.zones[0].zoneId
+          if (memberRecord && memberRecord.MemberZone && memberRecord.MemberZone.length > 0) {
+            effectiveZoneId = memberRecord.MemberZone[0].zoneId
           }
         }
         if (effectiveZoneId) {

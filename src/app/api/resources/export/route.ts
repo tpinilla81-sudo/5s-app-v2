@@ -46,9 +46,9 @@ export async function GET(request: NextRequest) {
             project: {
               select: { id: true, name: true, company: true }
             },
-            zones: {
+            MemberZone: {
               include: {
-                zone: {
+                Zone: {
                   select: { id: true, name: true, color: true }
                 }
               },

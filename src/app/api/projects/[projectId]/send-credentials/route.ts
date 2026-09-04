@@ -33,9 +33,9 @@ export async function POST(
         user: {
           select: { id: true, email: true, name: true, role: true },
         },
-        zones: {
+        MemberZone: {
           include: {
-            zone: {
+            Zone: {
               select: { id: true, name: true },
             },
           },
@@ -53,7 +53,7 @@ export async function POST(
       )
     }
 
-    const zoneNames = member.zones.map(mz => mz.zone.name)
+    const zoneNames = member.MemberZone?.map(mz => mz.Zone.name) || []
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://5s-app-one.vercel.app'
 
     const result = await sendResourceWelcomeEmail({

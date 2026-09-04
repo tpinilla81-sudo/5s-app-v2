@@ -87,9 +87,9 @@ export async function POST(
             avatar: true, active: true, plainPassword: true,
           },
         },
-        zones: {
+        MemberZone: {
           include: {
-            zone: { select: { id: true, name: true, color: true } },
+            Zone: { select: { id: true, name: true, color: true } },
           },
         },
       },
@@ -100,11 +100,11 @@ export async function POST(
       role: fresh!.role,
       joinedAt: fresh!.joinedAt,
       user: fresh!.user,
-      zones: fresh!.zones.map((mz) => ({
-        id: mz.zone.id,
-        name: mz.zone.name,
-        color: mz.zone.color,
-      })),
+      zones: fresh!.MemberZone?.map((mz) => ({
+        id: mz.Zone.id,
+        name: mz.Zone.name,
+        color: mz.Zone.color,
+      })) || [],
     }
 
     return NextResponse.json({ member: transformed }, { status: 201 })
