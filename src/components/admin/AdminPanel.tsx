@@ -467,7 +467,27 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
         body: JSON.stringify({ userId, role: newCompanyUserRole }),
       })
 
-      // 3. Recargar users y limpiar formulario
+      // 3. v3.0.32-fix: Asignar automáticamente al PRIMER proyecto de la empresa
+      //    para que el usuario pueda acceder inmediatamente
+      const firstProject = allProjects.find(p => p.company === myCompany.name) || allProjects[0]
+      if (firstProject) {
+        try {
+          const assignProjectRes = await fetch(`/api/projects/${firstProject.id}/members`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, role: newCompanyUserRole }),
+          })
+          if (assignProjectRes.ok) {
+            console.log(`[handleCreateCompanyUser] Usuario ${email} asignado al proyecto ${firstProject.name}`)
+          } else {
+            console.warn(`[handleCreateCompanyUser] No se pudo asignar al proyecto:`, await assignProjectRes.json())
+          }
+        } catch (e) {
+          console.warn(`[handleCreateCompanyUser] Error asignando al proyecto:`, e)
+        }
+      }
+
+      // 4. Recargar users y limpiar formulario
       await loadUsers()
       setNewCompanyUserName('')
       setNewCompanyUserEmail('')
