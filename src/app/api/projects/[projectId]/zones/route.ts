@@ -218,13 +218,21 @@ export async function DELETE(
       )
     }
 
-    // ─── v3.0.32: VERIFICAR AUTENTICACIÓN ───
-    const { getAuthUser } = await import('../../../../lib/auth-helpers')
+    // ─── v3.0.32: VERIFICAR AUTENTICACIÓN Y PERMISOS ───
+    const { getAuthUser } = await import('../../../../../lib/auth-helpers')
     const user = await getAuthUser(request)
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'No autenticado' },
         { status: 401 }
+      )
+    }
+
+    // v3.0.32: SOLO admin puede borrar zonas (gestor solo borra empresas)
+    if (user.role !== 'admin') {
+      return NextResponse.json(
+        { success: false, error: 'Solo el administrador puede borrar zonas' },
+        { status: 403 }
       )
     }
 

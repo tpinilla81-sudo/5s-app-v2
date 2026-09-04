@@ -73,7 +73,8 @@ export async function DELETE(
     const { projectId } = await params
     
     // ─── VERIFICAR PERMISOS ───
-    // v3.0.32: Admin puede borrar proyectos, Gestor puede borrar cualquiera
+    // v3.0.32: SOLO Admin puede borrar proyectos y zonas
+    //          Gestor solo puede borrar empresas (no proyectos)
     const user = await getAuthUser(request)
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
@@ -95,26 +96,25 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Proyecto no encontrado' }, { status: 404 })
     }
 
-    // Si es admin, verificar que pertenece a la empresa del proyecto
-    if (user.role === 'admin') {
-      const membership = await db.companyMember.findFirst({
-        where: {
-          userId: user.id,
-          companyId: existing.companyId
-        }
-      })
-      if (!membership) {
-        return NextResponse.json({ 
-          success: false, 
-          error: 'Solo puedes borrar proyectos de tu empresa' 
-        }, { status: 403 })
-      }
-    }
-    // Si no es gestor ni admin, denegar
-    else if (user.role !== 'gestor') {
+    // v3.0.32: SOLO admin puede borrar proyectos
+    if (user.role !== 'admin') {
       return NextResponse.json({ 
         success: false, 
-        error: 'No tienes permisos para borrar proyectos' 
+        error: 'Solo el administrador puede borrar proyectos' 
+      }, { status: 403 })
+    }
+
+    // Verificar que el admin pertenece a la empresa del proyecto
+    const membership = await db.companyMember.findFirst({
+      where: {
+        userId: user.id,
+        companyId: existing.companyId
+      }
+    })
+    if (!membership) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Solo puedes borrar proyectos de tu empresa' 
       }, { status: 403 })
     }
 
