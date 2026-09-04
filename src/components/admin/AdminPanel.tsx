@@ -1833,23 +1833,10 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
                                                   )}
                                                 </div>
 
-                                                {/* ─────────── PLANTILLAS DE ESTA ZONA (v2.31) ─────────── */}
-                                                {/* Se muestra ANTES que los miembros: el flujo es
-                                                    1) crear zona → 2) elegir/plantear plantillas → 3) adjudicar usuarios.
-                                                    Desde aquí se puede editar el contenido de cualquier plantilla
-                                                    (abre el TemplateManager en un Sheet) y cambiar la asignación
-                                                    por celda S×Paso. */}
-                                                <div className="p-3 border-b bg-gradient-to-b from-emerald-50/30 to-white">
-                                                  <ZoneTemplatesSection
-                                                    zoneId={zone.id}
-                                                    zoneName={zone.name}
-                                                    boardConfigId={zone.boardConfigId}
-                                                    boardConfigName={zone.boardConfig?.name}
-                                                    boardConfigIsDefault={zone.boardConfig?.isDefault}
-                                                    companyId={allProjects.find(p => p.id === selectedProjectId)?.companyId ?? null}
-                                                    companyName={currentProjectCompany || allProjects.find(p => p.id === selectedProjectId)?.company || ''}
-                                                  />
-                                                </div>
+                                                {/* ─────────── LAS PLANTILLAS SE GESTIONAN DESDE EL PROYECTO ─────────── */}
+                                                {/* Nota: Las plantillas del Sistema las crea el GESTOR.
+                                                     Se visualizan en cada Proyecto (solo lectura para admin).
+                                                     v3.0.32: Movido a Proyectos para simplificar flujo. */}
 
                                                 {/* Miembros de esta zona — tabla editable */}
                                                 <div className="p-3">
