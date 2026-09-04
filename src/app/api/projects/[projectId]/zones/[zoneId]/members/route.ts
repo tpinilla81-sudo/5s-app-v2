@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '../../../../../../../lib/db'
+import { cuid } from '@prisma/client'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/projects/[projectId]/zones/[zoneId]/members
@@ -72,9 +73,13 @@ export async function POST(
       )
     }
 
-    // Create the MemberZone link
+    // Create the MemberZone link - FIX: incluir id requerido
     await db.memberZone.create({
-      data: { memberId: member.id, zoneId },
+      data: { 
+        id: cuid(),
+        memberId: member.id, 
+        zoneId 
+      },
     })
 
     // Return the enriched member (mirrors /api/projects/[projectId]/members shape)
