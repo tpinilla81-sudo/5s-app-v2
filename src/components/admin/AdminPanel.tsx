@@ -58,6 +58,7 @@ import {
   LayoutGrid,
   FileText,
   Wand2,
+  UserCheck,
 } from 'lucide-react'
 import { Checkbox } from '../ui/checkbox'
 import { S_STEPS } from '../../lib/5s-constants'
@@ -1420,6 +1421,47 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
     }
   }
 
+  // v3.0.32-fix6: Asignar todos los usuarios sin proyecto
+  const handleFixUsersWithoutProject = async () => {
+    if (!confirm('¿Asignar TODOS los usuarios sin proyecto a su empresa?\n\nEsto corrige el bug donde usuarios como Luis no podían entrar aunque tenían zona asignada.')) {
+      return
+    }
+
+    try {
+      // Obtener info del usuario actual para la autenticación
+      const userRes = await fetch('/api/auth/me')
+      const userData = await userRes.json()
+      
+      const res = await fetch('/api/admin/fix-users', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user': JSON.stringify(userData.user || userData)
+        }
+      })
+      
+      const data = await res.json()
+      
+      if (res.ok) {
+        alert(`✅ ${data.message}\n\nUsuarios procesados: ${data.totalUsers}\nCorregidos: ${data.fixedCount}`)
+        
+        // Recargar datos
+        await Promise.all([loadUsers(), loadProjects()])
+        
+        // Mostrar detalle de qué se corrigió
+        const fixedUsers = data.results.filter((r: any) => r.status === 'fixed')
+        if (fixedUsers.length > 0) {
+          console.log('[fix-users] Usuarios corregidos:', fixedUsers)
+        }
+      } else {
+        alert(`❌ Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error fixing users:', error)
+      alert('❌ Error de conexión al corregir usuarios')
+    }
+  }
+
   const handleAddGerente = async () => {
     if (!expandedCompanyId || !addGerenteUserId) return
     try {
@@ -2287,20 +2329,33 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
                 <p className="text-sm text-muted-foreground">
                   Datos fiscales y de facturación de tu empresa
                 </p>
-                {myCompany && (
+                <div className="flex gap-2">
+                  {/* v3.0.32-fix6: Botón temporal para corregir usuarios sin proyecto */}
                   <Button
-                    variant={isEditingMyCompany ? 'outline' : 'default'}
+                    variant="outline"
                     size="sm"
-                    onClick={() => setIsEditingMyCompany(!isEditingMyCompany)}
-                    className={isEditingMyCompany ? '' : 'bg-gradient-to-r from-purple-500 to-purple-600 text-white'}
+                    onClick={handleFixUsersWithoutProject}
+                    className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                    title="Asigna todos los usuarios sin proyecto (corrige bug Luis)"
                   >
-                    {isEditingMyCompany ? (
-                      <><X className="h-4 w-4 mr-1" /> Cancelar edición</>
-                    ) : (
-                      <><Edit3 className="h-4 w-4 mr-1" /> Editar datos</>
-                    )}
+                    <UserCheck className="h-4 w-4 mr-1" />
+                    Fix Usuarios
                   </Button>
-                )}
+                  {myCompany && (
+                    <Button
+                      variant={isEditingMyCompany ? 'outline' : 'default'}
+                      size="sm"
+                      onClick={() => setIsEditingMyCompany(!isEditingMyCompany)}
+                      className={isEditingMyCompany ? '' : 'bg-gradient-to-r from-purple-500 to-purple-600 text-white'}
+                    >
+                      {isEditingMyCompany ? (
+                        <><X className="h-4 w-4 mr-1" /> Cancelar edición</>
+                      ) : (
+                        <><Edit3 className="h-4 w-4 mr-1" /> Editar datos</>
+                      )}
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {isLoadingMyCompany ? (
