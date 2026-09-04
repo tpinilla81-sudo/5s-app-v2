@@ -1034,6 +1034,10 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
           setNewMemberRole('empleado')
           setNewMemberZones(projectZones.map(z => z.id))
           await loadProjectDetail(selectedProjectId)
+        } else {
+          // Mostrar error específico
+          const data = await res.json()
+          alert(`❌ Error al añadir usuario:\n\n${data.error || 'Error desconocido'}`)
         }
       } else {
         // Create new user and add to project
@@ -1064,10 +1068,15 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
           setNewMemberZones(projectZones.map(z => z.id))
           setNewMemberPassword('')
           await loadProjectDetail(selectedProjectId)
+        } else {
+          // Mostrar error específico
+          const data = await res.json()
+          alert(`❌ Error al crear usuario:\n\n${data.error || 'Error desconocido'}`)
         }
       }
     } catch (error) {
       console.error('Error adding member:', error)
+      alert(`❌ Error de conexión:\n\n${error instanceof Error ? error.message : 'Error desconocido'}`)
     }
   }
 
@@ -2331,17 +2340,6 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
                   Datos fiscales y de facturación de tu empresa
                 </p>
                 <div className="flex gap-2">
-                  {/* v3.0.32-fix6: Botón temporal para corregir usuarios sin proyecto */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleFixUsersWithoutProject}
-                    className="text-orange-600 border-orange-300 hover:bg-orange-50"
-                    title="Asigna todos los usuarios sin proyecto (corrige bug Luis)"
-                  >
-                    <UserCheck className="h-4 w-4 mr-1" />
-                    Fix Usuarios
-                  </Button>
                   {myCompany && (
                     <Button
                       variant={isEditingMyCompany ? 'outline' : 'default'}
