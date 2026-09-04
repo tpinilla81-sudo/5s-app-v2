@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '../../../lib/db'
+import { db } from '../../../../lib/db'
 
 // POST /api/admin/fix-users - Asigna todos los usuarios sin proyecto
 // Este endpoint corrige el bug donde usuarios creados desde "Datos Empresa → Usuarios"
