@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.31 - AUTENTICACION REAL TEMPLATES + ADMIN VE SISTEMA - 2026-09-03
+// v3.0.32 - PLANTILLAS EN PROYECTOS + PERMISOS BORRADO - 2026-09-03
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.31',
-    buildTime: '2026-09-03T08:45:00Z',
-    feature: 'AUTH_REAL_TEMPLATES_ADMIN_VE_SISTEMA',
+    version: 'v3.0.32',
+    buildTime: '2026-09-03T09:15:00Z',
+    feature: 'PLANTILLAS_PROYECTOS_PERMISOS_BORRADO',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

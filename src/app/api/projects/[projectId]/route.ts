@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '../../../../lib/db'
+import { getAuthUser } from '../../../../lib/auth-helpers'
 
 // PUT /api/projects/[projectId] - Update project
 export async function PUT(
@@ -70,6 +71,13 @@ export async function DELETE(
 ) {
   try {
     const { projectId } = await params
+    
+    // ─── VERIFICAR PERMISOS ───
+    // v3.0.32: Admin puede borrar proyectos, Gestor puede borrar cualquiera
+    const user = await getAuthUser(request)
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
+    }
 
     const existing = await db.project.findUnique({ 
       where: { id: projectId },
@@ -86,6 +94,31 @@ export async function DELETE(
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Proyecto no encontrado' }, { status: 404 })
     }
+
+    // Si es admin, verificar que pertenece a la empresa del proyecto
+    if (user.role === 'admin') {
+      const membership = await db.companyMember.findFirst({
+        where: {
+          userId: user.id,
+          companyId: existing.companyId
+        }
+      })
+      if (!membership) {
+        return NextResponse.json({ 
+          success: false, 
+          error: 'Solo puedes borrar proyectos de tu empresa' 
+        }, { status: 403 })
+      }
+    }
+    // Si no es gestor ni admin, denegar
+    else if (user.role !== 'gestor') {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'No tienes permisos para borrar proyectos' 
+      }, { status: 403 })
+    }
+
+    console.log(`[DELETE /api/projects/${projectId}] User: ${user.email} (${user.role}) deleting project: ${existing.name}`)
 
     // Ejecutar todo en transacción para que sea atómico.
     // Si cualquier paso falla, se hace rollback y el proyecto queda intacto.

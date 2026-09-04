@@ -62,6 +62,7 @@ import {
 import { Checkbox } from '../ui/checkbox'
 import { S_STEPS } from '../../lib/5s-constants'
 import ZoneTemplatesSection from './ZoneTemplatesSection'
+import ProjectTemplatesSection from './ProjectTemplatesSection'
 import { ZoneGeneratorWizard } from './ZoneGeneratorWizard'
 
 
@@ -1723,6 +1724,20 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
                                         </button>
                                       </div>
                                     )}
+
+                                    {/* Zonas existentes — UNA TRAS OTRA CON SUS USUARIOS */}
+                                    
+                                    {/* ═══════ PLANTILLAS DEL PROYECTO (v3.0.32) ═══════ */}
+                                    <ProjectTemplatesSection
+                                      project={{
+                                        id: project.id,
+                                        name: project.name,
+                                        company: project.company,
+                                        companyId: project.companyId
+                                      }}
+                                      currentCompanyId={project.companyId}
+                                      currentCompanyName={project.company}
+                                    />
 
                                     {/* Zonas existentes — UNA TRAS OTRA CON SUS USUARIOS */}
                                     <div>
