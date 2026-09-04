@@ -100,7 +100,8 @@ export async function POST(request: NextRequest) {
         website: website?.trim() || null,
       },
       include: {
-        _count: { select: { projects: true, members: true } },
+        // v3.0.32-fix: Company no tiene relación 'members', solo 'CompanyMember' y 'projects'
+        _count: { select: { projects: true, CompanyMember: true } },
       },
     })
 
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
         createdAt: company.createdAt,
         updatedAt: company.updatedAt,
         projectCount: company._count.projects,
-        memberCount: company._count.members,
+        memberCount: company._count.CompanyMember,  // v3.0.32-fix: Usar nombre correcto de la relación
       },
     }, { status: 201 })
   } catch (error) {
