@@ -21,7 +21,8 @@ function Command({
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-md",
+        // v3.0.32-fix: Forzar fondo blanco opaco para evitar transparencia
+        "bg-white text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-md",
         className
       )}
       {...props}
