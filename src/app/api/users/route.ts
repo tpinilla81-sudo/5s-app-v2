@@ -53,21 +53,25 @@ export async function GET(request: NextRequest) {
     const users = await db.user.findMany({
       where,
       include: {
-        Project: {  // v3.0.1 FIX: usar nombres correctos del schema
+        projects: {  // v3.0.41 FIX: 'projects' (no 'Project')
           include: {
-            zones: {  // v3.0.1 FIX: zones no Zone
-              select: { id: true, name: true, color: true }
-            },
+            MemberZone: {  // v3.0.41 FIX: 'MemberZone' (no 'zones')
+              include: {
+                Zone: {  // v3.0.41 FIX: 'Zone' (mayúscula)
+                  select: { id: true, name: true, color: true }
+                }
+              }
+            }
           }
         },
-        CompanyMember: {  // v3.0.1 FIX
+        CompanyMember: {
           include: {
             Company: { select: { id: true, name: true } }
           }
         }
       },
       orderBy: { createdAt: 'desc' },
-      take: search ? 20 : undefined, // Limit results when searching
+      take: search ? 20 : undefined,
     })
 
     const result = users.map(user => ({
@@ -94,14 +98,14 @@ export async function GET(request: NextRequest) {
         name: cm.Company?.name,
         role: cm.role,
       })) || [],
-      projects: user.Project?.map(p => ({
+      projects: user.projects?.map(p => ({
         projectId: p.id,
         projectName: p.name,
-        zones: p.zones?.map(z => ({  // v3.0.1 FIX: zones no Zone
-          id: z.id,
-          name: z.name,
-          color: z.color,
-        })) || [],
+        zones: p.MemberZone?.map(mz => ({  // v3.0.41 FIX: MemberZone (no zones)
+          id: mz.Zone?.id,
+          name: mz.Zone?.name,
+          color: mz.Zone?.color,
+        })).filter(z => z.id) || [],
       })) || [],
     }))
 

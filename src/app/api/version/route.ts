@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.40 - Script limpieza datos residuos - 2026-09-04
+// v3.0.41 - FIX COMPLETO flujo usuarios/zonas - 2026-09-04
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.40',
-    buildTime: '2026-09-04T12:45:00Z',
-    feature: 'CLEANUP_SCRIPT_RESIDUAL_DATA',
+    version: 'v3.0.41',
+    buildTime: '2026-09-04T13:15:00Z',
+    feature: 'FIX_COMPLETE_USER_ZONE_FLOW',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

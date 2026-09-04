@@ -468,9 +468,11 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
         body: JSON.stringify({ userId, role: newCompanyUserRole }),
       })
 
-      // 3. v3.0.32-fix: Asignar automáticamente al PRIMER proyecto de la empresa
-      //    para que el usuario pueda acceder inmediatamente
+      // 3. v3.0.41: Asignar automáticamente al PRIMER proyecto de la empresa
       const firstProject = allProjects.find(p => p.company === myCompany.name) || allProjects[0]
+      let projectAssigned = false
+      let projectError = ''
+      
       if (firstProject) {
         try {
           const assignProjectRes = await fetch(`/api/projects/${firstProject.id}/members`, {
@@ -479,12 +481,13 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
             body: JSON.stringify({ userId, role: newCompanyUserRole }),
           })
           if (assignProjectRes.ok) {
-            console.log(`[handleCreateCompanyUser] Usuario ${email} asignado al proyecto ${firstProject.name}`)
+            projectAssigned = true
           } else {
-            console.warn(`[handleCreateCompanyUser] No se pudo asignar al proyecto:`, await assignProjectRes.json())
+            const errData = await assignProjectRes.json()
+            projectError = errData.error || 'Error desconocido'
           }
         } catch (e) {
-          console.warn(`[handleCreateCompanyUser] Error asignando al proyecto:`, e)
+          projectError = e instanceof Error ? e.message : 'Error de conexion'
         }
       }
 
@@ -495,7 +498,14 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
       setNewCompanyUserPassword('')
       setNewCompanyUserRole('empleado')
       setShowAddCompanyUser(false)
-      alert(`Usuario "${name}" creado y añadado a ${myCompany.name}.`)
+      // 5. Mostrar resultado con detalle (v3.0.41)
+      let msg = `✅ Usuario "${name}" creado y añadido a ${myCompany.name}.`
+      if (projectAssigned) {
+        msg += `\n\n✅ Asignado al proyecto: ${firstProject?.name}`
+      } else if (projectError) {
+        msg += `\n\n⚠️ No se pudo asignar al proyecto:\n${projectError}\n\nPuedes asignarlo manualmente desde PROYECTOS → Miembros`
+      }
+      alert(msg)
     } catch (err) {
       console.error('Error creating company user:', err)
       alert('Error al crear el usuario')
