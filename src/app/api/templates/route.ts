@@ -16,16 +16,13 @@ import { resolveAuthContext, canEditCompanyTemplates, canEditSystemTemplates } f
 // RESILIENCIA: si la columna companyId no existe en la BD (migración SQL
 // pendiente), se devuelve todo sin filtro de companyId (comportamiento
 // pre-v2.30) para no romper la app.
-// v3.0.1: TEMPORAL - Sin auth para debug
+// v3.0.31: Autenticación REAL habilitada - Admin ve plantillas del sistema (solo lectura)
 export async function GET(request: NextRequest) {
   try {
-    // v3.0.1 DEBUG: Omitir auth temporalmente
-    const ctx = { 
-      user: { id: 'debug', email: 'debug@test.com', role: 'gestor' }, 
-      companyId: null 
-    } // await resolveAuthContext(request)
+    // Usar autenticación REAL (quitar modo debug)
+    const ctx = await resolveAuthContext(request)
     
-    console.log('[DEBUG v3.0.1 /templates] User:', ctx.user)
+    console.log('[/templates] User:', ctx?.user?.email, 'Role:', ctx?.user?.role, 'Company:', ctx?.companyId)
     
     if (!ctx) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
