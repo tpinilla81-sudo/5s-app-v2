@@ -93,23 +93,48 @@ export async function GET(request: NextRequest) {
       where.estado = { notIn: ['resuelta', 'cerrada'] }
     }
 
-    // 6. Query
+    // 6. Query - Sin include de relaciones para evitar errores de Prisma
     const items = await db.actionItem.findMany({
       where,
       orderBy: [{ fechaLimite: 'asc' }, { createdAt: 'desc' }],
       take: 200,
-      include: {
-        project: { select: { id: true, name: true, company: true } },
-        zone: { select: { id: true, name: true } },
-      },
     })
+
+    // 6b. Obtener proyectos y zonas por separado
+    const projectIds = [...new Set(items.map(i => i.projectId).filter(Boolean))]
+    const zoneIds = [...new Set(items.map(i => i.zoneId).filter(Boolean))]
+
+    const projects = projectIds.length > 0 
+      ? await db.project.findMany({ 
+          where: { id: { in: projectIds } }, 
+          select: { id: true, name: true, companyId: true },
+          include: { company: { select: { id: true, name: true } } }
+        })
+      : []
+
+    const zones = zoneIds.length > 0
+      ? await db.zone.findMany({
+          where: { id: { in: zoneIds } },
+          select: { id: true, name: true }
+        })
+      : []
+
+    const projectMap = Object.fromEntries(p => [p.id, p])
+    const zoneMap = Object.fromEntries(z => [z.id, z])
+
+    // Enriquecer items con sus relaciones
+    const enrichedItems = items.map(it => ({
+      ...it,
+      project: projectMap[it.projectId] || null,
+      zone: zoneMap[it.zoneId] || null,
+    }))
 
     // 7. Compute status + stats
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const todayStr = today.toISOString().slice(0, 10)
 
-    const enriched = items.map((it) => {
+    const enriched = enrichedItems.map((it) => {
       let status: 'vencida' | 'hoy' | 'proxima' | 'sin_fecha' = 'sin_fecha'
       if (it.fechaLimite) {
         const d = new Date(it.fechaLimite)
@@ -148,11 +173,26 @@ export async function GET(request: NextRequest) {
         estado: { notIn: ['cancelada', 'realizada'] },
         ...(projectId ? { projectId } : {}),
       },
-      include: {
-        zone: { select: { id: true, name: true, color: true } },
-        project: { select: { id: true, name: true, company: true } },
-      },
     })
+
+    // Obtener zonas y proyectos para evaluaciones
+    const evalZoneIds = [...new Set(evalSchedules.map(e => e.zoneId).filter(Boolean))]
+    const evalProjectIds = [...new Set(evalSchedules.map(e => e.projectId).filter(Boolean))]
+
+    const evalZones = evalZoneIds.length > 0
+      ? await db.zone.findMany({ where: { id: { in: evalZoneIds } }, select: { id: true, name: true, color: true } })
+      : []
+
+    const evalProjects = evalProjectIds.length > 0
+      ? await db.project.findMany({ 
+          where: { id: { in: evalProjectIds } }, 
+          select: { id: true, name: true, companyId: true },
+          include: { company: { select: { id: true, name: true } } }
+        })
+      : []
+
+    const evalZoneMap = Object.fromEntries(z => [z.id, z])
+    const evalProjectMap = Object.fromEntries(p => [p.id, p])
 
     const evalItems = evalSchedules.map((es) => {
       const miniStepLabel = es.miniStep === 4 ? 'Autoevaluación' : es.miniStep === 5 ? 'Auditoría' : `Paso ${es.miniStep}`
@@ -178,8 +218,8 @@ export async function GET(request: NextRequest) {
         sStep: es.sStep,
         miniStep: es.miniStep,
         notas: es.horaProgramada ? `Hora: ${es.horaProgramada}` : null,
-        project: es.project,
-        zone: es.zone,
+        project: evalProjectMap[es.projectId] || null,
+        zone: es.zoneId ? (evalZoneMap[es.zoneId] || null) : null,
         _status: (() => {
           if (!es.fechaProgramada) return 'sin_fecha' as const
           const d = new Date(es.fechaProgramada)

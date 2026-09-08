@@ -16,11 +16,19 @@ export async function GET(
 
     const members = await db.companyMember.findMany({
       where: { companyId },
-      include: {
-        user: { select: { id: true, name: true, email: true, role: true, active: true } },
-      },
       orderBy: { joinedAt: 'desc' },
     })
+
+    // Obtener usuarios por separado para evitar errores de Prisma
+    const userIds = [...new Set(members.map(m => m.userId))]
+    const users = userIds.length > 0
+      ? await db.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, name: true, email: true, role: true, active: true }
+        })
+      : []
+
+    const userMap = Object.fromEntries(u => [u.id, u])
 
     return NextResponse.json({
       success: true,
@@ -30,7 +38,7 @@ export async function GET(
         companyId: m.companyId,
         role: m.role,
         joinedAt: m.joinedAt,
-        user: m.user,
+        user: userMap[m.userId] || null,
       })),
     })
   } catch (error) {
@@ -108,9 +116,12 @@ export async function POST(
       update: {
         role: targetRole,
       },
-      include: {
-        user: { select: { id: true, name: true, email: true, role: true, active: true } },
-      },
+    })
+
+    // Obtener usuario por separado
+    const memberUser = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, role: true, active: true }
     })
 
     return NextResponse.json({
@@ -121,7 +132,7 @@ export async function POST(
         companyId: member.companyId,
         role: member.role,
         joinedAt: member.joinedAt,
-        user: member.user,
+        user: memberUser,
       },
     }, { status: 201 })
   } catch (error) {
