@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.39 - FIX MemberZone.id en asignación a zona - 2026-09-04
+// v3.0.42 - Deploy Vercel Production - 2026-09-08
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.39',
-    buildTime: '2026-09-04T12:30:00Z',
-    feature: 'FIX_MEMBERZONE_ID_ZONE_ASSIGNMENT',
+    version: 'v3.0.42',
+    buildTime: '2026-09-08T17:43:00Z',
+    feature: 'VERCEL_PRODUCTION_DEPLOY',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {
