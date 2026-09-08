@@ -306,6 +306,7 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
   const [newCompanyUserEmail, setNewCompanyUserEmail] = useState('')
   const [newCompanyUserPassword, setNewCompanyUserPassword] = useState('')
   const [newCompanyUserRole, setNewCompanyUserRole] = useState('empleado')
+  const [newCompanyUserZones, setNewCompanyUserZones] = useState<string[]>([]) // v3.0.41: Selector de zonas al crear usuario
 
   // ─── 5S Steps state ────────────────────────────────────────────────────
   const [progress5S, setProgress5S] = useState<Array<{ id: string; sStep: number; miniStep: number; completed: boolean; score: number | null; notes: string | null; zoneId: string | null; zoneName?: string }>>([])
@@ -425,6 +426,7 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
 
   // ─── Company Users handlers (Datos Empresa → Usuarios) ──────────────────
   // Crea un usuario nuevo y lo liga automáticamente a la empresa del admin actual.
+  // v3.0.41: Ahora también asigna zonas específicas si se seleccionan.
   const handleCreateCompanyUser = async () => {
     if (!myCompany) return
     const name = newCompanyUserName.trim()
@@ -468,18 +470,23 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
         body: JSON.stringify({ userId, role: newCompanyUserRole }),
       })
 
-      // 3. v3.0.32-fix: Asignar automáticamente al PRIMER proyecto de la empresa
-      //    para que el usuario pueda acceder inmediatamente
+      // 3. v3.0.41-fix: Asignar al PRIMER proyecto de la empresa con ZONAS ESPECÍFICAS
       const firstProject = allProjects.find(p => p.company === myCompany.name) || allProjects[0]
       if (firstProject) {
         try {
+          // v3.0.41: Enviar las zonas seleccionadas (si hay alguna), sino auto-asignar todas
+          const zoneIdsToSend = newCompanyUserZones.length > 0 ? newCompanyUserZones : undefined
           const assignProjectRes = await fetch(`/api/projects/${firstProject.id}/members`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, role: newCompanyUserRole }),
+            body: JSON.stringify({ 
+              userId, 
+              role: newCompanyUserRole,
+              ...(zoneIdsToSend && { zoneIds: zoneIdsToSend }) // Solo enviar si hay zonas seleccionadas
+            }),
           })
           if (assignProjectRes.ok) {
-            console.log(`[handleCreateCompanyUser] Usuario ${email} asignado al proyecto ${firstProject.name}`)
+            console.log(`[handleCreateCompanyUser] Usuario ${email} asignado al proyecto ${firstProject.name} con zonas:`, zoneIdsToSend || 'TODAS (auto)')
           } else {
             console.warn(`[handleCreateCompanyUser] No se pudo asignar al proyecto:`, await assignProjectRes.json())
           }
@@ -494,8 +501,9 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
       setNewCompanyUserEmail('')
       setNewCompanyUserPassword('')
       setNewCompanyUserRole('empleado')
+      setNewCompanyUserZones([]) // v3.0.41: Resetear zonas
       setShowAddCompanyUser(false)
-      alert(`Usuario "${name}" creado y añadado a ${myCompany.name}.`)
+      alert(`Usuario "${name}" creado y añadado a ${myCompany.name}.${newCompanyUserZones.length > 0 ? ` Zonas asignadas: ${newCompanyUserZones.length}` : ''}`)
     } catch (err) {
       console.error('Error creating company user:', err)
       alert('Error al crear el usuario')
@@ -2501,6 +2509,58 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
                                     </SelectContent>
                                   </Select>
                                 </div>
+                                
+                                {/* v3.0.41: Selector de ZONAS del proyecto */}
+                                {(() => {
+                                  const firstProject = allProjects.find(p => p.company === myCompany?.name) || allProjects[0]
+                                  const zones = firstProject?.zones || []
+                                  if (zones.length === 0) return null
+                                  return (
+                                    <div className="space-y-1.5">
+                                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                                        <MapPin className="h-3 w-3" />
+                                        Zonas de acceso (deja vacío para todas)
+                                        {newCompanyUserZones.length > 0 && (
+                                          <Badge variant="secondary" className="text-[9px] px-1 py-0">
+                                            {newCompanyUserZones.length} seleccionada(s)
+                                          </Badge>
+                                        )}
+                                      </Label>
+                                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-white/50 rounded border border-purple-100">
+                                        {zones.map((zone) => {
+                                          const isSelected = newCompanyUserZones.includes(zone.id)
+                                          return (
+                                            <button
+                                              key={zone.id}
+                                              type="button"
+                                              onClick={() => {
+                                                if (isSelected) {
+                                                  setNewCompanyUserZones(prev => prev.filter(id => id !== zone.id))
+                                                } else {
+                                                  setNewCompanyUserZones(prev => [...prev, zone.id])
+                                                }
+                                              }}
+                                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${
+                                                isSelected
+                                                  ? 'bg-purple-600 text-white shadow-sm'
+                                                  : 'bg-white text-gray-600 border border-gray-200 hover:border-purple-300 hover:bg-purple-50'
+                                              }`}
+                                              style={!isSelected ? { borderColor: zone.color + '40' } : {}}
+                                            >
+                                              <span 
+                                                className="w-2 h-2 rounded-full flex-shrink-0" 
+                                                style={{ backgroundColor: zone.color }}
+                                              />
+                                              {zone.name}
+                                              {isSelected && <Check className="h-2.5 w-2 ml-0.5" />}
+                                            </button>
+                                          )
+                                        })}
+                                      </div>
+                                    </div>
+                                  )
+                                })()}
+
                                 <Button
                                   size="sm"
                                   className="w-full h-8 text-xs bg-purple-600 text-white"
