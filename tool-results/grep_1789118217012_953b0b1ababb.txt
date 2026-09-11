@@ -1,0 +1,237 @@
+/home/z/my-project/src/components/admin/GestorPanel.tsx:59:    templates: number
+/home/z/my-project/src/components/admin/GestorPanel.tsx:133:type GestorTab = 'dashboard' | 'empresas' | 'admins' | 'recursos' | 'plantillas' | 'zonificacion'
+/home/z/my-project/src/components/admin/GestorPanel.tsx:628:    { key: 'plantillas', label: 'Plantillas', icon: <BookOpen className="h-4 w-4" /> },
+/home/z/my-project/src/components/admin/GestorPanel.tsx:871:                            <span className="text-sm font-bold text-white">{stats.totals.templates}</span>
+/home/z/my-project/src/components/admin/GestorPanel.tsx:1313:              (plantillas globales compartidas por todas las empresas).
+/home/z/my-project/src/components/admin/GestorPanel.tsx:1315:              plantilla genérica. Las empresas ven estas plantillas pero no
+/home/z/my-project/src/components/admin/GestorPanel.tsx:1317:          {activeTab === 'plantillas' && (
+/home/z/my-project/src/components/admin/GestorPanel.tsx:1318:            <motion.div key="plantillas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+/home/z/my-project/src/components/admin/GestorPanel.tsx:1326:                    Las plantillas que edites aquí se propagan a todas las zonas
+/home/z/my-project/src/components/admin/ConstructorPanel.tsx:79:  templates: number
+/home/z/my-project/src/components/admin/ConstructorPanel.tsx:194:type ConfigSubTab = 'plantillas' | 'roles' | 'general' | 'zonificacion'
+/home/z/my-project/src/components/admin/ConstructorPanel.tsx:213: manage_templates: 'Gestionar Plantillas',
+/home/z/my-project/src/components/admin/ConstructorPanel.tsx:235: platform_manage_templates: 'Gestionar Plantillas',
+/home/z/my-project/src/components/admin/ConstructorPanel.tsx:245: const [configSubTab, setConfigSubTab] = useState<ConfigSubTab>('plantillas')
+/home/z/my-project/src/components/admin/ConstructorPanel.tsx:1074:  { key: 'plantillas', label: 'Plantillas', icon: <BookOpen className="h-4 w-4" /> },
+/home/z/my-project/src/components/admin/ConstructorPanel.tsx:1387:        {configSubTab === 'plantillas' && (
+/home/z/my-project/src/components/admin/ConstructorPanel.tsx:1388:         <motion.div key="plantillas" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+/home/z/my-project/src/components/admin/ProjectTemplatesSection.tsx:27: * gestionar aquí sus plantillas (los tipos permitidos según rol).
+/home/z/my-project/src/components/admin/ProjectTemplatesSection.tsx:41:  // El admin/responsable debe ver sus plantillas; el gestor no debería
+/home/z/my-project/src/components/admin/ProjectTemplatesSection.tsx:47:  // pueden gestionar plantillas por empresa hasta vincularlo.
+/home/z/my-project/src/components/admin/ProjectTemplatesSection.tsx:72:                ? 'Gestiona las plantillas de formación, exámenes, checklists y auditorías de esta empresa'
+/home/z/my-project/src/components/admin/ProjectTemplatesSection.tsx:73:                : 'Este proyecto no tiene empresa vinculada — vincula una empresa para habilitar la gestión de plantillas'}
+/home/z/my-project/src/components/admin/ProjectTemplatesSection.tsx:94:                  Aquí gestionas las plantillas de <strong>{currentCompanyName}</strong>.
+/home/z/my-project/src/components/admin/ProjectTemplatesSection.tsx:119:                  Cerrar plantillas
+/home/z/my-project/src/components/admin/AdminPanel.tsx:1654:      {/* Tabs — Order: Empresas / Proyectos (las plantillas se gestionan por zona y desde el panel del gestor) */}
+/home/z/my-project/src/components/admin/AdminPanel.tsx:1938:                                                {/* Nota: Las plantillas del Sistema las crea el GESTOR.
+/home/z/my-project/src/components/admin/AdminPanel.tsx:2215:                                    {/* Las plantillas se gestionan ahora por zona (v2.31):
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:9: * Muestra las plantillas asignadas a cada una de las 25 celdas (5S × 5 Pasos)
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:11: *   1. Editar una plantilla → abre un Sheet con <TemplateManager embedded />
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:13: *   2. Cambiar la plantilla asignada a una celda → abre un dropdown con todas
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:14: *      las plantillas disponibles para ese (sStep, miniStep, type) de la empresa
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:17: * El objetivo (v2.31) es que el flujo sea: crear zona → elegir plantillas →
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:18: * adjudicar usuarios. Las plantillas ya no se gestionan en una pestaña
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:70:  templateId: string
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:73:  template: {
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:79:    minPhotos: number | null  // v2.35: límite base definido en la plantilla
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:88:  templates: SlotTemplate[]
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:99:// ─── Mapeo de mini-step → tipos de plantilla ───────────────────────────────
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:143:  // Cambiar-plantilla picker state, por celda (sStep|miniStep|type)
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:149:  // ¿Puede el usuario editar las plantillas (crear/cambiar contenido)?
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:151:  // - admin → plantillas de SU empresa
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:197:    return slot.templates.find(t => t.template.type === type) || slot.templates[0]
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:213:  // ─── Abrir picker de "Cambiar plantilla" ────────────────────────────────
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:225:        `/api/templates?type=${type}&sStep=${sStep}&miniStep=${miniStep}&includeInactive=true`
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:232:      console.error('Error fetching available templates:', e)
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:243:    templateId: string | null
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:252:      // Mantener las demás plantillas del slot (otras type) y reemplazar solo la type seleccionada
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:254:      const otherTemplateIds = (slot?.templates || [])
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:255:        .filter(t => t.template.type !== type)
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:256:        .map(t => t.templateId)
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:257:      const newTemplateIds = templateId
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:258:        ? [...otherTemplateIds, templateId]
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:268:          templateIds: newTemplateIds,
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:366:          Editar plantillas
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:375:            por todas las zonas sin tablero propio). Si cambias una plantilla
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:387:          <span className="text-xs text-muted-foreground ml-2">Cargando plantillas…</span>
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:465:                                        title={assigned.template.title}
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:467:                                        {assigned.template.title}
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:478:                                        value={assigned?.templateId || '__none__'}
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:485:                                          <SelectValue placeholder="Elegir plantilla…" />
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:497:                                              No hay plantillas disponibles
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:523:                                          title="Editar contenido de la plantilla (abre el editor)"
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:532:                                          title="Cambiar la plantilla asignada a esta celda"
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:540:                                  {/* v2.35: override del límite de fotos (solo type='fotos' y con plantilla asignada) */}
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:553:                                            placeholder={String(assigned.template.minPhotos ?? 10)}
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:591:                                              : (assigned.template.minPhotos ?? 10)}
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:599:                                              (hereda de plantilla: {assigned.template.minPhotos ?? 10})
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:638:      {/* Sheet con el editor completo de plantillas */}
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:650:              Edita el contenido de las plantillas. Los cambios se aplican a
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:651:              todas las zonas que usen la misma plantilla.
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:653:                ? ' Como gestor, editas la Biblioteca del Sistema (plantillas genéricas compartidas).'
+/home/z/my-project/src/components/admin/ZoneTemplatesSection.tsx:654:                : ` Estás editando las plantillas de ${companyName} + la Biblioteca del Sistema (solo lectura).`}
+/home/z/my-project/src/components/admin/GestorPanelV2.tsx:59:    templates: number
+/home/z/my-project/src/components/admin/GestorPanelV2.tsx:133:type GestorTab = 'dashboard' | 'empresas' | 'admins' | 'recursos' | 'plantillas' | 'zonificacion'
+/home/z/my-project/src/components/admin/GestorPanelV2.tsx:628:    { key: 'plantillas', label: 'Plantillas', icon: <BookOpen className="h-4 w-4" /> },
+/home/z/my-project/src/components/admin/GestorPanelV2.tsx:871:                            <span className="text-sm font-bold text-white">{stats.totals.templates}</span>
+/home/z/my-project/src/components/admin/GestorPanelV2.tsx:1313:              (plantillas globales compartidas por todas las empresas).
+/home/z/my-project/src/components/admin/GestorPanelV2.tsx:1315:              plantilla genérica. Las empresas ven estas plantillas pero no
+/home/z/my-project/src/components/admin/GestorPanelV2.tsx:1317:          {activeTab === 'plantillas' && (
+/home/z/my-project/src/components/admin/GestorPanelV2.tsx:1318:            <motion.div key="plantillas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+/home/z/my-project/src/components/admin/GestorPanelV2.tsx:1326:                    Las plantillas que edites aquí se propagan a todas las zonas
+/home/z/my-project/src/components/admin/TemplateManager.tsx:197:  // S2: Use the comprehensive Seiton template matching the user's Excel structure
+/home/z/my-project/src/components/admin/TemplateManager.tsx:203:      templateName: 'S2_Inventario_Necesarios_Seiton.xlsx',
+/home/z/my-project/src/components/admin/TemplateManager.tsx:533:              // Esto mantiene compatibilidad con plantillas antiguas que no tienen el campo `active`.
+/home/z/my-project/src/components/admin/TemplateManager.tsx:851:  let parsed: { categories: InvCategory[]; extraFields: InvField[]; fixedFields?: InvFixedField[]; title?: string; subtitle?: string; templateName?: string }
+/home/z/my-project/src/components/admin/TemplateManager.tsx:947:  // Built-in fields that always appear in the inventory form (not editable in template, shown for reference)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:987:          <p className="text-[10px] text-blue-600 mb-2">Estos campos siempre aparecen en el inventario y no se pueden quitar de la plantilla.</p>
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1474:          Esta plantilla configura la herramienta de dibujo/subida de layout de zona.
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1717:// PASO DEFINITIONS — which template types belong to each paso
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1741:  const [templates, setTemplates] = useState<TemplateData[]>([])
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1750:  // ─── Per-company templates (v2.30) ───────────────────────────────────────
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1774:  // ¿Puede el usuario editar/eliminar esta plantilla concreta?
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1775:  // v3.0.5: SOLO el GESTOR puede modificar plantillas
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1778:    // Solo gestor puede editar CUALQUIER plantilla
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1780:    // Admin y demás roles NO pueden editar plantillas (solo verlas)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1784:  // ¿Puede crear una plantilla nueva para este tipo?
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1785:  // v3.0.5: SOLO el GESTOR puede crear plantillas
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1789:    // Admin y demás roles NO pueden crear plantillas
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1793:  // ¿Puede duplicar una plantilla del Sistema a su empresa?
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1794:  // v3.0.5: SOLO el GESTOR puede duplicar plantillas
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1798:    // Admin y demás roles NO pueden duplicar plantillas
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1821:  // ─── Track which templates are assigned to at least one board slot ───
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1822:  // This lets the admin see, in the plantillas list, which templates are
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1824:  // this indicator, the admin could not tell from the plantillas view
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1825:  // whether a template had been added to the tablero — even though the
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1827:  const [templateUsage, setTemplateUsage] = useState<Record<string, number>>({})
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1837:          for (const st of slot.templates || []) {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1838:            const tid = st.templateId
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1845:      console.error('Error fetching template usage:', e)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1849:  // Fetch ALL templates at once (all types)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1856:      // The seed now fixes miniStep and creates missing templates.
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1859:          await fetch('/api/seed/templates', { method: 'POST' })
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1865:      // Fetch all templates
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1868:        const res = await fetch(`/api/templates?type=${type}&includeInactive=true`)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1873:    } catch (e) { console.error('Error fetching templates:', e) }
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1901:    // MC templates use sStep=0, title shows MC instead of S0
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1912:    // v2.35: default 10 para plantillas de fotos
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1944:  const startEdit = (template: TemplateData) => {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1945:    setEditingTemplate(template)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1946:    setFormType(template.type)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1947:    setFormSStep(template.sStep)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1948:    setFormMiniStep(template.miniStep || 3)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1949:    setFormTitle(template.title)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1950:    setFormDescription(template.description || '')
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1951:    setFormContent(typeof template.content === 'string' ? template.content : JSON.stringify(template.content, null, 2))
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1952:    const aplicaNota = template.type === 'examen' || template.type === 'autoevaluacion' || template.type === 'auditoria'
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1954:    setFormNotaMinima(template.notaMinima != null ? template.notaMinima : (aplicaNota ? (template.type === 'examen' ? EXAM_PASS_THRESHOLD : template.type === 'autoevaluacion' ? SELF_EVAL_THRESHOLD : AUDIT_PASS_THRESHOLD) : null))
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1956:    setFormMinPhotos(template.minPhotos != null ? String(template.minPhotos) : '10')
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1957:    setFormActive(template.active)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1988:        // v2.35: incluir minPhotos solo para plantillas de fotos
+/home/z/my-project/src/components/admin/TemplateManager.tsx:1993:        const res = await fetch('/api/templates', {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2008:        // Crear nueva plantilla: el companyId se resuelve por contexto de usuario
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2011:        const res = await fetch('/api/templates', {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2034:    if (!confirm('¿Eliminar esta plantilla?')) return
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2036:      await fetch(`/api/templates?id=${id}`, { method: 'DELETE' })
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2042:  const handleMovePaso = async (templateId: string, newMiniStep: number) => {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2044:      const res = await fetch('/api/templates', {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2047:        body: JSON.stringify({ id: templateId, miniStep: newMiniStep }),
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2055:        alert('Error al mover la plantilla: ' + data.error)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2059:      alert('Error al mover la plantilla')
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2063:  // Full template export format (includes metadata + content)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2064:  const exportTemplateData = (template: TemplateData) => ({
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2067:    type: template.type,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2068:    sStep: template.sStep,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2069:    miniStep: template.miniStep,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2070:    title: template.title,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2071:    description: template.description,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2072:    content: typeof template.content === 'string' ? JSON.parse(template.content) : template.content,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2073:    notaMinima: template.notaMinima,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2075:    minPhotos: template.minPhotos,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2076:    active: template.active,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2079:  const handleDownload = (template: TemplateData) => {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2081:      const data = exportTemplateData(template)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2086:      a.download = `${template.type}_S${template.sStep}_${template.title.replace(/[^a-zA-Z0-9]/g, '_')}.json`
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2090:      alert('Error al descargar la plantilla')
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2096:  const handleCopyTemplate = async (template: TemplateData) => {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2098:      const data = exportTemplateData(template)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2100:      setCopiedId(template.id)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2105:        const data = exportTemplateData(template)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2115:        setCopiedId(template.id)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2152:      alert('No se pudo leer del portapapeles. Asegúrate de que hay una plantilla copiada (formato JSON válido).')
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2156:  const handleDuplicateTemplate = async (template: TemplateData) => {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2158:      // v2.30: si la plantilla NO es mía (library u otra empresa), usar el
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2162:      if (template.companyId === activeCompanyId) {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2165:          type: template.type,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2166:          sStep: template.sStep,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2167:          miniStep: template.miniStep,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2168:          title: `${template.title} (copia)`,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2169:          description: template.description,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2170:          content: template.content,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2171:          notaMinima: template.notaMinima,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2173:          minPhotos: template.minPhotos,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2174:          active: template.active,
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2177:        res = await fetch('/api/templates', {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2184:        res = await fetch('/api/templates/duplicate', {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2187:          body: JSON.stringify({ sourceId: template.id }),
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2196:      alert('Error al duplicar la plantilla')
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2221:  const templatesByS = (sStep: number) => templates.filter(t => t.sStep === sStep)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2222:  const templatesBySAndPaso = (sStep: number, miniStep: number) => templates.filter(t => t.sStep === sStep && t.miniStep === miniStep)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2224:  // Count total templates for an S-step
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2225:  const countForS = (sStep: number) => templates.filter(t => t.sStep === sStep).length
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2227:  // Count templates for a specific paso within an S-step
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2228:  const countForPaso = (sStep: number, paso: number) => templates.filter(t => t.sStep === sStep && t.miniStep === paso).length
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2229:  const getTemplateSummary = (template: TemplateData) => {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2231:      const data = typeof template.content === 'string' ? JSON.parse(template.content) : template.content
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2258:            {templates.length} plantilla{templates.length !== 1 ? 's' : ''} en total
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2269:                ? 'Estás editando la Biblioteca del Sistema (plantillas globales compartidas por todas las empresas)'
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2270:                : `Estás viendo las plantillas de tu empresa (${activeCompanyName}) + la Biblioteca del Sistema (solo lectura)`
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2295:            Pegar plantilla
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2330:                      {sTotal} plantilla{sTotal !== 1 ? 's' : ''}
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2344:                          const pasoTemplates = templatesBySAndPaso(s.id, pasoConfig.paso)
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2386:                              {/* Paso Expanded — template list */}
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2394:                                          Sin plantillas para este paso. Pulsa + para crear.
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2426:                                                {/* v2.35: mostrar minPhotos para plantillas type='fotos' */}
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2433:                                                {templateUsage[tpl.id] ? (
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2435:                                                    title={`Asignada a ${templateUsage[tpl.id]} posición(es) de tablero(s)`}>
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2437:                                                    En tablero{templateUsage[tpl.id] > 1 ? ` (${templateUsage[tpl.id]})` : ''}
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2441:                                                    title="Esta plantilla no está asignada a ningún tablero">
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2502:                                                    className="h-7 w-7 p-0 text-amber-500 hover:text-amber-700 hover:bg-amber-50" title="Duplicar plantilla">
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2522:                                                  <span className="text-[10px] text-gray-400 italic px-2" title="No tienes permiso para editar esta plantilla. Usa 'Traer a mi empresa' para crear una copia editable.">
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2542:                            No hay plantillas para S{s.id}. Las plantillas por defecto se crean automáticamente.
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2556:            const mcTotal = templates.filter(t => t.sStep === 0 && t.type === 'pdca').length + templates.filter(t => t.sStep === 0 && (t.type === 'plan_accion' || t.type === 'kpi' || t.type === 'estandar')).length
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2578:                      {mcTotal} plantilla{mcTotal !== 1 ? 's' : ''}
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2593:                          const pasoTemplates = templates.filter(t => {
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2652:                                          Sin plantillas para este paso. Pulsa + para crear.
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2668:                                                {templateUsage[tpl.id] ? (
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2670:                                                    title={`Asignada a ${templateUsage[tpl.id]} posición(es) de tablero(s)`}>
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2672:                                                    En tablero{templateUsage[tpl.id] > 1 ? ` (${templateUsage[tpl.id]})` : ''}
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2676:                                                    title="Esta plantilla no está asignada a ningún tablero">
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2865:                {/* v2.35: límite mínimo de fotos — solo visible para plantillas type='fotos' */}
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2893:                      Las zonas que usen esta plantilla requerirán este mínimo para completar el paso 2.
+/home/z/my-project/src/components/admin/TemplateManager.tsx:2903:                    className="mt-1 h-10" placeholder="Título de la plantilla" />
+/home/z/my-project/src/components/admin/Tablero5S.tsx:44:  templateId: string
+/home/z/my-project/src/components/admin/Tablero5S.tsx:46:  template: TemplateOption
+/home/z/my-project/src/components/admin/Tablero5S.tsx:62:  templates: SlotTemplate[]
+/home/z/my-project/src/components/admin/Tablero5S.tsx:132:  const [templates, setTemplates] = useState<TemplateOption[]>([])
+/home/z/my-project/src/components/admin/Tablero5S.tsx:227:      const res = await fetch('/api/templates?includeInactive=false')
+/home/z/my-project/src/components/admin/Tablero5S.tsx:231:      console.error('Error loading templates:', error)
+/home/z/my-project/src/components/admin/Tablero5S.tsx:259:    return templates.filter(t => pasoConfig.types.includes(t.type) && t.sStep === sStep)
+/home/z/my-project/src/components/admin/Tablero5S.tsx:266:  const handleSaveSlot = async (sStep: number, miniStep: number, templateIds: string[], standardIds: string[]) => {
+/home/z/my-project/src/components/admin/Tablero5S.tsx:274:        body: JSON.stringify({ boardConfigId: selectedConfigId, sStep, miniStep, templateIds, standardIds }),
+/home/z/my-project/src/components/admin/Tablero5S.tsx:290:  const handleToggleTemplate = async (sStep: number, miniStep: number, templateId: string) => {
+/home/z/my-project/src/components/admin/Tablero5S.tsx:292:    const currentIds = slot?.templates.map(t => t.templateId) || []
+/home/z/my-project/src/components/admin/Tablero5S.tsx:293:    const newIds = currentIds.includes(templateId) ? currentIds.filter(id => id !== templateId) : [...currentIds, templateId]
+/home/z/my-project/src/components/admin/Tablero5S.tsx:299:    const templateIds = slot?.templates.map(t => t.templateId) || []
+/home/z/my-project/src/components/admin/Tablero5S.tsx:302:    await handleSaveSlot(sStep, miniStep, templateIds, newIds)
+/home/z/my-project/src/components/admin/Tablero5S.tsx:383:            const templateIds = slot.templates.map((t: SlotTemplate) => t.templateId)
+/home/z/my-project/src/components/admin/Tablero5S.tsx:392:                templateIds,
+/home/z/my-project/src/components/admin/Tablero5S.tsx:521:            Crea tableros con plantillas y estándares. Luego asígnalos a las zonas de cada proyecto.
+/home/z/my-project/src/components/admin/Tablero5S.tsx:800:                    const assignedTemplates = slot?.templates || []
+/home/z/my-project/src/components/admin/Tablero5S.tsx:819:                                  <Badge key={at.id} className={`text-[9px] px-1 py-0 ${TYPE_COLORS[at.template.type] || 'bg-gray-100 text-gray-700'}`}>
+/home/z/my-project/src/components/admin/Tablero5S.tsx:820:                                    {TYPE_LABELS[at.template.type] || at.template.type}
+/home/z/my-project/src/components/admin/Tablero5S.tsx:825:                              <p className="text-[10px] text-gray-400 italic">Sin plantillas</p>
+/home/z/my-project/src/components/admin/Tablero5S.tsx:861:                                    No hay plantillas para S{s.id} Paso {paso}. Créalas en Plantillas.
+/home/z/my-project/src/components/admin/Tablero5S.tsx:866:                                      const isSelected = assignedTemplates.some(at => at.templateId === t.id)
+/home/z/my-project/src/components/admin/Tablero5S.tsx:935:            <span className="font-semibold">{slots.filter(s => s.templates.length > 0 || s.standards.length > 0).length}</span> de <span className="font-semibold">25</span> posiciones con asignaciones
+/home/z/my-project/src/components/admin/Tablero5S.tsx:937:            <span className="font-semibold">{slots.reduce((acc, s) => acc + s.templates.length, 0)}</span> plantillas

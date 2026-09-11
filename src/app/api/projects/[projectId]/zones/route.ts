@@ -137,6 +137,82 @@ export async function POST(
       console.error('[zones POST] ensureJaulaZone failed (non-fatal):', e instanceof Error ? e.message : e)
     }
 
+    // v3.0.43: Auto-asignar plantillas del sistema a los board slots
+    // Cuando se crea una zona, se cargan automáticamente las plantillas que el gestor
+    // ha configurado en su panel (Biblioteca del Sistema - companyId = null)
+    try {
+      const finalBoardConfigId = zone.boardConfigId || defaultConfig?.id
+      if (finalBoardConfigId) {
+        // Obtener todas las plantillas del sistema (Biblioteca del Sistema)
+        const systemTemplates = await db.template.findMany({
+          where: { 
+            companyId: null,  // Solo plantillas del sistema (gestor)
+            active: true 
+          },
+          select: { id: true, type: true, sStep: true, miniStep: true }
+        })
+
+        // Agrupar plantillas por (sStep, miniStep) para asignar a los slots correctos
+        const templatesByStep: Record<string, string[]> = {}
+        for (const tpl of systemTemplates) {
+          const key = `${tpl.sStep}-${tpl.miniStep}`
+          if (!templatesByStep[key]) templatesByStep[key] = []
+          templatesByStep[key].push(tpl.id)
+        }
+
+        // Para cada grupo de plantillas, buscar o crear el slot y asignar
+        for (const [stepKey, templateIds] of Object.entries(templatesByStep)) {
+          const [sStep, miniStep] = stepKey.split('-').map(Number)
+
+          // Buscar si ya existe un slot para este step
+          let slot = await db.boardSlot.findFirst({
+            where: { 
+              boardConfigId: finalBoardConfigId,
+              sStep,
+              miniStep
+            }
+          })
+
+          // Si no existe, crearlo
+          if (!slot) {
+            slot = await db.boardSlot.create({
+              data: {
+                boardConfigId: finalBoardConfigId,
+                sStep,
+                miniStep
+              }
+            })
+          }
+
+          // Asignar las plantillas al slot (evitar duplicados)
+          for (const templateId of templateIds) {
+            const existing = await db.boardSlotTemplate.findUnique({
+              where: { 
+                slotId_templateId: { 
+                  slotId: slot.id, 
+                  templateId 
+                } 
+              }
+            })
+            if (!existing) {
+              await db.boardSlotTemplate.create({
+                data: {
+                  slotId: slot.id,
+                  templateId,
+                  sortOrder: templateIds.indexOf(templateId)
+                }
+              })
+            }
+          }
+        }
+
+        console.log(`[zones POST] Auto-assigned ${systemTemplates.length} system templates to zone "${zone.name}"`)
+      }
+    } catch (templateErr) {
+      console.error('[zones POST] Error auto-assigning templates (non-fatal):', templateErr instanceof Error ? templateErr.message : templateErr)
+      // No fallar la creación de la zona si hay error con plantillas
+    }
+
     return NextResponse.json({ zone, jaulaZone }, { status: 201 })
   } catch (error) {
     console.error('Add zone error:', error)

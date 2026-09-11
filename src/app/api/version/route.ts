@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.42 - Deploy Vercel Production - 2026-09-08
+// v3.0.43 - Auto-assign templates on zone creation - 2026-09-08
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.42',
-    buildTime: '2026-09-08T17:43:00Z',
-    feature: 'VERCEL_PRODUCTION_DEPLOY',
+    version: 'v3.0.43',
+    buildTime: '2026-09-08T19:15:00Z',
+    feature: 'AUTO_ASSIGN_TEMPLATES_ON_ZONE_CREATE',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {
