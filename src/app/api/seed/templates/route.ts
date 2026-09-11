@@ -422,6 +422,7 @@ export async function POST(request: NextRequest) {
               targetStandardCategory: 'layout',
               targetS4Library: true,
             }),
+            updatedAt: new Date(),
           },
         })
         created++
