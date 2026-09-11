@@ -52,6 +52,7 @@ export async function POST() {
           // Crear la relación
           await db.boardSlotTemplate.create({
             data: {
+              id: `bst_${slot.id}_${template.id}`,
               slotId: slot.id,
               templateId: template.id,
               sortOrder: 0
@@ -81,6 +82,7 @@ export async function POST() {
           if (!existing) {
             await db.boardSlotTemplate.create({
               data: {
+                id: `bst_${slot.id}_${template.id}_exam`,
                 slotId: slot.id,
                 templateId: template.id,
                 sortOrder: 1
