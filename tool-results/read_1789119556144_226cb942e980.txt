@@ -1,0 +1,543 @@
+     1→     1→import { NextRequest, NextResponse } from 'next/server'
+     2→     2→import { db, ensureSystemConfigTable } from '../../../../lib/db'
+     3→     3→import { AUDIT_CHECKLISTS, INVENTORY_CONFIGS } from '../../../../lib/5s-constants'
+     4→     4→
+     5→     5→// Helper para generar IDs únicos (el modelo Template requiere id manual)
+     6→     6→function generateTemplateId(type: string, sStep: number): string {
+     7→     7→  const timestamp = Date.now()
+     8→     8→  const random = Math.random().toString(36).substring(2, 8)
+     9→     9→  return `tpl_${type}_s${sStep}_${timestamp}_${random}`
+    10→    10→}
+    11→    11→
+    12→    12→/**
+    13→    13→ * POST /api/seed/templates
+    14→    14→ * Non-destructive seed: creates ONLY missing templates.
+    15→    15→ * Creates templates for ALL S steps (1-5) and ALL types.
+    16→    16→ * Tracks seeding state in SystemConfig so it doesn't re-run needlessly.
+    17→    17→ * Supports ?force=true to force re-seed (e.g. after adding new template types).
+    18→    18→ * 
+    19→    19→ * v3.0.7 FIX: Incluye id explícito en todos los creates (modelo Template lo requiere)
+    20→    20→ */
+    21→    21→export async function POST(request: NextRequest) {
+    22→    22→  try {
+    23→    23→    // Auto-migrate: ensure SystemConfig table exists before querying it
+    24→    24→    await ensureSystemConfigTable()
+    25→    25→
+    26→    26→    const url = new URL(request.url)
+    27→    27→    const forceSeed = url.searchParams.get('force') === 'true'
+    28→    28→
+    29→    29→    // v2.30: si la columna companyId no existe (migración SQL pendiente),
+    30→    30→    // todas las consultas a db.template fallarán. Devolver success sin hacer
+    31→    31→    // nada para no romper el flujo. El seed principal (/api/seed) se encarga
+    32→    32→    // de manera resiliente.
+    33→    33→    let columnCheckOk = true
+    34→    34→    try {
+    35→    35→      await db.template.count({ where: { companyId: null } })
+    36→    36→    } catch {
+    37→    37→      columnCheckOk = false
+    38→    38→      console.warn('[seed/templates] Columna companyId no existe — saltando seed. Aplica la migración SQL v2.30.')
+    39→    39→    }
+    40→    40→    if (!columnCheckOk) {
+    41→    41→      return NextResponse.json({
+    42→    42→        success: true,
+    43→    43→        skipped: true,
+    44→    44→        message: 'Migración SQL v2.30 pendiente — seed de plantillas omitido',
+    45→    45→      })
+    46→    46→    }
+    47→    47→
+    48→    48→    // Always run seed to fix miniStep values and create missing templates.
+    49→    49→    // The seed is non-destructive — it only creates templates that don't exist
+    50→    50→    // and fixes incorrect miniStep values. Skipping it caused missing templates.
+    51→    51→    // force=true additionally resets miniStep and title fixes even if already correct.
+    52→    52→    const S_JAPANESE = ['Seiri', 'Seiton', 'Seiso', 'Seiketsu', 'Shitsuke']
+    53→    53→    const S_NAMES = ['Revisar', 'Ordenar', 'Limpiar', 'Estandarizar', 'Mantener']
+    54→    54→
+    55→    55→    // Correct miniStep mapping by type
+    56→    56→    const CORRECT_MINI_STEP: Record<string, number> = {
+    57→    57→      formacion: 1,
+    58→    58→      examen: 1,
+    59→    59→      fotos: 2,
+    60→    60→      inventario: 3,
+    61→    61→      estandar: 3,
+    62→    62→      layout: 3,
+    63→    63→      plan_limpieza: 3,
+    64→    64→      autoevaluacion: 4,
+    65→    65→      plan_accion: 4,
+    66→    66→      auditoria: 5,
+    67→    67→      pdca: 5,
+    68→    68→    }
+    69→    69→
+    70→    70→    // Get all existing templates (full records, not just select)
+    71→    71→    const existing = await db.template.findMany()
+    72→    72→
+    73→    73→    let created = 0
+    74→    74→    let fixed = 0
+    75→    75→
+    76→    76→    // FIX miniStep, titles, notaMinima and legacy content on existing templates.
+    77→    77→    // This ensures templates are always in the correct Paso regardless of previous state.
+    78→    78→    const CORRECT_NOTA_MINIMA: Record<string, number> = {
+    79→    79→      formacion: 80,
+    80→    80→      examen: 80,
+    81→    81→      autoevaluacion: 70,
+    82→    82→      auditoria: 75,
+    83→    83→    }
+    84→    84→    for (const tpl of existing) {
+    85→    85→      const correctStep = CORRECT_MINI_STEP[tpl.type]
+    86→    86→      const correctNota = CORRECT_NOTA_MINIMA[tpl.type]
+    87→    87→      const updates: Record<string, any> = {}
+    88→    88→      if (correctStep && tpl.miniStep !== correctStep) {
+    89→    89→        updates.miniStep = correctStep
+    90→    90→      }
+    91→    91→      if (correctNota && tpl.notaMinima !== correctNota) {
+    92→    92→        updates.notaMinima = correctNota
+    93→    93→      }
+    94→    94→      // Fix legacy auditoria/autoevaluacion content: migrate from criteria/items format
+    95→    95→      // to proper sections format using AUDIT_CHECKLISTS
+    96→    96→      if ((tpl.type === 'auditoria' || tpl.type === 'autoevaluacion') && tpl.sStep >= 1 && tpl.sStep <= 5) {
+    97→    97→        try {
+    98→    98→          const parsed = typeof tpl.content === 'string' ? JSON.parse(tpl.content) : tpl.content
+    99→    99→          // Check if legacy format (criteria or items array) or empty sections
+   100→   100→          const isLegacy = (parsed.criteria && Array.isArray(parsed.criteria)) ||
+   101→   101→                          (parsed.items && Array.isArray(parsed.items)) ||
+   102→   102→                          (parsed.sections && Array.isArray(parsed.sections) && parsed.sections.length === 0)
+   103→   103→          if (isLegacy) {
+   104→   104→            const builtIn = AUDIT_CHECKLISTS[tpl.sStep as keyof typeof AUDIT_CHECKLISTS]
+   105→   105→            if (builtIn && builtIn.length > 0) {
+   106→   106→              updates.content = JSON.stringify({ sections: builtIn })
+   107→   107→            }
+   108→   108→          }
+   109→   109→        } catch (e) {
+   110→   110→          // If content can't be parsed, leave it as is
+   111→   111→        }
+   112→   112→      }
+   113→   113→      // Fix empty inventario templates: seed previously created {categories:[], extraFields:[]}
+   114→   114→      // for S1/S3/S4/S5 — replace with proper content from INVENTORY_CONFIGS
+   115→   115→      if (tpl.type === 'inventario' && tpl.sStep >= 1 && tpl.sStep <= 5) {
+   116→   116→        try {
+   117→   117→          const parsed = typeof tpl.content === 'string' ? JSON.parse(tpl.content) : tpl.content
+   118→   118→          const hasCategories = Array.isArray(parsed.categories) && parsed.categories.length > 0
+   119→   119→          const hasExtraFields = Array.isArray(parsed.extraFields) && parsed.extraFields.length > 0
+   120→   120→          if (!hasCategories && !hasExtraFields) {
+   121→   121→            const defaultInvConfig = INVENTORY_CONFIGS[tpl.sStep]
+   122→   122→            if (defaultInvConfig) {
+   123→   123→              updates.content = JSON.stringify({
+   124→   124→                title: defaultInvConfig.title,
+   125→   125→                subtitle: defaultInvConfig.subtitle,
+   126→   126→                templateName: defaultInvConfig.templateName,
+   127→   127→                categories: defaultInvConfig.categories,
+   128→   128→                extraFields: defaultInvConfig.extraFields,
+   129→   129→              })
+   130→   130→            }
+   131→   131→          }
+   132→   132→        } catch (e) {
+   133→   133→          // If content can't be parsed, leave it as is
+   134→   134→        }
+   135→   135→      }
+   136→   136→      if (Object.keys(updates).length > 0) {
+   137→   137→        await db.template.update({
+   138→   138→          where: { id: tpl.id },
+   139→   139→          data: updates,
+   140→   140→        })
+   141→   141→        fixed++
+   142→   142→      }
+   143→   143→    }
+   144→   144→
+   145→   145→    // Fix titles
+   146→   146→    const afterFix = fixed > 0 ? await db.template.findMany() : existing
+   147→   147→    let titlesFixed = 0
+   148→   148→    for (const tpl of afterFix) {
+   149→   149→      let newTitle = tpl.title
+   150→   150→      const jName = S_JAPANESE[tpl.sStep - 1]
+   151→   151→
+   152→   152→      if (tpl.type === 'formacion') newTitle = `Formación S${tpl.sStep} - ${jName}`
+   153→   153→      else if (tpl.type === 'examen') newTitle = `Examen S${tpl.sStep} - ${jName}`
+   154→   154→      else if (tpl.type === 'autoevaluacion') newTitle = `Autoevaluación S${tpl.sStep} - ${jName}`
+   155→   155→      else if (tpl.type === 'auditoria') newTitle = `Auditoría S${tpl.sStep} - ${jName}`
+   156→   156→      else if (tpl.type === 'inventario') newTitle = `Inventario S${tpl.sStep} - ${jName}`
+   157→   157→      else if (tpl.type === 'estandar') newTitle = `Formato Estándar de Mejora - ${jName}`
+   158→   158→      else if (tpl.type === 'plan_accion') newTitle = `Plan de Acción S${tpl.sStep} - ${jName}`
+   159→   159→      else if (tpl.type === 'layout') newTitle = `Layout de Zona - ${jName}`
+   160→   160→      else if (tpl.type === 'plan_limpieza') newTitle = `Plan de Inspección y Limpieza - ${jName}`
+   161→   161→      else if (tpl.type === 'pdca') newTitle = `Tablero PDCA - ${jName}`
+   162→   162→      else if (tpl.type === 'fotos') newTitle = `Fotos S${tpl.sStep} - ${jName}`
+   163→   163→
+   164→   164→      if (newTitle !== tpl.title) {
+   165→   165→        await db.template.update({
+   166→   166→          where: { id: tpl.id },
+   167→   167→          data: { title: newTitle },
+   168→   168→        })
+   169→   169→        titlesFixed++
+   170→   170→      }
+   171→   171→    }
+   172→   172→    fixed += titlesFixed
+   173→   173→
+   174→   174→    const exists = (sStep: number, type: string) =>
+   175→   175→      existing.some(t => t.sStep === sStep && t.type === type)
+   176→   176→
+   177→   177→    for (let s = 1; s <= 5; s++) {
+   178→   178→      // ─── Formación (Paso 1) ───
+   179→   179→      if (!exists(s, 'formacion')) {
+   180→   180→        await db.template.create({
+   181→   181→          data: {
+   182→   182→            id: generateTemplateId('formacion', s),
+   183→   183→            type: 'formacion',
+   184→   184→            sStep: s,
+   185→   185→            miniStep: 1,
+   186→   186→            title: `Formación S${s} - ${S_JAPANESE[s - 1]}`,
+   187→   187→            description: `Contenido formativo sobre la ${s}ª S: ${S_NAMES[s - 1]} (${S_JAPANESE[s - 1]})`,
+   188→   188→            content: JSON.stringify({ sections: [{ title: `¿Qué es ${S_JAPANESE[s - 1]}?`, content: `Formación sobre la ${s}ª S: ${S_NAMES[s - 1]}` }] }),
+   189→   189→            notaMinima: 80,
+   190→   190→            updatedAt: new Date(),
+   191→   191→          },
+   192→   192→        })
+   193→   193→        created++
+   194→   194→      }
+   195→   195→
+   196→   196→      // ─── Examen (Paso 1) ───
+   197→   197→      if (!exists(s, 'examen')) {
+   198→   198→        await db.template.create({
+   199→   199→          data: {
+   200→   200→            id: generateTemplateId('examen', s),
+   201→   201→            type: 'examen',
+   202→   202→            sStep: s,
+   203→   203→            miniStep: 1,
+   204→   204→            title: `Examen S${s} - ${S_JAPANESE[s - 1]}`,
+   205→   205→            description: `Examen de evaluación sobre ${S_NAMES[s - 1]}`,
+   206→   206→            content: JSON.stringify({ questions: [{ question: `Pregunta sobre ${S_JAPANESE[s - 1]}`, options: ['A', 'B', 'C', 'D'], correctIndex: 0 }] }),
+   207→   207→            notaMinima: 80,
+   208→   208→            updatedAt: new Date(),
+   209→   209→          },
+   210→   210→        })
+   211→   211→        created++
+   212→   212→      }
+   213→   213→
+   214→   214→      // ─── Fotos (Paso 2) ───
+   215→   215→      if (!exists(s, 'fotos')) {
+   216→   216→        const fotosDescriptions: Record<number, string> = {
+   217→   217→          1: 'Fotografía la zona para ver qué elementos innecesarios hay antes de clasificar',
+   218→   218→          2: 'Fotografía la zona para ver cómo está organizada antes de reordenar',
+   219→   219→          3: 'Fotografía la zona para documentar los puntos de suciedad antes de limpiar',
+   220→   220→          4: 'Fotografía la zona para documentar el estado actual antes de estandarizar',
+   221→   221→          5: 'Fotografía la zona para documentar el nivel de cumplimiento de los estándares',
+   222→   222→        }
+   223→   223→        await db.template.create({
+   224→   224→          data: {
+   225→   225→            id: generateTemplateId('fotos', s),
+   226→   226→            type: 'fotos',
+   227→   227→            sStep: s,
+   228→   228→            miniStep: 2,
+   229→   229→            title: `Fotos S${s} - ${S_JAPANESE[s - 1]}`,
+   230→   230→            description: `Plantilla de fotografías para ${S_NAMES[s - 1]}`,
+   231→   231→            // v2.108.10 — Materializar minPhotos=10 en la BD (antes era NULL,
+   232→   232→            // lo que hacía que el UI mostrara "10" como fallback y confundía
+   233→   233→            // al usuario cuando intentaba cambiarlo).
+   234→   234→            minPhotos: 10,
+   235→   235→            content: JSON.stringify({
+   236→   236→              sections: [
+   237→   237→                {
+   238→   238→                  title: 'Fotografías Antes',
+   239→   239→                  description: fotosDescriptions[s],
+   240→   240→                  minPhotos: 3,
+   241→   241→                  photoTypes: ['antes'],
+   242→   242→                  instructions: 'Toma un mínimo de 3 fotografías del estado actual de la zona.',
+   243→   243→                },
+   244→   244→                {
+   245→   245→                  title: 'Fotografías Después',
+   246→   246→                  description: 'Fotografía el resultado tras aplicar las mejoras',
+   247→   247→                  minPhotos: 3,
+   248→   248→                  photoTypes: ['despues'],
+   249→   249→                  instructions: 'Toma fotografías desde los mismos ángulos que las fotos "antes".',
+   250→   250→                },
+   251→   251→              ],
+   252→   252→            }),
+   253→   253→            updatedAt: new Date(),
+   254→   254→          },
+   255→   255→        })
+   256→   256→        created++
+   257→   257→      }
+   258→   258→
+   259→   259→      // ─── Inventario (Paso 3) ───
+   260→   260→      if (!exists(s, 'inventario')) {
+   261→   261→        // Use INVENTORY_CONFIGS as the base for all S steps — provides categories, extraFields, etc.
+   262→   262→        const defaultInvConfig = INVENTORY_CONFIGS[s]
+   263→   263→        const inventoryContent: any = {
+   264→   264→          title: defaultInvConfig?.title || `Inventario S${s}`,
+   265→   265→          subtitle: defaultInvConfig?.subtitle || '',
+   266→   266→          templateName: defaultInvConfig?.templateName || `S${s}_Inventario.xlsx`,
+   267→   267→          categories: defaultInvConfig?.categories || [],
+   268→   268→          extraFields: defaultInvConfig?.extraFields || [],
+   269→   269→        }
+   270→   270→        // S2 gets additional hierarchical dropdowns
+   271→   271→        if (s === 2) {
+   272→   272→          inventoryContent.desplegables_jerarquicos = {
+   273→   273→            'MATERIALES': { prefijo_codigo: 'MAT', subcategorias: ['Consumibles', 'Materia Prima', 'Producto en proceso', 'Producto acabado'] },
+   274→   274→            'MÁQUINAS Y EQUIPOS': { prefijo_codigo: 'MAQ', subcategorias: ['Máquinas de trabajo', 'Utillajes de trabajo', 'Equipos y accesorios de Elevación', 'Equipos de ensayo y verificación', 'Herramientas de ensamblaje', 'Equipos informáticos', 'Equipos de limpieza'] },
+   275→   275→            'MOBILIARIO': { prefijo_codigo: 'MOB', subcategorias: ['Bancos de trabajo', 'Paneles herramienta', 'Armarios o taquillas', 'Sillas, mesas', 'Paneles u otros soportes para información'] },
+   276→   276→            'INFORMACIÓN': { prefijo_codigo: 'INF', subcategorias: ['Planos, instrucciones, boletines de trabajo', 'Posters u otra información divulgativa', 'Información referente a indicadores', 'Carpeta o bandejas con documentación', 'Información de seguridad'] },
+   277→   277→            'TRANSPORTE Y ALMACENAJE': { prefijo_codigo: 'TRA', subcategorias: ['Máquinas de transporte', 'Utillajes de transporte, Pallets, embalajes de madera, cajas', 'Estanterías, gavetas, contenedores', 'Bolsas, plásticos, protecciones, elementos de flejado', 'Carros de transporte'] },
+   278→   278→          }
+   279→   279→          // Override with richer S2 categories when using the seed's extended version
+   280→   280→          inventoryContent.categories = [
+   281→   281→            { value: 'materiales', label: 'MATERIALES', color: 'bg-blue-100 text-blue-800' },
+   282→   282→            { value: 'maquinas_equipos', label: 'MÁQUINAS Y EQUIPOS', color: 'bg-purple-100 text-purple-800' },
+   283→   283→            { value: 'mobiliario', label: 'MOBILIARIO', color: 'bg-amber-100 text-amber-800' },
+   284→   284→            { value: 'informacion', label: 'INFORMACIÓN', color: 'bg-teal-100 text-teal-800' },
+   285→   285→            { value: 'transporte_almacenaje', label: 'TRANSPORTE Y ALMACENAJE', color: 'bg-orange-100 text-orange-800' },
+   286→   286→          ]
+   287→   287→          inventoryContent.extraFields = [
+   288→   288→            { key: 'codigo', label: 'Código de Trazabilidad', type: 'text' },
+   289→   289→            { key: 'subcategoria', label: 'Subcategoría', type: 'select', options: [
+   290→   290→              'Consumibles', 'Materia Prima', 'Producto en proceso', 'Producto acabado',
+   291→   291→              'Máquinas de trabajo', 'Utillajes de trabajo', 'Equipos y accesorios de Elevación',
+   292→   292→              'Equipos de ensayo y verificación', 'Herramientas de ensamblaje', 'Equipos informáticos', 'Equipos de limpieza',
+   293→   293→              'Bancos de trabajo', 'Paneles herramienta', 'Armarios o taquillas', 'Sillas, mesas', 'Paneles u otros soportes para información',
+   294→   294→              'Planos, instrucciones, boletines de trabajo', 'Posters u otra información divulgativa', 'Información referente a indicadores', 'Carpeta o bandejas con documentación', 'Información de seguridad',
+   295→   295→              'Máquinas de transporte', 'Utillajes de transporte, Pallets, embalajes de madera, cajas', 'Estanterías, gavetas, contenedores', 'Bolsas, plásticos, protecciones, elementos de flejado', 'Carros de transporte',
+   296→   296→            ]},
+   297→   297→            { key: 'zona_destino', label: 'Zona Actual / Destino', type: 'text' },
+   298→   298→            { key: 'responsable', label: 'Responsable / Área', type: 'text' },
+   299→   299→            { key: 'estado', label: 'Estado de Conservación', type: 'select', options: ['Excelente', 'Bueno', 'Regular', 'Requiere Mantenimiento'] },
+   300→   300→          ]
+   301→   301→        }
+   302→   302→
+   303→   303→        await db.template.create({
+   304→   304→          data: {
+   305→   305→            id: generateTemplateId('inventario', s),
+   306→   306→            type: 'inventario',
+   307→   307→            sStep: s,
+   308→   308→            miniStep: 3,
+   309→   309→            title: `Inventario S${s} - ${S_JAPANESE[s - 1]}`,
+   310→   310→            description: `Plantilla de inventario para ${S_NAMES[s - 1]}`,
+   311→   311→            content: JSON.stringify(inventoryContent),
+   312→   312→            updatedAt: new Date(),
+   313→   313→          },
+   314→   314→        })
+   315→   315→        created++
+   316→   316→      }
+   317→   317→
+   318→   318→      // ─── Estándar (Paso 3) ───
+   319→   319→      if (!exists(s, 'estandar')) {
+   320→   320→        await db.template.create({
+   321→   321→          data: {
+   322→   322→            id: generateTemplateId('estandar', s),
+   323→   323→            type: 'estandar',
+   324→   324→            sStep: s,
+   325→   325→            miniStep: 3,
+   326→   326→            title: `Formato Estándar de Mejora - ${S_JAPANESE[s - 1]}`,
+   327→   327→            description: `Plantilla de formato estándar para registrar mejoras en ${S_NAMES[s - 1]}`,
+   328→   328→            content: JSON.stringify({
+   329→   329→              fields: [
+   330→   330→                { key: 'beforePhotoUrl', label: 'Foto Antes', type: 'photo', required: true },
+   331→   331→                { key: 'afterPhotoUrl', label: 'Foto Después', type: 'photo', required: true },
+   332→   332→                { key: 'responsable', label: 'Quién lo ha hecho', type: 'text', required: true },
+   333→   333→                { key: 'contacto', label: 'Contacto', type: 'text', required: true },
+   334→   334→                { key: 'mejoraTipo', label: 'Tipo de Mejora', type: 'select', options: ['seguridad', 'calidad', 'proceso', 'logistica'], required: true },
+   335→   335→              ],
+   336→   336→            }),
+   337→   337→            updatedAt: new Date(),
+   338→   338→          },
+   339→   339→        })
+   340→   340→        created++
+   341→   341→      }
+   342→   342→
+   343→   343→      // ─── Autoevaluación (Paso 4) ───
+   344→   344→      if (!exists(s, 'autoevaluacion')) {
+   345→   345→        const auditSections = AUDIT_CHECKLISTS[s as keyof typeof AUDIT_CHECKLISTS]
+   346→   346→        await db.template.create({
+   347→   347→          data: {
+   348→   348→            id: generateTemplateId('autoevaluacion', s),
+   349→   349→            type: 'autoevaluacion',
+   350→   350→            sStep: s,
+   351→   351→            miniStep: 4,
+   352→   352→            title: `Autoevaluación S${s} - ${S_JAPANESE[s - 1]}`,
+   353→   353→            description: `Checklist de autoevaluación para ${S_NAMES[s - 1]}`,
+   354→   354→            content: JSON.stringify({ sections: auditSections || [] }),
+   355→   355→            notaMinima: 70,
+   356→   356→            updatedAt: new Date(),
+   357→   357→          },
+   358→   358→        })
+   359→   359→        created++
+   360→   360→      }
+   361→   361→
+   362→   362→      // ─── Plan de Acción (Paso 4) ───
+   363→   363→      if (!exists(s, 'plan_accion')) {
+   364→   364→        await db.template.create({
+   365→   365→          data: {
+   366→   366→            id: generateTemplateId('plan_accion', s),
+   367→   367→            type: 'plan_accion',
+   368→   368→            sStep: s,
+   369→   369→            miniStep: 4,
+   370→   370→            title: `Plan de Acción S${s} - ${S_JAPANESE[s - 1]}`,
+   371→   371→            description: `Registro de deficiencias detectadas en autoevaluaciones y auditorías de ${S_NAMES[s - 1]}. Incluye acciones correctivas, preventivas, responsable y seguimiento del progreso.`,
+   372→   372→            content: JSON.stringify({
+   373→   373→              tableType: 'plan_accion',
+   374→   374→              description: `Plan de Acción para ${S_JAPANESE[s - 1]} (${S_NAMES[s - 1]}). Registro de deficiencias encontradas en las autoevaluaciones y auditorías, con las acciones correctivas y preventivas propuestas, responsables y fechas de realización.`,
+   375→   375→              columns: [
+   376→   376→                { key: 'numeroEntrada', label: 'Nº Entrada', type: 'text', width: '100px', description: 'Zona + S de origen + número correlativo', required: true, placeholder: 'Ej: A-S1-001' },
+   377→   377→                { key: 'fechaInicial', label: 'Fecha Inicial', type: 'date', width: '110px', description: 'Fecha en la que entra la deficiencia', required: true },
+   378→   378→                { key: 'auditor', label: 'Auditor', type: 'text', width: '120px', description: 'Quién ha hecho la auditoría o la autoevaluación', required: true },
+   379→   379→                { key: 'semana', label: 'Semana', type: 'text', width: '80px', description: 'La semana de la fecha inicial' },
+   380→   380→                { key: 'zona', label: 'Zona', type: 'text', width: '100px', description: 'Qué zona es la afectada', required: true },
+   381→   381→                { key: 'descripcion', label: 'Descripción', type: 'textarea', width: '200px', description: 'Descripción de la deficiencia encontrada', required: true },
+   382→   382→                { key: 'accionCorrectiva', label: 'Acción Correctiva', type: 'textarea', width: '180px', description: 'Lo que se va a hacer ahora para corregir', required: true },
+   383→   383→                { key: 'accionesPreventivas', label: 'Acciones Preventivas', type: 'textarea', width: '180px', description: 'Lo que se va a hacer para que no ocurra otra vez' },
+   384→   384→                { key: 'semanaPrevista', label: 'Semana Prevista', type: 'text', width: '100px', description: 'La semana prevista para llevar las acciones preventivas' },
+   385→   385→                { key: 'personaResponsable', label: 'Persona Responsable', type: 'text', width: '130px', description: 'Quién es el responsable', required: true },
+   386→   386→                { key: 'estado', label: 'Estado', type: 'select', width: '110px', description: 'Progreso: Empezado (25%), Medio (50%), Casi Hecho (75%), Finalizado (100%)', options: ['Empezado (25%)', 'Medio (50%)', 'Casi Hecho (75%)', 'Finalizado (100%)'] },
+   387→   387→                { key: 'progreso', label: 'Progreso %', type: 'number', width: '80px', description: 'Progreso en %: 25, 50, 75 o 100', min: 0, max: 100 },
+   388→   388→                { key: 'semanaReal', label: 'Semana Real', type: 'text', width: '100px', description: 'Semana real de la finalización' },
+   389→   389→              ],
+   390→   390→              sourceTypes: ['autoevaluacion', 'auditoria'],
+   391→   391→              sStep: s,
+   392→   392→            }),
+   393→   393→            updatedAt: new Date(),
+   394→   394→          },
+   395→   395→        })
+   396→   396→        created++
+   397→   397→      }
+   398→   398→
+   399→   399→      // ─── Layout de Zona (Paso 3 — solo S2 Seiton) ───
+   400→   400→      if (!exists(s, 'layout') && s === 2) {
+   401→   401→        await db.template.create({
+   402→   402→          data: {
+   403→   403→            id: generateTemplateId('layout', s),
+   404→   404→            type: 'layout',
+   405→   405→            sStep: s,
+   406→   406→            miniStep: 3,
+   407→   407→            title: `Layout de Zona - ${S_JAPANESE[s - 1]}`,
+   408→   408→            description: `Herramienta para subir o dibujar el layout de la zona en ${S_NAMES[s - 1]}. Primer estándar creado que irá a la Biblioteca de Estándares de S4.`,
+   409→   409→            content: JSON.stringify({
+   410→   410→              layoutType: 'zone_layout',
+   411→   411→              description: `Layout de la zona para ${S_JAPANESE[s - 1]}. Dibuja o sube un plano de la zona indicando las áreas de trabajo, pasillos, ubicación de equipos y elementos estáticos.`,
+   412→   412→              floorColors: [
+   413→   413→                { color: '#0E6BA8', label: 'Azul RAL 5017 — Entrada de material', ral: 'RAL 5017' },
+   414→   414→                { color: '#2D8C3C', label: 'Verde RAL 6032 — Salida de material premontado', ral: 'RAL 6032' },
+   415→   415→                { color: '#E8E8E8', label: 'Blanco RAL 9003 — Elementos estáticos', ral: 'RAL 9003' },
+   416→   416→                { color: '#F5E649', label: 'Amarillo RAL 1016 — Área de trabajo', ral: 'RAL 1016' },
+   417→   417→                { color: '#CC0000', label: 'Rojo RAL 3000 — Equipos contra incendios', ral: 'RAL 3000' },
+   418→   418→                { color: '#F5A623', label: 'Amarillo anaranjado RAL 1003 — Elementos de seguridad', ral: 'RAL 1003' },
+   419→   419→              ],
+   420→   420→              drawTools: ['select', 'rect', 'circle', 'line', 'arrow', 'text'],
+   421→   421→              sStep: s,
+   422→   422→              targetStandardCategory: 'layout',
+   423→   423→              targetS4Library: true,
+   424→   424→            }),
+   425→   425→            updatedAt: new Date(),
+   426→   426→          },
+   427→   427→        })
+   428→   428→        created++
+   429→   429→      }
+   430→   430→
+   431→   431→      // ─── Plan de Inspección y Limpieza (Paso 3 — solo S3 Seiso) ───
+   432→   432→      if (!exists(s, 'plan_limpieza') && s === 3) {
+   433→   433→        await db.template.create({
+   434→   434→          data: {
+   435→   435→            id: generateTemplateId('plan_limpieza', s),
+   436→   436→            type: 'plan_limpieza',
+   437→   437→            sStep: s,
+   438→   438→            miniStep: 3,
+   439→   439→            title: `Plan de Inspección y Limpieza - ${S_JAPANESE[s - 1]}`,
+   440→   440→            description: `Herramienta para realizar el plan de inspección y limpieza de la zona en ${S_NAMES[s - 1]}. Indica una ruta para inspeccionar los puntos de suciedad que no se pueden eliminar.`,
+   441→   441→            content: JSON.stringify({
+   442→   442→              planType: 'inspection_cleaning',
+   443→   443→              description: `Plan de Inspección y Limpieza para ${S_JAPANESE[s - 1]}. Define la ruta de inspección, los puntos de suciedad que no se pueden eliminar y las acciones de limpieza para la zona.`,
+   444→   444→              sections: [
+   445→   445→                { key: 'ruta_inspeccion', label: 'Ruta de Inspección', type: 'route', description: 'Define el recorrido de inspección paso a paso' },
+   446→   446→                { key: 'puntos_suciedad', label: 'Puntos de Suciedad No Eliminables', type: 'checklist', description: 'Lista de puntos de suciedad que no se pueden eliminar, con acciones preventivas' },
+   447→   447→                { key: 'acciones_limpieza', label: 'Acciones de Limpieza', type: 'list', description: 'Acciones de limpieza a realizar en cada punto' },
+   448→   448→                { key: 'frecuencia', label: 'Frecuencia', type: 'select', options: ['Diaria', 'Semanal', 'Quincenal', 'Mensual'], description: 'Frecuencia de inspección' },
+   449→   449→                { key: 'responsable', label: 'Responsable', type: 'text', description: 'Persona responsable de la inspección' },
+   450→   450→              ],
+   451→   451→              sStep: s,
+   452→   452→              targetStandardCategory: 'plan_limpieza',
+   453→   453→              targetS4Library: true,
+   454→   454→            }),
+   455→   455→            updatedAt: new Date(),
+   456→   456→          },
+   457→   457→        })
+   458→   458→        created++
+   459→   459→      }
+   460→   460→
+   461→   461→      // ─── Auditoría Externa (Paso 5) ───
+   462→   462→      if (!exists(s, 'auditoria')) {
+   463→   463→        const auditSections = AUDIT_CHECKLISTS[s as keyof typeof AUDIT_CHECKLISTS]
+   464→   464→        await db.template.create({
+   465→   465→          data: {
+   466→   466→            id: generateTemplateId('auditoria', s),
+   467→   467→            type: 'auditoria',
+   468→   468→            sStep: s,
+   469→   469→            miniStep: 5,
+   470→   470→            title: `Auditoría S${s} - ${S_JAPANESE[s - 1]}`,
+   471→   471→            description: `Criterios de auditoría para ${S_NAMES[s - 1]}`,
+   472→   472→            content: JSON.stringify({ sections: auditSections || [] }),
+   473→   473→            notaMinima: 75,
+   474→   474→            updatedAt: new Date(),
+   475→   475→          },
+   476→   476→        })
+   477→   477→        created++
+   478→   478→      }
+   479→   479→      // ─── Tablero PDCA (Paso 5 — solo S5 Shitsuke) ───
+   480→   480→      if (!exists(s, 'pdca') && s === 5) {
+   481→   481→        await db.template.create({
+   482→   482→          data: {
+   483→   483→            id: generateTemplateId('pdca', s),
+   484→   484→            type: 'pdca',
+   485→   485→            sStep: s,
+   486→   486→            miniStep: 5,
+   487→   487→            title: `Tablero PDCA - ${S_JAPANESE[s - 1]}`,
+   488→   488→            description: `Tablero PDCA (Plan-Do-Check-Act) como herramienta de mejora continua para dirigir las 5S tras su implementación. Incluye Plan de Acción y KPIs de progreso.`,
+   489→   489→            content: JSON.stringify({
+   490→   490→              pdcaType: 'continuous_improvement_board',
+   491→   491→              description: `Tablero PDCA para ${S_JAPANESE[s - 1]}. Herramienta de mejora continua después de acabar las 5S en la que se registra y se dirige las 5S. Incluye el Plan de Acción y KPIs referentes que indican progreso y trabajo realizado y por realizar.`,
+   492→   492→              phases: [
+   493→   493→                { key: 'plan', label: 'PLAN', labelEs: 'Planificar', description: 'Identificar problemas, establecer objetivos y definir planes de acción', color: '#3B82F6' },
+   494→   494→                { key: 'do', label: 'DO', labelEs: 'Ejecutar', description: 'Implementar las acciones planificadas y recopilar datos', color: '#22C55E' },
+   495→   495→                { key: 'check', label: 'CHECK', labelEs: 'Verificar', description: 'Analizar los resultados y comparar con los objetivos', color: '#EAB308' },
+   496→   496→                { key: 'act', label: 'ACT', labelEs: 'Actuar', description: 'Estandarizar lo que funciona y corregir lo que no', color: '#F97316' },
+   497→   497→              ],
+   498→   498→              kpis: [
+   499→   499→                { key: 'completion_rate', label: 'Tasa de Completado', description: 'Porcentaje de elementos PDCA completados' },
+   500→   500→                { key: 'action_progress', label: 'Progreso del Plan de Acción', description: 'Progreso medio del Plan de Acción' },
+   501→   501→                { key: 'open_actions', label: 'Acciones Abiertas', description: 'Acciones del plan de acción en estado abierta' },
+   502→   502→                { key: 'overdue_items', label: 'Elementos Vencidos', description: 'Elementos PDCA con fecha límite pasada' },
+   503→   503→              ],
+   504→   504→              links: ['plan_accion', 'standards_library'],
+   505→   505→              sStep: s,
+   506→   506→            }),
+   507→   507→            updatedAt: new Date(),
+   508→   508→          },
+   509→   509→        })
+   510→   510→        created++
+   511→   511→      }
+   512→   512→
+   513→   513→    }
+   514→   514→
+   515→   515→    const totalTemplates = await db.template.count()
+   516→   516→
+   517→   517→    // Mark seed as completed in SystemConfig (gracefully handle missing table)
+   518→   518→    try {
+   519→   519→      await db.systemConfig.upsert({
+   520→   520→        where: { key: 'templates_seeded' },
+   521→   521→        update: { value: JSON.stringify({ completedAt: new Date().toISOString(), created, version: 2 }) },
+   522→   522→        create: { key: 'templates_seeded', value: JSON.stringify({ completedAt: new Date().toISOString(), created, version: 2 }) },
+   523→   523→      })
+   524→   524→    } catch (e) {
+   525→   525→      console.log('Could not save seed state to SystemConfig (table may not exist yet)')
+   526→   526→    }
+   527→   527→
+   528→   528→    return NextResponse.json({
+   529→   529→      success: true,
+   530→   530→      data: {
+   531→   531→        message: `Seed completado: ${created} creada(s), ${fixed} corregida(s), ${existing.length} ya existían`,
+   532→   532→        templatesCreated: created,
+   533→   533→        templatesFixed: fixed,
+   534→   534→        templatesExisting: existing.length,
+   535→   535→        templatesTotal: totalTemplates,
+   536→   536→      },
+   537→   537→    })
+   538→   538→  } catch (error) {
+   539→   539→    console.error('Error seeding templates:', error)
+   540→   540→    return NextResponse.json({ success: false, error: 'Error seeding templates' }, { status: 500 })
+   541→   541→  }
+   542→   542→}
+   543→   543→
