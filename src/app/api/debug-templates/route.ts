@@ -30,25 +30,30 @@ export async function GET() {
     result.boardConfigs = boardConfigs
     result.totalBoardConfigs = boardConfigs.length
     
-    // 3. Ver board slots y sus plantillas asociadas
+    // 3. Ver board slots y sus plantillas asociadas (usar nombres CORRECTOS del schema)
     const boardSlots = await db.boardSlot.findMany({
       include: {
-        templates: {
+        BoardSlotTemplate: {
           include: {
             template: { select: { id: true, type: true, title: true, sStep: true } }
+          }
+        },
+        BoardSlotStandard: {
+          include: {
+            standard: { select: { id: true, title: true, sStep: true } }
           }
         }
       }
     })
     result.totalBoardSlots = boardSlots.length
-    result.boardSlotsWithTemplates = boardSlots.filter(s => s.templates.length > 0).length
+    result.boardSlotsWithTemplates = boardSlots.filter(s => s.BoardSlotTemplate && s.BoardSlotTemplate.length > 0).length
     result.boardSlotsDetail = boardSlots.map(slot => ({
       id: slot.id,
       sStep: slot.sStep,
       miniStep: slot.miniStep,
       boardConfigId: slot.boardConfigId,
-      templateCount: slot.templates.length,
-      templates: slot.templates.map(t => ({
+      templateCount: slot.BoardSlotTemplate?.length || 0,
+      templates: (slot.BoardSlotTemplate || []).map(t => ({
         type: t.template?.type,
         title: t.template?.title,
         sStep: t.template?.sStep

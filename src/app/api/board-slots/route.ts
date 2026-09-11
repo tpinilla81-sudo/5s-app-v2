@@ -28,21 +28,21 @@ export async function GET(request: NextRequest) {
     if (sStepParam != null) where.sStep = Number(sStepParam)
     if (miniStepParam != null) where.miniStep = Number(miniStepParam)
 
-    // v2.30: si la columna companyId no existe en Template (migración SQL
-    // pendiente), el include de template fallará. Caer a un include sin
-    // template (solo slot + standards) para no romper la app.
+    // v3.0.43 FIX: Usar nombres de relaciones CORRECTOS del schema.prisma:
+    // - BoardSlotTemplate (no 'templates')
+    // - BoardSlotStandard (no 'standards')
     let slots
     try {
       slots = await db.boardSlot.findMany({
         where,
         include: {
-          templates: {
+          BoardSlotTemplate: {
             include: {
               template: { select: { id: true, type: true, title: true, sStep: true, miniStep: true, content: true, notaMinima: true, minPhotos: true } },
             },
             orderBy: { sortOrder: 'asc' },
           },
-          standards: {
+          BoardSlotStandard: {
             include: {
               standard: { select: { id: true, title: true, sStep: true, category: true, content: true } },
             },
@@ -51,23 +51,26 @@ export async function GET(request: NextRequest) {
         },
         orderBy: [{ sStep: 'asc' }, { miniStep: 'asc' }],
       })
+      // Normalizar nombres para compatibilidad con el frontend
+      slots = slots.map((slot: any) => ({
+        ...slot,
+        templates: slot.BoardSlotTemplate?.map((bst: any) => ({
+          ...bst,
+          template: bst.template
+        })) || [],
+        standards: slot.BoardSlotStandard?.map((bss: any) => ({
+          ...bss,
+          standard: bss.standard
+        })) || []
+      }))
     } catch (dbErr) {
-      console.warn('[board-slots] Template.companyId no existe, fallback sin include de template:', dbErr instanceof Error ? dbErr.message : dbErr)
+      console.warn('[board-slots] Error en include, fallback:', dbErr instanceof Error ? dbErr.message : dbErr)
       slots = await db.boardSlot.findMany({
         where,
-        include: {
-          templates: false as any,
-          standards: {
-            include: {
-              standard: { select: { id: true, title: true, sStep: true, category: true, content: true } },
-            },
-            orderBy: { sortOrder: 'asc' },
-          },
-        },
         orderBy: [{ sStep: 'asc' }, { miniStep: 'asc' }],
       })
-      // Añadir templates: [] a cada slot para que el cliente no rompa
-      slots = (slots as any[]).map(s => ({ ...s, templates: [] }))
+      // Añadir arrays vacíos para que el cliente no rompa
+      slots = (slots as any[]).map(s => ({ ...s, templates: [], standards: [] }))
     }
 
     return NextResponse.json({ success: true, data: slots })
@@ -141,17 +144,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Return the updated slot with relations
-    const updatedSlot = await db.boardSlot.findUnique({
+    // Return the updated slot with relations (usar nombres correctos del schema)
+    const rawSlot = await db.boardSlot.findUnique({
       where: { id: slotId },
       include: {
-        templates: {
+        BoardSlotTemplate: {
           include: {
             template: { select: { id: true, type: true, title: true, sStep: true, miniStep: true } },
           },
           orderBy: { sortOrder: 'asc' },
         },
-        standards: {
+        BoardSlotStandard: {
           include: {
             standard: { select: { id: true, title: true, sStep: true, category: true } },
           },
@@ -159,6 +162,19 @@ export async function POST(request: NextRequest) {
         },
       },
     })
+    
+    // Normalizar para compatibilidad con frontend
+    const updatedSlot = rawSlot ? {
+      ...rawSlot,
+      templates: rawSlot.BoardSlotTemplate?.map((bst: any) => ({
+        ...bst,
+        template: bst.template
+      })) || [],
+      standards: rawSlot.BoardSlotStandard?.map((bss: any) => ({
+        ...bss,
+        standard: bss.standard
+      })) || []
+    } : null
 
     return NextResponse.json({ success: true, data: updatedSlot })
   } catch (error) {
