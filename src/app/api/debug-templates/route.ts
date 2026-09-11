@@ -35,12 +35,12 @@ export async function GET() {
       include: {
         BoardSlotTemplate: {
           include: {
-            template: { select: { id: true, type: true, title: true, sStep: true } }
+            Template: { select: { id: true, type: true, title: true, sStep: true } }
           }
         },
         BoardSlotStandard: {
           include: {
-            standard: { select: { id: true, title: true, sStep: true } }
+            Standard: { select: { id: true, title: true, sStep: true } }
           }
         }
       }
@@ -54,9 +54,9 @@ export async function GET() {
       boardConfigId: slot.boardConfigId,
       templateCount: slot.BoardSlotTemplate?.length || 0,
       templates: (slot.BoardSlotTemplate || []).map(t => ({
-        type: t.template?.type,
-        title: t.template?.title,
-        sStep: t.template?.sStep
+        type: t.Template?.type,
+        title: t.Template?.title,
+        sStep: t.Template?.sStep
       }))
     }))
     

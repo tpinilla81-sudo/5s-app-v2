@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     // v3.0.43 FIX: Usar nombres de relaciones CORRECTOS del schema.prisma:
     // - BoardSlotTemplate (no 'templates')
     // - BoardSlotStandard (no 'standards')
+    // - Template (con mayúscula, no 'template')
     let slots
     try {
       slots = await db.boardSlot.findMany({
@@ -38,13 +39,13 @@ export async function GET(request: NextRequest) {
         include: {
           BoardSlotTemplate: {
             include: {
-              template: { select: { id: true, type: true, title: true, sStep: true, miniStep: true, content: true, notaMinima: true, minPhotos: true } },
+              Template: { select: { id: true, type: true, title: true, sStep: true, miniStep: true, content: true, notaMinima: true, minPhotos: true } },
             },
             orderBy: { sortOrder: 'asc' },
           },
           BoardSlotStandard: {
             include: {
-              standard: { select: { id: true, title: true, sStep: true, category: true, content: true } },
+              Standard: { select: { id: true, title: true, sStep: true, category: true, content: true } },
             },
             orderBy: { sortOrder: 'asc' },
           },
@@ -56,11 +57,11 @@ export async function GET(request: NextRequest) {
         ...slot,
         templates: slot.BoardSlotTemplate?.map((bst: any) => ({
           ...bst,
-          template: bst.template
+          template: bst.Template
         })) || [],
         standards: slot.BoardSlotStandard?.map((bss: any) => ({
           ...bss,
-          standard: bss.standard
+          standard: bss.Standard
         })) || []
       }))
     } catch (dbErr) {
@@ -150,13 +151,13 @@ export async function POST(request: NextRequest) {
       include: {
         BoardSlotTemplate: {
           include: {
-            template: { select: { id: true, type: true, title: true, sStep: true, miniStep: true } },
+            Template: { select: { id: true, type: true, title: true, sStep: true, miniStep: true } },
           },
           orderBy: { sortOrder: 'asc' },
         },
         BoardSlotStandard: {
           include: {
-            standard: { select: { id: true, title: true, sStep: true, category: true } },
+            Standard: { select: { id: true, title: true, sStep: true, category: true } },
           },
           orderBy: { sortOrder: 'asc' },
         },
@@ -168,11 +169,11 @@ export async function POST(request: NextRequest) {
       ...rawSlot,
       templates: rawSlot.BoardSlotTemplate?.map((bst: any) => ({
         ...bst,
-        template: bst.template
+        template: bst.Template
       })) || [],
       standards: rawSlot.BoardSlotStandard?.map((bss: any) => ({
         ...bss,
-        standard: bss.standard
+        standard: bss.Standard
       })) || []
     } : null
 
