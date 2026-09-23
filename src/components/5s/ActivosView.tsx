@@ -95,8 +95,8 @@ export default function ActivosView() {
           setHasTemplate(true);
         }
       } else {
-        // Fallback: load global template
-        const res = await fetch(`/api/templates?type=inventario&sStep=2&miniStep=3`);
+        // Fallback: load global template (usar endpoint público sin auth)
+        const res = await fetch(`/api/templates-public?type=inventario&sStep=2&miniStep=3`);
         const json = await res.json();
         if (json.success && json.data && json.data.length > 0) {
           const content = JSON.parse(json.data[0].content);

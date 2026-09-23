@@ -79,76 +79,131 @@ export default function FormacionModal({ open, onClose, sStep, miniStep }: Forma
     try {
       let formacionLoaded = false;
       let examLoaded = false;
+      let debugInfo: any = { step: 'init', currentZone: null, boardConfigId: null };
 
       // If the zone has a board config, fetch templates from that config
       if (currentZone?.boardConfigId) {
+        debugInfo.step = 'fetch_board_slots';
+        debugInfo.boardConfigId = currentZone.boardConfigId;
+        debugInfo.currentZone = { id: currentZone.id, name: currentZone.name };
+        
         // Fetch board slots for this sStep + miniStep from the zone's board config
         const slotsRes = await fetch(`/api/board-slots?boardConfigId=${currentZone.boardConfigId}&sStep=${sStep}&miniStep=${miniStep}`);
         const slotsJson = await slotsRes.json();
+        
+        debugInfo.slotsResponse = { success: slotsJson.success, dataLength: slotsJson.data?.length || 0 };
 
         if (slotsJson.success && slotsJson.data.length > 0) {
           const slot = slotsJson.data[0];
+          debugInfo.slot = { 
+            id: slot.id, 
+            templatesCount: slot.templates?.length || 0,
+            boardSlotTemplateCount: slot.BoardSlotTemplate?.length || 0
+          };
+          
           // Load formation templates from board config
           const formacionTemplates = (slot.templates || []).filter(
             (t: any) => t.template?.type === 'formacion'
           );
+          
+          debugInfo.formacionTemplatesFound = formacionTemplates.length;
+          
           if (formacionTemplates.length > 0) {
-            const content = JSON.parse(formacionTemplates[0].template.content);
-            setFormationContent(content.sections || []);
-            formacionLoaded = true;
+            try {
+              const content = JSON.parse(formacionTemplates[0].template.content);
+              setFormationContent(content.sections || []);
+              formacionLoaded = true;
+              debugInfo.formacionLoaded = true;
+              debugInfo.sectionsCount = content.sections?.length || 0;
+            } catch (parseError) {
+              console.error('Error parsing formation template content:', parseError);
+              debugInfo.formacionParseError = parseError instanceof Error ? parseError.message : 'Unknown error';
+            }
           }
 
           // Load exam templates from board config
           const examTemplates = (slot.templates || []).filter(
             (t: any) => t.template?.type === 'examen'
           );
+          
+          debugInfo.examTemplatesFound = examTemplates.length;
+          
           if (examTemplates.length > 0) {
-            const content = JSON.parse(examTemplates[0].template.content);
-            setExamQuestions(content.questions || []);
-            if (examTemplates[0].template.notaMinima != null) {
-              setExamNotaMinima(examTemplates[0].template.notaMinima);
+            try {
+              const content = JSON.parse(examTemplates[0].template.content);
+              setExamQuestions(content.questions || []);
+              if (examTemplates[0].template.notaMinima != null) {
+                setExamNotaMinima(examTemplates[0].template.notaMinima);
+              }
+              examLoaded = true;
+              debugInfo.examLoaded = true;
+              debugInfo.questionsCount = content.questions?.length || 0;
+            } catch (parseError) {
+              console.error('Error parsing exam template content:', parseError);
+              debugInfo.examParseError = parseError instanceof Error ? parseError.message : 'Unknown error';
             }
-            examLoaded = true;
           }
         }
+      } else {
+        debugInfo.step = 'no_board_config';
+        debugInfo.reason = 'currentZone or boardConfigId is missing';
       }
 
-      // Fallback global: si el board config no tenía slot, o el slot no tenía
-      // plantilla de formación/examen para esta posición, caer a las plantillas
-      // globales (mismo comportamiento que InventarioModal/Autoevaluacion/Auditoría).
-      // Esto garantiza que cualquier zona con boardConfigId asignado pero sin
-      // slots configurados siga viendo el contenido por defecto.
+      // Fallback global: si el board config no tenía plantillas, usar globales
+      // Usar endpoint PÚBLICO (sin auth) para plantillas del sistema
       if (!formacionLoaded) {
+        debugInfo.step = 'fallback_global_formacion';
         try {
-          const formRes = await fetch(`/api/templates?type=formacion&sStep=${sStep}`);
+          const formRes = await fetch(`/api/templates-public?type=formacion&sStep=${sStep}`);
           const formJson = await formRes.json();
+          debugInfo.globalFormacionResponse = { success: formJson.success, dataLength: formJson.data?.length || 0 };
+          
           if (formJson.success && formJson.data.length > 0) {
             const content = JSON.parse(formJson.data[0].content);
             setFormationContent(content.sections || []);
+            debugInfo.fallbackFormacionLoaded = true;
+            debugInfo.fallbackSectionsCount = content.sections?.length || 0;
           } else {
             setFormationContent([]);
+            debugInfo.fallbackFormacionLoaded = false;
+            debugInfo.fallbackReason = 'No global templates found';
           }
-        } catch {
+        } catch (fallbackError) {
+          console.error('Fallback formation error:', fallbackError);
+          debugInfo.fallbackFormacionError = fallbackError instanceof Error ? fallbackError.message : 'Unknown error';
           setFormationContent([]);
         }
       }
 
       if (!examLoaded) {
+        debugInfo.step = 'fallback_global_exam';
         try {
-          const examRes = await fetch(`/api/templates?type=examen&sStep=${sStep}`);
+          const examRes = await fetch(`/api/templates-public?type=examen&sStep=${sStep}`);
           const examJson = await examRes.json();
+          debugInfo.globalExamResponse = { success: examJson.success, dataLength: examJson.data?.length || 0 };
+          
           if (examJson.success && examJson.data.length > 0) {
             const content = JSON.parse(examJson.data[0].content);
             setExamQuestions(content.questions || []);
             if (examJson.data[0].notaMinima != null) {
               setExamNotaMinima(examJson.data[0].notaMinima);
             }
+            debugInfo.fallbackExamLoaded = true;
+            debugInfo.fallbackQuestionsCount = content.questions?.length || 0;
           } else {
             setExamQuestions([]);
+            debugInfo.fallbackExamLoaded = false;
           }
-        } catch {
+        } catch (fallbackError) {
+          console.error('Fallback exam error:', fallbackError);
+          debugInfo.fallbackExamError = fallbackError instanceof Error ? fallbackError.message : 'Unknown error';
           setExamQuestions([]);
         }
+      }
+      
+      // Log debug info en desarrollo
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[FormacionModal] Debug info:', debugInfo);
       }
     } catch (error) {
       console.error('Error loading template:', error);

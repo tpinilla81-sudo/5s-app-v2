@@ -318,8 +318,8 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
           setHasTemplate(true);
         }
       } else {
-        // Fallback: load global template
-        const res = await fetch(`/api/templates?type=inventario&sStep=${sStep}&miniStep=3`);
+        // Fallback: load global template (usar endpoint público sin auth)
+        const res = await fetch(`/api/templates-public?type=inventario&sStep=${sStep}&miniStep=3`);
         const json = await res.json();
         if (json.success && json.data && json.data.length > 0) {
           const content = JSON.parse(json.data[0].content);
@@ -1124,8 +1124,8 @@ export default function InventarioModal({ open, onClose, sStep, miniStep }: Inve
           }
         }
       } else {
-        // Fallback: global template
-        const res = await fetch(`/api/templates?type=inventario&sStep=${sStep}`);
+        // Fallback: global template (usar endpoint público sin auth)
+        const res = await fetch(`/api/templates-public?type=inventario&sStep=${sStep}`);
         const json = await res.json();
         if (json.success && json.data.length > 0) {
           const content = JSON.parse(json.data[0].content);
