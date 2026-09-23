@@ -122,8 +122,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                // v3.0.27 - VER Y RESETEAR CONTRASEÑA ADMIN
-                var CURRENT_VERSION = 'v3.0.32';
+                // v3.0.44 - FIX: Plantillas públicas + Añadir usuarios existentes
+                var CURRENT_VERSION = 'v3.0.44';
                 
                 // Check if we need to force reload
                 var storedVersion = localStorage.getItem('_app_force_version');
