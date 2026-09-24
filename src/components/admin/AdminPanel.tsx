@@ -1135,6 +1135,8 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
     }
     const role = zoneAddRole[zoneId] || 'empleado'
     try {
+      console.log(`[handleAddExistingUserToZone] Asignando usuario ${userId} a zona ${zoneId} con rol ${role}`)
+      
       const res = await fetch(
         `/api/projects/${selectedProjectId}/zones/${zoneId}/members`,
         {
@@ -1144,8 +1146,14 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
         }
       )
       const data = await res.json()
+      
+      console.log(`[handleAddExistingUserToZone] Respuesta:`, { status: res.status, data })
+      
       if (!res.ok) {
-        alert(data.error || 'Error al asignar usuario a la zona')
+        // v3.0.54: Mostrar error más detallado
+        const errorMsg = data.error || 'Error desconocido'
+        console.error(`[handleAddExistingUserToZone] Error:`, errorMsg)
+        alert(`❌ Error al asignar usuario a la zona:\n\n${errorMsg}\n\nProyecto: ${selectedProjectId}\nZona: ${zoneId}\nUsuario: ${userId}`)
         return
       }
       // Update local state

@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.54 - Fix: Add existing users with userId (not email) - 2026-09-24
+// v3.0.55 - Fix: Better error logging for zone assignment - 2026-09-24
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.54',
-    buildTime: '2026-09-24T18:45:00Z',
-    feature: 'FIX_ADD_EXISTING_USERS_WITH_USERID',
+    version: 'v3.0.55',
+    buildTime: '2026-09-24T19:00:00Z',
+    feature: 'BETTER_ZONE_ASSIGNMENT_ERROR_LOGGING',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

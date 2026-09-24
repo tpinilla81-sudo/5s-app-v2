@@ -115,8 +115,18 @@ export async function POST(
     return NextResponse.json({ member: transformed }, { status: 201 })
   } catch (error) {
     console.error('Add zone member error:', error)
+    // v3.0.54: Mejor mensaje de error con detalles
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+    console.error('[DEBUG ZoneMember] Error details:', {
+      projectId,
+      zoneId,
+      userId: body?.userId,
+      role: body?.role,
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined
+    })
     return NextResponse.json(
-      { error: 'Error al asignar miembro a la zona' },
+      { error: `Error al asignar miembro a la zona: ${errorMessage}` },
       { status: 500 }
     )
   }
