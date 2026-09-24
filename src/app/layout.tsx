@@ -122,8 +122,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                // v3.0.50 - ACTUALIZACIÓN CRÍTICA FORZADA
-                var CURRENT_VERSION = 'v3.0.50';
+                // v3.0.51 - FIX: Forzar actualización desde v3.0.43
+                var CURRENT_VERSION = 'v3.0.51';
                 
                 // Check if we need to force reload
                 var storedVersion = localStorage.getItem('_app_force_version');
