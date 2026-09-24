@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.53 - Fix: Plantillas públicas + Añadir usuarios existentes + Cache fix - 2026-09-24
+// v3.0.54 - Fix: Add existing users with userId (not email) - 2026-09-24
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.53',
-    buildTime: '2026-09-24T18:30:00Z',
-    feature: 'PUBLIC_TEMPLATES_FIX + ADD_EXISTING_USERS',
+    version: 'v3.0.54',
+    buildTime: '2026-09-24T18:45:00Z',
+    feature: 'FIX_ADD_EXISTING_USERS_WITH_USERID',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

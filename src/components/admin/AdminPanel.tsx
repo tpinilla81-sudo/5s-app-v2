@@ -1026,12 +1026,18 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
         const selectedUser = users.find(u => u.id === selectedExistingUserId)
         if (!selectedUser) return
 
+        // v3.0.53 FIX: Usar userId para usuarios existentes (no email/name)
         const body: any = {
-          email: selectedUser.email,
-          name: selectedUser.name,
+          userId: selectedUser.id,  // Usar userId para usuarios existentes
           role: newMemberRole,
           zoneIds: newMemberZones.length > 0 ? newMemberZones : undefined,
         }
+        console.log(`[handleAddMember] Añadiendo usuario EXISTENTE al proyecto:`, { 
+          userId: selectedUser.id, 
+          email: selectedUser.email,
+          role: newMemberRole,
+          zoneCount: newMemberZones.length
+        })
         const res = await fetch(`/api/projects/${selectedProjectId}/members`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
