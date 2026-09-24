@@ -14,9 +14,14 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string; zoneId: string }> }
 ) {
+  // v3.0.56: Asegurar que SIEMPRE devolvemos JSON, incluso en errores
+  let body: any = {}
+  let projectId = ''
+  let zoneId = ''
+  
   try {
-    const { projectId, zoneId } = await params
-    const body = await request.json()
+    ({ projectId, zoneId } = await params)
+    body = await request.json()
     const { userId, role } = body
 
     if (!userId) {
@@ -115,7 +120,7 @@ export async function POST(
     return NextResponse.json({ member: transformed }, { status: 201 })
   } catch (error) {
     console.error('Add zone member error:', error)
-    // v3.0.54: Mejor mensaje de error con detalles
+    // v3.0.56: Mejor mensaje de error con detalles - SIEMPRE devolver JSON
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
     console.error('[DEBUG ZoneMember] Error details:', {
       projectId,
@@ -125,6 +130,8 @@ export async function POST(
       error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined
     })
+    
+    // SIEMPRE devolver JSON válido
     return NextResponse.json(
       { error: `Error al asignar miembro a la zona: ${errorMessage}` },
       { status: 500 }

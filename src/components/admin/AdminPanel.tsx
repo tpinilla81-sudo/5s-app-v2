@@ -1145,13 +1145,26 @@ export default function AdminPanel({ embedded, onLogout }: AdminPanelProps = {})
           body: JSON.stringify({ userId, role }),
         }
       )
-      const data = await res.json()
+      
+      // v3.0.56: Manejar respuestas vacías o inválidas
+      let data: any = null
+      try {
+        data = await res.json()
+      } catch (parseError) {
+        console.error(`[handleAddExistingUserToZone] Error parseando JSON:`, parseError)
+        console.error(`[handleAddExistingUserToZone] Status: ${res.status}, StatusText: ${res.statusText}`)
+        
+        // Si no podemos parsear el JSON, crear un error con info del status
+        data = { 
+          error: `Error del servidor (HTTP ${res.status}): ${res.statusText}. La respuesta estaba vacía.` 
+        }
+      }
       
       console.log(`[handleAddExistingUserToZone] Respuesta:`, { status: res.status, data })
       
       if (!res.ok) {
-        // v3.0.54: Mostrar error más detallado
-        const errorMsg = data.error || 'Error desconocido'
+        // v3.0.56: Mostrar error más detallado
+        const errorMsg = data?.error || 'Error desconocido'
         console.error(`[handleAddExistingUserToZone] Error:`, errorMsg)
         alert(`❌ Error al asignar usuario a la zona:\n\n${errorMsg}\n\nProyecto: ${selectedProjectId}\nZona: ${zoneId}\nUsuario: ${userId}`)
         return
