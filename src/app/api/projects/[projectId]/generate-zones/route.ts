@@ -3,11 +3,66 @@ import { db } from '../../../../../lib/db'
 import { ensureJaulaZone } from '../../../../../lib/jaula-zone'
 import { splitZones, type InitialZone } from '../../../../../lib/zone-generator'
 
+// v3.0.56: Función para auto-asignar plantillas a los slots de un board config
+async function assignTemplatesToBoardConfig(boardConfigId: string, tx: any) {
+  // Mapeo de tipo de plantilla -> sStep, miniStep
+  const typeToSlot: Record<string, { sStep: number; miniStep: number }> = {
+    'formacion': { sStep: 1, miniStep: 1 },
+    'examen': { sStep: 1, miniStep: 1 },
+    'fotos': { sStep: 1, miniStep: 2 },
+    'inventario': { sStep: 1, miniStep: 3 },
+    'autoevaluacion': { sStep: 1, miniStep: 4 },
+    'auditoria': { sStep: 1, miniStep: 5 },
+  }
+
+  // Obtener todas las plantillas activas (públicas del sistema + de la empresa si aplica)
+  const allTemplates = await tx.template.findMany({
+    where: { active: true },
+    select: { id: true, type: true, title: true }
+  })
+
+  // Obtener los slots del board config
+  const slots = await tx.boardSlot.findMany({
+    where: { boardConfigId },
+    select: { id: true, sStep: true, miniStep: true }
+  })
+
+  // Asignar plantillas a cada slot
+  for (const slot of slots) {
+    const templatesForSlot = allTemplates.filter(t => {
+      const slotInfo = typeToSlot[t.type]
+      return slotInfo && slotInfo.sStep === slot.sStep && slotInfo.miniStep === slot.miniStep
+    })
+
+    for (const template of templatesForSlot) {
+      try {
+        // Usar upsert para evitar duplicados
+        await tx.boardSlotTemplate.upsert({
+          where: {
+            slotId_templateId: {
+              slotId: slot.id,
+              templateId: template.id
+            }
+          },
+          create: {
+            slotId: slot.id,
+            templateId: template.id,
+          },
+          update: {}
+        })
+      } catch (e) {
+        console.error(`[assignTemplates] Error asignando plantilla ${template.id} al slot ${slot.id}:`, e)
+      }
+    }
+  }
+}
+
 // POST /api/projects/[projectId]/generate-zones
 //
 // v2.108 — Acepta zonas iniciales (nombre + m² + empleados) nombradas
 // por el admin, las divide según maxM2PorZona del gestor, crea las
 // sub-zonas resultantes + asigna empleados + crea la jaula física.
+// v3.0.56 — También auto-asigna plantillas a los slots del tablero.
 //
 // Body:
 //   {
@@ -138,6 +193,17 @@ export async function POST(
       } catch (e) {
         console.error('[generate-zones] ensureJaulaZone failed (non-fatal):',
           e instanceof Error ? e.message : e)
+      }
+
+      // 5. v3.0.56: Auto-asignar plantillas a los slots del board config
+      if (defaultConfig) {
+        try {
+          await assignTemplatesToBoardConfig(defaultConfig.id, tx)
+          console.log(`[generate-zones] Plantillas auto-asignadas al board config ${defaultConfig.id}`)
+        } catch (e) {
+          console.error('[generate-zones] Error auto-asignando plantillas (non-fatal):',
+            e instanceof Error ? e.message : e)
+        }
       }
 
       return { zones: created, jaulaZone }
