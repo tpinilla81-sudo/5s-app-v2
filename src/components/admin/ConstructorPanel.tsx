@@ -1053,7 +1053,9 @@ const handleSaveGestorProfile = async () => {
 
  // ─── Filtered users ────────────────────────────────────────────────────
  const filteredUsers = users.filter(u => {
-  if (filterCompany && filterCompany !== '__all__' && !u.companies.some(c => c.id === filterCompany) && !u.projects.some(p => p.company === filterCompany)) return false
+  const userCompanies = u.companies || []
+  const userProjects = u.projects || []
+  if (filterCompany && filterCompany !== '__all__' && !userCompanies.some((c: any) => c.id === filterCompany) && !userProjects.some((p: any) => p.company === filterCompany)) return false
   if (filterRole && filterRole !== '__all__' && u.role !== filterRole) return false
   return true
  })
@@ -1855,9 +1857,9 @@ const handleSaveGestorProfile = async () => {
                 )}
                </TableCell>
                <TableCell className="text-xs text-slate-500">
-                {user.companies.length > 0
+                {(user.companies || []).length > 0
                  ? user.companies.map(c => c.name).join(', ')
-                 : user.projects.length > 0
+                 : (user.projects || []).length > 0
                   ? [...new Set(user.projects.map(p => p.company))].join(', ')
                   : '—'}
                </TableCell>
