@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.62 - FIX: Borrar empresa - nombres de relaciones correctos (User, CompanyMember) - 2026-09-25
+// v3.0.63 - REESCRITURA COMPLETA - Borrar empresa borra TODO (usuarios, proyectos, zonas) - 2026-09-25
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.62',
-    buildTime: '2026-09-25T14:00:00Z',
-    feature: 'FIX_DELETE_COMPANY_RELATION_NAMES',
+    version: 'v3.0.63',
+    buildTime: '2026-09-25T14:30:00Z',
+    feature: 'DELETE_COMPANY_BORRS_TODO',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

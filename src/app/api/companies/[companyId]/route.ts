@@ -243,20 +243,19 @@ export async function PUT(
 
 // DELETE /api/companies/[companyId] - Delete company (gestor only)
 //
-// v3.0.60: FIX CRÍTICO - Arreglado nombre de relación (CompanyMember) + borrado de TODOS usuarios huérfanos
+// v3.0.63: REESCRITURA COMPLETA - Borrar ABSOLUTAMENTE TODO
 //
-// ORDEN DE BORRADO:
-// 1. Projects → Zones → MemberZones → ProjectMembers → Project
-// 2. CompanyMembers (desasigna usuarios de esta empresa)
-// 3. Templates de esta empresa (companyId no null)
-// 4. Subscription
-// 5. Company (la empresa en sí)
-// 6. Usuarios huérfanos (TODOS los roles excepto gestor que no tengan otras empresas)
+// ORDEN DE BORRADO (CORREGIDO Y COMPLETO):
+// 1. Obtener TODOS los usuarios de esta empresa
+// 2. Para cada proyecto: notificaciones → memberZones → zones → projectMembers → project
+// 3. Borrar CompanyMembers
+// 4. Borrar Templates
+// 5. Borrar Subscription
+// 6. Borrar Company
+// 7. Borrar TODOS los datos de usuarios huérfanos (sessions, progress, inventory, ZONAS del usuario, etc.)
+// 8. Borrar los propios usuarios huérfanos
 //
-// LO QUE SE BORRA:
-// - User huérfano: cualquier usuario (admin, gerente, empleado, etc.) que SOLO pertenecía a esta empresa
-// - Gestor NUNCA se borra
-// - Usuarios con membresía en OTRAS empresas NO se borran
+// REGLA DE ORO: Si se borra una empresa, se BORRA TODO rastro
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ companyId: string }> }
@@ -265,30 +264,26 @@ export async function DELETE(
   
   try {
     ({ companyId } = await params)
-    console.log(`[DELETE company] Iniciando eliminación para companyId: ${companyId}`)
+    console.log(`[DELETE company v3.0.63] Iniciando eliminación TOTAL para companyId: ${companyId}`)
     
     const user = await getAuthUser(request)
     console.log(`[DELETE company] Usuario autenticado:`, { id: user?.id, email: user?.email, role: user?.role })
     
     if (!user) {
-      console.warn(`[DELETE company] Error: No autenticado`)
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
     if (user.role !== 'gestor') {
-      console.warn(`[DELETE company] Error: Rol no autorizado: ${user.role}`)
-      return NextResponse.json({ success: false, error: 'Solo el gestor (dueño de la app) puede eliminar empresas' }, { status: 403 })
+      return NextResponse.json({ success: false, error: 'Solo el gestor puede eliminar empresas' }, { status: 403 })
     }
 
-    // Get company info before deletion - USAR LAS RELACIONES CORRECTAS
+    // ── 1. Obtener información completa de la empresa ──
     const company = await db.company.findUnique({
       where: { id: companyId },
       include: {
-        projects: {
-          select: { id: true, name: true },
-        },
+        projects: { select: { id: true, name: true } },
         CompanyMember: {
           include: {
-            User: { select: { id: true, role: true, active: true } },
+            User: { select: { id: true, role: true, active: true, email: true, name: true } },
           },
         },
       },
@@ -299,134 +294,180 @@ export async function DELETE(
     }
 
     const projectCount = company.projects.length
-
-    // ── Encontrar TODOS los usuarios huérfanos (no solo admins) ──
-    // Un usuario es "huérfano" si:
-    // - NO es gestor (los gestores nunca se borran)
-    // - Solo pertenece a esta empresa (no tiene otras membresías)
-    const orphanUserIds: string[] = []
-    for (const member of company.CompanyMember) {
-      // Nunca borrar gestores
-      if (member.User.role === 'gestor') continue
+    const allMembers = company.CompanyMember
+    
+    // ── 2. Identificar usuarios a borrar (todos excepto gestores) ──
+    const usersToDelete: Array<{id: string, email: string, name: string, role: string}> = []
+    for (const member of allMembers) {
+      if (member.User.role === 'gestor') {
+        console.log(`[DELETE company] Omitiendo gestor: ${member.User.email}`)
+        continue
+      }
       
-      const otherMemberships = await db.companyMember.count({
-        where: {
-          userId: member.userId,
-          NOT: { companyId },
-        },
+      // Verificar si tiene otras empresas
+      const otherCompanies = await db.companyMember.count({
+        where: { userId: member.userId, NOT: { companyId } }
       })
       
-      // Si no tiene otras empresas, es huérfano y se debe borrar
-      if (otherMemberships === 0) {
-        orphanUserIds.push(member.userId)
+      if (otherCompanies === 0) {
+        usersToDelete.push({
+          id: member.User.id,
+          email: member.User.email,
+          name: member.User.name,
+          role: member.User.role
+        })
+      } else {
+        console.log(`[DELETE company] Usuario ${member.User.email} tiene otras empresas (${otherCompanies}), no se borrará`)
       }
     }
 
-    console.log(`[DELETE company] Usuarios huérfanos a borrar:`, orphanUserIds.length)
+    console.log(`[DELETE company] Resumen:`)
+    console.log(`  - Proyectos a borrar: ${projectCount}`)
+    console.log(`  - Miembros totales: ${allMembers.length}`)
+    console.log(`  - Usuarios huérfanos a borrar: ${usersToDelete.length}`, usersToDelete.map(u => u.email))
 
-    // ── Delete all projects and their related data manually ──
+    // ── 3. Borrar TODOS los proyectos y sus datos ──
     let deletedProjectCount = 0
-    const errors: string[] = []
-
     for (const project of company.projects) {
       try {
+        console.log(`[DELETE company] Borrando proyecto: ${project.name} (${project.id})`)
+        
         await db.$transaction(async (tx) => {
+          // Notificaciones del proyecto
           await tx.notification.deleteMany({ where: { projectId: project.id } })
-
-          const zoneIds = (await tx.zone.findMany({
+          
+          // Obtener zonas del proyecto
+          const zones = await tx.zone.findMany({
             where: { projectId: project.id },
-            select: { id: true },
-          })).map(z => z.id)
-
-          const memberIds = (await tx.projectMember.findMany({
+            select: { id: true }
+          })
+          const zoneIds = zones.map(z => z.id)
+          
+          // Obtener miembros del proyecto
+          const projectMembers = await tx.projectMember.findMany({
             where: { projectId: project.id },
-            select: { id: true },
-          })).map(m => m.id)
-
+            select: { id: true }
+          })
+          const projectMemberIds = projectMembers.map(m => m.id)
+          
+          // Borrar MemberZone (asignaciones de zonas)
           if (zoneIds.length > 0) {
             await tx.memberZone.deleteMany({ where: { zoneId: { in: zoneIds } } })
           }
-          if (memberIds.length > 0) {
-            await tx.memberZone.deleteMany({ where: { memberId: { in: memberIds } } })
+          if (projectMemberIds.length > 0) {
+            await tx.memberZone.deleteMany({ where: { memberId: { in: projectMemberIds } } })
           }
-
+          
+          // Borrar zonas
           if (zoneIds.length > 0) {
             await tx.zone.deleteMany({ where: { id: { in: zoneIds } } })
           }
-
-          if (memberIds.length > 0) {
-            await tx.projectMember.deleteMany({ where: { id: { in: memberIds } } })
+          
+          // Borrar miembros del proyecto
+          if (projectMemberIds.length > 0) {
+            await tx.projectMember.deleteMany({ where: { id: { in: projectMemberIds } } })
           }
-
+          
+          // Borrar el proyecto
           await tx.project.delete({ where: { id: project.id } })
         })
-
+        
         deletedProjectCount++
-      } catch (projectDeleteError) {
-        const errMsg = projectDeleteError instanceof Error ? projectDeleteError.message : String(projectDeleteError)
-        console.error(`Error deleting project ${project.id} (${project.name}):`, errMsg)
-        errors.push(`Proyecto "${project.name}": ${errMsg}`)
+        console.log(`[DELETE company] ✅ Proyecto borrado: ${project.name}`)
+      } catch (err) {
+        console.error(`[DELETE company] ❌ Error borrando proyecto ${project.id}:`, err)
       }
     }
 
-    if (errors.length > 0 && deletedProjectCount < projectCount) {
-      try {
-        await db.company.delete({ where: { id: companyId } })
-        return NextResponse.json({
-          success: true,
-          deletedProjectCount: projectCount,
-          deletedUserCount: 0,
-          message: 'Empresa eliminada permanentemente (via cascade)',
-        })
-      } catch {
-        return NextResponse.json({
-          success: false,
-          error: `No se pudieron eliminar todos los proyectos. Errores: ${errors.join('; ')}`,
-        }, { status: 500 })
-      }
-    }
-
-    // ── Delete CompanyMembers (usuarios de esta empresa) ──
+    // ── 4. Borrar CompanyMembers (desvincular usuarios de esta empresa) ──
+    console.log(`[DELETE company] Borrando CompanyMembers...`)
     await db.companyMember.deleteMany({ where: { companyId } })
 
-    // ── Delete templates specific to this company ──
+    // ── 5. Borrar Templates de esta empresa ──
+    console.log(`[DELETE company] Borrando Templates...`)
     await db.template.deleteMany({ where: { companyId } })
 
-    // ── Delete subscription ──
+    // ── 6. Borrar Subscription ──
+    console.log(`[DELETE company] Borrando Subscription...`)
     await db.subscription.deleteMany({ where: { companyId } }).catch(() => {})
 
-    // ─— Delete the Company (finalmente) ──
+    // ── 7. Borrar la Empresa ──
+    console.log(`[DELETE company] Borrando la Company...`)
     await db.company.delete({ where: { id: companyId } })
 
-    // ── Delete ALL orphan users that no longer have any company ──
+    // ── 8. BORRAR COMPLETAMENTE LOS USUARIOS HUÉRFANOS Y TODOS SUS DATOS ──
     let deletedUserCount = 0
-    for (const userId of orphanUserIds) {
+    const userErrors: string[] = []
+    
+    for (const userToDelete of usersToDelete) {
       try {
-        // Verificar que todavía no tenga empresas (doble chequeo)
-        const remainingCompanies = await db.companyMember.count({ where: { userId } })
-        if (remainingCompanies === 0) {
-          // Borrar datos restantes del usuario
-          await db.session.deleteMany({ where: { userId } })
-          await db.employeeProgress.deleteMany({ where: { userId } })
-          await db.inventoryItem.deleteMany({ where: { createdById: userId } })
-          
-          // Finalmente borrar el usuario huérfano
-          await db.user.delete({ where: { id: userId } })
-          deletedUserCount++
+        console.log(`[DELETE company] Borrando usuario huérfano: ${userToDelete.email} (${userToDelete.role})`)
+        
+        // 8a. Sessions del usuario
+        await db.session.deleteMany({ where: { userId: userToDelete.id } }).catch(() => {})
+        
+        // 8b. EmployeeProgress del usuario
+        await db.employeeProgress.deleteMany({ where: { userId: userToDelete.id } }).catch(() => {})
+        
+        // 8c. InventoryItems creados por el usuario
+        await db.inventoryItem.deleteMany({ where: { createdById: userToDelete.id } }).catch(() => {})
+        
+        // 8d. Zonas donde el usuario pueda ser miembro (por si acaso)
+        // Primero encontrar MemberZones del usuario
+        const userMemberZones = await db.memberZone.findMany({
+          where: { 
+            Member: { 
+              User: { id: userToDelete.id } 
+            } 
+          },
+          select: { id: true }
+        })
+        if (userMemberZones.length > 0) {
+          await db.memberZone.deleteMany({ 
+            where: { id: { in: userMemberZones.map(mz => mz.id) } } 
+          }).catch(() => {})
         }
-      } catch (userDeleteError) {
-        console.error(`Error deleting orphan user ${userId}:`, userDeleteError)
+        
+        // 8e. ProjectMembers restantes del usuario
+        await db.projectMember.deleteMany({ 
+          where: { userId: userToDelete.id } 
+        }).catch(() => {})
+        
+        // 8f. CUALQUIER CompanyMember restante (por seguridad)
+        await db.companyMember.deleteMany({ 
+          where: { userId: userToDelete.id } 
+        }).catch(() => {})
+        
+        // 8g. Finalmente BORRAR EL USUARIO
+        await db.user.delete({ where: { id: userToDelete.id } })
+        
+        deletedUserCount++
+        console.log(`[DELETE company] ✅ Usuario borrado: ${userToDelete.email}`)
+      } catch (userErr) {
+        const errMsg = userErr instanceof Error ? userErr.message : String(userErr)
+        console.error(`[DELETE company] ❌ Error borrando usuario ${userToDelete.email}:`, errMsg)
+        userErrors.push(`${userToDelete.email}: ${errMsg}`)
       }
     }
 
-    const parts: string[] = ['Empresa eliminada permanentemente']
-    if (deletedProjectCount > 0) parts.push(`${deletedProjectCount} proyecto(s) eliminado(s)`)
-    if (deletedUserCount > 0) parts.push(`${deletedUserCount} usuario(s) huérfano(s) eliminado(s)`)
+    // ── RESPUESTA FINAL ──
+    const parts: string[] = ['🗑️ Empresa eliminada permanentemente']
+    parts.push(`${deletedProjectCount} proyecto(s) eliminado(s)`)
+    parts.push(`${deletedUserCount} usuario(s) eliminado(s)`)
+    
+    if (userErrors.length > 0) {
+      parts.push(`${userErrors.length} error(es) al borrar usuarios`)
+    }
+
+    console.log(`[DELETE company] ✅ ELIMINACIÓN COMPLETADA:`, parts.join(' | '))
 
     return NextResponse.json({
       success: true,
       deletedProjectCount,
       deletedUserCount,
+      totalUsersInCompany: allMembers.length,
+      orphanUsersFound: usersToDelete.length,
+      errors: userErrors.length > 0 ? userErrors : undefined,
       message: parts.join(' — '),
     })
   } catch (error) {
