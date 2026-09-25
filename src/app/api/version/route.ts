@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.60 - FIX CRÍTICO: Administración tab crash - null safety completo - 2026-09-25
+// v3.0.61 - FIX: Borrar empresa + borrar usuarios huérfanos - 2026-09-25
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.60',
-    buildTime: '2026-09-25T12:00:00Z',
-    feature: 'FIX_ADMIN_TAB_CRASH_NULL_SAFETY',
+    version: 'v3.0.61',
+    buildTime: '2026-09-25T13:45:00Z',
+    feature: 'FIX_DELETE_COMPANY_ORPHAN_USERS',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {
