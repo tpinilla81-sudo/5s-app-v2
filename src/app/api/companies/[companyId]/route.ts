@@ -279,7 +279,7 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Solo el gestor (dueño de la app) puede eliminar empresas' }, { status: 403 })
     }
 
-    // Get company info before deletion - USAR LA RELACIÓN CORRECTA: CompanyMember
+    // Get company info before deletion - USAR LAS RELACIONES CORRECTAS
     const company = await db.company.findUnique({
       where: { id: companyId },
       include: {
@@ -288,7 +288,7 @@ export async function DELETE(
         },
         CompanyMember: {
           include: {
-            user: { select: { id: true, role: true, active: true } },
+            User: { select: { id: true, role: true, active: true } },
           },
         },
       },
@@ -307,7 +307,7 @@ export async function DELETE(
     const orphanUserIds: string[] = []
     for (const member of company.CompanyMember) {
       // Nunca borrar gestores
-      if (member.user.role === 'gestor') continue
+      if (member.User.role === 'gestor') continue
       
       const otherMemberships = await db.companyMember.count({
         where: {

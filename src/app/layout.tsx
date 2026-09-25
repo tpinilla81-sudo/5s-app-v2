@@ -122,8 +122,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                // v3.0.61 - FIX: Borrar empresa + borrar usuarios huérfanos
-                var CURRENT_VERSION = 'v3.0.61';
+                // v3.0.62 - FIX: Borrar empresa - nombres de relaciones correctos
+                var CURRENT_VERSION = 'v3.0.62';
                 
                 // Check if we need to force reload
                 var storedVersion = localStorage.getItem('_app_force_version');
