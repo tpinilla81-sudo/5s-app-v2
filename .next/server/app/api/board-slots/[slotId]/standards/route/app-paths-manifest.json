@@ -1,0 +1,3 @@
+{
+  "/api/board-slots/[slotId]/standards/route": "app/api/board-slots/[slotId]/standards/route.js"
+}

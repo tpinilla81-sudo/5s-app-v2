@@ -1,0 +1,3 @@
+{
+  "/api/evaluation-schedule/check-vencidas/route": "app/api/evaluation-schedule/check-vencidas/route.js"
+}

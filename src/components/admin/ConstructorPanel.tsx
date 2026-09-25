@@ -1708,9 +1708,10 @@ const handleSaveGestorProfile = async () => {
          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-         {isLoadingSubs ? (
+         {isLoadingSubs && (
           <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 text-violet-500 animate-spin" /></div>
-         : Array.isArray(subscriptions) ? (
+         )}
+         {!isLoadingSubs && Array.isArray(subscriptions) && (
           <div className="overflow-x-auto">
            <Table>
             <TableHeader>
@@ -1765,7 +1766,8 @@ const handleSaveGestorProfile = async () => {
             </TableBody>
            </Table>
           </div>
-         ) : (
+         )}
+         {!isLoadingSubs && !Array.isArray(subscriptions) && (
           <div className="p-4 text-amber-600 text-sm">Error cargando suscripciones</div>
          )}
         </CardContent>
