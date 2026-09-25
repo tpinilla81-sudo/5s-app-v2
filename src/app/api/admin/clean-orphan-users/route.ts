@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { db from '../../../../lib/db'
+import { db } from '../../../../lib/db'
 import { getAuthUser } from '../../../../lib/auth-helpers'
 
 // POST /api/admin/clean-orphan-users - Eliminar usuarios huérfanos (sin empresa)
