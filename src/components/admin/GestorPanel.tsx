@@ -353,16 +353,32 @@ export default function GestorPanel() {
     const { companyId } = deleteCompanyDialog
     setDeleteCompanyDialog(d => ({ ...d, open: false }))
     try {
+      console.log(`[confirmDeleteCompany] Enviando DELETE para empresa:`, companyId)
       const res = await fetch(`/api/companies/${companyId}`, { method: 'DELETE' })
+      console.log(`[confirmDeleteCompany] Respuesta:`, { status: res.status, statusText: res.statusText })
+      
+      let data: any = null
+      try {
+        data = await res.json()
+      } catch (parseError) {
+        console.error(`[confirmDeleteCompany] Error parseando JSON:`, parseError)
+        data = { error: `Error del servidor (HTTP ${res.status}): ${res.statusText}` }
+      }
+      
+      console.log(`[confirmDeleteCompany] Data:`, data)
+      
       if (res.ok) {
         await loadStats()
         await fetchCompanies()
+        alert(`✅ Empresa eliminada correctamente`)
       } else {
-        const data = await res.json()
-        alert(data.error || 'Error al eliminar empresa')
+        const errorMsg = data?.error || data?.message || 'Error al eliminar empresa'
+        console.error(`[confirmDeleteCompany] Error:`, errorMsg)
+        alert(`❌ Error al eliminar empresa:\n\n${errorMsg}\n\n[Código: ${res.status}]`)
       }
     } catch (error) {
-      console.error('Error deleting company:', error)
+      console.error('[confirmDeleteCompany] Error de red:', error)
+      alert(`❌ Error de conexión:\n\n${error instanceof Error ? error.message : 'Error desconocido'}`)
     }
   }
 
