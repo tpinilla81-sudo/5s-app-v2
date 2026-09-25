@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.63 - REESCRITURA COMPLETA - Borrar empresa borra TODO (usuarios, proyectos, zonas) - 2026-09-25
+// v3.0.64 - CORRECCIÓN CRÍTICA: Borrar empresa ahora elimina TODAS las relaciones de User (Notifications, Zone.responsableId, Project.jaulaVerifiedById) - 2026-09-25
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.63',
-    buildTime: '2026-09-25T14:30:00Z',
-    feature: 'DELETE_COMPANY_BORRS_TODO',
+    version: 'v3.0.64',
+    buildTime: '2026-09-25T15:00:00Z',
+    feature: 'DELETE_COMPANY_ALL_USER_RELATIONS_FIXED',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {
