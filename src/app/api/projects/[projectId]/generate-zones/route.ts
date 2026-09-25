@@ -3,7 +3,39 @@ import { db } from '../../../../../lib/db'
 import { ensureJaulaZone } from '../../../../../lib/jaula-zone'
 import { splitZones, type InitialZone } from '../../../../../lib/zone-generator'
 
-// v3.0.58: Función para auto-asignar plantillas a los slots de un board config
+// v3.0.59: Función para asegurar que los 25 slots existan antes de asignar plantillas
+async function ensureBoardSlotsExist(boardConfigId: string, tx: any) {
+  console.log(`[ensureBoardSlots] Creando/verificando slots para boardConfig: ${boardConfigId}`)
+  
+  let createdCount = 0
+  
+  for (let sStep = 1; sStep <= 5; sStep++) {
+    for (let miniStep = 1; miniStep <= 5; miniStep++) {
+      try {
+        const existingSlot = await tx.boardSlot.findUnique({
+          where: {
+            boardConfigId_sStep_miniStep: { boardConfigId, sStep, miniStep },
+          },
+        })
+        
+        if (!existingSlot) {
+          await tx.boardSlot.create({
+            data: { boardConfigId, sStep, miniStep },
+          })
+          createdCount++
+          console.log(`[ensureBoardSlots] ✓ Creado slot S${sStep}P${miniStep}`)
+        }
+      } catch (e) {
+        console.error(`[ensureBoardSlots] Error creando slot S${sStep}P${miniStep}:`, e)
+      }
+    }
+  }
+  
+  console.log(`[ensureBoardSlots] Completado: ${createdCount} slots creados`)
+  return createdCount
+}
+
+// v3.0.59: Función para auto-asignar plantillas a los slots de un board config
 async function assignTemplatesToBoardConfig(boardConfigId: string, tx: any) {
   // Mapeo de tipo de plantilla -> sStep, miniStep
   const typeToSlot: Record<string, { sStep: number; miniStep: number }> = {
@@ -16,6 +48,10 @@ async function assignTemplatesToBoardConfig(boardConfigId: string, tx: any) {
   }
 
   console.log(`[assignTemplates] Iniciando asignación para boardConfig: ${boardConfigId}`)
+  
+  // v3.0.59 FIX: Primero asegurar que los slots existan
+  const slotsCreated = await ensureBoardSlotsExist(boardConfigId, tx)
+  console.log(`[assignTemplates] Slots creados: ${slotsCreated}`)
 
   // Obtener todas las plantillas activas (públicas del sistema + de la empresa si aplica)
   const allTemplates = await tx.template.findMany({
@@ -26,7 +62,7 @@ async function assignTemplatesToBoardConfig(boardConfigId: string, tx: any) {
   console.log(`[assignTemplates] Plantillas encontradas: ${allTemplates.length}`, 
     allTemplates.map(t => ({ id: t.id, type: t.type, title: t.title, companyId: t.companyId })))
 
-  // Obtener los slots del board config
+  // Obtener los slots del board config (ahora deberían existir todos)
   const slots = await tx.boardSlot.findMany({
     where: { boardConfigId },
     select: { id: true, sStep: true, miniStep: true }
@@ -95,7 +131,7 @@ async function assignTemplatesToBoardConfig(boardConfigId: string, tx: any) {
   }
 
   console.log(`[assignTemplates] Completado: ${assignedCount} asignadas, ${skippedCount} ya existían`)
-  return { assignedCount, skippedCount, totalTemplates: allTemplates.length, totalSlots: slots.length }
+  return { assignedCount, skippedCount, totalTemplates: allTemplates.length, totalSlots: slots.length, slotsCreated }
 }
 
 // POST /api/projects/[projectId]/generate-zones
@@ -103,7 +139,7 @@ async function assignTemplatesToBoardConfig(boardConfigId: string, tx: any) {
 // v2.108 — Acepta zonas iniciales (nombre + m² + empleados) nombradas
 // por el admin, las divide según maxM2PorZona del gestor, crea las
 // sub-zonas resultantes + asigna empleados + crea la jaula física.
-// v3.0.56 — También auto-asigna plantillas a los slots del tablero.
+// v3.0.59 — También auto-asigna plantillas a los slots del tablero (con creación de slots).
 //
 // Body:
 //   {

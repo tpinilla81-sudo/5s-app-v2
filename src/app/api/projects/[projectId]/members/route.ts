@@ -152,7 +152,7 @@ export async function POST(
       }
     }
 
-    // Check if already a member
+    // Check if already a member - v3.0.59 FIX: If already member, update zones instead of error
     const existingMember = await db.projectMember.findUnique({
       where: {
         userId_projectId: {
@@ -163,10 +163,67 @@ export async function POST(
     })
 
     if (existingMember) {
-      return NextResponse.json(
-        { error: 'Este usuario ya es miembro del proyecto' },
-        { status: 409 }
-      )
+      console.log(`[POST /members] Usuario ya es miembro, actualizando zonas...`)
+      
+      // Add new zone assignments without duplicating
+      let addedZones = 0
+      for (const zoneId of validZoneIds) {
+        try {
+          await db.memberZone.upsert({
+            where: {
+              memberId_zoneId: {
+                memberId: existingMember.id,
+                zoneId
+              }
+            },
+            create: {
+              id: cuid(),
+              memberId: existingMember.id,
+              zoneId
+            },
+            update: {}
+          })
+          addedZones++
+        } catch (e) {
+          console.error(`[POST /members] Error añadiendo zona ${zoneId}:`, e)
+        }
+      }
+      
+      // Return updated member with all zones
+      const updatedMember = await db.projectMember.findUnique({
+        where: { id: existingMember.id },
+        include: {
+          user: {
+            select: {
+              id: true, email: true, name: true, role: true,
+              avatar: true, active: true, plainPassword: true,
+            },
+          },
+          MemberZone: {
+            include: {
+              Zone: { select: { id: true, name: true, color: true } },
+            },
+          },
+        },
+      })
+      
+      const transformedMember = {
+        id: updatedMember!.id,
+        role: updatedMember!.role,
+        joinedAt: updatedMember!.joinedAt,
+        user: updatedMember!.user,
+        zones: updatedMember!.MemberZone?.map(mz => ({
+          id: mz.Zone.id,
+          name: mz.Zone.name,
+          color: mz.Zone.color,
+        })) || [],
+      }
+      
+      return NextResponse.json({ 
+        member: transformedMember, 
+        updated: true,
+        message: `Zonas actualizadas (${addedZones} añadidas)` 
+      }, { status: 200 })
     }
 
     // Validate zoneIds if provided — if none provided, auto-assign ALL project zones
