@@ -243,6 +243,8 @@ export async function PUT(
 
 // DELETE /api/companies/[companyId] - Delete company (gestor only)
 //
+// v3.0.59: FIX - Mejorado logging y manejo de errores
+//
 // ORDEN DE BORRADO (v3.0.7 - CORREGIDO):
 // 1. Projects → Zones → MemberZones → ProjectMembers → Project
 // 2. CompanyMembers (desasigna usuarios de esta empresa)
@@ -260,13 +262,21 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ companyId: string }> }
 ) {
+  let companyId = ''
+  
   try {
-    const { companyId } = await params
+    ({ companyId } = await params)
+    console.log(`[DELETE company] Iniciando eliminación para companyId: ${companyId}`)
+    
     const user = await getAuthUser(request)
+    console.log(`[DELETE company] Usuario autenticado:`, { id: user?.id, email: user?.email, role: user?.role })
+    
     if (!user) {
+      console.warn(`[DELETE company] Error: No autenticado`)
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
     if (user.role !== 'gestor') {
+      console.warn(`[DELETE company] Error: Rol no autorizado: ${user.role}`)
       return NextResponse.json({ success: false, error: 'Solo el gestor (dueño de la app) puede eliminar empresas' }, { status: 403 })
     }
 
@@ -427,8 +437,22 @@ export async function DELETE(
       message: parts.join(' — '),
     })
   } catch (error) {
-    console.error('Delete company error:', error)
+    console.error('[DELETE company] Error general:', error)
     const errorMessage = error instanceof Error ? error.message : 'Error al eliminar empresa'
-    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 })
+    console.error(`[DELETE company] Detalles del error:`, {
+      companyId,
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined
+    })
+    
+    // SIEMPRE devolver JSON válido
+    return NextResponse.json({ 
+      success: false, 
+      error: `Error al eliminar empresa: ${errorMessage}`,
+      _debug: {
+        companyId,
+        timestamp: new Date().toISOString()
+      }
+    }, { status: 500 })
   }
 }

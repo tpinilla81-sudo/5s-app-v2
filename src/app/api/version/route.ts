@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.59 - Fix: User assignment + template assignment debug - 2026-09-24
+// v3.0.59 - Fix: User assignment + template assignment + company delete debug - 2026-09-24
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
