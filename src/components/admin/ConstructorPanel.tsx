@@ -1177,7 +1177,7 @@ const handleSaveGestorProfile = async () => {
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 text-violet-500 animate-spin" /></div>
        ) : (
         <div className="grid gap-4">
-         {stats?.companies.map(company => {
+         {(Array.isArray(stats?.companies) ? stats.companies : []).map((company: any) => {
           const admin = companyAdmins[company.id]
           const adminUser = company.adminUser // From platform-stats, includes invitationEmailSent
           const sub = getSubForCompany(company.id)
@@ -1645,7 +1645,7 @@ const handleSaveGestorProfile = async () => {
        {/* KPI Cards */}
        {isLoadingStats ? (
         <div className="flex justify-center py-12"><Loader2 className="h-10 w-10 text-violet-500 animate-spin" /></div>
-       ) : stats ? (
+       ) : stats?.totals ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
          <Card className="bg-white border-violet-200 shadow-sm text-slate-800">
           <CardContent className="p-4">
@@ -1696,6 +1696,8 @@ const handleSaveGestorProfile = async () => {
           </CardContent>
          </Card>
         </div>
+       ) : stats ? (
+        <div className="text-amber-600 text-sm p-4 bg-amber-50 rounded-lg">Error cargando estadísticas</div>
        ) : null}
 
        {/* Suscripciones Overview */}
@@ -1708,7 +1710,7 @@ const handleSaveGestorProfile = async () => {
         <CardContent className="p-0">
          {isLoadingSubs ? (
           <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 text-violet-500 animate-spin" /></div>
-         ) : (
+         : Array.isArray(subscriptions) ? (
           <div className="overflow-x-auto">
            <Table>
             <TableHeader>
@@ -1723,7 +1725,7 @@ const handleSaveGestorProfile = async () => {
              </TableRow>
             </TableHeader>
             <TableBody>
-             {subscriptions.map(sub => (
+             {subscriptions.map((sub: any) => (
               <TableRow key={sub.id} className="border-slate-100 hover:bg-violet-50">
                <TableCell className="text-xs text-slate-800 font-medium">
                 {sub.company?.name || '—'}
@@ -1735,15 +1737,15 @@ const handleSaveGestorProfile = async () => {
                 </Badge>
                </TableCell>
                <TableCell>
-                <Badge className={`${SUBSCRIPTION_STATUS[sub.status]?.color || SUBSCRIPTION_STATUS.activa.color} border text-[10px]`}>
-                 {SUBSCRIPTION_STATUS[sub.status]?.label || sub.status}
+                <Badge className={`${SUBSCRIPTION_STATUS[sub.status as keyof typeof SUBSCRIPTION_STATUS]?.color || SUBSCRIPTION_STATUS.activa.color} border text-[10px]`}>
+                 {SUBSCRIPTION_STATUS[sub.status as keyof typeof SUBSCRIPTION_STATUS]?.label || sub.status}
                 </Badge>
                </TableCell>
                <TableCell className="text-[10px] text-slate-500">
-                {sub.maxUsers === -1 ? '∞' : sub.maxUsers}U / {sub.maxProjects === -1 ? '∞' : sub.maxProjects}P
+                {sub.maxUsers === -1 ? '∞' : sub.maxUsers ?? '-'}U / {sub.maxProjects === -1 ? '∞' : sub.maxProjects ?? '-'}P
                </TableCell>
                <TableCell className="text-xs text-emerald-600 font-medium">
-                {sub.price > 0 ? `$${sub.price}/mo` : 'Gratis'}
+                {(sub.price ?? 0) > 0 ? `$${sub.price}/mo` : 'Gratis'}
                </TableCell>
                <TableCell className="text-[10px] text-slate-500">
                 {sub.endDate ? new Date(sub.endDate).toLocaleDateString('es-ES') : '—'}
@@ -1763,6 +1765,8 @@ const handleSaveGestorProfile = async () => {
             </TableBody>
            </Table>
           </div>
+         ) : (
+          <div className="p-4 text-amber-600 text-sm">Error cargando suscripciones</div>
          )}
         </CardContent>
        </Card>
@@ -1783,7 +1787,7 @@ const handleSaveGestorProfile = async () => {
            </SelectTrigger>
            <SelectContent>
             <SelectItem value="__all__">Todas las empresas</SelectItem>
-            {stats?.companies.map(c => (
+            {(Array.isArray(stats?.companies) ? stats.companies : []).map((c: any) => (
              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
             ))}
            </SelectContent>
@@ -1825,9 +1829,9 @@ const handleSaveGestorProfile = async () => {
                 ) : (
                  <div className="flex items-center gap-2">
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${user.role === 'gestor' ? 'bg-red-100 text-red-700' : user.active ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-500'}`}>
-                   {user.name.charAt(0).toUpperCase()}
+                   {(user.name || '?').charAt(0).toUpperCase()}
                   </div>
-                  <span className="text-xs text-slate-800 font-medium">{user.name}</span>
+                  <span className="text-xs text-slate-800 font-medium">{user.name || 'Sin nombre'}</span>
                  </div>
                 )}
                </TableCell>
@@ -1927,15 +1931,15 @@ const handleSaveGestorProfile = async () => {
           <div>
            <p className="text-xs text-slate-500 mb-2 uppercase tracking-wider">Últimos Usuarios</p>
            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-            {stats?.recentUsers.map(user => (
+            {(Array.isArray(stats?.recentUsers) ? stats.recentUsers : []).map((user: any) => (
              <div key={user.id} className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
               <div className="flex items-center gap-2">
                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${user.active ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-500'}`}>
-                {user.name.charAt(0).toUpperCase()}
+                {(user.name || '?').charAt(0).toUpperCase()}
                </div>
                <div>
-                <p className="text-xs font-medium text-slate-800">{user.name}</p>
-                <p className="text-[10px] text-slate-500">{user.email}</p>
+                <p className="text-xs font-medium text-slate-800">{user.name || 'Sin nombre'}</p>
+                <p className="text-[10px] text-slate-500">{user.email || ''}</p>
                </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1960,19 +1964,19 @@ const handleSaveGestorProfile = async () => {
           <div>
            <p className="text-xs text-slate-500 mb-2 uppercase tracking-wider">Proyectos</p>
            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-            {stats?.projects.slice(0, 10).map(project => (
+            {(Array.isArray(stats?.projects) ? stats.projects : []).slice(0, 10).map((project: any) => (
              <div key={project.id} className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
               <div className="flex items-center gap-2 min-w-0">
                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${project.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                 <TrendingUp className="h-3.5 w-3.5" />
                </div>
                <div className="min-w-0">
-                <p className="text-xs font-medium text-slate-800 truncate">{project.name}</p>
-                <p className="text-[10px] text-slate-500 truncate">{project.companyName || project.company}</p>
+                <p className="text-xs font-medium text-slate-800 truncate">{project.name || 'Sin nombre'}</p>
+                <p className="text-[10px] text-slate-500 truncate">{project.companyName || project.company || ''}</p>
                </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-               <span className="text-[10px] text-slate-500">{project.memberCount} members</span>
+               <span className="text-[10px] text-slate-500">{project.memberCount ?? '-'} members</span>
                {project.active ? (
                 <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
                ) : (
