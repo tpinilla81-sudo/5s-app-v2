@@ -266,6 +266,10 @@ export default function ConstructorPanel() {
  const [filterCompany, setFilterCompany] = useState<string>('')
  const [filterRole, setFilterRole] = useState<string>('')
 
+ // Orphan users cleanup
+ const [orphanCount, setOrphanCount] = useState<number | null>(null)
+ const [isCleaningOrphans, setIsCleaningOrphans] = useState(false)
+
  // Companies management
  const [showNewCompany, setShowNewCompany] = useState(false)
  const [editingCompany, setEditingCompany] = useState<string | null>(null)
@@ -367,6 +371,46 @@ const [fullEditCompanyId, setFullEditCompanyId] = useState<string | null>(null)
   }
  }, [])
 
+ // Check for orphan users
+ const checkOrphanUsers = useCallback(async () => {
+  try {
+   const res = await fetch('/api/admin/clean-orphan-users')
+   const data = await res.json()
+   if (data.success) {
+    setOrphanCount(data.data.orphanCount)
+   }
+  } catch (error) {
+   console.error('Error checking orphan users:', error)
+  }
+ }, [])
+
+ // Clean orphan users
+ const cleanOrphanUsers = useCallback(async () => {
+  setIsCleaningOrphans(true)
+  try {
+   const res = await fetch('/api/admin/clean-orphan-users', { method: 'POST' })
+   const data = await res.json()
+   
+   if (data.success) {
+    toast.success(data.message, {
+     description: `${data.stats.orphansDeleted} usuario(s) eliminado(s)`
+    })
+    setOrphanCount(0)
+    // Reload stats to update counters
+    await loadStats()
+   } else {
+    toast.error('Error al limpiar usuarios', {
+     description: data.error || 'Error desconocido'
+    })
+   }
+  } catch (error) {
+   console.error('Error cleaning orphan users:', error)
+   toast.error('Error de conexión al limpiar usuarios')
+  } finally {
+   setIsCleaningOrphans(false)
+  }
+ }, [loadStats])
+
  const loadSubscriptions = useCallback(async () => {
   setIsLoadingSubs(true)
   try {
@@ -464,6 +508,7 @@ const [fullEditCompanyId, setFullEditCompanyId] = useState<string | null>(null)
   loadStats()
   loadPermissions() // Pre-load permissions so they're always available
   loadZoneConfig() // v2.108 — pre-carga config de zonificación
+  checkOrphanUsers() // v3.0.65 — Check for orphan users on load
   // Run schema migration once on load (adds missing columns like invitationEmailSent)
   fetch('/api/migrate/schema', { method: 'POST' }).catch(() => {})
   // Check email configuration status
@@ -471,7 +516,7 @@ const [fullEditCompanyId, setFullEditCompanyId] = useState<string | null>(null)
    .then(r => r.json())
    .then(data => setEmailConfigStatus(data.configured ? 'ok' : 'not_configured'))
    .catch(() => setEmailConfigStatus('not_configured'))
- }, [loadStats, loadPermissions, loadZoneConfig])
+ }, [loadStats, loadPermissions, loadZoneConfig, checkOrphanUsers])
 
  useEffect(() => {
   if (activeTab === 'administracion') {
@@ -1663,12 +1708,36 @@ const handleSaveGestorProfile = async () => {
           <CardContent className="p-4">
            <div className="flex items-center justify-between mb-2">
             <Users className="h-5 w-5 text-blue-500" />
-            <Badge className="bg-blue-100 text-blue-600 border-0 text-[10px]">
-             {stats.totals.activeUsers}/{stats.totals.users} activos
-            </Badge>
+            <div className="flex items-center gap-2">
+             {orphanCount !== null && orphanCount > 0 && (
+              <Badge className="bg-red-100 text-red-600 border-0 text-[10px] animate-pulse">
+               {orphanCount} huérfano(s)
+              </Badge>
+             )}
+             <Badge className="bg-blue-100 text-blue-600 border-0 text-[10px]">
+              {stats.totals.activeUsers}/{stats.totals.users} activos
+             </Badge>
+            </div>
            </div>
            <p className="text-2xl font-bold text-slate-900">{stats.totals.users}</p>
-           <p className="text-xs text-slate-500">Usuarios</p>
+           <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-500">Usuarios</p>
+            {(orphanCount !== null && orphanCount > 0) && (
+             <Button
+              variant="ghost"
+              size="sm"
+              onClick={cleanOrphanUsers}
+              disabled={isCleaningOrphans}
+              className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 h-7 px-2"
+             >
+              {isCleaningOrphans ? (
+               <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Limpiando...</>
+              ) : (
+               <><Trash2 className="h-3 w-3 mr-1" /> Limpiar {orphanCount} huérfano(s)</>
+              )}
+             </Button>
+            )}
+           </div>
           </CardContent>
          </Card>
          <Card className="bg-white border-emerald-200 shadow-sm text-slate-800">
