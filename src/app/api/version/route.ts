@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// v3.0.57 - Fix: Auto-assign templates when generating zones - 2026-09-24
+// v3.0.58 - Fix: Better logging + template auto-assignment - 2026-09-24
 
 export async function GET() {
   let dbInfo = { connected: false, companyCount: -1, companies: [] };
@@ -25,9 +25,9 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    version: 'v3.0.57',
-    buildTime: '2026-09-24T19:30:00Z',
-    feature: 'AUTO_ASSIGN_TEMPLATES_ON_GENERATE_ZONES',
+    version: 'v3.0.58',
+    buildTime: '2026-09-24T20:00:00Z',
+    feature: 'BETTER_USER_LOGGING + TEMPLATE_AUTO_ASSIGNMENT',
     timestamp: new Date().toISOString(),
     debug: dbInfo
   }, {

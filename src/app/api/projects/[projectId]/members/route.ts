@@ -74,13 +74,26 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
+  // v3.0.58: Variables para logging
+  let body: any = {}
+  let projectId = ''
+  
   try {
-    const { projectId } = await params
-    const body = await request.json()
+    ({ projectId } = await params)
+    body = await request.json()
     const { email, name, role, zoneIds, password, userId } = body
+
+    console.log(`[POST /members] Solicitud recibida:`, { 
+      projectId, 
+      userId: userId || '(no proporcionado)',
+      email: email || '(no proporcionado)',
+      role,
+      zoneCount: zoneIds?.length || 0
+    })
 
     // Either userId (existing user) OR email+name (new user) must be provided
     if (!userId && (!email || !name)) {
+      console.warn(`[POST /members] Error: Faltan campos requeridos`, { userId, email, name })
       return NextResponse.json(
         { error: 'Proporciona userId (usuario existente) o email y nombre (nuevo usuario)' },
         { status: 400 }
@@ -96,6 +109,7 @@ export async function POST(
     })
 
     if (!project) {
+      console.error(`[POST /members] Proyecto no encontrado:`, projectId)
       return NextResponse.json(
         { error: 'Proyecto no encontrado' },
         { status: 404 }
@@ -109,10 +123,13 @@ export async function POST(
 
     if (userId) {
       // Use existing user by ID
+      console.log(`[POST /members] Buscando usuario por ID:`, userId)
       user = await db.user.findUnique({ where: { id: userId } })
       if (!user) {
-        return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
+        console.error(`[POST /members] Usuario no encontrado con ID:`, userId)
+        return NextResponse.json({ error: `Usuario no encontrado (ID: ${userId})` }, { status: 404 })
       }
+      console.log(`[POST /members] Usuario encontrado:`, { id: user.id, email: user.email, name: user.name })
     } else {
       // Find or create by email
       user = await db.user.findUnique({
@@ -229,8 +246,19 @@ export async function POST(
     return NextResponse.json({ member: transformedMember }, { status: 201 })
   } catch (error) {
     console.error('Add member error:', error)
+    // v3.0.58: Mejor logging del error
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+    console.error(`[POST /members] Error detallado:`, {
+      projectId,
+      userId: body?.userId,
+      email: body?.email,
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined
+    })
+    
+    // SIEMPRE devolver JSON válido
     return NextResponse.json(
-      { error: 'Error al agregar miembro' },
+      { error: `Error al agregar miembro: ${errorMessage}` },
       { status: 500 }
     )
   }

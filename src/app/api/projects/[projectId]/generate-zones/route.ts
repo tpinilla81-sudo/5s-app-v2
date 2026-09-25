@@ -3,7 +3,7 @@ import { db } from '../../../../../lib/db'
 import { ensureJaulaZone } from '../../../../../lib/jaula-zone'
 import { splitZones, type InitialZone } from '../../../../../lib/zone-generator'
 
-// v3.0.56: Función para auto-asignar plantillas a los slots de un board config
+// v3.0.58: Función para auto-asignar plantillas a los slots de un board config
 async function assignTemplatesToBoardConfig(boardConfigId: string, tx: any) {
   // Mapeo de tipo de plantilla -> sStep, miniStep
   const typeToSlot: Record<string, { sStep: number; miniStep: number }> = {
@@ -15,17 +15,36 @@ async function assignTemplatesToBoardConfig(boardConfigId: string, tx: any) {
     'auditoria': { sStep: 1, miniStep: 5 },
   }
 
+  console.log(`[assignTemplates] Iniciando asignación para boardConfig: ${boardConfigId}`)
+
   // Obtener todas las plantillas activas (públicas del sistema + de la empresa si aplica)
   const allTemplates = await tx.template.findMany({
     where: { active: true },
-    select: { id: true, type: true, title: true }
+    select: { id: true, type: true, title: true, companyId: true }
   })
+
+  console.log(`[assignTemplates] Plantillas encontradas: ${allTemplates.length}`, 
+    allTemplates.map(t => ({ id: t.id, type: t.type, title: t.title, companyId: t.companyId })))
 
   // Obtener los slots del board config
   const slots = await tx.boardSlot.findMany({
     where: { boardConfigId },
     select: { id: true, sStep: true, miniStep: true }
   })
+
+  console.log(`[assignTemplates] Slots encontrados: ${slots.length}`, 
+    slots.map(s => ({ id: s.id, sStep: s.sStep, miniStep: s.miniStep })))
+
+  if (slots.length === 0) {
+    console.warn(`[assignTemplates] WARNING: No hay slots para el boardConfig ${boardConfigId}`)
+  }
+
+  if (allTemplates.length === 0) {
+    console.warn(`[assignTemplates] WARNING: No hay plantillas activas en la base de datos`)
+  }
+
+  let assignedCount = 0
+  let skippedCount = 0
 
   // Asignar plantillas a cada slot
   for (const slot of slots) {
@@ -34,8 +53,25 @@ async function assignTemplatesToBoardConfig(boardConfigId: string, tx: any) {
       return slotInfo && slotInfo.sStep === slot.sStep && slotInfo.miniStep === slot.miniStep
     })
 
+    console.log(`[assignTemplates] Slot ${slot.id} (S${slot.sStep}P${slot.miniStep}): ${templatesForSlot.length} plantillas`)
+
     for (const template of templatesForSlot) {
       try {
+        // Verificar si ya existe
+        const existing = await tx.boardSlotTemplate.findUnique({
+          where: {
+            slotId_templateId: {
+              slotId: slot.id,
+              templateId: template.id
+            }
+          }
+        })
+
+        if (existing) {
+          skippedCount++
+          continue
+        }
+
         // Usar upsert para evitar duplicados
         await tx.boardSlotTemplate.upsert({
           where: {
@@ -50,11 +86,16 @@ async function assignTemplatesToBoardConfig(boardConfigId: string, tx: any) {
           },
           update: {}
         })
+        assignedCount++
+        console.log(`[assignTemplates] ✓ Asignada plantilla "${template.title}" (${template.type}) al slot S${slot.sStep}P${slot.miniStep}`)
       } catch (e) {
         console.error(`[assignTemplates] Error asignando plantilla ${template.id} al slot ${slot.id}:`, e)
       }
     }
   }
+
+  console.log(`[assignTemplates] Completado: ${assignedCount} asignadas, ${skippedCount} ya existían`)
+  return { assignedCount, skippedCount, totalTemplates: allTemplates.length, totalSlots: slots.length }
 }
 
 // POST /api/projects/[projectId]/generate-zones
@@ -195,18 +236,19 @@ export async function POST(
           e instanceof Error ? e.message : e)
       }
 
-      // 5. v3.0.56: Auto-asignar plantillas a los slots del board config
+      // 5. v3.0.58: Auto-asignar plantillas a los slots del board config
+      let templateAssignmentResult = null
       if (defaultConfig) {
         try {
-          await assignTemplatesToBoardConfig(defaultConfig.id, tx)
-          console.log(`[generate-zones] Plantillas auto-asignadas al board config ${defaultConfig.id}`)
+          templateAssignmentResult = await assignTemplatesToBoardConfig(defaultConfig.id, tx)
+          console.log(`[generate-zones] Plantillas auto-asignadas al board config ${defaultConfig.id}:`, templateAssignmentResult)
         } catch (e) {
           console.error('[generate-zones] Error auto-asignando plantillas (non-fatal):',
             e instanceof Error ? e.message : e)
         }
       }
 
-      return { zones: created, jaulaZone }
+      return { zones: created, jaulaZone, templateAssignmentResult }
     })
 
     return NextResponse.json(
@@ -217,6 +259,8 @@ export async function POST(
         jaulaZone: result.jaulaZone
           ? { id: result.jaulaZone.id, name: result.jaulaZone.name }
           : null,
+        // v3.0.58: Incluir resultado de asignación de plantillas
+        plantillasAsignadas: result.templateAssignmentResult,
       },
       { status: 201 }
     )

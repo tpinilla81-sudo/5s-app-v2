@@ -122,8 +122,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                // v3.0.57 - FIX: Auto-asignar plantillas al generar zonas
-                var CURRENT_VERSION = 'v3.0.57';
+                // v3.0.58 - FIX: Mejor logging usuarios + auto-asignación plantillas
+                var CURRENT_VERSION = 'v3.0.58';
                 
                 // Check if we need to force reload
                 var storedVersion = localStorage.getItem('_app_force_version');
